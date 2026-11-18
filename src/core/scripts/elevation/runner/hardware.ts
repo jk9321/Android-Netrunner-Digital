@@ -6,12 +6,13 @@ import { addLog } from '../../../engine/log';
 import { findCardAnywhere, findInstalledCorpCard, removeCard, revealInHand } from '../../../engine/helpers';
 import { accessOutsideRun } from '../../../engine/actions/run';
 import { trashInstalledRunnerCard } from '../../../engine/damage';
-import { derez, useOncePerTurn } from '../../../engine/cardEffects';
+import { derez } from '../../../engine/cardEffects';
 import { isIcebreaker } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
 import { installRunnerHostChoice, installableRunnerCards } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
-import { isSelf, keywords, onceKey } from './helpers';
+import { isSelf, keywords } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 // Bling: +1 MU. Whenever you install a card without spending credits, you may host
 // the top card of your stack faceup on this hardware. You can play or install hosted
@@ -89,10 +90,11 @@ const detenteFlow = prompts({
 });
 
 export const detente: CardScript = {
+  firstEachTurn: { successful_run: (_state, e) => e.server === 'hq' },
   modifiers: { memory: 1 },
   triggers: {
     successful_run: (ctx, e) => {
-      if (e.server !== 'hq' || ctx.state.corp.hq.length === 0 || !useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+      if (e.server !== 'hq' || !firstThisTurn(ctx.state, ctx.card) || ctx.state.corp.hq.length === 0) return;
       detenteFlow.choice(ctx, 'host', choiceQuestion('runner', 'Detente: host 1 card from HQ at random?', [
         { id: 'host', label: 'Host a random card from HQ' },
         { id: 'no', label: 'No' },

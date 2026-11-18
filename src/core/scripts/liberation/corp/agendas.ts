@@ -45,6 +45,7 @@ import {
   type,
   yesNo,
 } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 /** "When you score this agenda": the handler runs only for this agenda. */
 const onScore = (fn: (ctx: EffectContext) => void) => (ctx: EffectContext, e: { card: CardInstance }) => isSelf(ctx, e.card) && fn(ctx);
@@ -255,12 +256,15 @@ const sisyphusFlow = prompts({
   }),
 });
 
+const passedRezzedGateOrSentry = (state: GameState, e: { ice: CardInstance }) =>
+  e.ice.isRezzed && (lycianIs(state, e.ice, 'code gate') || lycianIs(state, e.ice, 'sentry'));
+
 export const sisyphus: CardScript = {
+  firstEachTurn: { ice_passed: passedRezzedGateOrSentry },
   triggers: {
     ice_passed: (ctx, e) => {
       const { state } = ctx;
-      if (!e.ice.isRezzed || !(lycianIs(state, e.ice, 'code gate') || lycianIs(state, e.ice, 'sentry'))) return;
-      if (!useOncePerTurn(state, onceKey(ctx.card))) return;
+      if (!passedRezzedGateOrSentry(state, e) || !firstThisTurn(state, ctx.card)) return;
       const options = [
         ...(availableCredits(state, 'corp') >= 1 ? [{ id: 'pay', label: 'Pay 1 [credit]' }] : []),
         ...state.corp.hq.map(c => ({ id: c.instanceId, label: `Trash ${title(c)} from HQ` })),

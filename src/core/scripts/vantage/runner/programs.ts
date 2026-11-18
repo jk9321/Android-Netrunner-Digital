@@ -14,13 +14,13 @@ import {
   spendCredits,
   stealthCredits,
   swapIce,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { approachServer, encounteredIce, iceSubtypes } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
 import { gainCredits, iceLabel } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
-import { ids, isInstalled, isSelf, onceKey } from './helpers';
+import { ids, isInstalled, isSelf } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 /** True while the Runner is encountering ice and can still break (before subroutines fire). */
 function inBreakWindow(state: GameState): boolean {
@@ -168,10 +168,11 @@ const sipaFlow = prompts({
 });
 
 export const sipa: CardScript = {
+  firstEachTurn: { ice_passed: (_state, e) => e.fullyBroken && e.outermost },
   triggers: {
     ice_passed: (ctx, e) => {
       const { state } = ctx;
-      if (!e.fullyBroken || !e.outermost || !useOncePerTurn(state, onceKey(ctx.card))) return;
+      if (!e.fullyBroken || !e.outermost || !firstThisTurn(state, ctx.card)) return;
       const others = installedIce(state).filter(c => c.instanceId !== e.ice.instanceId);
       if (others.length === 0) return;
       sipaFlow.choice(ctx, 'swap', choiceQuestion('runner', `Sipa: you may swap ${cardDef(e.ice).title} with another installed piece of ice.`, [

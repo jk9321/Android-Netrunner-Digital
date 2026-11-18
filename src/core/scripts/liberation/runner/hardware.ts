@@ -17,14 +17,14 @@ import {
   runFlag,
   RunFlag,
   threatLevel,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { iceScript } from '../../../engine/ice';
 import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, prompts, RunnerHostData } from '../../steps';
 import { CardScript, EffectContext } from '../../types';
 import { installableRunnerCards, installRunnerHostChoice } from '../../effects';
 import { returnInstalledToHQ } from '../corp/helpers';
-import { bypassIfStill, centralServers, ids, isInstalled, isSelf, onceKey, place, runSource, spendLoad, title, type, yesNo } from './helpers';
+import { bypassIfStill, centralServers, ids, isInstalled, isSelf, place, runSource, spendLoad, title, type, yesNo } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 /** Successful runs on HQ, R&D and Archives this turn (The Wizard's Chest, Jeitinho). */
 const ranAllCentrals = (state: GameState) => centralServers.every(id => state.runsThisTurn.some(r => r.server === id && r.successful));
@@ -43,9 +43,10 @@ const badgeFlow = prompts({
 });
 
 export const solidarityBadge: CardScript = {
+  firstEachTurn: { runner_trashed_corp_card: () => true },
   triggers: {
     runner_trashed_corp_card: ctx => {
-      if (useOncePerTurn(ctx.state, onceKey(ctx.card))) place(ctx.card, 'power', 1);
+      if (firstThisTurn(ctx.state, ctx.card)) place(ctx.card, 'power', 1);
     },
     turn_begins: (ctx, e) => {
       if (e.side !== 'runner' || counters(ctx.card, 'power') === 0) return;
@@ -151,10 +152,11 @@ const lilypadFlow = prompts({
 
 export const lilypad: CardScript = {
   modifiers: { memory: 2 },
+  firstEachTurn: { installed: (_state, e) => type(e.card) === 'program' && cardDef(e.card).side_code === 'runner' },
   triggers: {
     installed: (ctx, e) => {
       if (type(e.card) !== 'program' || cardDef(e.card).side_code !== 'runner') return;
-      if (useOncePerTurn(ctx.state, onceKey(ctx.card))) lilypadFlow.ask(ctx, 'draw', choiceQuestion('runner', 'LilyPAD: draw 1 card?', yesNo('Draw 1 card')));
+      if (firstThisTurn(ctx.state, ctx.card)) lilypadFlow.ask(ctx, 'draw', choiceQuestion('runner', 'LilyPAD: draw 1 card?', yesNo('Draw 1 card')));
     },
   },
   ...lilypadFlow.script,

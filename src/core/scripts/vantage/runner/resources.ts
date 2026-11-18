@@ -4,12 +4,13 @@ import { cardDef } from '../../../cards';
 import { addLog } from '../../../engine/log';
 import { drawCards, removeCard, turnKey } from '../../../engine/helpers';
 import { dealNetDamage, trashInstalledRunnerCard } from '../../../engine/damage';
-import { drawForEffect, removeTags, turnFlag, TurnFlag, useOncePerTurn } from '../../../engine/cardEffects';
+import { drawForEffect, removeTags, turnFlag, TurnFlag } from '../../../engine/cardEffects';
 import { grantSubroutine } from '../../../engine/ice';
 import { CardScript } from '../../types';
 import { gainCredits } from '../../effects';
 import { choice, choiceQuestion, prompts } from '../../steps';
-import { isInstalled, keywords, onceKey } from './helpers';
+import { isInstalled, keywords } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 // Hackerspace (Location): You can install unique companion resources and unique connection
 // resources onto this resource. Each resource installed this way costs 1 credit less to
@@ -50,9 +51,10 @@ export const stickAndPoke: CardScript = {
       },
     },
   ],
+  firstEachTurn: { encounter_ice: () => true },
   triggers: {
     encounter_ice: ctx => {
-      if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+      if (!firstThisTurn(ctx.state, ctx.card)) return;
       grantSubroutine(ctx.state, ctx.card.cardCode, 0);
       addLog(ctx.state, 'runner', 'The encountered ice gains "Do 1 net damage. The Runner draws 1 card." (Stick and Poke).');
     },
