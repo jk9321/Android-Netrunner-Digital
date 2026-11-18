@@ -184,6 +184,12 @@
    "saci",
    "lightning",
    "arruBound"
+  ],
+  "part1": [
+   "counter",
+   "runBeginBound",
+   "saci",
+   "lightning"
   ]
  },
  "runBeginBound": [
