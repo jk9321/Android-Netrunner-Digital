@@ -5,7 +5,7 @@ import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
 import { CardView } from './CardView';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
-import { Credits } from './CreditIcon';
+import { Credits, MuIcon } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { cardPositionLabel, isInstalledCard } from '../cardLabels';
 import { hoverPromptServer, hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
@@ -210,7 +210,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
                       }, 0);
                       const total = freeMu + freed;
                       return total >= neededMu
-                        ? <span className="text-emerald-400">✓ {total}/{neededMu} MU available</span>
+                        ? <span className="text-emerald-400 inline-flex items-center gap-1"><MuIcon className="w-3.5 h-3.5 shrink-0" /> {total}/{neededMu} MU available</span>
                         : `Need ${neededMu - total} more MU`;
                     }
                   : undefined

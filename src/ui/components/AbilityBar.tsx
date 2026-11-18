@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere, getCardScript } from '../../core';
 import { legalFor, useSeat } from '../seat';
-import { Sparkles } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { ClickIcon, Credits, renderSymbols } from './CreditIcon';
 import { cardPositionLabel } from '../cardLabels';
 import { hoverPromptTarget } from '../promptHighlight';
@@ -83,7 +83,7 @@ export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction })
             className={`px-2 py-1 text-[12px] text-left font-bold rounded-[2px] transition-all flex items-center gap-1.5 shadow ${accent}`}
             title={ability.label.replace(/\[click\]/g, 'click').replace(/\[credit\]/g, 'credit')}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <Play className="w-3.5 h-3.5 text-amber-300" />
             {cardDef(card).title}
             {copyTag && <span className="opacity-80 font-mono">{` (${copyTag})`}</span>}: {renderSymbols(ability.label)}
             {cost && <span className="opacity-70 inline-flex items-center">({cost})</span>}

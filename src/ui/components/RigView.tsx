@@ -3,7 +3,7 @@ import { RunnerRig } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { getCardScript } from '../../core';
-import { Bug, Cpu, HardDrive, Users } from 'lucide-react';
+import { Cpu, HardDrive, Link2, Users } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import type { IceSubtype } from '../../core/scripts/types';
 
@@ -49,7 +49,7 @@ const RigCard: React.FC<{
               data-tip={`Hosted on ${hostLabel ?? 'another card'}`}
               className="pointer-events-auto max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
             >
-              <Bug className="w-[1.1em] h-[1.1em] shrink-0" />
+              <Link2 className="w-[1.1em] h-[1.1em] shrink-0" />
               <span className="truncate">{hostLabel ? `On ${hostLabel}` : 'Hosted'}</span>
             </div>
           ) : undefined

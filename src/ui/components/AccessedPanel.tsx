@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { CardInstance, HIDDEN_CORP, getCardDefinition } from '../../core';
 import { CardView } from './CardView';
 import { AccessedCard } from '../savedGame';
@@ -33,8 +34,8 @@ export function AccessedPanel({
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-pink-300 uppercase tracking-wider">Accessed this run ({cards.length})</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-white text-xs px-1.5" aria-label="Dismiss accessed cards">
-          ✕
+        <button onClick={onClose} className="text-slate-400 hover:text-white p-1" aria-label="Dismiss accessed cards">
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">

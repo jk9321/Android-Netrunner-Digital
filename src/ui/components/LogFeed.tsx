@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { LogEntry } from '../../core/types/state';
 import { CardNameText } from './CardNameText';
 import { Viewer } from '../viewer';
@@ -106,11 +107,12 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
             </span>
             <button
               onClick={() => setSearchQuery('')}
-              className="text-[10px] text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded-[2px] font-bold"
+              className="text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 p-0.5 rounded-[2px]"
               title="Clear search (Esc)"
+              aria-label="Clear search"
               type="button"
             >
-              ✕
+              <X className="w-3 h-3" />
             </button>
           </div>
         )}
