@@ -246,4 +246,7 @@ export const ARM_PATCHES: Record<string, Patch[]> = {
   owners: lineOk('true'),
   no9: lineOk('c.line !== 9'),
   chain,
+  // control: a second tree with base's patches only (base against base, for the time read: JIT warmth of the tree
+  // that plays the self-play games)
+  same: probeOnly,
 };
