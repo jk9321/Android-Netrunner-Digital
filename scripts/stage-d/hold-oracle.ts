@@ -69,6 +69,14 @@ function fromGrip(s: GameState, a: Extract<GameAction, { type: 'USE_ABILITY' }>)
   return /\b(install|play)\b[^.]*\bfrom (?:your )?grip\b/i.test(label);
 }
 
+/** A card of the Runner's grip in `s` is installed or hosted in `t` (in the rig, or hosted on a rig card). */
+function gripToTable(s: GameState, t: GameState): boolean {
+  if (t.runner.grip.length >= s.runner.grip.length) return false;
+  const grip = new Set(s.runner.grip.map(c => c.instanceId));
+  const rig = [...t.runner.rig.programs, ...t.runner.rig.hardware, ...t.runner.rig.resources];
+  return rig.some(c => grip.has(c.instanceId) || (c.hostedCards ?? []).some(h => grip.has(h.instanceId)));
+}
+
 const RUNNER_ALLOWED = new Set<GameAction['type']>([
   'GAIN_CREDIT', 'DRAW_CARD', 'REMOVE_TAG', 'USE_ABILITY', 'INITIATE_RUN', 'CONTINUE_RUN', 'BREAK_SUBROUTINE', 'BOOST_BREAKER',
   'BIOROID_BREAK', 'RESOLVE_PROMPT', 'PASS',
@@ -92,13 +100,15 @@ function keyOf(s: GameState, k: number, seen: boolean): string {
 export function oracleStart(state: GameState, ask: OracleAsk): { state: GameState; moved: boolean } | { skipped: string } {
   const s = structuredClone(state);
   let moved = false;
-  if (ask.corpCredits !== undefined) {
-    // The credits the Corp may spend on rezzes (the count's corpCredits); Infinity: enough for every unrezzed ice asked
-    const all = ask.targets.flatMap(t => s.corp.servers[t]?.ice ?? []).filter(c => !c.isRezzed).reduce((n, c) => n + rezCostOf(s, c), 0);
-    s.corp.credits = Number.isFinite(ask.corpCredits) ? Math.max(0, ask.corpCredits) : s.corp.credits + all;
-  }
+  // The credits the Corp may spend on rezzes (the count's corpCredits); Infinity: enough for every ice asked that is
+  // unrezzed when the Runner's turn begins (row 56 fault D, Stage D item 1 follow-up 4: counted after END_TURN, so an ice
+  // a turn-end ability derezzes, Lycian's or Lightning Laboratory's, is paid for too; before, Vovô's board had $0 to rez)
+  const unlimited = (t: GameState) => t.corp.credits + ask.targets.flatMap(x => t.corp.servers[x]?.ice ?? []).filter(c => !c.isRezzed).reduce((n, c) => n + rezCostOf(t, c), 0);
+  const infinite = ask.corpCredits !== undefined && !Number.isFinite(ask.corpCredits);
+  if (ask.corpCredits !== undefined && !infinite) s.corp.credits = Math.max(0, ask.corpCredits);
   if (ask.when === 'thisRun') {
     if (!s.activeRun) return { skipped: 'no run' };
+    if (infinite) s.corp.credits = unlimited(s);
     return { state: s, moved };
   }
   if (s.winner) return { skipped: 'game over' };
@@ -122,6 +132,7 @@ export function oracleStart(state: GameState, ask: OracleAsk): { state: GameStat
   } catch (e) {
     return { skipped: `END_TURN: ${(e as Error).message}` };
   }
+  if (infinite) next = { ...next, corp: { ...next.corp, credits: unlimited(next) } };
   return { state: next, moved };
 }
 
@@ -163,13 +174,19 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
     const step = (a: GameAction): number | null => {
       const t = apply(s, a);
       if (!t) return null;
+      // Row 56 fault E: no Runner action that moves a card from the grip onto the table, whatever its label (Madani's
+      // "Host ... from your grip", Barry Wong's prompt on a rez): the count's capability is the rig at the turn's start
+      if (side === 'runner' && gripToTable(s, t)) return null;
       // The breach (6.9.5): the run reaches its Success Phase on the server asked next. A run with nothing to access
       // ends in the same action, so a run that ended successful counts too (runsThisTurn's flag, 6.9.5a)
       const run = s.activeRun;
       const before = !!run && run.server === ask.targets[k] && run.phase !== 'access' && !run.breached;
       const now = !!t.activeRun && (t.activeRun.phase === 'access' || t.activeRun.breached);
       const ended = !t.activeRun && !!t.runsThisTurn.at(-1)?.successful && t.runsThisTurn.length === s.runsThisTurn.length;
-      const breachedNow = before && (now || ended);
+      // Row 56 fault B: a breach under "cannot steal or trash for the rest of this run" (Ansel 1.0) reaches the server
+      // (6.9.5b) but takes nothing the hold question is about: not getting in, as the count's walk has it
+      const barred = !!(t.activeRun ?? run)?.cannotStealOrTrash;
+      const breachedNow = before && (now || ended) && !barred;
       return solve(t, k + (breachedNow ? 1 : 0), seen, depth + 1);
     };
     let value: number;

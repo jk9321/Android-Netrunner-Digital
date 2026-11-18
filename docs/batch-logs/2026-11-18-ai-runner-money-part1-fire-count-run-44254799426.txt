@@ -1,0 +1,19 @@
+SCRIPT run 44254799426: scripts/stage-d/runner-money-fire.ts at ai-runner-money d4ab9b6, ARMS_FILE=scripts/stage-d/runner-money-base.json (arm 'base' = beta 333c16e's four src files; 'beta' below is the BRANCH, so read every time ratio as base over branch and invert).
+
+
+## Corp decisions (7636 in 92 sources)
+
+Decisions with a card of the group in play: f2 7379 (96.6%), runBegin 1252 (16.4%), arru 37 (0.5%), lightning 2 (0.0%), counter 28 (0.4%)
+
+| arm | changed | a game | with its group in play | errors | time total x (bar) | p95 x (bar) | per-decision ratio: mean / p95 (noise) | over 2x at >= 0.5 s | +3 s or more | slowest arm decision |
+|---|---|---|---|---|---|---|---|---|---|---|
+| base | 61 | 0.66 | 61 | 0 | 1.023 | 1.020 | 1.033 / 1.351 | 0 | 0 | human:report-47.json#236 6825.7 (beta 6877.9) |
+
+Changed decisions by source:
+- base: deal:2281 19, report-54 12, deal:1881 6, deal:1201 5, report-33 5, report-41 4, deal:1601 3, deal:2881 2, report-49 2, deal:3041 1, deal:1481 1, deal:2121 1
+
+### Continuations (the arm's Corp against beta's Runner, from each changed decision; points gained since the decision)
+
+| arm | changed with a continuation | Runner scores by its next turn: beta / arm | Runner points then: beta / arm | Corp scores by its turn after: beta / arm | Corp points then: beta / arm | game won by the Runner within two turns: beta / arm |
+|---|---|---|---|---|---|---|
+| base | 61 | 13 / 11 | 27 / 22 | 10 / 16 | 21 / 37 | 5 / 7 |

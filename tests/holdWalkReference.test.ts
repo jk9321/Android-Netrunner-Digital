@@ -14,7 +14,8 @@
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef } from '../src/core';
 import { getCardDefinition } from '../src/core/cards';
-import { threatLevel } from '../src/core/engine/cardEffects';
+import { counters, threatLevel } from '../src/core/engine/cardEffects';
+import { turnKey } from '../src/core/engine/helpers';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
@@ -33,18 +34,44 @@ const sorted = (xs: number[]) => [...xs].sort((a, b) => a - b);
 /** The model of the walk, forward, with the pool as a number: does any line of the Runner's get through every target? */
 class Brute {
   private readonly walk: Walk;
+  /** Knickknack's first run of the turn is over (from the rest of a turn where a run has begun; rules 9.6.5b, 10.11.5). */
+  private readonly knickUsed: boolean;
   constructor(
     private readonly state: GameState,
     private readonly start: ReturnType<typeof walkStart>,
     private readonly targets: WalkTarget[],
   ) {
     this.walk = new Walk(walkBoard(state, start, targets), targets.map(searchTarget));
+    this.knickUsed = start.runnerTurn && !start.fresh && state.runsThisTurn.length > 0;
+  }
+
+  /**
+   * The run begins (6.9.1c), forward, from the card facts and the board: each Side Hustle places its credit (all taken
+   * into the pool at its payout, then trashed and a card drawn), and on the turn's first run Knickknack's bound (the
+   * largest printed install cost among the other installed cards, the card kept, a card drawn).
+   */
+  private begin(ws: S): S {
+    let w: S = { ...ws, runs: ws.runs + 1 };
+    const draw = (x: S, n: number): S => ({ ...x, grip: x.grip + Math.min(n, x.stack), stack: x.stack - Math.min(n, x.stack) });
+    this.start.rig.forEach((c, i) => {
+      const f = CARDS[c.cardCode]?.holdFacts;
+      if (w.gone.includes(i)) return;
+      if (f?.runBeginCredits) {
+        const held = counters(c, 'credit') + f.runBeginCredits.place * w.runs;
+        if (held >= f.runBeginCredits.takeAllAt) w = draw({ ...w, pool: w.pool + held, gone: sorted([...w.gone, i]) }, f.runBeginCredits.draw);
+      }
+      if (f?.firstRunTrashForCost && ws.runs === 0 && !this.knickUsed) {
+        const most = Math.max(0, ...this.start.rig.map((r, k) => (k === i || w.gone.includes(k) ? 0 : (cardDef(r).cost ?? 0))));
+        w = draw({ ...w, pool: w.pool + most }, f.firstRunTrashForCost.draw);
+      }
+    });
+    return w;
   }
 
   beforeRun(ws: S, j: number): boolean {
     const runs = this.targets.length - j;
     if (ws.clicks < runs) return false;
-    if (this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity + ws.bp }, j, this.targets[j].ice.length - 1)) return true;
+    if (this.approach(this.begin({ ...ws, clicks: ws.clicks - 1, spike: false, fund: this.state.corp.badPublicity + ws.bp }), j, this.targets[j].ice.length - 1)) return true;
     if (ws.clicks > runs) {
       // 5.2.7c, 5.2.7g: a draw, or a click and 2 credits for a tag, with a click kept for each run left
       // The turn's first draw may give more (Verbal Plasticity)
@@ -268,8 +295,8 @@ function counterSplits(virus: number[], hosted: number[], max: number): number[]
  * the turn's start (hold.ts TurnFrom): the next turn (default), or the rest of the turn under way (Stage D item 3: its
  * clicks left, its credits, no turn-start money or counters again).
  */
-function bruteReach(state: GameState, servers: string[], rezSets: string[][], from: TurnFrom = nextTurn(state)): boolean | null {
-  const start = walkStart(state, true, !from.rest);
+function bruteReach(state: GameState, servers: string[], rezSets: string[][], from: TurnFrom = nextTurn(state), picked?: string[]): boolean | null {
+  const start = walkStart(state, true, !from.rest, picked);
   const bases = new Map<string, WalkIce[]>();
   const runs = servers.map((id, i) => runTarget(state, bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!, id, new Set(rezSets[i]), from.clicks));
   // A bypass's price is a worth, not credits (registry debt): boards with one are left out
@@ -357,8 +384,8 @@ const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisio
  * server's unrezzed ice, at the walk's rez costs) that no line of the Runner's turn gets through. Null where a set's
  * bypass has a price (as bruteReach).
  */
-function bruteHolds(state: GameState, server: string, from: TurnFrom = nextTurn(state)): boolean | null {
-  const start = walkStart(state, true, !from.rest);
+function bruteHolds(state: GameState, server: string, from: TurnFrom = nextTurn(state), picked?: string[]): boolean | null {
+  const start = walkStart(state, true, !from.rest, picked);
   const all = state.corp.servers[server].ice;
   const base = walkIce(state, start, all);
   const open = all.map((_, i) => i).filter(i => !base[i].rezzed);
@@ -366,7 +393,7 @@ function bruteHolds(state: GameState, server: string, from: TurnFrom = nextTurn(
   for (let mask = 0; mask < 1 << open.length; mask++) {
     const set = open.filter((_, k) => mask & (1 << k));
     if (set.reduce((n, i) => n + base[i].rezCost, 0) > state.corp.credits) continue;
-    const got = bruteReach(state, [server], [set.map(i => all[i].instanceId)], from);
+    const got = bruteReach(state, [server], [set.map(i => all[i].instanceId)], from, picked);
     if (got === null) return null;
     if (!got) holds = true;
   }
@@ -595,6 +622,145 @@ describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", (
     const b = make();
     expect([ask(b, 'restOfTurn'), ask(b, 'runnerTurn')]).toEqual([alone.rest, alone.next]);
   });
+});
+
+/**
+ * Stage D item 1 follow-up 4, part 1 (ai-runner-money): the money that arrives as a run begins is walk state (Side
+ * Hustle's credits, all taken at 6; Knickknack's first run of the turn, as the bound), from both starts. The brute force
+ * gains it into the pool forward, read from the card facts and the board (Brute.begin), with no memo and no cut; the
+ * walk takes it off the need backward (Walk.runBegins). On random servers with those cards, from the next turn and from
+ * the rest of a turn (a run begun this turn or not, Knickknack installed this turn or not), they must agree.
+ */
+describe('the hold walk with the money a run brings as it begins (run-begin starts)', () => {
+  const money = (s: GameState, r: () => number) => {
+    const res = (code: string, credits = 0) => {
+      const c = createCardInstance(s, code);
+      c.isRezzed = true;
+      if (credits) c.tokens = { credit: credits };
+      s.runner.rig.resources.push(c);
+      return c;
+    };
+    // At most one Side Hustle: two at 5 with Knickknack make the brute force's forward search minutes long on one board
+    if (r() < 0.7) res('35034', Math.floor(r() * 6));
+    if (r() < 0.5) {
+      const k = res('35033');
+      if (r() < 0.3) k.installedTurn = turnKey(s);
+    }
+    // A card for Knickknack to trash besides the breakers (Carnivore 4, Pennyshaver 3, Docklands Pass 2)
+    if (r() < 0.5) {
+      const c = createCardInstance(s, ['30003', '30014', '30013'][Math.floor(r() * 3)]);
+      c.isRezzed = true;
+      s.runner.rig.hardware.push(c);
+    }
+    s.runner.credits = Math.floor(r() * 5);
+  };
+  const plain = (s: GameState): GameState => {
+    const t = structuredClone(s);
+    t.runner.rig.resources = t.runner.rig.resources.filter(c => !['35034', '35033'].includes(c.cardCode));
+    return t;
+  };
+
+  it('agrees with turnReach and serverHold on 3,000 servers with Side Hustle and Knickknack, from the next turn (seed 20261125)', () => {
+    const r = rng(20261125);
+    const misses: string[] = [];
+    let compared = 0;
+    let reached = 0;
+    let held = 0;
+    let holdsAsked = 0;
+    let differs = 0;
+    for (let n = 0; n < 3000; n++) {
+      const { s, rez } = randomBoard(r, undefined, n % 3 === 2);
+      money(s, r);
+      const runs = n % 4 === 3 ? 2 : 1;
+      const servers = Array(runs).fill('remote1');
+      const sets = Array(runs).fill(rez);
+      const want = inCorp(s, () => bruteReach(s, servers, sets));
+      if (want === null) continue;
+      compared++;
+      if (want) reached++;
+      const got = inCorp(s, () => turnReach(s, servers, sets).reaches);
+      if (got !== want) misses.push(`#${n} runs ${runs}: walk ${got}, brute ${want}; rig ${[...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => cardDef(c).title)}; $${s.runner.credits} clicks ${s.runner.maxClicks}`);
+      if (inCorp(s, () => bruteReach(plain(s), servers, sets)) !== want) differs++;
+      if (runs === 1 && n % 3 === 0) {
+        const holds = inCorp(s, () => bruteHolds(s, 'remote1'));
+        if (holds === null) continue;
+        holdsAsked++;
+        if (holds) held++;
+        const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn' }));
+        if (h.holds !== holds) misses.push(`#${n} holds: walk ${h.holds}, brute ${holds}`);
+      }
+    }
+    expect(compared).toBeGreaterThan(2000);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    // The money turns the answer on some boards (the cards are not idle here)
+    expect(differs).toBeGreaterThan(compared / 20);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  it('agrees with serverHold and reachOrder on 2,000 mid-turn servers with Side Hustle and Knickknack (seed 20261126)', () => {
+    const r = rng(20261126);
+    const misses: string[] = [];
+    let compared = 0;
+    let reached = 0;
+    let held = 0;
+    let holdsAsked = 0;
+    for (let n = 0; n < 2000; n++) {
+      const { s } = randomBoard(r, undefined, n % 3 === 2);
+      money(s, r);
+      s.runner.maxClicks = 2 + Math.floor(r() * 3);
+      s.runner.clicks = Math.floor(r() * (s.runner.maxClicks + 1));
+      if (r() < 0.6) s.runsThisTurn = [{ server: 'hq', successful: false }];
+      const credits = Math.floor(r() * 5);
+      const from: TurnFrom = { rest: true, clicks: s.runner.clicks, credits };
+      const order = n % 2 ? ['remote1'] : ['remote1', 'remote1'];
+      const want = inCorp(s, () => bruteReach(s, order, order.map(() => []), from));
+      if (want !== null) {
+        compared++;
+        if (want) reached++;
+        const got = inCorp(s, () => reachOrder(reachQuestion(s, order, restOfTurn(s, credits)), order));
+        if (got !== want) misses.push(`#${n} reach [${order}]: walk ${got}, brute ${want}; $${credits} clicks ${s.runner.clicks}/${s.runner.maxClicks}`);
+      }
+      const holds = inCorp(s, () => bruteHolds(s, 'remote1', from));
+      if (holds === null) continue;
+      holdsAsked++;
+      if (holds) held++;
+      const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'restOfTurn', runnerCredits: credits }));
+      if (h.holds !== holds) misses.push(`#${n} holds: walk ${h.holds}, brute ${holds}; $${credits} clicks ${s.runner.clicks}/${s.runner.maxClicks}`);
+    }
+    expect(compared).toBeGreaterThan(1200);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // Lightning Laboratory's picks (ruling 8 (a)): the brute force asks each pick of 2 of the server's rezzed ice on its
+  // own (the pairs written out here), the server holding only if every pick holds
+  it("agrees with serverHold on 600 servers with Lightning Laboratory's turn end, 3 or more rezzed (seed 20261127)", () => {
+    const r = rng(20261127);
+    const misses: string[] = [];
+    let asked = 0;
+    let held = 0;
+    for (let n = 0; n < 600; n++) {
+      const { s } = randomBoard(r);
+      for (let k = 3 - s.corp.servers.remote1.ice.filter(c => c.isRezzed).length; k > 0; k--) installIceForTest(s, ICE[Math.floor(r() * ICE.length)], 'remote1', true);
+      const lab = createCardInstance(s, '34097');
+      s.corp.scoreArea.push(lab);
+      s.turnFlags = { ...s.turnFlags, [`lightning:${lab.instanceId}`]: Object.keys(s.corp.servers).indexOf('remote1') + 1 };
+      const up = s.corp.servers.remote1.ice.filter(c => c.isRezzed).map(c => c.instanceId);
+      const pairs = up.flatMap((a, i) => up.slice(i + 1).map(b => [a, b]));
+      const each = pairs.map(p => inCorp(s, () => bruteHolds(s, 'remote1', nextTurn(s), p)));
+      if (each.includes(null)) continue;
+      asked++;
+      const holds = each.every(Boolean);
+      if (holds) held++;
+      const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn' }));
+      if (h.holds !== holds) misses.push(`#${n}: walk ${h.holds}, brute ${holds} (${each})`);
+    }
+    expect(asked).toBeGreaterThan(400);
+    expect(Math.min(held, asked - held)).toBeGreaterThan(asked / 20);
+    expect(misses).toEqual([]);
+  }, 600_000);
 });
 
 /**

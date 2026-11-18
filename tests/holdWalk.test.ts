@@ -6,11 +6,12 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, executeAction, rezCostOf } from '../src/core';
+import { GameState, executeAction, findCardAnywhere, rezCostOf } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn, toCorp } from './helpers';
+import { turnKey } from '../src/core/engine/helpers';
+import { answer, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, run, scoreForTest, startRunnerTurn, toCorp } from './helpers';
 import { oracle, oracleGetsIn } from '../scripts/stage-d/hold-oracle';
-import { serverHold, turnReach } from '../src/ai/corp/hold';
+import { reachOrder, reachQuestion, reachSets, restOfTurn, runnerEarnings, serverHold, turnEndDerezPicks, turnReach, walkStart } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -19,6 +20,7 @@ const C = {
   BRAN: '30039', ANSEL: '30038', PALISADE: '30072', CLEAVER: '30006', PHAROS: '30063', FLY: '35079', AUDREY: '34004',
   BOTULUS: '30004', TRANQ: '30017', LAMP: '35080', KARUNA: '30047', GRUBBER: '36050', PAYWALL: '36052', WHITESPACE: '30074',
   UNITY: '30026', VALENTAO: '34060', PING: '30055', FUNHOUSE: '30054', MAYFLY: '30032', HANTU: '35008', VERBAL: '30034', LYCIAN: '34100', CARMEN: '30015',
+  COALESCENCE: '34089', SIDE_HUSTLE: '35034', KNICKKNACK: '35033', CARNIVORE: '30003', LIGHTNING: '34097',
 };
 
 /** A Corp turn-7 board with an empty rig and HQ, the Runner at $0 and 4 clicks, the Corp at $20. */
@@ -751,6 +753,295 @@ describe("hold walk: a run's encounter is this run's (review R2)", () => {
     expect(before.holds).toBe(true);
     expect(h.holds).toBe(true);
     expect(h.need).toBe(before.need);
+  });
+});
+
+/**
+ * Stage D item 1 follow-up 4, part 1 (branch ai-runner-money; followup4-runner-money/design-answer.md): the Runner's
+ * money the count missed, one fact per card in its entry (HoldFacts), one reader each. Money that arrives with the turn
+ * (Coalescence's counters) is runnerEarnings'; money that arrives as a run begins (Side Hustle, Knickknack) is walk
+ * state, from both starts; Lightning Laboratory's end-of-turn derez is the next turn's start only. Each board fails on
+ * beta's count (which left these out), with its mirror; the truth from the engine oracle where it plays the board.
+ */
+describe("hold walk: the Runner's money the count missed (ai-runner-money part 1)", () => {
+  /** Palisade rezzed on remote1 (Cleaver breaks it for 3 here), Cleaver installed, one click: the run's need is 3. */
+  const palisade = (credits: number, setup: (s: GameState) => void = () => {}) =>
+    board(st => {
+      ice(st, C.PALISADE);
+      installProgramForTest(st, C.CLEAVER);
+      st.runner.credits = credits;
+      st.runner.maxClicks = 1;
+      st.runner.clicks = 1;
+      setup(st);
+    });
+  const resource = (s: GameState, code: string, credits = 0) => {
+    const c = createCardInstance(s, code);
+    c.isRezzed = true;
+    if (credits) c.tokens = { credit: credits };
+    s.runner.rig.resources.push(c);
+    return c;
+  };
+  const coalescence = (s: GameState, n: number) => {
+    const id = installProgramForTest(s, C.COALESCENCE);
+    s.runner.rig.programs.find(c => c.instanceId === id)!.tokens = { power: n };
+  };
+  const rest = (s: GameState) => inCorp(s, () => serverHold(s, 'remote1', { when: 'restOfTurn', corpCredits: s.corp.credits }));
+
+  // Coalescence: "Hosted power counter: Gain 2 credits. Use this ability only during your turn." (9.5.1, 1.10.3a)
+  it('Coalescence with 1 power counter, $1: the 2 credits pay Palisade\'s 3, it gets in (beta: holds)', () => {
+    const s = palisade(1, st => coalescence(st, 1));
+    const h = agrees(s);
+    expect([h.holds, h.budget]).toEqual([false, 3]);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('Coalescence mirror: no counter left, it holds', () => {
+    const s = palisade(1, st => coalescence(st, 0));
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('Coalescence: its counters as they stand from either start (a used counter is gone)', () => {
+    const s = palisade(1, st => coalescence(st, 1));
+    expect([runnerEarnings(s)[0], runnerEarnings(s, restOfTurn(s))[0]]).toEqual([2, 2]);
+    expect(rest(s).holds).toBe(false);
+  });
+  // The run under way: its budget is the Runner's credits and, on its turn, the counters (6.9.3b, a paid ability window)
+  const during = (n: number) => {
+    const s = palisade(1, st => coalescence(st, n));
+    startRunnerTurn(s);
+    return toCorp(executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' }));
+  };
+  const thisRun = (r: GameState) => inCorp(r, () => serverHold(r, 'remote1', { when: 'thisRun', further: false }));
+  it('Coalescence, the run under way at Palisade, $1 and 1 counter: it gets in (beta: holds)', () => {
+    const r = during(1);
+    expect(r.activeRun?.server).toBe('remote1');
+    expect(thisRun(r)).toMatchObject({ holds: false, budget: 3 });
+    expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('getsIn');
+  });
+  it('Coalescence mirror, the run under way: no counter, it holds', () => {
+    const r = during(0);
+    expect(thisRun(r).holds).toBe(true);
+    expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('holds');
+  });
+  it("Coalescence mirror, the run's budget on the Corp's turn: the counters pay only during the Runner's turn, it holds", () => {
+    const r = structuredClone(during(1));
+    r.activePlayer = 'corp';
+    expect(thisRun(r)).toMatchObject({ holds: true, budget: 1 });
+  });
+
+  // Side Hustle: "whenever a run begins, place 1 credit on this resource. When there are 6 or more hosted credits, take
+  // all credits from this resource, trash it, and draw 1 card." (6.9.1c, 1.10.4a)
+  it('Side Hustle holding 5, $0: the run places the 6th and pays 6, it gets in (beta: holds)', () => {
+    const s = palisade(0, st => resource(st, C.SIDE_HUSTLE, 5));
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('Side Hustle mirror: holding 4, the run places the 5th and pays nothing, it holds', () => {
+    const s = palisade(0, st => resource(st, C.SIDE_HUSTLE, 4));
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('Side Hustle holding 4, 2 clicks: the first run ends at Palisade, the second places the 6th and gets in (a credit placed is progress, `moved`)', () => {
+    const s = palisade(0, st => {
+      resource(st, C.SIDE_HUSTLE, 4);
+      st.runner.maxClicks = 2;
+      st.runner.clicks = 2;
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('Side Hustle: walk state from the rest of the turn too (holding 5, 1 click left: it gets in)', () => {
+    expect(rest(palisade(0, st => resource(st, C.SIDE_HUSTLE, 5))).holds).toBe(false);
+    expect(rest(palisade(0, st => resource(st, C.SIDE_HUSTLE, 4))).holds).toBe(true);
+  });
+
+  // Two Side Hustles on one board (review R1; 8 of the 21 deals the one-game check changed have two): each places its
+  // own credit and pays its own payout, and one gone is that one only. Palisades on remote1, $0; the truth from the oracle
+  const hustles = (a: number, b: number, clicks: number, palisades: number) =>
+    palisade(0, st => {
+      for (let k = 1; k < palisades; k++) ice(st, C.PALISADE);
+      resource(st, C.SIDE_HUSTLE, a);
+      resource(st, C.SIDE_HUSTLE, b);
+      st.runner.maxClicks = clicks;
+      st.runner.clicks = clicks;
+    });
+  it('two Side Hustles holding 4 and 4, 2 clicks: the second run pays both, 12 for one Palisade, it gets in (beta: holds)', () => {
+    const s = hustles(4, 4, 2, 1);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 3 and 3, 2 clicks: neither pays by the second run, it holds', () => {
+    const s = hustles(3, 3, 2, 1);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 5 and 5, 1 click, 3 Palisades: both pay, 12 for 9, it gets in (one payout is not enough)', () => {
+    const s = hustles(5, 5, 1, 3);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 5 and 4, 1 click, 3 Palisades: one pays 6 of the 9, it holds', () => {
+    const s = hustles(5, 4, 1, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 0 and 5, 2 clicks, 2 Palisades: the second pays 6 on the first run and is gone, the first does not, it gets in', () => {
+    const s = hustles(0, 5, 2, 2);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 0 and 5, 2 clicks, 3 Palisades: the 6 the second paid is all there is (it is gone, it does not pay again), it holds', () => {
+    const s = hustles(0, 5, 2, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 5 and 4, 2 clicks, 3 Palisades: each pays on its own run, 12 for 9, it gets in (the one gone is the one that paid)', () => {
+    const s = hustles(5, 4, 2, 3);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  // "Knickknack" O'Brian: "The first time each turn a run begins, you may trash 1 of your other installed cards. If you
+  // do, gain credits equal to its printed install cost and draw 1 card." Counted as the bound (the largest printed
+  // install cost among the other installed cards, the card kept; design answer section 3)
+  it('Knickknack with Carnivore (printed 4), $0: the first run trashes it for 4, it gets in (beta: holds)', () => {
+    const s = palisade(0, st => {
+      resource(st, C.KNICKKNACK);
+      const c = createCardInstance(st, C.CARNIVORE);
+      c.isRezzed = true;
+      st.runner.rig.hardware.push(c);
+    });
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  const knick = (installedThisTurn: boolean) =>
+    palisade(0, st => {
+      const k = resource(st, C.KNICKKNACK);
+      if (installedThisTurn) k.installedTurn = turnKey(st);
+      const c = createCardInstance(st, C.CARNIVORE);
+      c.isRezzed = true;
+      st.runner.rig.hardware.push(c);
+      st.runsThisTurn = [{ server: 'hq', successful: false }];
+    });
+  it('Knickknack mirror: from the rest of a turn where a run has begun, its first run is over: it holds', () => {
+    expect(rest(knick(false)).holds).toBe(true);
+    // The next turn is a new turn: its first run is open again
+    expect(walk(knick(false)).holds).toBe(false);
+  });
+  // "The first time each turn a run begins" counts the turn's runs, not the card's: a Knickknack installed after the
+  // turn's first run gets no first run this turn (rules 9.3.2b, 9.6.5b, the example under 10.11.5; the engine's
+  // firstEachTurn count, tests/firstEachTurn.test.ts)
+  it('Knickknack installed this turn after a run began: no first run is left this turn, it holds (rules 9.6.5b, 10.11.5)', () => {
+    expect(rest(knick(true)).holds).toBe(true);
+  });
+  it('Knickknack mirror: installed this turn with no run begun yet, the next run is the first, it gets in', () => {
+    const s = knick(true);
+    s.runsThisTurn = [];
+    expect(rest(s).holds).toBe(false);
+  });
+
+  // Lightning Laboratory: "When this turn ends, derez 2 pieces of ice protecting that server" (the server it rezzed ice
+  // on this turn, the engine's turn flag). All of them with 2 or fewer rezzed; else the Corp picks 2, and the count asks
+  // every pick (ruling 8 (a)): it holds only if it holds for every pick
+  const lightning = (s: GameState, server = 'remote1') => {
+    const lab = createCardInstance(s, C.LIGHTNING);
+    s.corp.scoreArea.push(lab);
+    s.turnFlags = { ...s.turnFlags, [`lightning:${lab.instanceId}`]: Object.keys(s.corp.servers).indexOf(server) + 1 };
+  };
+  const derezzed = (s: GameState, ids: string[]) => {
+    const t = structuredClone(s);
+    for (const c of t.corp.servers.remote1.ice) if (ids.includes(c.instanceId)) c.isRezzed = false;
+    t.turnFlags = {};
+    return t;
+  };
+  it('Lightning Laboratory, Palisade alone rezzed, the Corp on $2: derezzed by the next turn and not rezzed again, it gets in (beta: holds)', () => {
+    const s = palisade(0, st => {
+      st.corp.credits = 2;
+      lightning(st);
+    });
+    expect(walk(s).holds).toBe(false);
+    // The truth on the board the turn's end leaves (Palisade facedown)
+    expect(oracleOn(derezzed(s, [s.corp.servers.remote1.ice[0].instanceId]), [])).toBe('getsIn');
+  });
+  it('Lightning Laboratory mirrors: the rest of this turn meets Palisade rezzed; the Corp on $3 rezzes it again: both hold', () => {
+    const s = palisade(0, st => {
+      st.corp.credits = 2;
+      lightning(st);
+    });
+    expect(rest(s).holds).toBe(true);
+    const rich = palisade(0, st => {
+      st.corp.credits = 3;
+      lightning(st);
+    });
+    expect(walk(rich)).toMatchObject({ holds: true, rez: [rich.corp.servers.remote1.ice[0].instanceId] });
+  });
+  // Three rezzed, inner Palisade, two Whitespaces (Cleaver breaks neither code gate; with $3 or less the Runner is
+  // stopped by either), the Corp on $0: the pick of both Whitespaces leaves Palisade alone, which $3 breaks
+  const three = (outer: string) =>
+    palisade(3, st => {
+      st.corp.credits = 0;
+      ice(st, C.WHITESPACE);
+      ice(st, outer);
+      lightning(st);
+    });
+  it('Lightning Laboratory, 3 rezzed: one pick of 2 lets the Runner in, so it does not hold (beta: holds)', () => {
+    const s = three(C.WHITESPACE);
+    const ids = s.corp.servers.remote1.ice.map(c => c.instanceId);
+    expect(inCorp(s, () => turnEndDerezPicks(s, ['remote1']))).toEqual([[ids[0], ids[1]], [ids[0], ids[2]], [ids[1], ids[2]]]);
+    expect(walk(s).holds).toBe(false);
+    // The truth per pick (the board the turn's end leaves): only the Whitespaces' pick gets in
+    expect([[ids[0], ids[1]], [ids[0], ids[2]], [ids[1], ids[2]]].map(p => oracleOn(derezzed(s, p), []))).toEqual(['holds', 'holds', 'getsIn']);
+    // keepFor's run sequence: reached, by that pick
+    const q = inCorp(s, () => reachQuestion(s, ['remote1']));
+    expect(q.others?.length).toBe(2);
+    expect(inCorp(s, () => reachSets(q)(['remote1']))).toBe(true);
+    expect(inCorp(s, () => reachOrder(q, ['remote1']))).toBe(true);
+    expect(inCorp(s, () => turnReach(s, ['remote1'], [[]]).reaches)).toBe(true);
+  });
+  it('Lightning Laboratory mirror, 3 rezzed: a third Whitespace instead of Palisade, every pick leaves one: it holds', () => {
+    const s = palisade(3, st => {
+      st.corp.credits = 0;
+      st.corp.servers.remote1.ice = [];
+      ice(st, C.WHITESPACE);
+      ice(st, C.WHITESPACE);
+      ice(st, C.WHITESPACE);
+      lightning(st);
+    });
+    expect(walk(s).holds).toBe(true);
+    expect(inCorp(s, () => reachSets(reachQuestion(s, ['remote1']))(['remote1']))).toBe(false);
+    expect(inCorp(s, () => reachOrder(reachQuestion(s, ['remote1']), ['remote1']))).toBe(false);
+    expect(rest(three(C.WHITESPACE)).holds).toBe(true);
+  });
+
+  // The engine and the count agree on what the turn's end derezzes: with 2 rezzed, both; with 3, the engine asks the
+  // Corp for 2 of them, and every answer it may give is one of the count's picks
+  it("Lightning Laboratory: the engine's turn end derezzes what the next turn's start has derezzed (2 rezzed)", () => {
+    let s = scoreForTest(newGame(), C.LIGHTNING);
+    const a = installIceForTest(s, C.PALISADE, 'hq', false);
+    const b = installIceForTest(s, C.WHITESPACE, 'hq', false);
+    s = run(s, 'hq');
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [a, b] }));
+    s.activeRun = null;
+    expect([a, b].map(id => findCardAnywhere(s, id)!.isRezzed)).toEqual([true, true]);
+    const next = walkStart(s, true);
+    expect([a, b].map(id => next.derezzed.has(id))).toEqual([true, true]);
+    expect([a, b].map(id => walkStart(s, true, false).derezzed.has(id))).toEqual([false, false]);
+    s = passTurn(s);
+    expect([a, b].map(id => findCardAnywhere(s, id)!.isRezzed)).toEqual([false, false]);
+  });
+  it("Lightning Laboratory: with 3 rezzed the engine's choices are the count's picks", () => {
+    let s = scoreForTest(newGame(), C.LIGHTNING);
+    const a = installIceForTest(s, C.PALISADE, 'hq', false);
+    const b = installIceForTest(s, C.WHITESPACE, 'hq', false);
+    const c = installIceForTest(s, C.WHITESPACE, 'hq', true);
+    s = run(s, 'hq');
+    s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [a, b] }));
+    s.activeRun = null;
+    const picks = turnEndDerezPicks(s, ['hq']);
+    expect(picks.map(p => [...p].sort())).toEqual([[a, b], [a, c], [b, c]].map(p => [...p].sort()));
+    const ended = passTurn(s);
+    const prompt = ended.pendingPrompts[0];
+    expect(prompt?.kind === 'effect_cards' && [...prompt.candidateIds].sort()).toEqual([a, b, c].sort());
+    expect(prompt?.kind === 'effect_cards' && [prompt.min, prompt.max]).toEqual([2, 2]);
   });
 });
 

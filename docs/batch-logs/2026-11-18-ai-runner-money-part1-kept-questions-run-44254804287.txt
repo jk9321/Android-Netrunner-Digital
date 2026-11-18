@@ -1,0 +1,11 @@
+SCRIPT run 44254804287 (stage-d/runner-money.ts, KEEP=runner-money-keep-44232371254.txt, ARM base = beta 333c16e) at ai-runner-money d4ab9b6: Kept hold questions: run 44254804287 (8,911 keys of 44232371254, truth from that run's oracle)
+
+- Found 7,384 of 8,911. Missing: 932 deal questions (the branch plays those deals differently) and 595 human ones
+  (report-54 317, report-33 274, report-41 4): the questions are asked inside the Corp's search, and in those three
+  games the branch's answers change the search (all three have changed decisions above), so it asks other questions.
+- The base arm answers **exactly** as the recorded beta on all 7,384 (holds and rez set): the arm is beta.
+  (A simplified labeller differs from the recorded labels on 616 "other set" questions; the answers do not.)
+- Branch labels: agree 5,647, agree other set 427, false "does not hold" 324, false "holds" 203, unknown 783.
+- **New false "holds": 0. New false "does not hold": 319, every one inside part1's own set** (report-54 301,
+  deal 1881 HQ 10, report-41 5, report-47 2, report-28 1); none outside it.
+- With the local rescore of the 4,165 dumped boards: 2,750 of 2,929 false "holds" right (bar 2,700), 0 new false
