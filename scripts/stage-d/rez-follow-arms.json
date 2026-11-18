@@ -1,0 +1,22 @@
+{
+  "follow": [
+    [
+      "ai/corp/rez.ts",
+      "  const isStopper = stops && server.root.some(isAgenda);",
+      "  // rez-follow arm `follow`: R2's stop test reads the count with the set further in (rezStops with further)\n  const isStopper = rezStops(state, ice, true) && server.root.some(isAgenda);"
+    ]
+  ],
+  "free": [
+    [
+      "ai/corp/rez.ts",
+      "  if (need === 0) return null;",
+      "  // rez-follow arm `followFree`: the free test gives way to the hold owner's count (Ballista: the walk takes the end, ruling 6)\n  if (need === 0 && !rezStops(state, ice, true)) return null;"
+    ]
+  ],
+  "_arms": {
+    "beta": [],
+    "control": [],
+    "follow": ["follow"],
+    "followFree": ["follow", "free"]
+  }
+}
