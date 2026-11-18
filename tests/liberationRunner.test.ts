@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, effectTrashableFirst, executeAction, findCardAnywhere, GameState, iceStrength, isLegalAction } from '../src/core';
-import { makeRoomAnswers } from '../src/ai/prompts';
+import { createCardInstance, effectTrashableFirst, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction } from '../src/core';
 import { breakerStrength, markSubroutinesBroken } from '../src/core/engine/ice';
 import { purgeVirusCounters, removeFromGame } from '../src/core/engine/cardEffects';
 import { dealNetDamage, giveTags, trashInstalledRunnerCard } from '../src/core/engine/damage';
@@ -1071,9 +1070,10 @@ describe('Rebellion Without Rehearsal: Shaper and neutral', () => {
     expect(s1.runner.memoryUnitsUsed).toBe(4);
     expect(effectTrashableFirst(s1, card(s1, leech.instanceId), source(s1)?.data).map(c => c.instanceId)).not.toContain(muse);
     expect(() => answer(s1, { kind: 'effect_cards', cardInstanceIds: [leech.instanceId], trashFirst: [muse] })).toThrow();
-    for (const a of makeRoomAnswers(s1, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt(s1).id, choice: { kind: 'effect_cards', cardInstanceIds: [leech.instanceId] } })) {
-      expect(a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.trashFirst).not.toContain(muse);
-    }
+    // The engine's make-room answers for Leech (rules 8.5.6c) never trash Muse
+    const makeRoom = getLegalActions(s1, 'runner').flatMap(a => (a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds[0] === leech.instanceId && a.choice.trashFirst ? [a.choice.trashFirst] : []));
+    expect(makeRoom).toContainEqual([saw]);
+    for (const trashFirst of makeRoom) expect(trashFirst).not.toContain(muse);
     const s2 = keepGoing(answer(s1, { kind: 'effect_cards', cardInstanceIds: [leech.instanceId], trashFirst: [saw] }));
     expect(card(s2, leech.instanceId).hostedOnId).toBe(muse);
     expect(s2.runner.memoryUnitsUsed).toBe(4);

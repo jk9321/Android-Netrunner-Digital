@@ -248,8 +248,8 @@ describe('Runner events', () => {
       state.runner.memoryUnitsUsed = state.runner.memoryUnitsTotal - mu + 1;
       state = answer(state, { kind: 'effect_cards', cardInstanceIds: [breaker] });
       expect(state.pendingPrompts[0]).toMatchObject({ kind: 'effect_choice', source: { data: { install: true } } });
-      const plain = answer(state, { kind: 'effect_choice', optionId: 'install' });
-      expect(plain.runner.grip.map(c => c.instanceId)).toContain(breaker);
+      // Installing without trashing is not an answer: the Runner must make room first
+      expect(() => answer(state, { kind: 'effect_choice', optionId: 'install' })).toThrow(/make room/);
       state = answer(state, { kind: 'effect_choice', optionId: 'install', trashFirst: [old] });
       expect(state.runner.rig.programs.map(c => c.instanceId)).toEqual([breaker]);
     });

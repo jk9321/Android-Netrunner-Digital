@@ -5,7 +5,7 @@ import { cardDef } from '../cards';
 import { corpLosesRd, corpSeesRd, noteRdPrivate, runnerSeesRd, shuffleRD } from '../engine/rdKnowledge';
 import { pushPrompt } from '../engine/prompts';
 import { addLog } from '../engine/log';
-import { findCardAnywhere, isAdvanceable, removeCard } from '../engine/helpers';
+import { findCardAnywhere, illegal, isAdvanceable, removeCard } from '../engine/helpers';
 import { availableCredits, corpTrashFromHQ, corpTrashFromRD, installedIce, spendCredits } from '../engine/cardEffects';
 import {
   chosenToTrashFirst,
@@ -227,10 +227,24 @@ export function installRunnerTrashing(
   trashIds: string[]
 ): boolean {
   const trash = chosenToTrashFirst(state, card, null, trashIds);
-  if (runnerInstallBlocker(state, card, hostInstanceId, discount, freedMemory(trash))) return false;
+  if (runnerInstallBlocker(state, card, hostInstanceId, discount, freedMemory(trash))) {
+    mustMakeRoom(state, card, hostInstanceId, discount);
+    return false;
+  }
   trashFirst(state, trash);
   installRunnerCardFrom(state, card, zone, hostInstanceId, discount);
   return true;
+}
+
+/**
+ * A program that fits once installed programs are trashed: the Runner must trash them first (rules 8.5.6c, 3.9.3b),
+ * so an answer that names too few is not an answer (it would spend the effect and install nothing).
+ */
+function mustMakeRoom(state: GameState, card: CardInstance, hostInstanceId: string | undefined, discount: number): void {
+  const room = freedMemory(trashableFirst(state, card, null));
+  if (room > 0 && !runnerInstallBlocker(state, card, hostInstanceId, discount, room)) {
+    illegal(`Trash installed programs first to make room for ${cardDef(card).title} (rules 8.5.6c)`);
+  }
 }
 
 /**
@@ -255,7 +269,10 @@ export function installRunnerChoice(
     if (hostStep === null) throw new Error(`${cardDef(card).title} installs on ice, but the effect installing it declared no host step`);
     const freed = freedMemory(chosenToTrashFirst(state, card, null, trashIds));
     const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount, freed));
-    if (hosts.length === 0) return false;
+    if (hosts.length === 0) {
+      for (const ice of installedIce(state)) mustMakeRoom(state, card, ice.instanceId, discount);
+      return false;
+    }
     askChoice(ctx, 'runner', `Install ${cardDef(card).title} on which ice?`, hosts.map(i => ({ id: i.instanceId, label: iceLabel(state, i) })), hostStep, {
       ...data,
       cardId,

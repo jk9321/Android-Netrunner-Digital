@@ -3,8 +3,9 @@
  *
  *  - The 56 local deals: seeds 1001 + 40k (k = 0..55), batch pairings (seed 1001 + 10 * pairing, the shipped decks),
  *    Normal v Normal, each played out by the AI. DEALS=1001,1041 picks some; DEALS=none skips them.
- *  - Every game in tests/fixtures/human-games/: the recorded moves replayed; at each state where the Corp acts (its
- *    main phase, its prompts, a rez window of a run) a fresh Normal Corp is asked what it would do. HUMAN=report-49
+ *  - Every game in tests/fixtures/human-games/: the recorded moves replayed (a split game's part from its state); at
+ *    each state where the Corp acts (its main phase, its prompts, a rez window of a run) a fresh Normal Corp is asked
+ *    what it would do. HUMAN=report-49
  *    (comma list, prefix match) picks some; HUMAN=none skips them.
  *
  * The three hand-value caches (handValues clickWorth and drawWorth, effectValues damageThreat) are cleared before every
@@ -147,16 +148,20 @@ export function humanFiles(): string[] {
 /**
  * Replays one human game's recorded moves; at each state where the Corp acts, a fresh Normal Corp is asked (main phase
  * and prompts: chooseAction; the approach-ice and approach-server windows: chooseRez). The replay follows the recorded
- * moves, never the AI's answer.
+ * moves, never the AI's answer. A part of a split game (`startsAt: 'state'`) starts from its recorded state. Returns the
+ * number of recorded moves replayed.
  */
-export function replayHuman(file: string, hooks: Hooks): void {
+export function replayHuman(file: string, hooks: Hooks): number {
   const report = JSON.parse(readFileSync(file, 'utf8'));
   const src = `human:${file.split('/').pop()}`;
-  if (!report.moves?.length) return;
+  if (!report.moves?.length) return 0;
   valueLoops.clear();
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
+  // A part of a split game (report-40b, 40c: scripts/stage-d/make-room-split.ts) starts from its recorded state
+  if (report.startsAt === 'state') s = structuredClone(report.state);
   const counter = { i: 0 };
+  let replayed = 0;
   for (const move of report.moves as GameAction[]) {
     const side = actingSide(s);
     const window = s.priority;
@@ -173,11 +178,13 @@ export function replayHuman(file: string, hooks: Hooks): void {
     }
     try {
       s = executeAction(s, move);
+      replayed++;
     } catch {
       // A fixture recorded on an older engine can stop replaying after a rules fix: the game is read up to here
       break;
     }
   }
+  return replayed;
 }
 
 /** Every recorded state: the deals, then the human games. SHARD=i/n takes every n-th source. */

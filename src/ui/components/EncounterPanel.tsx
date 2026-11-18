@@ -108,6 +108,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     const card = findCardAnywhere(state, a.cardInstanceId);
     const ability = card && getCardScript(card.cardCode)?.abilities?.[a.abilityIndex];
     if (!card || !ability) return null;
+    const warning = ability.warning?.({ state, card, side: cardDef(card).side_code });
     const effect = ability.label.split(':').slice(1).join(':').trim().replace(/\.$/, '');
     // A card with more than one ability usable here (Arruaceiras Crew) names each one, with its cost
     const shared = !compact && abilityActions.filter(o => o.cardInstanceId === a.cardInstanceId && !breakerIds.has(o.cardInstanceId)).length > 1;
@@ -120,9 +121,10 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         ? `Spend ${ability.counters.count} ${ability.counters.type}: ${effect} (${card.tokens[ability.counters.type] ?? 0} left)`
         : ability.label.replace(/\.$/, '');
     return (
-      <button key={`ab${k}`} onClick={() => onAction(a)} className={`${btn} bg-lime-950 border-lime-700 text-lime-200 hover:bg-lime-900`} title={ability.label}>
+      <button key={`ab${k}`} onClick={() => onAction(a)} className={`${btn} bg-lime-950 border-lime-700 text-lime-200 hover:bg-lime-900`} title={[ability.label, warning].filter(Boolean).join('\n')}>
         <Play className="inline w-3 h-3 mr-1 -mt-0.5" />
         {text}
+        {warning && <span className="text-amber-300 font-normal" data-testid="ability-warning">{` — ${warning}`}</span>}
       </button>
     );
   };
