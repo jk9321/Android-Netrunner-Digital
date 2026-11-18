@@ -1,0 +1,19 @@
+{
+ "stealth": [
+  [
+   "ai/corp/hold.ts",
+   "const pool = run.poolLocked ? 0 : state.runner.credits;\n    return { hosted: availableCredits(state, 'runner') - pool - run.bonusCredits - (run.badPublicityCredits ?? 0) - stealth, stealth };",
+   "return { hosted: Math.max(0, availableCredits(state, 'runner') - state.runner.credits - run.bonusCredits - (run.badPublicityCredits ?? 0)), stealth };"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns)",
+   "hosted: sum(c => !!getCardScript(c.cardCode)?.paysDuringRuns)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    const stealth = Math.min(n - fund - hosted, ws.stealth);\n    const w = fund || hosted || stealth ? { ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, stealth: ws.stealth - stealth } : ws;\n    return then(w) + n - fund - hosted - stealth;",
+   "    const w = fund || hosted ? { ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted } : ws;\n    return then(w) + (n - fund - hosted);"
+  ]
+ ]
+}

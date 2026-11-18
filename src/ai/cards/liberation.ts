@@ -609,7 +609,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { damage: 0.5 }, wants: { ice: 1 } },
     // "Whenever you rez a piece of AP or destroyer ice during a run, that ice gets +1 strength and gains '[subroutine] End
     // the run unless the Runner trashes 1 of their installed cards.' after its other subroutines" (9.8.3e)
-    holdFacts: { rezDuringRun: { anyIce: { subtypes: ['ap', 'destroyer'], strength: 1, gains: 'End the run unless the Runner trashes 1 of their installed cards.' } } },
+    holdFacts: { rezDuringRun: { anyIce: { subtypes: ['ap', 'destroyer'], gains: 'End the run unless the Runner trashes 1 of their installed cards.' } } },
   },
   // Lightning Laboratory (agenda)
   '34097': {
