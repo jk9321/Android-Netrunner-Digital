@@ -75,11 +75,14 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
 }
 
 /**
- * Stage D item 3, exploit F1 (item3-rez-money/design-answer.md section 2): a toll rez on R3 or R4 (it does not stop the
- * run) spends the money the Corp keeps when the Corp could pay the rest-of-turn keep before the rez and cannot after it:
- * rezMoney's keep through the rest of the Runner's turn (restOfTurn: the run over, its clicks left, its credits once it
- * has paid through this ice and the rezzed ice further in), the run's own server left out. A Corp already below that
- * keep rezzes as before (the money was not holding the other servers). Asked only at an R3 or R4 toll.
+ * Stage D item 3, exploit F1 (item3-rez-money/design-answer.md sections 2 and 6): a toll rez on R3 or R4 (it does not
+ * stop the run) is passed when passing keeps the money the rez would spend. Two boards, each counted by rezMoney's keep
+ * through the rest of the Runner's turn (restOfTurn: the run over, its clicks left, its credits once it has paid through
+ * this run), the run's own server left out: the rez world (this ice rezzed, the Runner paying its toll) and the pass
+ * world (this ice left unrezzed). The pass is made only when (1) after the rez the Corp cannot pay the rez world's keep,
+ * (2) every server that keep is for can still be held in the pass world (in its byServer) and (3) the Corp can pay the
+ * pass world's keep. Otherwise the rez is made as before (a Corp already below the keep, or a server only the toll's
+ * cost holds). Asked only at an R3 or R4 toll; the pass world is counted only when (1) holds.
  */
 export function spendsKept(state: GameState, ice: CardInstance): boolean {
   const run = state.activeRun;
@@ -87,10 +90,15 @@ export function spendsKept(state: GameState, ice: CardInstance): boolean {
   // No run left this turn keeps nothing; a free rez spends nothing
   if (!run || cost <= 0 || state.runner.clicks <= 0) return false;
   const credits = state.corp.credits;
-  const toll = serverHold(state, run.server, { when: 'thisRun', mustRez: [ice.instanceId], further: false });
-  const runnerCredits = toll.holds ? state.runner.credits : Math.max(0, state.runner.credits - toll.need);
-  const keep = rezMoney(state, { restOfTurn: { runnerCredits }, except: run.server }).keep;
-  return credits >= keep && credits - cost < keep;
+  const keep = (mustRez: string[]) => {
+    const toll = serverHold(state, run.server, { when: 'thisRun', mustRez, further: false });
+    const runnerCredits = toll.holds ? state.runner.credits : Math.max(0, state.runner.credits - toll.need);
+    return rezMoney(state, { restOfTurn: { runnerCredits }, except: run.server });
+  };
+  const rez = keep([ice.instanceId]);
+  if (credits - cost >= rez.keep) return false;
+  const pass = keep([]);
+  return credits >= pass.keep && Object.keys(rez.byServer).every(id => id in pass.byServer);
 }
 
 /** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */

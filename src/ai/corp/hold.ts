@@ -83,8 +83,7 @@ export const CHECK = { runnerExtra: 0 };
  * every click but the run's make (runnerMoney: card entries, never the grip; 5.2.7a). Count inputs F2: before it, 1
  * credit a click, so a loaded Telework Contract was missed (paired +0.0 ± 0.4 at games=3, run 42918973725).
  */
-export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number =>
-  from.rest ? from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra : s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;
+export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra;
 
 /**
  * Where a turn's walk starts (Stage D item 3, F1). The Runner's next turn (`rest` false): its turn begins (5.7.1: the
@@ -164,15 +163,13 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
 }
 
 /**
- * The board of the rest of the turn: the run under way over (its once-per-run uses and run flags gone, 6.8.5, 6.9.6d),
- * once per board, so the memos keyed on it (turnIce, the break plans) serve every ask at one rez window.
+ * The board of the rest of the turn: the run under way over (its once-per-run uses and run flags gone, 6.8.5, 6.9.6d:
+ * the run's rez cost increase among them, which rezCost adds to every ice), once per board on valueModel's memo (dropped
+ * when the board is changed in place), so the memos keyed on it (turnIce, the break plans) serve every ask at one rez
+ * window.
  */
-const afterRuns = new WeakMap<GameState, GameState>();
 export function afterRun(state: GameState): GameState {
-  if (!state.activeRun) return state;
-  let board = afterRuns.get(state);
-  if (!board) afterRuns.set(state, (board = { ...state, activeRun: null }));
-  return board;
+  return state.activeRun ? memo(state, 'afterRun', () => ({ ...state, activeRun: null })) : state;
 }
 
 /** Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang). */

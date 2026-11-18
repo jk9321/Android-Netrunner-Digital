@@ -296,6 +296,7 @@ function rng(seed: number) {
 const ICE = iceCodes();
 const BREAKERS = breakerCodes();
 const BOTULUS = '30004';
+const PALISADE = '30072';
 const IDENTITY_THUNDERBOLT = '34096';
 
 /** Ice that ends the run whatever the state on some subroutine: the inner ice of a probe line. */
@@ -522,6 +523,77 @@ describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", (
     expect(getCardDefinition('30033').title).toBe('Smartware Distributor');
     expect(runnerEarnings(s)[0]).toBe(1);
     expect(runnerEarnings(s, restOfTurn(s))[0]).toBe(0);
+  });
+
+  // The start's content, read directly (review R2): the brute force calls the same walkStart, firstState and
+  // runnerEarnings, so it cannot see a fault in them
+  it("places no turn-start counters and derezzes no Lycian from the rest of the turn (5.7.1 is behind it)", () => {
+    const s = newGame(3);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    const lycian = installIceForTest(s, '34100', 'remote1', true);
+    const b = createCardInstance(s, BOTULUS);
+    b.isRezzed = true;
+    b.hostedOnId = lycian;
+    b.tokens = { virus: 1 };
+    s.runner.rig.programs.push(b);
+    const next = walkStart(s, true);
+    const rest = walkStart(s, true, false);
+    const i = next.index.get(b.instanceId)!;
+    expect([next.virus[i], rest.virus[i]]).toEqual([2, 1]);
+    expect([next.derezzed.has(lycian), rest.derezzed.has(lycian)]).toEqual([true, false]);
+    expect([next.fresh, rest.fresh]).toEqual([true, false]);
+  });
+
+  it("adds no turn-start virus counter to a click ability's money from the rest of the turn (Fermenter)", () => {
+    const s = newGame(3);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    const id = installProgramForTest(s, '30007');
+    s.runner.rig.programs.find(c => c.instanceId === id)!.tokens = { virus: 2 };
+    expect(getCardDefinition('30007').title).toBe('Fermenter');
+    s.runner.maxClicks = 4;
+    s.runner.clicks = 4;
+    // One earning click: Fermenter trashed for 2 a counter, 3 counters as the next turn begins, 2 now
+    expect(runnerEarnings(s)[1]).toBe(6);
+    expect(runnerEarnings(s, restOfTurn(s))[1]).toBe(4);
+  });
+
+  it("reads the turn's first draw as taken from the rest of the turn when the board's turn flags say so", () => {
+    const s = newGame(3);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    const drawn = { ...s, turnFlags: { ...s.turnFlags, basic_draws: 1 } };
+    expect(firstState(drawn, walkStart(drawn, true, false), 3, 0).drew).toBe(true);
+    expect(firstState(drawn, walkStart(drawn, true), 3, 0).drew).toBe(false);
+    expect(firstState(s, walkStart(s, true, false), 3, 0).drew).toBe(false);
+  });
+
+  // The memos keyed on the board (turnIce, the walk's plans) keep the start's kind: one board asked from both starts in
+  // one decision (no run under way, so afterRun is the board itself). Tranquilizer at 2 counters on a rezzed Palisade on
+  // remote1, no breaker, no money: the rest of the turn meets the Palisade rezzed (held for nothing); the next turn's
+  // start places Tranquilizer's third counter and derezzes it (5.7.1d), so it is held only by rezzing it again
+  it("keeps a board's walked ice apart by start: an ice Tranquilizer derezzes as the next turn begins, asked from both starts, in either order", () => {
+    const make = () => {
+      const s = newGame(3);
+      s.turnNumber = 7;
+      for (const id of Object.keys(s.corp.servers)) s.corp.servers[id].ice = [];
+      s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+      s.runner.credits = 0;
+      s.runner.clicks = 1;
+      const host = installIceForTest(s, PALISADE, 'remote1', true);
+      const tranq = createCardInstance(s, '30017');
+      tranq.isRezzed = true;
+      tranq.hostedOnId = host;
+      tranq.tokens = { virus: 2 };
+      s.runner.rig.programs.push(tranq);
+      return s;
+    };
+    const ask = (s: GameState, when: 'runnerTurn' | 'restOfTurn') => inCorp(s, () => serverHold(s, 'remote1', { when, corpCredits: Infinity }).rezCost);
+    const alone = { next: ask(make(), 'runnerTurn'), rest: ask(make(), 'restOfTurn') };
+    expect(alone.rest).toBe(0);
+    expect(alone.next).toBeGreaterThan(0);
+    const a = make();
+    expect([ask(a, 'runnerTurn'), ask(a, 'restOfTurn')]).toEqual([alone.next, alone.rest]);
+    const b = make();
+    expect([ask(b, 'restOfTurn'), ask(b, 'runnerTurn')]).toEqual([alone.rest, alone.next]);
   });
 });
 
@@ -803,5 +875,42 @@ describe("keepFor's run sequence, gathered once and cached per decision", () => 
     }
     expect(misses).toEqual([]);
     expect(positive).toBeGreaterThan(30);
+  }, 900_000);
+
+  // Stage D item 3 (review R2): rez money's run sequence from the rest of the turn (rezMoney's restOfTurn keep): the
+  // largest set the rest of the turn reaches in some order, from the same start (reachQuestion with restOfTurn, each
+  // order alone), every set inside it reached; the clicks left cut the sets. Some boards must answer differently from the
+  // same count from the next turn, or the start would not be tested
+  it("gives the rest-of-turn keep the largest set the rest of the turn reaches, every set inside it reached", () => {
+    const r = rng(20261125);
+    const misses: string[] = [];
+    let positive = 0;
+    let differs = 0;
+    for (let n = 0; n < 400; n++) {
+      const { s } = wideBoard(r);
+      // Two clicks left (one where the turn has one) and little money: the next turn's clicks and credits reach more
+      s.runner.clicks = Math.min(2, s.runner.maxClicks);
+      const credits = Math.floor(r() * 3);
+      const from = restOfTurn(s, credits);
+      const money = inCorp(s, () => rezMoney(s, { restOfTurn: { runnerCredits: credits } }));
+      const ids = Object.keys(money.byServer).filter(id => money.byServer[id] > 0);
+      const keepFrom = (start: TurnFrom) => {
+        const reach = new Map<string, boolean>();
+        const reaches = (set: string[]): boolean => {
+          const k = set.join();
+          if (!reach.has(k)) reach.set(k, set.every((_, i) => set.length === 1 || reaches(set.filter((_, j) => j !== i))) && orders(set).some(o => inCorp(s, () => reachOrder(reachQuestion(s, o, start), o))));
+          return reach.get(k)!;
+        };
+        return Math.max(0, ...subsets(ids, from.clicks).filter(reaches).map(set => set.reduce((t, id) => t + money.byServer[id], 0)));
+      };
+      const want = keepFrom(from);
+      if (want > 0) positive++;
+      if (keepFrom(nextTurn(s)) !== want) differs++;
+      if (money.keep !== want) misses.push(`board ${n}: keep ${money.keep}, from the rest of the turn ${want} (byServer ${JSON.stringify(money.byServer)}, clicks ${from.clicks}, $${credits})`);
+    }
+    expect(misses).toEqual([]);
+    expect(positive).toBeGreaterThan(60);
+    // 6 of 400 on this seed: each is a board where the next turn's clicks or money reach a set the rest of the turn does not
+    expect(differs).toBeGreaterThan(3);
   }, 900_000);
 });
