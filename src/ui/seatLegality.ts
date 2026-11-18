@@ -85,8 +85,11 @@ export function seatCan(legal: GameAction[], side: SideCode, state: GameState, a
   const key = canonical(action);
   if (legal.some(a => canonical(a) === key)) return true;
   if (legal.length === 0) return false;
-  if (validCardsAnswer(state, action)) return true;
-  if (!isProbeAction(action)) return false;
+  if (validCardsAnswer(state, action)) {
+    // A card to install may first need programs trashed (rules 8.5.6c): the engine decides, not the prompt's candidates
+    const p = state.pendingPrompts[0];
+    if (!(p && 'source' in p && p.source.data?.install)) return true;
+  } else if (!isProbeAction(action)) return false;
   try {
     return isLegalAction(state, action);
   } catch {
