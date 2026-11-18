@@ -1093,6 +1093,50 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
   });
 });
 
+// Saci (34017, Liberation): "Install only on a piece of ice. Whenever host ice is rezzed or derezzed, gain 3 credits."
+// (ai-rez-set; red team 2026-11-18-rez-set finding 1). The card fact holdFacts.hostRezPays; the walk takes the credits
+// off the need where the Corp rezzes the host (9.2.8: the reaction window after the rez, before the encounter)
+describe('hold walk: the money a rez pays the Runner (Saci, ai-rez-set)', () => {
+  const SACI = '34017';
+  /** Palisade on remote1 (Cleaver breaks it for 3), rezzed or not, Saci hosted on it or not; $0 and one click. */
+  const saciBoard = (palisadeRezzed: boolean, withSaci: boolean) =>
+    board(st => {
+      const id = ice(st, C.PALISADE, palisadeRezzed);
+      installProgramForTest(st, C.CLEAVER);
+      if (withSaci) hosted(st, SACI, id, 0);
+      st.runner.maxClicks = 1;
+      st.runner.clicks = 1;
+    });
+  it('unrezzed Palisade hosting Saci, Cleaver, $0, 1 click: the rez pays the 3 the break costs, it gets in (beta: holds for the rez)', () => {
+    const s = saciBoard(false, true);
+    const pal = s.corp.servers.remote1.ice[0].instanceId;
+    expect(agrees(s).holds).toBe(false);
+    expect(inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn', mustRez: [pal] })).holds).toBe(false);
+    expect(oracleOn(s, [pal])).toBe('getsIn');
+  });
+  it('mirror: no Saci, the rez holds', () => {
+    const s = saciBoard(false, false);
+    const h = agrees(s);
+    expect([h.holds, h.rez]).toEqual([true, [s.corp.servers.remote1.ice[0].instanceId]]);
+  });
+  it('mirror: the Palisade already rezzed, no rez this turn: Saci pays nothing, it holds', () => {
+    const s = saciBoard(true, true);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('thisRun: the run approaching the unrezzed Palisade with Saci on it, $0: the rez does not hold', () => {
+    const s = saciBoard(false, true);
+    startRunnerTurn(s);
+    const r = toCorp(executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' }));
+    const pal = r.corp.servers.remote1.ice[0].instanceId;
+    expect(inCorp(r, () => serverHold(r, 'remote1', { when: 'thisRun', mustRez: [pal], further: false })).holds).toBe(false);
+    expect(oracleGetsIn(r, 'remote1', 'thisRun', [pal]).answer).toBe('getsIn');
+  });
+  // The derez half is not walked: a derez at the Runner's turn start (Tranquilizer's derezHostAt) or at a turn's end
+  // (Lightning Laboratory, Lycian) pays the Runner 3 that the walk does not see (hand-off, ai-rez-set)
+  it.todo("Saci's derez half: a host derezzed by the walk's start (Tranquilizer, Lightning Laboratory, Lycian) pays the Runner 3");
+});
+
 // Red team F13 (ruled 02:50Z): cards outside the batch pool the walk does not model yet. The next set's thread, or the
 // thread that brings one into a batch deck, turns its line into a row with a mirror and the oracle
 describe('hold walk: not modelled yet (cards outside the batch pool)', () => {

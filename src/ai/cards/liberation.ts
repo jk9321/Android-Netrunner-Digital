@@ -130,6 +130,7 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // 3 credits each time its host is rezzed or derezzed (the Corp avoids it: about once)
     runner: () => 2,
+    holdFacts: { hostRezPays: 3 },
   },
   // Shibboleth
   '34018': { synergy: { gives: { breakers: 1 }, when: ['threat'] } },

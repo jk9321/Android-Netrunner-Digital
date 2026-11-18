@@ -276,6 +276,8 @@ export interface WalkIce {
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
   liability: boolean;
+  /** Rig indexes of the hosted cards that pay the Runner when the Corp rezzes it, with their credits (holdFacts.hostRezPays, Saci). */
+  rezPays: [number, number][];
   /** Unrezzed at the walk's start, and the Corp chooses its subtypes when it rezzes it (holdFacts.rezChoosesSubtypes, Lycian): the sets it may choose. `types` is then without a choice. */
   choices?: string[][];
 }
@@ -514,6 +516,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
+      rezPays: hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostRezPays).map(i => [i, CARDS[start.rig[i].cardCode].holdFacts!.hostRezPays!] as [number, number]),
       choices,
     };
   });
@@ -825,7 +828,10 @@ export class Walk {
     else if (!ice.rezzed && !ws.up.includes(ice.id)) {
       // 6.9.2c: unrezzed ice the Corp does not rez is passed; 6.4.3: ice of S is rezzed as it is approached
       const paid = ws.corp - ice.rezCost;
-      v = ice.inS && paid >= 0 ? this.liability({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, w => this.rezzed(w, ice, next, { key: at, j })) : next(ws);
+      // A hosted card that pays the Runner as its host is rezzed (Saci) pays before the encounter: the pool needed before
+      // the rez is that much less (a card the walk has trashed pays nothing)
+      const pays = (w: WalkState) => ice.rezPays.reduce((n, [i, c]) => (w.gone.includes(i) ? n : n + c), 0);
+      v = ice.inS && paid >= 0 ? this.liability({ ...ws, corp: paid, up: [...ws.up, ice.id].sort(), moved: true }, ice, w => Math.max(0, this.rezzed(w, ice, next, { key: at, j }) - pays(w))) : next(ws);
     } else v = ice.bypassed ? next(ws) : this.encounter(ws, ice, next, { key: at, j });
     this.memo.set(key, v);
     return v;
