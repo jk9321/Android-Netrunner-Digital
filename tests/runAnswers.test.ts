@@ -465,6 +465,38 @@ describe('the run stand against the engine oracle (ruling 4: scenario boards fro
     }
   });
 
+  it('Vicsek trashing itself between two ice, ice outward of it, a Runner who can break the inner Palisade: the walk agrees with the oracle at every step of the run (6.2.4, 6.2.6b, 8.5.10; ice leaving the server under the run)', () => {
+    // Vicsek 36042: "Give the Runner 1 tag. Trash this ice." Remote 1, innermost first: Palisade (rezzed), Vicsek
+    // (rezzed), Palisade (unrezzed, outermost). Marjanah breaks Palisade with the credits the Runner has
+    for (const credits of [0, 10]) {
+      let s = board(st => {
+        installIceForTest(st, '30072', 'remote1', true);
+        installIceForTest(st, '36042', 'remote1', true);
+        installIceForTest(st, '30072', 'remote1', false);
+        installProgramForTest(st, '30016');
+      });
+      startRunnerTurn(s);
+      s.runner.credits = credits;
+      s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+      let after = 0;
+      for (let k = 0; k < 40 && s.activeRun; k++) {
+        const p = activePrompt(s);
+        if (!(p && p.side === 'corp')) {
+          clearCaches();
+          const walk = runStands(s, 'remote1')?.verdict();
+          expect(walk, `step ${k} $${credits} ${s.activeRun.phase} pos ${s.activeRun.icePosition}`).toBe(oracleOut(s, 'remote1') ? 'out' : 'in');
+          if (!s.corp.servers.remote1.ice.some(c => c.cardCode === '36042')) after++;
+        }
+        // One step: the Runner continues and breaks nothing, the Corp passes and rezzes nothing (runTo's moves)
+        const side = p ? p.side : s.priority?.holder ?? s.activePlayer;
+        const legal = getLegalActions(s, side) as GameAction[];
+        s = executeAction(s, (p ? legal.find(x => x.type === 'RESOLVE_PROMPT') : (legal.find(x => x.type === 'CONTINUE_RUN') ?? legal.find(x => x.type === 'PASS')))!);
+      }
+      // Vicsek did trash itself, and the stand was asked with it gone
+      expect(after).toBeGreaterThan(0);
+    }
+  });
+
   it("Lycian's subtypes at the approach (rezzed, the encounter to come): the walk agrees with the oracle on every choice", () => {
     for (const credits of [3, 4]) {
       let s = board(st => {
