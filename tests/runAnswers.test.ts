@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, activePrompt, executeAction, getLegalActions } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { createAgent } from '../src/ai';
-import { answerPrompt, runTermStats, settledStand } from '../src/ai/prompts';
+import { answerPrompt, runTermStats, scoreOutcome, settledStand } from '../src/ai/prompts';
 import { runStands } from '../src/ai/corp/hold';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { clearCaches } from '../scripts/stage-a/harness';
@@ -111,6 +111,82 @@ describe('the run term: Ballista, Boto, Shred, Anoetic Void (recorded boards)', 
   });
 });
 
+describe("Shred's reveal priced as chance (ruling 3; review R1)", () => {
+  /**
+   * Deal 1601 T12 with its server's root, HQ and the Runner's score set, then Ballista's "end": Shred's question, X = the
+   * cards in the root (Shred 35005: "reveals and trashes X cards from HQ at random. X is equal to the number of cards in
+   * the root of the attacked server").
+   */
+  function shred(root: string[], hq: string[], score: number): GameState {
+    const s = fixture('deal-1601-t12-30062');
+    // A game of its own: the value caches are kept per game id and read hand cards by instance id, which these boards
+    // reuse for other cards
+    s.id = `${s.id}:${root}:${hq}`;
+    s.runner.score = score;
+    s.corp.servers[s.activeRun!.server].root = root.map(c => createCardInstance(s, c));
+    s.corp.hq = hq.map(c => createCardInstance(s, c));
+    const p = activePrompt(s)!;
+    const ended = executeAction(s, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: p.id, choice: { kind: 'effect_choice', optionId: 'end' } });
+    const q = activePrompt(ended)!;
+    expect('source' in q && q.source.cardCode).toBe('35005');
+    return ended;
+  }
+  /** The board under 8 RNG states: the cards each state's reveal trashes, and the Corp's answer on it. */
+  function underRng(e: GameState) {
+    const q = activePrompt(e)!;
+    return [1, 2, 3, 4, 5, 6, 7, 8].map(k => {
+      const t = structuredClone(e);
+      t.rng = { ...t.rng, state: (k * 2654435761) >>> 0 };
+      const a = executeAction(t, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: q.id, choice: { kind: 'effect_choice', optionId: 'trash' } });
+      const gone = t.corp.hq.filter(c => !a.corp.hq.some(h => h.instanceId === c.instanceId)).map(c => c.cardCode);
+      const decided = runTermStats.decided;
+      // Through the agent's decision, which notes what the Corp knows (its own HQ) for this board
+      const answer = pick(corpMove(t));
+      return { gone, answer, decided: runTermStats.decided - decided };
+    });
+  }
+
+  it('the cards the reveal takes do not decide: Send a Message among three cheap cards, Orbital Superiority staked (fails with the trash priced by its simulated board)', () => {
+    // X = 1. Each RNG state trashes one card; on some it is Send a Message (30069). A board on which the reveal took it
+    // loses a 3-point agenda and scores far under "no" less runLoss (16). The agent decides on its decision view, whose
+    // RNG is a seed of its own (the real one is dropped, src/core/view.ts), so a pick priced by the simulated board prices
+    // one fixed reveal on every state, which on some of the four HQ orders below is Send a Message's: there it says "no"
+    // throughout. Priced as chance, the expectation over the four cards says "trash" on every order and state
+    for (const hq of [['30069', '30065', '30065', '30054'], ['30065', '30069', '30065', '30054'], ['30065', '30065', '30069', '30054'], ['30065', '30065', '30054', '30069']]) {
+      const runs = underRng(shred(['30068'], hq, 0));
+      expect(runs.map(r => r.gone.join())).toContain('30069');
+      expect(runs.some(r => r.gone.join() !== '30069')).toBe(true);
+      expect(runs.map(r => r.answer), hq.join()).toEqual(Array(8).fill('trash'));
+      expect(runs.every(r => r.decided === 1)).toBe(true);
+    }
+  });
+
+  it("the expected loss decides: four Urtica Cipher in HQ, three cards in the root, a 1-point agenda staked: the Corp does not pay (fails with the expected loss not charged)", () => {
+    // X = 3 (Superconducting Hub, Manegarm Skunkworks, AMAZE Amusements): any reveal trashes three of the four Urticas.
+    // runLoss is 8; the expected loss of three of the hand's four cards by its owner is more, so "no" (the Runner gets in)
+    // beats "trash" (out). Without the loss charged, "trash" is the dearer board's better score
+    const e = shred(['30070', '30042', '30058'], ['30045', '30045', '30045', '30045'], 0);
+    const server = e.activeRun!.server;
+    const q = activePrompt(e)!;
+    const stand = (optionId: string) => {
+      clearCaches();
+      return settledStand(executeAction(structuredClone(e), { type: 'RESOLVE_PROMPT', player: 'corp', promptId: q.id, choice: { kind: 'effect_choice', optionId } }), server)?.verdict();
+    };
+    expect([stand('trash'), stand('no')]).toEqual(['out', 'in']);
+    const runs = underRng(e);
+    expect(runs.map(r => r.answer)).toEqual(Array(8).fill('no'));
+    expect(runs.every(r => r.decided === 1)).toBe(true);
+  });
+
+  it('past 70 sets of cards (nine in HQ, X = 3: 84 sets), the expectation is x times a single card\'s mean: the same answer on every RNG state, and the loss still decides (fails with the loss not charged)', () => {
+    // hqChanceLoss's second branch (sets past 70). The nine cards differ in worth, so the reveals differ by state
+    const runs = underRng(shred(['30070', '30042', '30058'], ['30045', '30061', '30064', '30075', '30048', '30057', '30065', '30054', '30041'], 0));
+    expect(new Set(runs.map(r => r.gone.slice().sort().join())).size).toBeGreaterThan(1);
+    expect(runs.map(r => r.answer)).toEqual(Array(8).fill('no'));
+    expect(runs.every(r => r.decided === 1)).toBe(true);
+  });
+});
+
 /** A remote with an agenda in the root, the Runner's turn, no Corp hand (test boards). */
 function board(setup: (s: GameState) => void): GameState {
   const s = newGame(3);
@@ -183,6 +259,57 @@ describe('the run term ahead of the per-card blocks (ruling 8.1)', () => {
     s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
     expect(pick(corpMove(s))).toEqual([]);
   });
+
+  it("mirror: the Corp at $0 with no agenda in HQ (runLoss 0): the term is not asked and the block's answer stands, though its priced pick would rez (both; fails with the runLoss 0 gate removed; review R2)", () => {
+    // HQ holds one Retribution (30065), so the run stakes nothing. Kessleroid's free rez keeps the Runner out and is the
+    // better one-step board (freeRezSaving), so a term asked here would rez it: the gate is what keeps today's answer
+    let s = scoreForTest(newGame(3), '34097');
+    for (const sv of Object.values(s.corp.servers)) sv.ice = [];
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
+    s.corp.hq = [createCardInstance(s, '30065')];
+    s.turnNumber = 7;
+    installIceForTest(s, '35075', 'hq', false);
+    startRunnerTurn(s);
+    s.corp.credits = 0;
+    s.runner.credits = 5;
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    const p = activePrompt(s)!;
+    expect('source' in p && p.source.cardCode).toBe('34097');
+    const asked = runTermStats.asked;
+    expect(pick(corpMove(s))).toEqual([]);
+    expect(runTermStats.asked).toBe(asked);
+  });
+
+  it("a tie goes to today's answer: Lycian alone, a Runner with only a decoder (Buzzsaw): barrier and barrier + sentry keep it out at the same price, and the block's barrier + sentry is the pick (review R4)", () => {
+    // Lycian's block names the subtypes the Runner has no breaker for (barrier + sentry). The run term's best answers are
+    // barrier and barrier + sentry (out, equal one-step boards: the subtypes change no score); options list barrier first
+    let s = board(st => {
+      installIceForTest(st, '34100', 'remote1', false);
+      installProgramForTest(st, '30005');
+    });
+    const lycian = s.corp.servers.remote1.ice[0].instanceId;
+    startRunnerTurn(s);
+    s.runner.credits = 3;
+    s.runner.clicks = 1;
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    s = runTo(s, x => x.priority?.holder === 'corp' && x.activeRun?.phase === 'approach_ice');
+    s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: lycian });
+    const p = activePrompt(s)!;
+    expect('source' in p && p.source.step).toBe('subtypes');
+    const after = (optionId: string) => executeAction(s, { type: 'RESOLVE_PROMPT', player: 'corp', promptId: p.id, choice: { kind: 'effect_choice', optionId } });
+    const stands = Object.fromEntries(
+      ['barrier', 'code gate', 'sentry', 'barrier+code gate', 'barrier+sentry', 'code gate+sentry', 'all'].map(id => {
+        clearCaches();
+        return [id, settledStand(after(id), 'remote1')?.verdict()];
+      })
+    );
+    expect(stands).toEqual({ barrier: 'out', 'code gate': 'in', sentry: 'in', 'barrier+code gate': 'in', 'barrier+sentry': 'out', 'code gate+sentry': 'in', all: 'in' });
+    clearCaches();
+    expect(scoreOutcome(s, after('barrier'), 'corp', undefined, true)).toBe(scoreOutcome(s, after('barrier+sentry'), 'corp', undefined, true));
+    const decided = runTermStats.decided;
+    expect(pick(corpMove(s))).toBe('barrier+sentry');
+    expect(runTermStats.decided).toBe(decided + 1);
+  });
 });
 
 describe('the trash target (ruling 7.5, red team rt-sweep)', () => {
@@ -224,6 +351,60 @@ describe("the hold owner's run stand (ruling 4: the 'thisRun' walk from where th
     expect(runStands(s, 'hq')?.verdict()).toBe('in');
     expect(runStands(s, 'rd')?.verdict()).toBe('out');
     expect(runStands({ ...s, winner: 'corp' }, 'hq')?.verdict()).toBe('out');
+    // The Runner has won (1.7.2a): in, on a server where the run over would read "out" (review R6)
+    expect(runStands({ ...s, winner: 'runner' }, 'rd')?.verdict()).toBe('in');
+  });
+
+  it("the server's approach is in: the ice passed unrezzed is not met again (6.9.4e, 6.9.5; review R6: walked from the outermost ice, the Corp's rez of Tatu-Bola would read out)", () => {
+    let s = board(st => {
+      installIceForTest(st, '34044', 'remote1', false);
+    });
+    startRunnerTurn(s);
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    // The Corp passes at the approach (no rez), the Runner goes on
+    s = runTo(s, x => x.activeRun?.phase === 'approach_server');
+    expect(s.activeRun?.phase).toBe('approach_server');
+    expect(s.corp.servers.remote1.ice[0].isRezzed).toBe(false);
+    expect(runStands(s, 'remote1')?.verdict()).toBe('in');
+  });
+
+  it("a run in its 'complete' phase short of the server is out (6.9.6; review R6). No engine path sets the phase today (src/core/types/state.ts RunPhase, read by the UI's PhaseTracker): the line reads that phase as 6.9.6 does, pinned on a hand-set board", () => {
+    // 5ab4376 added it with the brute-force reference, from the phase's type, not from a recorded board: the 3,000 runs
+    // stop at the approach, an encounter, after resolved subroutines and the Movement Phase, never at 'complete'
+    let s = board(st => {
+      st.corp.servers.remote1 = { id: 'remote1', name: 'remote1', isRemote: true, ice: [], root: [] };
+    });
+    startRunnerTurn(s);
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    const t = structuredClone(s);
+    t.activeRun = { ...t.activeRun!, phase: 'complete' };
+    // With no ice on the server a walk from the approach would read "in"
+    expect(runStands(t, 'remote1')?.verdict()).toBe('out');
+  });
+
+  it("no bypass while the subroutines resolve: Physarum Entangler on Flyswatter bypasses it at the encounter, not once its subroutine resolves (6.9.3c, 6.5.8a; review R6)", () => {
+    let s = board(st => {
+      const ice = installIceForTest(st, '35079', 'remote1', true);
+      const physarum = installProgramForTest(st, '34082');
+      st.runner.rig.programs.find(c => c.instanceId === physarum)!.hostedOnId = ice;
+    });
+    startRunnerTurn(s);
+    s.runner.credits = 5;
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    s = runTo(s, x => x.activeRun?.phase === 'encounter_ice');
+    // Physarum's own question at the encounter ("pay 1 credit a subroutine to bypass?"): the Runner declines it here
+    const p = activePrompt(s)!;
+    expect(p.side === 'runner' && 'source' in p && p.source.cardCode).toBe('34082');
+    s = executeAction(s, { type: 'RESOLVE_PROMPT', player: 'runner', promptId: p.id, choice: { kind: 'effect_choice', optionId: 'no' } });
+    const run = s.activeRun!;
+    expect(run.phase).toBe('encounter_ice');
+    expect(activePrompt(s)).toBeFalsy();
+    // Its subroutine resolving (the break and bypass windows over, 6.9.3c): End the run, out. The walk's bypass, if
+    // tried here, would pay the credit and read "in"
+    const t = structuredClone(s);
+    t.activeRun = { ...run, encounter: { ...run.encounter!, resolvingIndex: 0 } };
+    clearCaches();
+    expect(runStands(t, 'remote1')?.verdict()).toBe('out');
   });
 
   it('nothing holds (no keep-out answer): a Boto encounter with HQ empty offers no end, and the answer is today\'s', () => {
@@ -407,6 +588,38 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
       expect(pick(corpMove(s)), name).toEqual([beta]);
       expect(runTermStats.decided, name).toBe(decided);
     }
+  });
+
+  it("ruling 12.2 at the answered prompt: a known in, a known out and a not known is not decided, not decided among the known two (review R3; fails when the not-known answer is skipped)", () => {
+    // Deal 2111 T7 with R&D's Flyswatter swapped for a rezzed Virtual Service Agent (34054, a code gate whose subroutine
+    // ends nothing), the Corp at $4 and the Runner at $4 with 2 clicks. Rezzing nothing: Mycoweb's code-gate subroutine
+    // resolves Virtual Service Agent's and the Runner gets past the one rezzed Brân inside, in; rezzing the second Brân
+    // (inst-32, 4 credits after Mycoweb's discount; 6 on its approach, which the Corp cannot pay): out; rezzing Doomscroll
+    // on HQ (inst-35) opens the sentry and code-gate subroutines' choices, 4 follow-ups deep: not known
+    const s = fixture('deal-2111-t7-35053');
+    const gate = createCardInstance(s, '34054');
+    gate.isRezzed = true;
+    s.corp.servers.rd.ice = [gate];
+    s.runner.credits = 4;
+    s.runner.clicks = 2;
+    s.corp.credits = 4;
+    const server = s.activeRun!.server;
+    const p = activePrompt(s)!;
+    const stands = Object.fromEntries(
+      (getLegalActions(s, 'corp') as GameAction[])
+        .filter(a => a.type === 'RESOLVE_PROMPT' && a.promptId === p.id)
+        .map(a => {
+          clearCaches();
+          return [String(pick(a)), settledStand(executeAction(s, a), server)?.verdict()];
+        })
+    );
+    expect(stands).toEqual({ '': 'in', 'inst-35': 'not known', 'inst-32': 'out' });
+    const asked = runTermStats.asked;
+    const decided = runTermStats.decided;
+    // Beta 0137d5f's pick on this board (checked there), today's answer
+    expect(pick(corpMove(s))).toEqual(['inst-35']);
+    expect(runTermStats.asked).toBeGreaterThan(asked);
+    expect(runTermStats.decided).toBe(decided);
   });
 
   it("a Runner prompt that is not a subroutine's choice is the Runner's side, and counted", () => {
