@@ -10,9 +10,10 @@
  * both picks. Order of the two trees alternates by decision (the time is paired).
  *   ARGS="BETA=<sha>" SHARD=0/64 npx vite-node scripts/stage-d/run-answers-fire.ts     (sum: run-answers-fire-sum.mjs)
  * Single decisions (the bar's median of 3): ONLY=human:report-49.json#83,deal:1241#77 REPEAT=3 (DEALS=none or HUMAN=none to skip a group)
+ * DUMP=<dir> with ONLY also writes each named decision's state there (a test fixture).
  */
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { CardInstance, GameAction, GameState } from '../../src/core';
 import type { Agent } from '../../src/ai/agent';
@@ -56,6 +57,8 @@ interface Tree {
   clear: () => void;
   loops: { clear(): void };
   stats: () => Record<'asked' | 'decided' | 'stands' | 'searched' | 'capped' | 'runnerOther' | 'inPick', number>;
+  /** The Runner prompts read as "in", by kind (ruling 11.2; empty on a tree without the count). */
+  kinds: () => Map<string, number>;
 }
 async function tree(name: string, root: string): Promise<Tree> {
   const m = (p: string) => import(/* @vite-ignore */ join(root, 'src', p));
@@ -74,6 +77,7 @@ async function tree(name: string, root: string): Promise<Tree> {
       ev.clearDamageThreats();
     },
     loops: vm.valueLoops,
+    kinds: () => new Map(prompts.runnerOtherKinds ?? []),
     stats: () => ({ asked: prompts.runTermStats?.asked ?? 0, decided: prompts.runTermStats?.decided ?? 0, stands: hold.runStandStats?.asked ?? 0, searched: hold.runStandStats?.searched ?? 0, capped: prompts.runTermStats?.capped ?? 0, runnerOther: prompts.runTermStats?.runnerOther ?? 0, inPick: prompts.runTermStats?.inPick ?? 0 }),
   };
 }
@@ -90,6 +94,7 @@ function ask(t: Tree, side: 'corp' | 'runner', state: GameState, a: Ask) {
   const agent = t.ai.createAgent(side, 'normal') as Agent;
   const s = structuredClone(state);
   const s0 = t.stats();
+  const k0 = t.kinds();
   const t0 = performance.now();
   let pick: GameAction | null;
   try {
@@ -99,7 +104,9 @@ function ask(t: Tree, side: 'corp' | 'runner', state: GameState, a: Ask) {
   }
   const ms = performance.now() - t0;
   const s1 = t.stats();
-  return { pick: key(pick), ms, d: Object.fromEntries(Object.entries(s1).map(([k, v]) => [k, v - s0[k as keyof typeof s0]])) as typeof s1 };
+  const k1 = t.kinds();
+  const kinds = Object.fromEntries([...k1].map(([k, v]) => [k, v - (k0.get(k) ?? 0)]).filter(([, v]) => (v as number) > 0));
+  return { pick: key(pick), ms, d: { ...(Object.fromEntries(Object.entries(s1).map(([k, v]) => [k, v - s0[k as keyof typeof s0]])) as typeof s1), ...(Object.keys(kinds).length ? { kinds } : {}) } };
 }
 
 // ONLY=<src>#<i>,... asks those decisions alone (the bar's single decisions), each REPEAT times per tree, alternating;
@@ -109,6 +116,7 @@ const repeat = Number(process.env.REPEAT ?? 1);
 let n = 0;
 function decide(src: string, i: number, side: 'corp' | 'runner', state: GameState, a: Ask) {
   if (only.size && !only.has(`${src}#${i}`)) return;
+  if (only.size && process.env.DUMP) writeFileSync(join(process.env.DUMP, `${src.replace(/^\w+:/, '').replace('.json', '')}-${i}.json`), JSON.stringify(state));
   const order = n++ % 2 === 0 ? [beta, here] : [here, beta];
   const r: Record<string, ReturnType<typeof ask>> = {};
   const all: Record<string, number[]> = { beta: [], here: [] };

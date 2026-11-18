@@ -367,15 +367,22 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
     expect(firstDiffers).toBeGreaterThan(0);
   });
 
-  it('reads the board as it is at the depth cap, and counts it', () => {
+  it('past the cap (3 Corp follow-ups) reads "in" and counts it; at the cap the follow-up is still followed (ruling 11.1)', () => {
+    // Boto's first subroutine with the second to come: answering "no trash" opens the second, a Corp follow-up whose
+    // answers separate (one ends the run), so the follow-up read as "in" is visible
     const s = fixture('report-39-t7-34109-107');
     const server = s.activeRun!.server;
     const before = runTermStats.capped;
-    const capped = settledStand(s, server, false, 8);
+    const past = settledStand(s, server, false, 3);
     expect(runTermStats.capped).toBe(before + 1);
-    expect(capped?.key).toBe(runStands({ ...s, pendingPrompts: [] }, server)?.key);
-    // Below the cap the open Corp prompt is a choice node, not the board as it is
-    expect(settledStand(s, server)?.key).not.toBe(capped?.key);
+    expect(past?.key).toBe('in');
+    expect(past?.verdict()).toBe('in');
+    // One short of the cap: the prompt is a choice node (its answers are followed), and here one answer ends the run
+    const at = settledStand(s, server, false, 2);
+    expect(at?.key.startsWith('["or"')).toBe(true);
+    expect(at?.verdict()).toBe('out');
+    // Its "no trash" answer meets the second subroutine's prompt past the cap
+    expect(runTermStats.capped).toBe(before + 2);
   });
 
   it("a Runner prompt that is not a subroutine's choice is the Runner's side, and counted", () => {
@@ -391,5 +398,28 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
     const before = runTermStats.runnerOther;
     expect(settledStand(s, 'remote1')?.verdict()).toBe('in');
     expect(runTermStats.runnerOther).toBe(before + 1);
+  });
+
+  it("human report-49 T12, Lycian's trash under Thunderbolt Armaments: the granted subroutine's prompt is the ice's own, and the answers' stands separate (fails on 14e22de: all \"in\")", () => {
+    // Thunderbolt Armaments 34096 grants the encountered ice "End the run unless the Runner trashes 1 of their installed
+    // cards" after its other subroutines; its prompt names the identity as source. Only ice has subroutines (9.8.1), and a
+    // subroutine gained from an ability that adds it after the others is ordered among the ice's own (9.8.3e): the walk
+    // reads the prompt as the subroutine still ahead (ruling 11.2), not as a card's trigger it cannot read
+    const s = fixture('report-49-t12-34100-87');
+    const server = s.activeRun!.server;
+    const p = activePrompt(s)!;
+    const before = runTermStats.runnerOther;
+    const stands = (getLegalActions(s, 'corp') as GameAction[])
+      .filter(a => a.type === 'RESOLVE_PROMPT' && a.promptId === p.id)
+      .map(a => {
+        const after = executeAction(s, a);
+        const q = activePrompt(after)!;
+        expect(q.side === 'runner' && 'source' in q && q.source.cardCode).toBe('34096');
+        clearCaches();
+        return settledStand(after, server)?.verdict();
+      });
+    // Trashing the one program that leaves the Runner unable to pay the granted subroutine and break on: out; the others in
+    expect(stands).toEqual(['in', 'out', 'in']);
+    expect(runTermStats.runnerOther).toBe(before);
   });
 });

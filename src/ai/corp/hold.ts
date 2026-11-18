@@ -1555,11 +1555,16 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
 // rezzed now (6.9.2b) or not. Its key is the gathered question(s): equal keys are equal verdicts, so a reader asks once
 // per board the walk tells apart, and answers are kept per decision (the anchor) as turnAnswers are.
 
-/** The open prompt is the Runner's choice in a subroutine of the encountered ice as it resolves (the walk reads it). */
+/**
+ * The open prompt is the Runner's choice in a subroutine of the encountered ice as it resolves (the walk reads it, the
+ * subroutine still ahead), whatever card the prompt names as its source: only ice has subroutines (9.8.1), and one a
+ * card grants is the ice's own, ordered among its subroutines (9.8.3a, e; ruling 11.2). A Runner prompt outside the
+ * resolution (an encounter ability, a trigger) is not one.
+ */
 export function subroutineChoice(state: GameState): boolean {
   const open = activePrompt(state);
   const e = state.activeRun?.encounter;
-  return !!open && open.side === 'runner' && !!e && e.resolvingIndex !== null && 'source' in open && open.source.instanceId === e.iceId;
+  return !!open && open.side === 'runner' && !!e && e.resolvingIndex !== null;
 }
 
 /** What a run stands at, for the walk: the verdict when it is settled, or the question(s) that decide it. */
@@ -1590,8 +1595,8 @@ export function runStands(state: GameState, server: string): RunStand | null {
   if (run.server !== server) return null;
   const open = activePrompt(state);
   if (open && open.side === 'corp') return null;
-  // A Runner prompt the walk cannot read (a card's trigger, an ability's choice, an ice's encounter ability: not a
-  // subroutine's choice): the Runner's side, "in" (ruling 10.4; prompts.ts counts it)
+  // A Runner prompt the walk cannot read (a card's trigger, an ability's choice, an ice's encounter ability: open outside
+  // the subroutines' resolution): the Runner's side, "in" (ruling 10.4; prompts.ts counts it)
   if (open && !subroutineChoice(state)) return settled('in');
   // The Success Phase or the server's approach: no ice is left (6.9.4e, 6.9.5)
   if (run.breached || run.isSuccessful || run.phase === 'access' || run.phase === 'approach_server') return settled('in');

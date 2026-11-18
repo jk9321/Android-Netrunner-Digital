@@ -11,6 +11,7 @@
  * The facts (each ice's subroutines, subtypes and break plans) are the walk's own (walkIce, Walk's planList): the engine
  * oracle tests those (tests/holdWalk.test.ts); this tests the search and its arithmetic.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../src/core';
 import { getCardDefinition } from '../src/core/cards';
@@ -623,7 +624,7 @@ describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", (
  */
 describe('the hold walk from where a run stands (the run under way)', () => {
   // Pinned: of the oracle's asks with a Runner prompt open, the walk's "in" where the oracle keeps the Runner out
-  const RUNNER_SIDE = { ice: 5, other: 9 };
+  const RUNNER_SIDE = { ice: 5, other: 8 };
   /** The engine oracle's truth (scripts/stage-d/hold-oracle.ts, 'thisRun'): some set of the unrezzed ice, rezzed as approached, keeps this run out. Null when the search hits its cap. */
   function oracleStand(s: GameState, server: string): 'in' | 'out' | null {
     const ids = s.corp.servers[server].ice.filter(c => !c.isRezzed).map(c => c.instanceId);
@@ -639,9 +640,10 @@ describe('the hold walk from where a run stands (the run under way)', () => {
   function bruteStand(s: GameState, server: string): 'in' | 'out' | null {
     const run = s.activeRun!;
     const all = s.corp.servers[server].ice;
-    // A Runner prompt that is not a subroutine's choice as the encountered ice resolves: the Runner's side (ruling 10.4)
+    // A Runner prompt open outside the encountered ice's resolving subroutines: the Runner's side (ruling 10.4). One open
+    // while they resolve is a subroutine's choice whatever card it names (9.8.1, 9.8.3e; ruling 11.2)
     const p = activePrompt(s);
-    if (p && !(run.encounter && run.encounter.resolvingIndex !== null && 'source' in p && p.source.instanceId === run.encounter.iceId)) return 'in';
+    if (p && !(run.encounter && run.encounter.resolvingIndex !== null)) return 'in';
     let view = s;
     let pos: number;
     let approached: CardInstance | undefined;
@@ -692,6 +694,7 @@ describe('the hold walk from where a run stands (the run under way)', () => {
     const outs: Record<string, number> = {};
     const open = { ice: 0, other: 0 };
     const runnerSide = { ice: 0, other: 0 };
+    let granted = 0;
     let oracleAsked = 0;
     let oracleSkipped = 0;
     for (let n = 0; n < 3000; n++) {
@@ -713,13 +716,14 @@ describe('the hold walk from where a run stands (the run under way)', () => {
           if (want !== null) {
             const got = inCorp(s, () => runStands(s, 'remote1')?.verdict() ?? null);
             seen[at] = (seen[at] ?? 0) + 1;
-            // A Runner prompt open (ruling 10: the settle stops there and the walk reads the board): a subroutine's choice as
-            // the encountered ice resolves, or another card's (Botulus, Audrey, an ice's encounter ability, an identity),
-            // which the walk cannot read: "in". Against the engine oracle, the walk never says "out" where the Runner gets
+            // A Runner prompt open (ruling 10: the settle stops there and the walk reads the board): a subroutine's choice
+            // while the encountered ice's subroutines resolve, whatever card it names (a granted subroutine's, 9.8.3e; ruling
+            // 11.2), or one open outside them (an ice's encounter ability, a trigger), which the walk cannot read: "in". Against the engine oracle, the walk never says "out" where the Runner gets
             // in (a half-resolved subroutine is read both ways, the Runner's side between them); the other way is counted
             if (p) {
-              const own = !!run.encounter && run.encounter.resolvingIndex !== null && 'source' in p && p.source.instanceId === run.encounter.iceId;
+              const own = !!run.encounter && run.encounter.resolvingIndex !== null;
               open[own ? 'ice' : 'other']++;
+              if (own && !('source' in p && p.source.instanceId === run.encounter!.iceId)) granted++;
               if (!own && got !== 'in') misses.push(`#${n} ${p.side} prompt not a subroutine's choice: walk ${got}`);
               if (oracleAsked < 60) {
                 oracleAsked++;
@@ -748,11 +752,31 @@ describe('the hold walk from where a run stands (the run under way)', () => {
     }
     expect(open.ice, JSON.stringify(open)).toBeGreaterThan(100);
     expect(open.other, JSON.stringify(open)).toBeGreaterThan(50);
+    console.log(`run stand: Runner prompts open ${JSON.stringify(open)}, of which another card's while the ice resolves ${granted}; Runner's side ${JSON.stringify(runnerSide)}`);
     expect(oracleAsked - oracleSkipped, `oracle asked ${oracleAsked}, skipped ${oracleSkipped}`).toBeGreaterThan(40);
     // The walk's "in" where the oracle keeps the Runner out, at a Runner prompt (the Corp misses a keep-out there, never claims a false one)
     expect(runnerSide, JSON.stringify(runnerSide)).toEqual(RUNNER_SIDE);
     expect(misses.slice(0, 20)).toEqual([]);
   }, 600_000);
+
+  it("a granted subroutine's prompt open (human report-49 T12, Thunderbolt Armaments after Lycian's trash; 9.8.3e, ruling 11.2): the walk agrees with the engine oracle", () => {
+    const s: GameState = JSON.parse(readFileSync('tests/fixtures/run-answers/report-49-t12-34100-87.json', 'utf8'));
+    const server = s.activeRun!.server;
+    const p = activePrompt(s)!;
+    const got: string[] = [];
+    for (const a of (getLegalActions(s, 'corp') as GameAction[]).filter(a => a.type === 'RESOLVE_PROMPT' && a.promptId === p.id)) {
+      const after = executeAction(s, a);
+      const q = activePrompt(after)!;
+      expect(q.side === 'runner' && 'source' in q && q.source.cardCode).toBe('34096');
+      expect(after.activeRun!.encounter!.resolvingIndex).not.toBeNull();
+      const walk = inCorp(after, () => runStands(after, server)?.verdict());
+      const truth = inCorp(after, () => oracleStand(after, server));
+      expect(walk).toBe(truth);
+      got.push(walk!);
+    }
+    // Both verdicts among the stands
+    expect(new Set(got)).toEqual(new Set(['in', 'out']));
+  }, 300_000);
 });
 
 describe("the hold walk's per-decision cache", () => {
