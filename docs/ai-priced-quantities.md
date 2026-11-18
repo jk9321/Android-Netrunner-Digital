@@ -1,6 +1,6 @@
 # AI priced quantities: one owner each
 
-Rule (CLAUDE.md, "One owner per quantity"): each quantity below has one owning function. A branch may not add another computation of it. The "known duplicates" column may only go down. Reviews check this file against the diff; every code audit recounts it. Source of the first counts: `/mnt/project-files/audits/2026-11-13-ai-corp/report.md` (beta ef644c0).
+Rule (`docs/ai-process.md`, "One owner per quantity"): each quantity below has one owning function. A branch may not add another computation of it. The "known duplicates" column may only go down. Reviews check this file against the diff; every code audit recounts it. Source of the first counts: `/mnt/project-files/audits/2026-11-13-ai-corp/report.md` (beta ef644c0).
 
 ## Corp
 | Quantity | Owner (target) | Known duplicates 2026-11-13 | Audit finding | Fixed in |

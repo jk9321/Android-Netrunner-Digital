@@ -83,20 +83,20 @@ write down what you checked even if it was clean.
   and check the code does what the rule says. Card wording from `src/data/*-cards.json` `stripped_text`.
 - **Tests.** Each behaviour change has a test that fails without it (check one: revert the line locally and run
   the test). AI holes are pinned by a scenario test, not only a batch. New cards each have their own test.
-- **Measurements (AI).** Paired batch against the right base, sample size per CLAUDE.md, result checked against the spec's
-  written bar (CLAUDE.md, Bar before the batch). Win rate is reported, not gated, until the tuning phase (Corp 50 ± 5%
+- **Measurements (AI).** Paired batch against the right base, sample size per `docs/ai-process.md`, result checked against the spec's
+  written bar (`docs/ai-process.md`, Bar before the batch). Win rate is reported, not gated, until the tuning phase (Corp 50 ± 5%
   then); a regression within noise on a fix that closes a human-usable hole is acceptable (Jeff,
   2026-10-31).
 
-**Tuning ladder (AI branches that change play).** CLAUDE.md, AI work: trace top down, fix bottom up. The spec or
+**Tuning ladder (AI branches that change play).** `docs/ai-process.md`, Tuning ladder: trace top down, fix bottom up. The spec or
 hand-off must hold the trace (which layer produced the wrong move) and the fix must sit in that layer, as the
 narrowest change that removes the cause for the class of position. Must fix: a fix on a broader layer than the trace
 found (a new counted question or a bent count overriding a lower mistake) or a narrower one (a per-card rule or
 one-position exception for a general mistake) without a written reason and the approval of both the AI Coordinator
 and Jeff; a new counted question, line, clause, per-card rule or lever without the written reason and
-the approvals CLAUDE.md names.
+the approvals `docs/ai-process.md` names.
 
-**Adversarial findings (CLAUDE.md, Hand-off and review).** When the branch's spec had a red-team pass, or the
+**Adversarial findings (`docs/ai-process.md`, Adversarial review).** When the branch's spec had a red-team pass, or the
 stage had an exploit hunt, open `/mnt/project-files/adversarial/<date>-<name>/findings.md`: every finding must
 have a written answer (fixed with the commit, or disagreed with a reason). A finding with no answer, or a "fixed"
 whose commit is not in the reviewed SHA, is a Must fix. Rule on each open dispute in the review file, or take it
