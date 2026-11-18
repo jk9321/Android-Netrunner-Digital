@@ -150,7 +150,7 @@ for (const t of arms.filter(a => a !== 'control')) {
 
 // ---------------------------------------------------------------- exposures
 p('## The exposures, played from the Runner turn start\n');
-p(`| exposure | ${arms.filter(a => a !== 'control').concat(['beta']).reverse().join(' | ')} |`);
+p(`| exposure | ${['beta', ...arms.filter(a => a !== 'control')].join(' | ')} |`);
 p(`|---|${arms.filter(a => a !== 'control').concat(['beta']).map(() => '---').join('|')}|`);
 for (const x of by('x')) p(`| ${x.src} T${x.T} ${x.server} | ${['beta', ...arms.filter(a => a !== 'control')].map(t => `${x[t].stolen.length ? 'stolen' : 'not stolen'} (rezzed ${x[t].rezzed.join(' ') || 'none'}; Corp ${x[t].corpCredits}${x[t].switchedAt != null ? `; own answer from move ${x[t].switchedAt}` : ''})`).join(' | ')} |`);
 
