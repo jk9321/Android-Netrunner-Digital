@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
+import { GameAction, GameState, actingSide, cardDef, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
@@ -45,12 +45,13 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // another card), and played out they cost the Corp games: the destination alone is not where the Corp loses. The cause
   // is a lead for tuning (row 50: each ice is offered at one destination, so the planner cannot weigh HQ against the
   // remote). Known-failing
-  // A guard since ai-runner-money (Stage D item 1 follow-up 4, part 1): "Knickknack" O'Brian is in the Runner's rig
-  // (Unity, Principia, Fermenter, Leech), and with its first-run money counted (the bound) the Corp draws a card here
-  // instead (with the Knickknack fact removed it installs Ansel on remote-6 again). Not a D4 fix: D4 still owes the HQ ice
+  // Since ai-runner-money (Stage D item 1 follow-up 4, part 1) the Corp's first action here is a draw: "Knickknack"
+  // O'Brian is in the Runner's rig, and with its first-run money counted HQ's run count goes 2 to 3 (the oracle's own
+  // +1: 3 without Knickknack, 4 with). The install follows on the next click (the override check,
+  // followup4-runner-money/override-check.md), so the pin asserts over the Corp's whole turn (below). D4 still owes the
+  // HQ ice
   for (const [n, m, title, remote, since, fails] of [
     [49, 82, 'Lycian Multi-Munition', 'remote-4', 'guard since beta 545f146', false],
-    [49, 111, 'Ansel 1.0', 'remote-6', 'guard since ai-runner-money', false],
   ] as const) {
     (fails ? it.fails : it)(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ) (${since})`, { timeout: T }, () => {
       const { s, recorded } = at(n, m);
@@ -60,6 +61,24 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       expect(a.type === 'INSTALL_CARD' && a.cardInstanceId === id && a.targetServerId === remote).toBe(false);
     });
   }
+  it.fails('D4 #49 #111: Ansel 1.0 is not installed on remote-6 in the rest of the Corp\'s turn (expected: HQ) (known-failing: since ai-runner-money a draw first, the install on the next click)', { timeout: T }, () => {
+    const { s: s0, recorded } = at(49, 111);
+    const id = (recorded as Install).cardInstanceId!;
+    expect(cardDef(findCardAnywhere(s0, id)!).title).toBe('Ansel 1.0');
+    // The Corp's clicks from move 111 to the end of its turn, by its own Normal agent (a Normal Runner answers any prompt)
+    const corp = createAgent('corp', 'normal');
+    const runner = createAgent('runner', 'normal');
+    const played: Install[] = [];
+    let s = s0;
+    for (let k = 0; k < 40 && !s.winner && s.turnNumber === s0.turnNumber && s.activePlayer === 'corp'; k++) {
+      const side = actingSide(s);
+      const a = (side === 'corp' ? corp : runner).chooseAction(s) as Install;
+      if (side === 'corp') played.push(a);
+      s = executeAction(s, a);
+    }
+    expect(played.length).toBeGreaterThan(0);
+    expect(played.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === id && a.targetServerId === 'remote-6')).toBe(false);
+  });
 
   // A guard, not a pin: since centralIce the Corp puts Descent on bare R&D, not remote-1. D4 decides whether R&D or HQ
   // (4 agendas behind one ice) is right here; Jeff expected HQ
