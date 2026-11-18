@@ -213,6 +213,7 @@ async function main() {
     inner = inner0();
     const r0 = t.runTerm();
     const copy = structuredClone(s);
+    G.__ppOrders = new Map();
     const agent = t.createAgent('corp', 'normal');
     const t0 = performance.now();
     let pick: GameAction | null = null;
@@ -223,8 +224,10 @@ async function main() {
       err = `error: ${(e as Error).message}`;
     }
     const ms = performance.now() - t0 - inner.diffMs;
+    const orders = G.__ppOrders as Map<string, unknown>;
     const r1 = t.runTerm();
-    return { pick, key: err ?? akey(pick), short: err ?? short(s, pick), ms, inner: { ...inner, diffMs: Math.round(inner.diffMs) }, run: { asked: r1.asked - r0.asked, decided: r1.decided - r0.decided } };
+    const pid = activePrompt(s)?.id;
+    return { pick, key: err ?? akey(pick), short: err ?? short(s, pick), ms, order: pid ? orders.get(pid) : undefined, inner: { ...inner, diffMs: Math.round(inner.diffMs) }, run: { asked: r1.asked - r0.asked, decided: r1.decided - r0.decided } };
   };
 
   const treeAgent = (t: Tree, side: 'corp' | 'runner') => {
@@ -314,6 +317,8 @@ async function main() {
         installs: promptInstalls(s),
         picks: Object.fromEntries(ARMS.map(x => [x, r[x].short])),
         runDecided: Object.fromEntries(ARMS.map(x => [x, r[x].inner.runDecidedInstall > 0 && r[x].run.decided > 0])),
+        // the owners' order at this prompt (each candidate's card, server, line, behind, credits the install costs)
+        order: (r.owners ?? r.no9)?.order,
       });
     }
     if (changed.length && !process.env.NO_CONT && !only.size) {

@@ -171,7 +171,7 @@ function promptOrder(state: GameState, picks: PickOpts[]): Candidate[] {
   const legal = picks.flatMap(({ card, options }) => options.map(o => (o === 'new' ? { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, asNewRemote: true } : { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: card.instanceId, targetServerId: o }) as GameAction));
   const offered = new Map(picks.map(x => [x.card.instanceId, x.options]));
   const where = (a: Install) => (a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId);
-  return corpCandidates(state, legal, { held: null, freeExhausted: false, free }).filter(c => {
+  const order = corpCandidates(state, legal, { held: null, freeExhausted: false, free }).filter(c => {
     if (!isInstall(c.action) || !offered.get(c.action.cardInstanceId)?.includes(where(c.action))) return false;
     const card = findCardAnywhere(state, c.action.cardInstanceId);
     if (card && cardDef(card).type_code === 'agenda') {
@@ -180,6 +180,11 @@ function promptOrder(state: GameState, picks: PickOpts[]): Candidate[] {
     }
     return true;
   });
+  // The script's record (prompt-place.ts): each prompt's order, the first time it is computed, by prompt id
+  const rec = ${G}.__ppOrders as Map<string, unknown> | undefined;
+  const pid = activePrompt(state)?.id;
+  if (rec && pid && !rec.has(pid)) rec.set(pid, order.map(c => { const a = c.action as Install; const after = free(a); return { card: c.card, type: cardDef(findCardAnywhere(state, a.cardInstanceId)!).type_code, server: where(a), line: c.line, behind: c.behind, credits: after ? state.corp.credits - after.corp.credits : null }; }));
+  return order;
 }
 
 /** The board after the prompt installs \`a\`: its card question answered, then its server question (or the card placed by the pick itself). */
