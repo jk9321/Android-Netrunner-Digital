@@ -1,0 +1,34 @@
+sources 92 (deals 56, human 36); decisions 22401
+
+## self (56 games)
+corp: 5072 decisions; time beta 1735.8 s, here 1801.6 s: mean x1.038, p95 x1.033 (beta p95 1395 ms, here 1441 ms), max 6873 -> 6992 ms
+  decisions of 0.5 s or more on beta over 2x here: 1: deal:1241#78 531.8->1126.8
+  run term inside (here): asked 2112 (37.7 a game), decided 218 (3.9 a game); run-stand verdicts 5407, searched 1530
+  settle (ruling 10): depth cap reached 25, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 69, at a top-level run prompt 4
+  changed 5 (0.09 a game): top-level Corp prompt in a run 3; with the run term deciding inside 5; neither 0
+  - deal:1241 #59 T11 chooseAction [run prompt] 30038:trash rd decided 1 | beta {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-23","choice":{"kind":"effect_cards","cardInstanceIds":["inst-90"]}} | here {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-23","choice":{"kind":"effect_cards","cardInstanceIds":["inst-82"]}}
+  - deal:1601 #40 T7 chooseAction [run prompt] 30062:choose remote-1 decided 1 | beta {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-15","choice":{"kind":"effect_choice","optionId":"inst-86"}} | here {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-15","choice":{"kind":"effect_choice","optionId":"end"}}
+  - deal:1601 #62 T12 chooseAction   decided 8 | beta {"type":"INSTALL_CARD","player":"corp","cardInstanceId":"inst-37","targetServerId":"remote-1"} | here {"type":"ADVANCE_CARD","player":"corp","cardInstanceId":"inst-8","serverId":"remote-1"}
+  - deal:1601 #65 T12 chooseAction [run prompt] 30062:choose remote-1 decided 1 | beta {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-24","choice":{"kind":"effect_choice","optionId":"inst-88"}} | here {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-24","choice":{"kind":"effect_choice","optionId":"end"}}
+  - deal:2241 #84 T13 chooseAction   decided 2 | beta {"type":"DRAW_CARD","player":"corp"} | here {"type":"INSTALL_CARD","player":"corp","cardInstanceId":"inst-11","targetServerId":"remote-1"}
+runner: 8247 decisions; time beta 339.5 s, here 352.9 s: mean x1.040, p95 x1.038 (beta p95 212 ms, here 220 ms), max 1858 -> 1633 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 0 (0.0 a game), decided 0 (0.0 a game); run-stand verdicts 0, searched 0
+  settle (ruling 10): depth cap reached 0, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 0, at a top-level run prompt 0
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+
+## human (36 games)
+corp: 3756 decisions; time beta 1257.7 s, here 1262.7 s: mean x1.004, p95 x0.982 (beta p95 1575 ms, here 1547 ms), max 12173 -> 12833 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 2610 (72.5 a game), decided 166 (4.6 a game); run-stand verdicts 9741, searched 1167
+  settle (ruling 10): depth cap reached 2, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 1, at a top-level run prompt 1
+  changed 2 (0.06 a game): top-level Corp prompt in a run 1; with the run term deciding inside 2; neither 0
+  - human:report-38.json #73 T11 chooseAction   decided 2 | beta {"type":"INSTALL_CARD","player":"corp","cardInstanceId":"inst-42","targetServerId":"remote-6"} | here {"type":"REZ_CARD","player":"corp","cardInstanceId":"inst-46"}
+  - human:report-39.json #46 T7 chooseAction [run prompt] 34109:etr remote-1 decided 1 | beta {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-13","choice":{"kind":"effect_cards","cardInstanceIds":[]}} | here {"type":"RESOLVE_PROMPT","player":"corp","promptId":"prompt-13","choice":{"kind":"effect_cards","cardInstanceIds":["inst-29"]}}
+runner: 5326 decisions; time beta 239.6 s, here 241.0 s: mean x1.006, p95 x1.003 (beta p95 198 ms, here 198 ms), max 5229 -> 4712 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 0 (0.0 a game), decided 0 (0.0 a game); run-stand verdicts 0, searched 0
+  settle (ruling 10): depth cap reached 0, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 0, at a top-level run prompt 0
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+
+errors: 0
