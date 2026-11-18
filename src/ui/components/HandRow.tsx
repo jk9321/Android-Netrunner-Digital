@@ -93,6 +93,22 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
   // A hand that changes while spread (a card played) closes; so does a tap anywhere else
   useEffect(() => setSpread(null), [cards.length]);
+  // The spread also closes on where the pointer is, not only on its own mouseleave: a pointer that leaves within
+  // tens of ms of the spread opening gets no mouseout (the node under it is replaced as the cards slide apart)
+  const isSpread = spread !== null;
+  useEffect(() => {
+    if (!isSpread) return;
+    let outside = false;
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || !(e.target instanceof Node)) return;
+      const over = !!wrapRef.current?.contains(e.target) || !!document.querySelector('[data-hand-spread]')?.contains(e.target);
+      if (over) window.clearTimeout(closeTimer.current);
+      else if (!outside) close();
+      outside = !over;
+    };
+    document.addEventListener('pointermove', move);
+    return () => document.removeEventListener('pointermove', move);
+  }, [isSpread, close]);
   useEffect(() => {
     if (!spread) return;
     const away = (e: PointerEvent) => {
