@@ -1,0 +1,1749 @@
+{
+ "corpCards": 201,
+ "scripted": 200,
+ "cards": [
+  {
+   "code": "35036",
+   "title": "Poétrï Luxury Brands: All the Rage",
+   "type": "identity",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/identities.ts",
+   "text": "Whenever you score an agenda, look at the top 3 cards of R&D. You may install 1 non-agenda card from among them. Whenever an agenda is stolen, you may install 1 non-agenda card from HQ.",
+   "steps": [
+    {
+     "flow": "poetriFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "poetriFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "trigger:agenda_scored",
+    "trigger:agenda_stolen"
+   ],
+   "zones": [
+    "HQ",
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "35038",
+   "title": "Project Ingatan",
+   "type": "agenda",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/agendas.ts",
+   "text": "Dividends 1 (When you score this agenda, place 1 agenda counter on it for each excess advancement counter.) When your discard phase ends, you may remove 1 hosted agenda counter to install 1 card from Archives, ignoring all costs.",
+   "steps": [
+    {
+     "flow": "ingatanFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "ingatanFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [],
+   "zones": [
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "35039",
+   "title": "Humanoid Resources",
+   "type": "asset",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/assets.ts",
+   "text": "click click click, trash: Gain 4 credits and draw 3 cards. Install up to 2 cards from HQ (one at a time). You may play 1 operation from HQ.",
+   "steps": [
+    {
+     "flow": "installFromHQ",
+     "step": "install_pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "helper": "src/core/scripts/elevation/corp/helpers.ts",
+     "today": "fallback"
+    },
+    {
+     "flow": "installFromHQ",
+     "step": "install_server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "helper": "src/core/scripts/elevation/corp/helpers.ts",
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "ability"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "35042",
+   "title": "Scatter Field",
+   "type": "ice",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/ice.ts",
+   "text": "While this ice is the only piece of ice protecting this server, it gets +4 strength. Subroutine You may install 1 card from HQ. Subroutine End the run.",
+   "steps": [
+    {
+     "flow": "scatterFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "scatterFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "35044",
+   "title": "Top-Down Solutions",
+   "type": "operation",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/operations.ts",
+   "text": "Draw 2 cards. Install up to 2 cards from HQ (one at a time).",
+   "steps": [
+    {
+     "flow": "installFromHQ",
+     "step": "install_pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "helper": "src/core/scripts/elevation/corp/helpers.ts",
+     "today": "fallback"
+    },
+    {
+     "flow": "installFromHQ",
+     "step": "install_server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "helper": "src/core/scripts/elevation/corp/helpers.ts",
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "35045",
+   "title": "Mercia B4LL4RD",
+   "type": "upgrade",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/upgrades.ts",
+   "text": "When your action phase ends, you may install 1 piece of ice from HQ, paying 1 credit less. If you do, move this upgrade to the root of the server that piece of ice is protecting.",
+   "steps": [
+    {
+     "flow": "merciaFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "1",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "merciaFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "1",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "trigger:action_phase_ends"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "35053",
+   "title": "Mycoweb",
+   "type": "ice",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/ice.ts",
+   "text": "Subroutine You may install 1 piece of ice from Archives, ignoring all costs. Subroutine You may rez 1 installed piece of ice, paying 2 credits less. Subroutine Resolve 1 subroutine on a rezzed sentry. Subroutine Resolve 1 subroutine on another rezzed code gate.",
+   "steps": [
+    {
+     "flow": "mycowebFlow",
+     "step": "install",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "mycowebFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "35055",
+   "title": "Peer Review",
+   "type": "operation",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/operations.ts",
+   "text": "Reveal all but 1 card in HQ. Gain 7 credits. You may install 1 card from HQ in the root of a remote server.",
+   "steps": [
+    {
+     "flow": "peerReviewFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": true,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "peerReviewFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": true,
+   "inRun": false
+  },
+  {
+   "code": "35058",
+   "title": "Synapse Global: Faster than Thought",
+   "type": "identity",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/identities.ts",
+   "text": "The first time each turn a tag is removed, you may reveal and install 1 card from HQ, ignoring all costs. click, remove 1 tag: Gain 2 credits.",
+   "steps": [
+    {
+     "flow": "synapseFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": true,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "Synapse block (freeInstallTarget, order position; no agenda)"
+    },
+    {
+     "flow": "synapseFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": true,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "Synapse block (freeInstallTarget server)"
+    }
+   ],
+   "from": [
+    "trigger:tags_removed",
+    "ability"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": true,
+   "inRun": false
+  },
+  {
+   "code": "35066",
+   "title": "IP Enforcement",
+   "type": "operation",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/operations.ts",
+   "text": "As an additional cost to play this operation, remove X tags. Install 1 agenda from the Runner's score area with a printed agenda point value equal to X. If the Runner is still tagged, place 1 advancement counter on that agenda.",
+   "steps": [
+    {
+     "flow": "ipFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [],
+   "mayDecline": false,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "35071",
+   "title": "Off the Books",
+   "type": "agenda",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/agendas.ts",
+   "text": "Dividends 1 (When you score this agenda, place 1 agenda counter on it for each excess advancement counter.) When your discard phase ends, you may remove 1 hosted agenda counter to search R&D for 1 card and reveal it. (Shuffle R&D after searching it.) You may install that card, ignoring all costs. If you do not, add it to HQ.",
+   "steps": [
+    {
+     "flow": "offTheBooksFlow",
+     "step": "search",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": true,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "offTheBooksFlow",
+     "step": "install",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": true,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [],
+   "zones": [
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": true,
+   "inRun": false
+  },
+  {
+   "code": "35077",
+   "title": "Key Performance Indicators",
+   "type": "operation",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/operations.ts",
+   "text": "Resolve 2 of the following in any order: * Draw 1 card. Shuffle 1 card from HQ into R&D. * Install 1 piece of ice from HQ, ignoring all costs. * Place 1 advancement counter on an installed card you can advance. * Gain 2 credits.",
+   "steps": [
+    {
+     "flow": "kpiFlow",
+     "step": "ice",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "kpiFlow",
+     "step": "ice_server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [],
+   "mayDecline": false,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34034",
+   "title": "Ablative Barrier",
+   "type": "ice",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/ice.ts",
+   "text": "Threat 3 -> When you rez this ice during a run against this server, you may install 1 non-agenda card from HQ or Archives in the root of or protecting another server. (This ability is active if any player has 3 or more agenda points.) Subroutine End the run.",
+   "steps": [
+    {
+     "flow": "ablativeFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "ablativeFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "HQ",
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "34037",
+   "title": "Greasing the Palm",
+   "type": "operation",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/operations.ts",
+   "text": "Gain 5 credits. You may install 1 card from HQ. You may remove 1 tag to place 1 advancement counter on that card.",
+   "steps": [
+    {
+     "flow": "greasingFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "greasingFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34039",
+   "title": "A Teia: IP Recovery",
+   "type": "identity",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/identities.ts",
+   "text": "Limit 2 remote servers. The first time each turn you install a card in the root of or protecting a remote server, you may install 1 card from HQ in the root of or protecting another remote server, ignoring all costs. You cannot score the second card this turn.",
+   "steps": [
+    {
+     "flow": "aTeiaFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "aTeiaFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:installed"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34044",
+   "title": "Tatu-Bola",
+   "type": "ice",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/ice.ts",
+   "text": "When the Runner passes this ice, you may swap it with a piece of ice from HQ. If you do, gain 4 credits. (The new ice is installed unrezzed. You do not pay an install cost.) Subroutine End the run.",
+   "steps": [
+    {
+     "flow": "tatuBolaFlow",
+     "step": "swap",
+     "kind": "cards",
+     "cls": "pick+place",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine",
+    "onPass (ice passed)"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "34048",
+   "title": "Epiphany Analytica: Nations Undivided",
+   "type": "identity",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/identities.ts",
+   "text": "The first time each turn the Runner steals or trashes a Corp card, place 1 power counter on this identity. click, hosted power counter: Look at the top 3 cards of R&D. You may install 1 of those cards.",
+   "steps": [
+    {
+     "flow": "epiphanyFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "Epiphany block (agenda if safeAgendaRemote; ice <= credits; asset/upgrade)"
+    },
+    {
+     "flow": "epiphanyFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:agenda_stolen",
+    "trigger:runner_trashed_corp_card",
+    "ability"
+   ],
+   "zones": [
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "34062",
+   "title": "Pivot",
+   "type": "operation",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/operations.ts",
+   "text": "As an additional cost to play this operation, spend click. Search R&D for 1 operation or agenda and reveal it. (Shuffle R&D after searching it.) Add that card to HQ. Threat 3 -> You may play or install 1 card from HQ. (This ability is active if any player has 3 or more agenda points.)",
+   "steps": [
+    {
+     "flow": "pivotFlow",
+     "step": "use",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "pivotFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": true,
+   "inRun": false
+  },
+  {
+   "code": "34064",
+   "title": "Tucana",
+   "type": "upgrade",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/upgrades.ts",
+   "text": "Remote server only. Persistent -> Whenever an agenda is scored or stolen from the root of this server, you may search R&D for 1 piece of ice. (Shuffle R&D after searching it.) Install and rez that ice, paying a total of 3 credits less.",
+   "steps": [
+    {
+     "flow": "tucanaFlow",
+     "step": "search",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "3",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "tucanaFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "3",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "trigger:agenda_scored",
+    "trigger:agenda_stolen"
+   ],
+   "zones": [
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "34098",
+   "title": "Warm Reception",
+   "type": "asset",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/assets.ts",
+   "text": "When your turn begins, you may install 1 card from HQ. You cannot score that card this turn. If this server is not protected by ice, you may derez this asset to derez another installed card.",
+   "steps": [
+    {
+     "flow": "warmFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "WR/Janaina block (ice the Corp can afford, costliest; else asset/upgrade; no agenda)"
+    },
+    {
+     "flow": "warmFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:turn_begins"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34102",
+   "title": "Active Policing",
+   "type": "operation",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/operations.ts",
+   "text": "Play only if the Runner stole or trashed a Corp card during their last turn. After you resolve this operation, your action phase ends. You may install 1 card from HQ. The Runner gets -1 allotted click for their next turn. Threat 3 -> You may pay 2 credits. If you do, the Runner gets -1 allotted click for their next turn. (This ability is active if any player has 3 or more agenda points.)",
+   "steps": [
+    {
+     "flow": "activePolicingFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "activePolicingFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34111",
+   "title": "Tributary",
+   "type": "ice",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/ice.ts",
+   "text": "The first time each turn a run begins, you may move this ice to the outermost position protecting the attacked server. (The Runner will approach this ice.) Subroutine You may draw 1 card. You may install 1 piece of ice from HQ protecting another server, ignoring all costs. Subroutine Each piece of ice gets +2 strength for the remainder of this run.",
+   "steps": [
+    {
+     "flow": "tributaryFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "tributaryFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine",
+    "trigger:run_begins"
+   ],
+   "zones": [
+    "HQ",
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "34115",
+   "title": "Janaína “JK” Dumont Kindelán",
+   "type": "asset",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/assets.ts",
+   "text": "When your turn begins, place 3 credits on this asset. click, add this asset to HQ: Take all credits from this asset. You may install 1 card from HQ.",
+   "steps": [
+    {
+     "flow": "janainaFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "WR/Janaina block (ice the Corp can afford, costliest; else asset/upgrade; no agenda)"
+    },
+    {
+     "flow": "janainaFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:turn_begins",
+    "ability"
+   ],
+   "zones": [
+    "HQ"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "34122",
+   "title": "Eminent Domain",
+   "type": "agenda",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/agendas.ts",
+   "text": "click, 1 credit, reveal and trash this agenda from HQ: Install and rez 1 card from HQ, paying a total of 5 credits less. When you score this agenda, you may search R&D for 1 card. (Shuffle R&D after searching it.) Install and rez that card, ignoring all costs.",
+   "steps": [
+    {
+     "flow": "eminentDomainFlow",
+     "step": "hq",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "5",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "eminentDomainFlow",
+     "step": "hq-server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "5",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    },
+    {
+     "flow": "eminentDomainFlow",
+     "step": "search",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": "0",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "eminentDomainFlow",
+     "step": "rd-server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": "0",
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:agenda_scored",
+    "ability"
+   ],
+   "zones": [
+    "HQ",
+    "R&D"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": true,
+   "inRun": false
+  },
+  {
+   "code": "34130",
+   "title": "The Powers That Be",
+   "type": "asset",
+   "set": "liberation",
+   "file": "src/core/scripts/liberation/corp/assets.ts",
+   "text": "Whenever you score an agenda, you may install 1 card from HQ or Archives, ignoring all costs.",
+   "steps": [
+    {
+     "flow": "powersFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "powersFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "LIB_INSTALLERS block for an agenda (safeAgendaRemote), else fallback"
+    }
+   ],
+   "from": [
+    "trigger:agenda_scored"
+   ],
+   "zones": [
+    "HQ",
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "30038",
+   "title": "Ansel 1.0",
+   "type": "ice",
+   "set": "system-gateway",
+   "file": "src/core/scripts/ice.ts",
+   "text": "Lose click: Break 1 subroutine on this ice. Only the Runner can use this ability. Subroutine Trash 1 installed Runner card. Subroutine You may install 1 card from HQ or Archives. Subroutine The Runner cannot steal or trash Corp cards for the remainder of this run.",
+   "steps": [
+    {
+     "flow": "anselFlow",
+     "step": "pick_install",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "anselFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "HQ",
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "30039",
+   "title": "Brân 1.0",
+   "type": "ice",
+   "set": "system-gateway",
+   "file": "src/core/scripts/ice.ts",
+   "text": "Lose click: Break 1 subroutine on this ice. Only the Runner can use this ability. Subroutine You may install 1 piece of ice from HQ or Archives directly inward from this ice, ignoring all costs. Subroutine End the run. Subroutine End the run.",
+   "steps": [
+    {
+     "flow": "branFlow",
+     "step": "install",
+     "kind": "cards",
+     "cls": "pick+place",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "HQ",
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "36028",
+   "title": "Ansel 2.0",
+   "type": "ice",
+   "set": "vantage-point",
+   "file": "src/core/scripts/vantage/corp/ice.ts",
+   "text": "Lose click click: Break up to 2 subroutines on this ice. Only the Runner can use this ability. Subroutine Trash 1 installed Runner card. Subroutine Remove 1 card in the heap from the game. Subroutine You may install 1 card from HQ or Archives. Subroutine End the run.",
+   "steps": [
+    {
+     "flow": "anselFlow",
+     "step": "install",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "anselFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "subroutine"
+   ],
+   "zones": [
+    "HQ",
+    "Archives"
+   ],
+   "mayDecline": true,
+   "agendaPickable": "by text: any card type",
+   "reveals": false,
+   "inRun": true
+  },
+  {
+   "code": "36034",
+   "title": "Retirement Plan",
+   "type": "operation",
+   "set": "vantage-point",
+   "file": "src/core/scripts/vantage/corp/operations.ts",
+   "text": "As an additional cost to play this operation, spend click. Install 1 agenda, asset, or piece of ice from Archives.",
+   "steps": [
+    {
+     "flow": "retirementFlow",
+     "step": "pick",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "retirementFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "Archives"
+   ],
+   "mayDecline": false,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": false
+  },
+  {
+   "code": "36062",
+   "title": "Reanimation Protocol",
+   "type": "operation",
+   "set": "vantage-point",
+   "file": "src/core/scripts/vantage/corp/operations.ts",
+   "text": "Install and rez 1 piece of ice from Archives, paying a total of 10 credits less. If you rezzed a piece of non-liability ice this way, take 1 bad publicity.",
+   "steps": [
+    {
+     "flow": "reanimationFlow",
+     "step": "ice",
+     "kind": "cards",
+     "cls": "pick",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    },
+    {
+     "flow": "reanimationFlow",
+     "step": "server",
+     "kind": "choice",
+     "cls": "server",
+     "opts": {
+      "ignoreCosts": true,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": true
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "onPlay"
+   ],
+   "zones": [
+    "Archives"
+   ],
+   "mayDecline": false,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": false
+  }
+ ],
+ "unmatched": [
+  {
+   "code": "35037",
+   "title": "Aggressive Trendsetting",
+   "type": "agenda",
+   "set": "elevation",
+   "scripted": true,
+   "text": "The first time the Runner trashes an installed Corp card during each of their turns, they may spend click. If they do not, you get +1 allotted click for your next turn."
+  },
+  {
+   "code": "35041",
+   "title": "Bumi 1.0",
+   "type": "ice",
+   "set": "elevation",
+   "scripted": true,
+   "text": "When you rez this ice during a run against this server, you may trash 1 installed trojan program. Lose click: Break 1 subroutine on this ice. Only the Runner can use this ability. Subroutine Trash 1 installed program. Subroutine Do 1 core damage."
+  },
+  {
+   "code": "35049",
+   "title": "Sericulture Expansion",
+   "type": "agenda",
+   "set": "elevation",
+   "scripted": true,
+   "text": "Dividends 1 (When you score this agenda, place 1 agenda counter on it for each excess advancement counter.) When your discard phase ends, you may remove 1 hosted agenda counter to place 2 advancement counters on 1 installed card. (You cannot score that card this turn.)"
+  },
+  {
+   "code": "35067",
+   "title": "Touch-ups",
+   "type": "operation",
+   "set": "elevation",
+   "scripted": true,
+   "text": "As an additional cost to play this operation, spend click. Place 2 advancement counters on 1 installed card you can advance. If you do, choose a card type and reveal the grip. Choose up to 2 revealed cards of that type. The Runner shuffles those cards into the stack."
+  },
+  {
+   "code": "35068",
+   "title": "BANGUN: When Disaster Strikes",
+   "type": "identity",
+   "set": "elevation",
+   "scripted": true,
+   "text": "You may install agendas faceup. (This does not make their abilities active.) Whenever the Runner accesses a faceup installed agenda, do 2 meat damage and give the Runner 1 tag."
+  },
+  {
+   "code": "35074",
+   "title": "Biawak",
+   "type": "ice",
+   "set": "elevation",
+   "scripted": true,
+   "text": "You can forfeit 1 agenda as you rez this ice to pay for 10 credits of its rez cost. Subroutine Trash 1 installed program or end the run. Subroutine Trash 1 installed resource or end the run. Subroutine End the run."
+  },
+  {
+   "code": "35076",
+   "title": "Syailendra",
+   "type": "ice",
+   "set": "elevation",
+   "scripted": true,
+   "text": "You can advance this ice. When the Runner encounters this ice, if it has 3 or more hosted advancement counters, you may place 1 advancement counter on an installed card you can advance. Subroutine You may place 1 advancement counter on an installed card you can advance. Subroutine The Runner loses 2 credits. Subroutine Do 1 net damage."
+  },
+  {
+   "code": "34032",
+   "title": "Stegodon MK IV",
+   "type": "agenda",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Each run, as long as a piece of ice has been derezzed during that run, each installed icebreaker gets -2 strength. Once per turn -> When a run begins, you may derez 1 piece of ice not protecting the attacked server to gain 1[credit]."
+  },
+  {
+   "code": "34057",
+   "title": "Slash and Burn Agriculture",
+   "type": "agenda",
+   "set": "liberation",
+   "scripted": true,
+   "text": "click, 1 credit, reveal and trash this agenda from HQ: Place 2 advancement counters on 1 installed card that you can advance."
+  },
+  {
+   "code": "34058",
+   "title": "Cybersand Harvester",
+   "type": "asset",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Whenever you rez a piece of ice, place 2 credits on this asset. You can spend hosted credits to pay install costs. trash: Take all credits from this asset."
+  },
+  {
+   "code": "34059",
+   "title": "Tree Line",
+   "type": "ice",
+   "set": "liberation",
+   "scripted": true,
+   "text": "click, 1 credit, reveal and trash this ice from HQ: Place 3 advancement counters on 1 installed piece of ice. You can advance this ice. It gets +1 strength for each hosted advancement counter. Subroutine Gain 1 credit. End the run."
+  },
+  {
+   "code": "34096",
+   "title": "Thunderbolt Armaments: Peace Through Power",
+   "type": "identity",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Whenever you rez a piece of AP or destroyer ice during a run, that ice gets +1 strength and gains \"Subroutine End the run unless the Runner trashes 1 of their installed cards.\" after its other subroutines for the remainder of that run."
+  },
+  {
+   "code": "34099",
+   "title": "Working Prototype",
+   "type": "asset",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Whenever you rez a card (including this asset), place 1 power counter on this asset. click, hosted power counter: Gain 3 credits. click, 5 hosted power counters: Gain 6 credits. Add 1 installed resource to the top of the stack."
+  },
+  {
+   "code": "34100",
+   "title": "Lycian Multi-Munition",
+   "type": "ice",
+   "set": "liberation",
+   "scripted": true,
+   "text": "When you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry. This ice gains the chosen subtypes while it remains rezzed. When a turn ends, derez this ice. Subroutine If this ice is a code gate, the Runner loses click and 1 credit. Subroutine If this ice is a sentry, trash 1 installed program. Subroutine If this ice is a barrier, gain 1 credit and end the run."
+  },
+  {
+   "code": "34101",
+   "title": "Sorocaban Blade",
+   "type": "ice",
+   "set": "liberation",
+   "scripted": true,
+   "text": "You cannot trash more than 1 installed Runner card with this ice during each encounter. Subroutine Trash 1 installed resource. Subroutine Trash 1 installed piece of hardware. Subroutine Trash 1 installed program."
+  },
+  {
+   "code": "34104",
+   "title": "Brasília Government Grid",
+   "type": "upgrade",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Once per turn -> When you rez a piece of ice during a run against this server, you may derez another installed piece of ice. If you do, the rezzed ice gets +3 strength for the remainder of that run. Limit 1 region per server."
+  },
+  {
+   "code": "34108",
+   "title": "Cohort Guidance Program",
+   "type": "asset",
+   "set": "liberation",
+   "scripted": true,
+   "text": "When your turn begins, you may resolve 1 of the following: * Trash 1 card from HQ. If you do, gain 2 credits and draw 1 card. * Turn 1 facedown card in Archives faceup. If you do, place 1 advancement counter on an installed card."
+  },
+  {
+   "code": "34110",
+   "title": "Cloud Eater",
+   "type": "ice",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Whenever an encounter with this ice ends, if it was rezzed this turn, trash 1 installed Runner card unless the Runner takes 2 tags or suffers 3 net damage. Subroutine Trash 1 installed Runner card. Subroutine Give the Runner 2 tags. Subroutine Do 3 net damage."
+  },
+  {
+   "code": "34114",
+   "title": "Stoke the Embers",
+   "type": "agenda",
+   "set": "liberation",
+   "scripted": true,
+   "text": "When you score this agenda, gain 3 credits and place 1 advancement counter on an installed card. When you install this agenda from anywhere except HQ, you may reveal it. If you do, gain 2 credits and place 1 advancement counter on an installed card."
+  },
+  {
+   "code": "34120",
+   "title": "The Holo Man",
+   "type": "upgrade",
+   "set": "liberation",
+   "scripted": true,
+   "text": "When your turn begins, you may move this upgrade to the root of another server. Once per turn -> click, 4[credit]: Place 2 advancement counters on 1 card in the root of or protecting this server. If you have not installed any cards from HQ this turn, instead place 3 advancement counters on that card."
+  },
+  {
+   "code": "34124",
+   "title": "Hearts and Minds",
+   "type": "asset",
+   "set": "liberation",
+   "scripted": true,
+   "text": "When your turn begins, you may move 1 advancement counter from an installed card to an installed card you can advance. If this server is not protected by ice, you may also place 1 advancement counter on an installed card you can advance."
+  },
+  {
+   "code": "34126",
+   "title": "Hammer",
+   "type": "ice",
+   "set": "liberation",
+   "scripted": true,
+   "text": "During each encounter with this ice, the Runner cannot break more than 1 of its printed subroutines except using killers. Subroutine Give the Runner 1 tag. Subroutine Trash 1 installed resource or piece of hardware. Subroutine Trash 1 installed program that is not a decoder, fracter, or killer."
+  },
+  {
+   "code": "34128",
+   "title": "Business As Usual",
+   "type": "operation",
+   "set": "liberation",
+   "scripted": true,
+   "text": "Resolve 1 of the following: * Place 1 advancement counter on each of up to 2 installed cards you can advance. * Remove all virus counters from 1 installed card. Threat 3 -> You may also resolve the other mode. (This ability is active if any player has 3 or more agenda points.)"
+  },
+  {
+   "code": "30040",
+   "title": "Seamless Launch",
+   "type": "operation",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "Place 2 advancement counters on 1 installed card that you did not install this turn."
+  },
+  {
+   "code": "30045",
+   "title": "Urtica Cipher",
+   "type": "asset",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "You can advance this asset. When the Runner accesses this asset while it is installed, do 2 net damage plus 1 net damage for each hosted advancement counter."
+  },
+  {
+   "code": "30046",
+   "title": "Diviner",
+   "type": "ice",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "Subroutine Do 1 net damage. If you trash a card this way with a printed play or install cost that is an odd number, end the run. (0 is not odd.)"
+  },
+  {
+   "code": "30060",
+   "title": "Above the Law",
+   "type": "agenda",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "When you score this agenda, you may trash 1 installed resource. Limit 1 per deck."
+  },
+  {
+   "code": "30062",
+   "title": "Ballista",
+   "type": "ice",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "Subroutine Trash 1 installed program or end the run."
+  },
+  {
+   "code": "30065",
+   "title": "Retribution",
+   "type": "operation",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "Play only if the Runner is tagged. Trash 1 installed program or piece of hardware."
+  },
+  {
+   "code": "30069",
+   "title": "Send a Message",
+   "type": "agenda",
+   "set": "system-gateway",
+   "scripted": true,
+   "text": "When this agenda is scored or stolen, you may rez 1 installed piece of ice, ignoring all costs."
+  },
+  {
+   "code": "36039",
+   "title": "ezaM",
+   "type": "ice",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "click: Swap this ice with another installed piece of ice. Subroutine Look at the top card of R&D. You may add that card to the bottom of R&D. Subroutine Each piece of ice gets +1 strength for the remainder of this run."
+  },
+  {
+   "code": "36044",
+   "title": "Unleash",
+   "type": "operation",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "As an additional cost to play this operation, remove 1 tag. Rez 1 installed piece of ice, ignoring all costs. You may resolve 1 subroutine on that ice."
+  },
+  {
+   "code": "36051",
+   "title": "Lethe",
+   "type": "ice",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "Whenever the Runner bypasses or fully breaks this ice, give them 1 tag. Subroutine You may add 1 card from Archives to the top or bottom of R&D. Subroutine Add 1 installed Runner card to the grip."
+  },
+  {
+   "code": "36053",
+   "title": "Flood the Market",
+   "type": "operation",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "As an additional cost to play this operation, spend click. Choose 1 installed card you can advance. Place 1 advancement counter on that card for each remote server that has a card in its root and is protected by ice."
+  },
+  {
+   "code": "36054",
+   "title": "Scapegoat",
+   "type": "operation",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "Resolve 1 of the following of the Runner's choice: * Remove 2 bad publicity. * Choose 1 installed Runner card. The Runner shuffles it into the stack."
+  },
+  {
+   "code": "36056",
+   "title": "Sacrifice Zone Expansion",
+   "type": "agenda",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "Install only faceup. (This agenda is neither rezzed nor unrezzed.) The first time each turn you advance this agenda, gain 3 credits. Once per turn -> When the Runner makes a successful run on another server, you may remove 1 hosted advancement counter to do 1 meat damage."
+  },
+  {
+   "code": "36058",
+   "title": "Event Horizon",
+   "type": "ice",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "trash: End the run. Use this ability only during a run against this server. Subroutine Trash 1 installed program unless the Runner pays 3 credits. Subroutine End the run unless the Runner pays 3 credits."
+  },
+  {
+   "code": "36061",
+   "title": "Myōshu",
+   "type": "operation",
+   "set": "vantage-point",
+   "scripted": true,
+   "text": "Play only if you scored an agenda this turn that you did not install this turn. Add this operation to your score area as an agenda worth 2 agenda points."
+  }
+ ]
+}
