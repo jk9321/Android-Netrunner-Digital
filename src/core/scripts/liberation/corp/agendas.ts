@@ -251,6 +251,7 @@ const sisyphusFlow = prompts({
     if (!run || !server || !ice || !ice.isRezzed || run.phase !== 'movement') return;
     addLog(state, 'corp', `The Runner encounters ${title(ice)} again (Sisyphus Protocol).`);
     run.icePosition = server.ice.indexOf(ice);
+    delete run.positionEmpty;
     run.icePassed = Math.max(0, run.icePassed - 1);
     beginEncounter(state, ice);
   }),

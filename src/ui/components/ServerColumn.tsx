@@ -131,7 +131,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
   // The ice the Runner is at, and what they're doing there
   const runIceId =
     run && (run.phase === 'approach_ice' || run.phase === 'encounter_ice' || run.phase === 'movement')
-      ? (run.encounter?.iceId ?? (run.icePosition !== null ? server.ice[run.icePosition]?.instanceId : undefined))
+      ? (run.encounter?.iceId ?? (run.icePosition !== null && !run.positionEmpty ? server.ice[run.icePosition]?.instanceId : undefined))
       : undefined;
   const iceLabel = run ? ICE_PHASE_LABEL[run.phase] : undefined;
   const atRoot = run !== null && (run.phase === 'approach_server' || run.phase === 'access');

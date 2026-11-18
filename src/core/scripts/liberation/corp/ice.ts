@@ -2,7 +2,7 @@ import { CardInstance } from '../../../types/card';
 import { EncounterState, GameState } from '../../../types/state';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { findInstalledCorpCard, removeCard, turnKey } from '../../../engine/helpers';
+import { findInstalledCorpCard, iceInsertedAt, removeCard, turnKey } from '../../../engine/helpers';
 import { completeRez } from '../../../engine/actions/corp';
 import { dealCoreDamage, dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard } from '../../../engine/damage';
 import { endTheRun } from '../../../engine/runEnd';
@@ -249,6 +249,7 @@ const tatuBolaFlow = prompts({
     incoming.tokens = {};
     incoming.installedTurn = turnKey(state);
     found.server.ice.splice(index, 0, incoming);
+    iceInsertedAt(state, found.server, index);
     gainFromCard(state, 'corp', 4, card);
     addLog(state, 'corp', `Corp swapped Tatu-Bola with a piece of ice from HQ and gained 4 [credit].`, undefined, 'install');
   }),

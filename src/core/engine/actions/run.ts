@@ -5,7 +5,7 @@ import { cardDef } from '../../cards';
 import { getCardScript } from '../../scripts';
 import { nextInt } from '../../rng';
 import { addLog } from '../log';
-import { beforeCorpCardUninstalled, checkAgendaVictory, findCardAnywhere, illegal, locateCorpCard, removeCard, requireActionPhase, requireClicks, revealInHand } from '../helpers';
+import { beforeCorpCardUninstalled, checkAgendaVictory, findCardAnywhere, iceAtPosition, illegal, locateCorpCard, removeCard, requireActionPhase, requireClicks, revealInHand } from '../helpers';
 import { pushPrompt } from '../prompts';
 import { approachIce, approachServer, beginEncounter, enterMovement, moveInward, passIce, startSubroutineResolution } from '../ice';
 import { endRun } from '../runEnd';
@@ -165,11 +165,12 @@ function advanceRun(state: GameState): void {
 
   if (run.phase === 'approach_ice') {
     // The Corp's rez window for this ice is before the Runner continues.
-    const currentIce = server.ice[run.icePosition!];
+    const currentIce = iceAtPosition(state);
     if (currentIce && currentIce.isRezzed) {
       beginEncounter(state, currentIce);
     } else {
-      addLog(state, 'runner', `Passed unrezzed Ice position ${run.icePosition! + 1}.`);
+      // Ice uninstalled while approached: the approach ends and the run goes to the Movement Phase (rules 6.2.7a)
+      if (currentIce) addLog(state, 'runner', `Passed unrezzed Ice position ${run.icePosition! + 1}.`);
       passIce(state);
     }
   } else if (run.phase === 'encounter_ice') {

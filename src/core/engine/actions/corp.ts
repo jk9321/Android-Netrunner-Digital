@@ -25,6 +25,7 @@ import {
   requireActionPhase,
   requireClicks,
   turnKey,
+  iceAtPosition,
 } from '../helpers';
 
 export function advanceCard(state: GameState, action: AdvanceCardAction): void {
@@ -104,9 +105,7 @@ export function rezCard(state: GameState, action: RezCardAction): void {
     // Ice can only be rezzed while the Runner is approaching it.
     const run = state.activeRun;
     const approached =
-      run && run.phase === 'approach_ice' && run.server === server.id && run.icePosition !== null
-        ? server.ice[run.icePosition]
-        : null;
+      run && run.phase === 'approach_ice' && run.server === server.id ? iceAtPosition(state) ?? null : null;
     if (!approached || approached.instanceId !== card.instanceId) {
       illegal('Ice can only be rezzed while the Runner is approaching it');
     }

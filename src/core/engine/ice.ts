@@ -6,7 +6,7 @@ import { BreakerScript, IceScript, IceSubtype, Subroutine } from '../scripts/typ
 import { addLog } from './log';
 import { endRun } from './runEnd';
 import { eachActiveCard, fireTrigger } from './triggers';
-import { findCardAnywhere } from './helpers';
+import { findCardAnywhere, iceAtPosition } from './helpers';
 import { bumpRunFlag, RunFlag } from './cardEffects';
 
 export function iceScript(ice: CardInstance): IceScript | undefined {
@@ -268,7 +268,8 @@ export function passIce(state: GameState): void {
   if (!run) return;
   const encounter = run.encounter;
   const server = state.corp.servers[run.server];
-  const ice = run.icePosition === null ? undefined : server?.ice[run.icePosition];
+  // An uninstalled ice is not passed: the Runner passes its position (rules 8.5.10)
+  const ice = iceAtPosition(state);
   run.encounter = null;
   run.icePassed += 1;
   enterMovement(state);
@@ -310,6 +311,7 @@ export function moveInward(state: GameState): void {
   }
   run.phase = 'approach_server';
   run.icePosition = null;
+  delete run.positionEmpty;
   run.serverApproached = false;
 }
 
@@ -317,6 +319,7 @@ export function moveInward(state: GameState): void {
 export function approachIce(state: GameState, position: number): void {
   const run = state.activeRun!;
   run.icePosition = position;
+  delete run.positionEmpty;
   run.phase = 'approach_ice';
   run.encounter = null;
   const ice = state.corp.servers[run.server].ice[position];

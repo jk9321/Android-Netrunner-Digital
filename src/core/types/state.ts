@@ -186,6 +186,11 @@ export interface RunState {
   server: string;
   phase: RunPhase;
   icePosition: number | null; // index into server.ice (outermost down to 0)
+  /**
+   * The ice in the Runner's position left it (uninstalled): the position stays until the Runner moves on (rules 6.2.4),
+   * empty, just outward of server.ice[icePosition - 1]. No ice is approached, encountered or passed there (rules 8.5.10).
+   */
+  positionEmpty?: boolean;
   isSuccessful: boolean;
   isJackedOut: boolean;
   cannotJackOut: boolean;
