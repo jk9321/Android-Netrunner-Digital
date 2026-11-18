@@ -1,5 +1,5 @@
-// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 #!/usr/bin/env node
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 /**
  * Found-list row 21's grouping (brief followup2-trash, section 2): each mutation drops one field from what the walk
  * reads of a rig card (rigReads, Walk.lossKey in src/ai/corp/hold.ts), runs the trash boards of
