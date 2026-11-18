@@ -7,6 +7,7 @@ import { archivesPayoffOf, rezEffectOf } from '../cards';
 import { modelRezGain, runBypassed } from '../rezModel';
 import { agendasUnseen, reachablePoints, runLoss, stake } from './pools';
 import { serverHold } from './hold';
+import { rezMoney } from './rezMoney';
 import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
 import { plan, pricing } from '../pricing';
@@ -65,11 +66,39 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   // R2: the rez stops a steal from the root on this run
   if (isStopper) return 'rez';
   const hqAgendas = state.corp.hq.filter(isAgenda).length;
-  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll
-  if (run.server === 'hq' && hqAgendas > 0) return 'rez';
-  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll
-  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';
+  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll; a toll that spends the money kept for the rest of the
+  // Runner's turn is passed (F1, spendsKept)
+  if (run.server === 'hq' && hqAgendas > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';
+  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll (F1 as R3)
+  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';
   return null;
+}
+
+/**
+ * Stage D item 3, exploit F1 (item3-rez-money/design-answer.md sections 2 and 6): a toll rez on R3 or R4 (it does not
+ * stop the run) is passed when passing keeps the money the rez would spend. Two boards, each counted by rezMoney's keep
+ * through the rest of the Runner's turn (restOfTurn: the run over, its clicks left, its credits once it has paid through
+ * this run), the run's own server left out: the rez world (this ice rezzed, the Runner paying its toll) and the pass
+ * world (this ice left unrezzed). The pass is made only when (1) after the rez the Corp cannot pay the rez world's keep,
+ * (2) every server that keep is for can still be held in the pass world (in its byServer) and (3) the Corp can pay the
+ * pass world's keep. Otherwise the rez is made as before (a Corp already below the keep, or a server only the toll's
+ * cost holds). Asked only at an R3 or R4 toll; the pass world is counted only when (1) holds.
+ */
+export function spendsKept(state: GameState, ice: CardInstance): boolean {
+  const run = state.activeRun;
+  const cost = rezCost(state, ice);
+  // No run left this turn keeps nothing; a free rez spends nothing
+  if (!run || cost <= 0 || state.runner.clicks <= 0) return false;
+  const credits = state.corp.credits;
+  const keep = (mustRez: string[]) => {
+    const toll = serverHold(state, run.server, { when: 'thisRun', mustRez, further: false });
+    const runnerCredits = toll.holds ? state.runner.credits : Math.max(0, state.runner.credits - toll.need);
+    return rezMoney(state, { restOfTurn: { runnerCredits }, except: run.server });
+  };
+  const rez = keep([ice.instanceId]);
+  if (credits - cost >= rez.keep) return false;
+  const pass = keep([]);
+  return credits >= pass.keep && Object.keys(rez.byServer).every(id => id in pass.byServer);
 }
 
 /** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */

@@ -1,0 +1,21 @@
+{
+ "toll": [
+  [
+   "ai/corp/rez.ts",
+   "  if (run.server === 'hq' && hqAgendas > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';",
+   "  if (run.server === 'hq' && hqAgendas > 0) return 'rez';"
+  ],
+  [
+   "ai/corp/rez.ts",
+   "  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';",
+   "  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';"
+  ]
+ ],
+ "_probe": [
+  [
+   "ai/corp/rez.ts",
+   "export function spendsKept(state: GameState, ice: CardInstance): boolean {",
+   "export function spendsKept(state: GameState, ice: CardInstance): boolean {\n  const t0 = performance.now();\n  try {\n    return spendsKeptAsked(state, ice);\n  } finally {\n    (globalThis as { __tl?: (v: string, ms?: number) => void }).__tl?.('rk', performance.now() - t0);\n  }\n}\nfunction spendsKeptAsked(state: GameState, ice: CardInstance): boolean {"
+  ]
+ ]
+}

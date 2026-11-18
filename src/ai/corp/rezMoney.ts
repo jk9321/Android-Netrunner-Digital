@@ -1,6 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { reachQuestion, reachSets, serverHold } from './hold';
+import { TurnFrom, afterRun, nextTurn, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
 import { memo } from '../valueModel';
 
 /**
@@ -19,6 +19,11 @@ import { memo } from '../valueModel';
  *    of staked servers one Runner turn reaches in some order past the ice rezzed now, the Corp rezzing nothing more
  *    (the run sequence, owned by hold.ts: reachQuestion and reachSets). A set is reached only if every set inside it
  *    is (one run fewer frees its click). With one or two staked servers, or a rich Runner, it is the sum.
+ *
+ * restOfTurn (Stage D item 3, F1; item3-rez-money/design-answer.md): the same keep through the rest of the Runner's
+ * current turn instead of its next one: the board with the run over, the Runner's clicks left and the credits it will
+ * have once this run is paid (hold.ts's 'restOfTurn' start, the same walk). `except` leaves the run's own server out (the
+ * rez in question pays for it). countedRez's toll rezzes (R3t, R4t) read it: a toll rez that spends this money passes.
  *
  * Since Stage C6 lineFloor returns `keep`; the placement rules (scoringShort, reservedForAgenda, centralIce's rez gate)
  * read it, and the valuation reaches it through corpPorts (boardNeed reads keep, rezBudget the holding rezzes; registry
@@ -44,7 +49,12 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 }
 
 /** Rez money (see the file comment). */
-export function rezMoney(state: GameState, opts: { without?: string[] } = {}): RezMoney {
+export function rezMoney(state: GameState, opts: { without?: string[]; restOfTurn?: { runnerCredits: number }; except?: string } = {}): RezMoney {
+  if (opts.restOfTurn) {
+    const board = afterRun(state);
+    const from = restOfTurn(board, opts.restOfTurn.runnerCredits);
+    return countRezMoney(board, holdingRez(board, opts.without, from, opts.except), from);
+  }
   // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
   // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
   if (!opts.without?.length) {
@@ -72,18 +82,27 @@ export function holdingRezIds(state: GameState): Record<string, string[]> {
 /** holdingRez with nothing left out, once per position (as rezMoney). */
 const holding = (state: GameState) => memo(state, 'holdingRez', () => holdingRez(state));
 
-function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>): RezMoney {
+function countRezMoney(state: GameState, { byServer, rezIds, unholdable }: ReturnType<typeof holdingRez>, from: TurnFrom = nextTurn(state)): RezMoney {
   // What getting in costs the Runner with nothing more rezzed (the rezzed ice only)
-  return { keep: keepFor(state, byServer), byServer, rezIds, unholdable };
+  return { keep: keepFor(state, byServer, from), byServer, rezIds, unholdable };
 }
 
-/** byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded. */
-function holdingRez(state: GameState, without: string[] = []): { byServer: Record<string, number>; rezIds: Record<string, string[]>; unholdable: string[] } {
+/**
+ * byServer and unholdable: the cheapest holding rez of each staked server, the Corp's money unbounded; from a rest-of-turn
+ * start (`from.rest`), through the rest of the Runner's current turn, `except` left out.
+ */
+function holdingRez(
+  state: GameState,
+  without: string[] = [],
+  from?: TurnFrom,
+  except?: string,
+): { byServer: Record<string, number>; rezIds: Record<string, string[]>; unholdable: string[] } {
   const byServer: Record<string, number> = {};
   const rezIds: Record<string, string[]> = {};
   const unholdable: string[] = [];
   for (const id of stakedServers(state, without)) {
-    const h = serverHold(state, id, { when: 'runnerTurn', corpCredits: Infinity });
+    if (id === except) continue;
+    const h = from?.rest ? serverHold(state, id, { when: 'restOfTurn', corpCredits: Infinity, runnerCredits: from.credits }) : serverHold(state, id, { when: 'runnerTurn', corpCredits: Infinity });
     if (h.holds) {
       byServer[id] = h.rezCost;
       rezIds[id] = h.rez ?? [];
@@ -98,16 +117,16 @@ function holdingRez(state: GameState, without: string[] = []): { byServer: Recor
  * turnReach's search on input gathered once), largest total first. A set is reached only if every set inside it is (one
  * run fewer frees its click), so a set with an unreached part is skipped unwalked.
  */
-function keepFor(state: GameState, byServer: Record<string, number>): number {
+function keepFor(state: GameState, byServer: Record<string, number>, from: TurnFrom = nextTurn(state)): number {
   const ids = Object.keys(byServer).filter(id => byServer[id] > 0);
   const sets: number[] = [];
-  for (let mask = 1; mask < 1 << ids.length; mask++) if (bits(mask) <= state.runner.maxClicks) sets.push(mask);
+  for (let mask = 1; mask < 1 << ids.length; mask++) if (bits(mask) <= from.clicks) sets.push(mask);
   const totals = new Map(sets.map(mask => [mask, ids.reduce((n, id, i) => (mask & (1 << i) ? n + byServer[id] : n), 0)]));
   const total = (mask: number) => totals.get(mask)!;
   sets.sort((a, b) => total(b) - total(a) || bits(a) - bits(b) || a - b);
   // Gathered once for every set and order, when first asked (the 14:39Z ruling); its answers cached per decision
   let asked: ((set: string[]) => boolean) | undefined;
-  const reachedInSomeOrder = (set: string[]) => (asked ??= reachSets(reachQuestion(state, ids)))(set);
+  const reachedInSomeOrder = (set: string[]) => (asked ??= reachSets(reachQuestion(state, ids, from)))(set);
   const reached = new Map<number, boolean>();
   const reach = (mask: number): boolean => {
     const hit = reached.get(mask);
