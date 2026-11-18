@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // The fire count's arms for ai-hold-trash (brief followup2-trash 5): text patches that put each change's beta text back
 // in src/ai/corp/hold.ts, written to trash-arms.json for scripts/value-b1/fire-count.ts. With every arm back the tree
 // plays as beta (the time design and Sorocaban's fact only act through the trash; the hygiene is comments but turnIce's

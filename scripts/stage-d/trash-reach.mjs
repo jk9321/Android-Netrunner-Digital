@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // How far real boards are from the built worst case (AI Coordinator, ai-hold-trash stop, item a): over every hold walk
 // of the fire count's sample, the number of distinct sets of trashed Runner cards the walk reaches. One arm, `all`
 // (every change of trash-arms.json put back: plays as beta), and a `_probe` patch in every tree: each walk keeps the

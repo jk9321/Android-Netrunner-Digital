@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // The work cap's number (AI Coordinator's time ruling, followup2-trash/time-ruling.md 2.3): the hold walk's own work, as
 // the approaches it works out (memo misses), over the fire count's sample. One arm, `all` (every change of
 // trash-arms.json put back: plays as beta), and a `_probe` patch in every tree: each walk counts its worked approaches;

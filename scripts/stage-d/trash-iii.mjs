@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // Design (iii) of the work-cap answer (work-cap-answer.md 2.3): no counter, a condition on the walk. The trash is walked
 // exactly when no target's ice holds more than one trash ice, and is inert as on beta otherwise. Built as `_probe`
 // patches (into every tree; the base tree has the trash inert already, so the condition changes nothing there), with

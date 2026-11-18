@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // Found-list row 21's 30 dumped states (brief followup2-trash 5): the boards where the hold walk said "does not hold"
 // and the engine oracle says the Corp holds (Tatu-Bola inside Lycian, report-36 R&D), as ai-script 44098196814 (and its
 // re-run 44108430740) dumped them. Each is asked again on this tree with the Corp's own credits and unlimited, and so is

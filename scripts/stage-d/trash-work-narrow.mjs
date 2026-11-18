@@ -1,3 +1,4 @@
+// Record of the parked trash count (followup2-trash/work-cap-note.md; Jeff 2026-11-18 04:29Z "Park it as known debt"). Run on ai-hold-trash c742520, not on beta.
 // The work cap's narrow count (work-cap-answer.md 2.2, 2.3 iii): as trash-work.mjs (one arm `all`, plays as beta, and a
 // `_probe` patch in every tree), but the probe counts only the work the cap would limit: approaches worked in walks
 // that have a trash ice among their targets (Walk.trashReads set). The hook gets `nwork` once per such approach
