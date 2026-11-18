@@ -54,6 +54,13 @@ export interface CardScript {
 
   /** Reactions to game events while this card is active (see engine/triggers.ts). */
   triggers?: TriggerHandlers;
+  /**
+   * "The first time each turn X" (rules 9.3.2b: an ordinal trigger condition): which occurrences are X. The engine
+   * counts them all turn whether or not this card is active, so a card that becomes active after the turn's first X
+   * does not take a later X for the first one (rules 9.6.5b; the Virtuoso example under rules 10.11.5). Its handlers
+   * ask firstThisTurn (engine/triggers.ts).
+   */
+  firstEachTurn?: TriggerMatchers;
   /** Abilities the controller can trigger on this active card (USE_ABILITY). */
   abilities?: CardAbility[];
   /** Constant effects while this card is active. */
@@ -239,6 +246,11 @@ export type TriggerEvent =
 export type AccessZone = 'installed' | 'hq' | 'rd' | 'archives';
 
 export type TriggerType = TriggerEvent['type'];
+
+/** Which occurrences of each event a "first time each turn" condition counts (CardScript.firstEachTurn). */
+export type TriggerMatchers = {
+  [K in TriggerType]?: (state: GameState, event: Extract<TriggerEvent, { type: K }>) => boolean;
+};
 
 export type TriggerHandlers = {
   [K in TriggerType]?: (ctx: EffectContext, event: Extract<TriggerEvent, { type: K }>) => void;

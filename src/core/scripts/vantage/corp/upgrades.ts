@@ -8,6 +8,7 @@ import { CardScript, EffectContext } from '../../types';
 import { advanceableInstalled } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
 import { ids, isSelf, onceKey, runOnServerOf, serverOf, title } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 // Perfect Recall: When you rez this upgrade and whenever an agenda is scored or stolen from
 // this server or its root, place 1 power counter on this upgrade. Hosted power counter: Reveal
@@ -47,10 +48,11 @@ export const perfectRecall: CardScript = {
 // The Red Room (Facility): Central server only. The first time each turn an agenda is scored
 // or stolen, place 1 power counter on this upgrade. Hosted power counter: End the run. Use this
 // ability only during a run against another server.
-const redRoomCounter = (ctx: EffectContext) => useOncePerTurn(ctx.state, onceKey(ctx.card)) && addCounters(ctx.card, 'power', 1);
+const redRoomCounter = (ctx: EffectContext) => firstThisTurn(ctx.state, ctx.card) && addCounters(ctx.card, 'power', 1);
 
 export const redRoom: CardScript = {
   installOnly: 'central',
+  firstEachTurn: { agenda_scored: () => true, agenda_stolen: () => true },
   triggers: { agenda_scored: redRoomCounter, agenda_stolen: redRoomCounter },
   abilities: [
     {

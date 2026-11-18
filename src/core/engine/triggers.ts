@@ -1,8 +1,8 @@
 import { CardInstance, SideCode } from '../types/card';
 import { GameState, SettledEvent } from '../types/state';
 import { cardDef } from '../cards';
-import { getCardScript } from '../scripts';
-import { TriggerEvent, TriggerHandlers } from '../scripts/types';
+import { getCardScript, scriptedCardCodes } from '../scripts';
+import { TriggerEvent, TriggerHandlers, TriggerMatchers } from '../scripts/types';
 import { findCardAnywhere } from './helpers';
 
 /**
@@ -52,6 +52,7 @@ export function eachActiveCard(state: GameState, side: SideCode | undefined, vis
  * may trash Word on the Street before it pays out). The other player's then resolve, cards reacting from the heap last.
  */
 export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardInstance[] = []): void {
+  countFirsts(state, event);
   const seen = new Set<string>();
   // The run event whose run is in progress reacts to that run's events (S-Dobrado, Window of Opportunity)
   const runEvents = runEventCards(state);
@@ -71,6 +72,29 @@ export function fireTrigger(state: GameState, event: TriggerEvent, extra: CardIn
   }
   runHandlers(state, event, theirs, forced);
   if (active !== 'runner') runHeapHandlers(state, event);
+}
+
+let firstWatchers: [string, TriggerMatchers][] | undefined;
+const firstKey = (cardCode: string) => `first:${cardCode}`;
+
+/**
+ * Counts this turn's occurrences of every "first time each turn" condition (CardScript.firstEachTurn), in play or not:
+ * the turn's first X is the first in the game, not the first the card saw (rules 9.3.2b, 9.6.5b, 10.11.5 example).
+ */
+function countFirsts(state: GameState, event: TriggerEvent): void {
+  firstWatchers ??= scriptedCardCodes().flatMap(code => {
+    const matchers = getCardScript(code)?.firstEachTurn;
+    return matchers ? [[code, matchers] as [string, TriggerMatchers]] : [];
+  });
+  for (const [code, matchers] of firstWatchers) {
+    const matches = matchers[event.type] as ((s: GameState, e: TriggerEvent) => boolean) | undefined;
+    if (matches?.(state, event)) state.turnFlags[firstKey(code)] = (state.turnFlags[firstKey(code)] ?? 0) + 1;
+  }
+}
+
+/** True while the event being handled is the turn's first occurrence of `card`'s "first time each turn" condition. */
+export function firstThisTurn(state: GameState, card: CardInstance): boolean {
+  return state.turnFlags[firstKey(card.cardCode)] === 1;
 }
 
 /** Resumes a fireTrigger the active player's questions paused (see above), with its cards looked up again. */

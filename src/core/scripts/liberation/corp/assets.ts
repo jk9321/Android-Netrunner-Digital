@@ -17,12 +17,12 @@ import {
   removeTags,
   spendCredits,
   takeHostedCredits,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { ArrangeData, cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { CardScript, EffectContext } from '../../types';
 import { advanceableInstalled, installCorpChoice } from '../../effects';
 import { archivesCards, ids, installable, installedCorpCards, placeAdvancement, placeAdvancementQuestion, returnInstalledToHQ, serverOf, title, type, yesNo } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 const isUnprotected = (state: GameState, card: CardInstance) => (serverOf(state, card)?.ice.length ?? 0) === 0;
 
@@ -50,9 +50,10 @@ export const frontCompany: CardScript = {
     runBlocker: (state, _self, serverId) =>
       state.runsThisTurn.length === 0 && state.corp.servers[serverId]?.isRemote ? 'The first run each turn cannot be made against a remote server (Front Company)' : null,
   },
+  firstEachTurn: { run_begins: (_state, e) => e.server === 'archives' },
   triggers: {
     run_begins: (ctx, e) => {
-      if (e.server !== 'archives' || !useOncePerTurn(ctx.state, `front-archives:${ctx.card.instanceId}`)) return;
+      if (e.server !== 'archives' || !firstThisTurn(ctx.state, ctx.card)) return;
       if (isUnprotected(ctx.state, ctx.card)) dealNetDamage(ctx.state, 2);
     },
   },

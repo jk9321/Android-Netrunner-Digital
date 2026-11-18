@@ -19,7 +19,6 @@ import {
   takeBadPublicity,
   threatLevel,
   turnFlag,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
 import { CardScript, EffectContext, Subroutine } from '../../types';
@@ -44,6 +43,7 @@ import {
   type,
   yesNo,
 } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 const endTheRunSub: Subroutine = { label: 'End the run.', resolve: ({ state }) => endTheRun(state) };
 
@@ -564,9 +564,10 @@ const tributaryFlow = prompts({
 });
 
 export const tributary: CardScript = {
+  firstEachTurn: { run_begins: () => true },
   triggers: {
     run_begins: (ctx, e) => {
-      if (!useOncePerTurn(ctx.state, `run-begins:${ctx.card.instanceId}`)) return;
+      if (!firstThisTurn(ctx.state, ctx.card)) return;
       const server = ctx.state.corp.servers[e.server];
       if (!server || server.ice[server.ice.length - 1]?.instanceId === ctx.card.instanceId) return;
       tributaryFlow.ask(ctx, 'move', choiceQuestion('corp', 'Tributary: move it to the outermost position protecting the attacked server?', yesNo('Move it')));

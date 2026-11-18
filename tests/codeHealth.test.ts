@@ -395,18 +395,22 @@ describe('AI code health (audit guards)', () => {
   // afterRun and the start threaded through runnerEarnings, walkStart, turnInput, runTarget, turnQuestion and
   // reachQuestion, + 50; rezMoney's restOfTurn keep with except, + 19; countedRez's toll pass and spendsKept, + 21; with
   // their comments): corp/ 3,606, src/ai 15,392. Then + 5 (ai-rez-keep review R1, R3, R4: spendsKept's second world and
-  // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397.
-  // Then + 325 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
+  // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397
+  // Then + 176 in corp/ (ai-runner-money, Stage D item 1 follow-up 4, part 1: hold.ts's four readers with their
+  // comments: counterCredits in runnerEarnings and 'thisRun''s budget; RunBegin, runBegins, Walk.runBegins and the runs
+  // key for Side Hustle and Knickknack; turnEndDerezPicks, the pick through walkStart and turnIce, walkPick, reachPick,
+  // reachPickQuestion and reachSetsOf for Lightning Laboratory) and + 31 elsewhere (the four facts' types and entries):
+  // corp/ 3,787, src/ai 15,604
+  // Then + 324 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
   // question and its search, the stand from inside an encounter (resolving: no more breaking, a half-resolved subroutine
   // read both ways), the Movement Phase and an approach, an ice trashed under the run, a run over short of the server, a
   // Runner prompt the walk cannot read, a granted subroutine's prompt as the ice's own, its per-decision answers, with
-  // comments, + 152; prompts.ts's run term, the
-  // priced pick before the per-card blocks, Shred's reveal as chance on HQ's subsets, the settle as the Corp's choice
-  // (ruling 10) with its depth cap (ruling 11.1), its counts, with comments, + 164; the two ports and their
-  // registration + 9): corp/ 3,763, src/ai 15,722
-  it('keeps src/ai/corp at or under 3,763 lines and src/ai at or under 15,722 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-run-answers)', () => {
+  // comments, + 151; prompts.ts's run term, the priced pick before the per-card blocks, Shred's reveal as chance on HQ's
+  // subsets, the settle as the Corp's choice (ruling 10) with its depth cap (ruling 11.1), its counts, with comments,
+  // + 164; the two ports and their registration + 9): corp/ 3,938, src/ai 15,928
+  it('keeps src/ai/corp at or under 3,938 lines and src/ai at or under 15,928 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3763);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15722);
+    expect(corp).toBeLessThanOrEqual(3938);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15928);
   });
 });

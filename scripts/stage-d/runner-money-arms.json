@@ -1,0 +1,269 @@
+{
+ "counter": [
+  [
+   "ai/corp/hold.ts",
+   "const hosted = (c: CardInstance) => counters(c, 'credit');\n",
+   "const hosted = (c: CardInstance) => counters(c, 'credit');\n\n/** ARM counter (follow-up 4): credits a Runner card pays without a click during its turn, per hosted counter (Coalescence: \"Hosted power counter: Gain 2 credits. Use this ability only during your turn.\"). */\nconst COUNTER_CREDITS: Record<string, { kind: 'power' | 'virus'; credits: number }> = { '34089': { kind: 'power', credits: 2 } };\nconst counterCredits = (c: CardInstance): number => {\n  const f = COUNTER_CREDITS[c.cardCode];\n  return f ? f.credits * counters(c, f.kind) : 0;\n};\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    if (pay) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;\n",
+   "    if (pay) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;\n    drip += counterCredits(c);\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  const budget = state.runner.credits;\n",
+   "  const budget = state.runner.credits + [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources].reduce((n, c) => n + counterCredits(c), 0);\n"
+  ]
+ ],
+ "runBegin": [
+  [
+   "ai/corp/hold.ts",
+   "/** No way through. */\n",
+   "/** ARM runBegin (follow-up 4): Runner cards that act when a run begins (6.9.1c). Side Hustle: 1 credit placed, all taken at 6 (then trashed, a card drawn); Knickknack O'Brian: the first time each turn, trash another installed card for its printed install cost and a card. */\nconst RUN_BEGINS: Record<string, { payAt?: number; trashForCost?: true }> = { '35034': { payAt: 6 }, '35033': { trashForCost: true } };\nconst runBeginFacts = (c: CardInstance) => ({ hustle: counters(c, 'credit'), hustleAt: RUN_BEGINS[c.cardCode]?.payAt ?? 0, knick: !!RUN_BEGINS[c.cardCode]?.trashForCost, cost: cardDef(c).cost ?? 0 });\n\n/** No way through. */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** A breaker or Botulus: its counters are read (memo key). */\n  counted: boolean;\n}\n",
+   "  /** A breaker or Botulus: its counters are read (memo key). */\n  counted: boolean;\n  /** ARM runBegin: hosted credits and the payout (Side Hustle); Knickknack; printed install cost. */\n  hustle?: number;\n  hustleAt?: number;\n  knick?: boolean;\n  cost?: number;\n}\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "/\\btrojan\\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };\n",
+   "/\\btrojan\\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords), ...runBeginFacts(c) };\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);\n",
+   "    let best = this.runBegins({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, w => this.approach(w, j, this.targets[j].ice.length - 1));\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** The breach of run j (6.9.5)",
+   "  /**\n   * ARM runBegin: the run begins (6.9.1c): each Side Hustle places 1 credit and, at its payout, the Runner takes all\n   * (1.10.4a; trashed, a card drawn); the first time this turn, Knickknack may trash another installed card for its\n   * printed install cost and a card, the Runner's choice. The pool needed before a gain: the rest's need less it, at\n   * least 0. Arm state rides in `chose` ('hustle:<rig index>:<credits>', 'begun'), which every memo key reads.\n   */\n  private runBegins(ws: WalkState, then: (w: WalkState) => number): number {\n    let w = ws;\n    let gain = 0;\n    const marks: string[] = [];\n    const draw = (x: WalkState): WalkState => ({ ...x, grip: x.grip + (x.stack > 0 ? 1 : 0), stack: Math.max(0, x.stack - 1) });\n    this.board.rig.forEach((r, i) => {\n      if (!r.hustleAt || w.gone.includes(i)) return;\n      const tag = ws.chose.find(x => x.startsWith(`hustle:${i}:`));\n      const n = (tag ? Number(tag.split(':')[2]) : r.hustle ?? 0) + 1;\n      if (n >= r.hustleAt) {\n        gain += n;\n        w = draw({ ...w, gone: [...w.gone, i].sort((a, b) => a - b) });\n      } else marks.push(`hustle:${i}:${n}`);\n      w = { ...w, moved: true };\n    });\n    const first = !ws.chose.includes('begun');\n    w = { ...w, chose: [...ws.chose.filter(x => !x.startsWith('hustle:') && x !== 'begun'), ...marks, 'begun'].sort() };\n    let best = Math.max(0, then(w) - gain);\n    const knick = first ? this.board.rig.findIndex((r, i) => r.knick && !w.gone.includes(i)) : -1;\n    if (knick >= 0) {\n      this.board.rig.forEach((r, i) => {\n        if (i === knick || w.gone.includes(i)) return;\n        const x = draw({ ...w, gone: [...w.gone, i].sort((a, b) => a - b), moved: true });\n        best = Math.min(best, Math.max(0, then(x) - gain - (r.cost ?? 0)));\n      });\n    }\n    return best;\n  }\n\n  /** The breach of run j (6.9.5)"
+  ]
+ ],
+ "saci": [
+  [
+   "ai/corp/hold.ts",
+   "/** The pool needed before losing n credits",
+   "/** ARM saci (follow-up 4): a Runner program hosted on ice that pays when its host is rezzed (Saci: \"Whenever host ice is rezzed or derezzed, gain 3 credits.\"). */\nconst REZ_PAYS: Record<string, number> = { '34017': 3 };\n\n/** The pool needed before losing n credits"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  liability: boolean;\n",
+   "  liability: boolean;\n  /** ARM saci: the hosted programs that pay when it is rezzed: [rig index, credits]. */\n  rezPays?: [number, number][];\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,\n",
+   "      rezPays: hostedHere(r => !!REZ_PAYS[r.cardCode]).map(i => [i, REZ_PAYS[start.rig[i].cardCode]] as [number, number]),\n      liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "w => this.rezzed(w, ice, next, { key: at, j })) : next(ws);",
+   "w => Math.max(0, this.rezzed(w, ice, next, { key: at, j }) - (ice.rezPays ?? []).reduce((n, [i, c]) => (w.gone.includes(i) ? n : n + c), 0))) : next(ws);"
+  ]
+ ],
+ "lightning": [
+  [
+   "ai/corp/hold.ts",
+   "turnEndDerezSelf) derezzed.add(c.instanceId);\n",
+   "turnEndDerezSelf) derezzed.add(c.instanceId);\n    // ARM lightning (follow-up 4): Lightning Laboratory used this turn (\"When this turn ends, derez 2 pieces of ice\n    // protecting that server\"; the engine's turn flag): all of them when 2 or fewer are rezzed, else the 2 cheapest\n    for (const a of state.corp.scoreArea) {\n      const at = state.turnFlags?.[`lightning:${a.instanceId}`];\n      const sv = at ? state.corp.servers[Object.keys(state.corp.servers)[at - 1]] : undefined;\n      if (!sv) continue;\n      const up = sv.ice.filter(c => c.isRezzed && !derezzed.has(c.instanceId));\n      (up.length <= 2 ? up : [...up].sort((x, y) => rezCostOf(state, x) - rezCostOf(state, y)).slice(0, 2)).forEach(c => derezzed.add(c.instanceId));\n    }\n"
+  ]
+ ],
+ "arru": [
+  [
+   "ai/corp/hold.ts",
+   "import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';",
+   "import { canBreakSubroutinesWith, iceScript, iceStrength, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** Botulus may break its subroutines (not Semak-samun's fracters-only). */\n",
+   "  /** ARM arru: its strength as met, and the weakened view (Arruaceiras Crew's -2: plans keyed '|w'). */\n  strength?: number;\n  weak?: boolean;\n  /** Botulus may break its subroutines (not Semak-samun's fracters-only). */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      anyBreaker: canBreakSubroutinesWith(c, null),\n",
+   "      strength: iceStrength(view, up),\n      anyBreaker: canBreakSubroutinesWith(c, null),\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */\n",
+   "  /** ARM arru: the rig index of Arruaceiras Crew, or -1. */\n  arru?: number;\n  /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    firstDraw: [...start.rig,",
+   "    arru: start.rig.findIndex(c => c.cardCode === '34073'),\n    firstDraw: [...start.rig,"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "          if (!list) cache.set(key, (list = planFor(board, start, card, z)));\n          plans[key] = list;\n",
+   "          if (!list) cache.set(key, (list = planFor(board, start, card, z)));\n          plans[key] = list;\n          if (start.rig.some(c => c.cardCode === '34073')) {\n            // ARM arru: the plans against the ice at -2 strength for this encounter (the engine's run strength)\n            const run = board.activeRun;\n            const weak = { ...board, activeRun: { ...(run ?? {}), iceRunStrength: { ...(run?.iceRunStrength ?? {}), [card.instanceId]: (run?.iceRunStrength?.[card.instanceId] ?? 0) - 2 } } } as GameState;\n            let w = cache.get(`${key}|w`);\n            if (!w) cache.set(`${key}|w`, (w = planFor(weak, start, card, z)));\n            plans[`${key}|w`] = w;\n          }\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}|${this.choiceOf(ice, ws)}`] ?? [];",
+   "    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}|${this.choiceOf(ice, ws)}${ice.weak ? '|w' : ''}`] ?? [];"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));",
+   "    return Math.min(best, this.tolls(ws, ice, w => Math.min(this.breaks(w, ice, types, next, at), this.arru(w, ice, types, next, at)), at));"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  private spendBotulus(",
+   "  /**\n   * ARM arru: Arruaceiras Crew's paid abilities in the encounter (6.9.3b): once per turn, take 1 tag for -2 strength\n   * this encounter (the breaks priced against the weakened ice); trash it and pay 2 to trash the ice if its strength is\n   * 0 or less (gone for the turn, the run goes on inward). Arm state: 'arru' in `chose` (the tag ability used).\n   */\n  private arru(ws: WalkState, ice: SearchIce, types: string[], next: (w: WalkState) => number, at: Step): number {\n    const idx = this.board.arru ?? -1;\n    if (idx < 0 || ws.gone.includes(idx) || ice.strength === undefined || ice.weak) return FAIL;\n    const trash = (w: WalkState, strength: number) =>\n      strength <= 0 ? this.pay({ ...w, gone: [...w.gone, idx].sort((a, b) => a - b) }, 2, x => next({ ...x, trashed: [...x.trashed, ice.id].sort(), moved: true })) : FAIL;\n    let best = trash(ws, ice.strength);\n    if (!ws.chose.includes('arru')) {\n      const w = { ...ws, tags: ws.tags + 1, chose: [...ws.chose, 'arru'].sort() };\n      best = Math.min(best, trash(w, ice.strength - 2), this.breaks(w, { ...ice, weak: true }, types, next, at));\n    }\n    return best;\n  }\n\n  private spendBotulus("
+  ]
+ ],
+ "f2max": [
+  [
+   "ai/corp/hold.ts",
+   "export const CHECK = { runnerExtra: 0 };\n",
+   "export const CHECK = { runnerExtra: 0 };\n\n/** ARM f2 (follow-up 4, exploit F2): money events the Runner may hold, from its deck list less the public cards (the grip and the stack as one: their union is the deck list less what is public, 10.2.2a, 10.2.3a); each event's credits over a click for a credit (Overclock's and Trick Shot's over the run's own click; Sell Out needs an installed resource; Wildcat Strike is the Corp's choice, Aircheck locks the pool: 0). `max`: the largest the Runner may hold (none with an empty grip); `odds`: the expected best one held, a grip of g drawn from the unseen cards (hypergeometric). */\nconst GRIP_MONEY: Record<string, number> = { '30030': 3, '30020': 2, '34001': 2, '30029': 4, '34087': 3, '36011': 2 };\nfunction gripMoney(s: GameState): { max: number; odds: number } {\n  const unseen = [...s.runner.grip, ...s.runner.stack];\n  const g = s.runner.grip.length;\n  const n = unseen.length;\n  const byGain = new Map<number, number>();\n  for (const c of unseen) {\n    const m = GRIP_MONEY[c.cardCode];\n    if (m && !(c.cardCode === '36011' && !s.runner.rig.resources.length)) byGain.set(m, (byGain.get(m) ?? 0) + 1);\n  }\n  if (!g || !byGain.size) return { max: 0, odds: 0 };\n  const gains = [...byGain.keys()].sort((a, b) => b - a);\n  // The chance no card of a set of k unseen cards is in the grip: C(n - k, g) / C(n, g)\n  const none = (k: number) => {\n    let p = 1;\n    for (let i = 0; i < g; i++) p *= Math.max(0, n - k - i) / (n - i);\n    return p;\n  };\n  let odds = 0;\n  let k = 0;\n  let prev = 1;\n  for (const m of gains) {\n    k += byGain.get(m)!;\n    const p = none(k);\n    odds += m * (prev - p);\n    prev = p;\n  }\n  return { max: gains[0], odds };\n}\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;",
+   "export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra + gripMoney(s).max;"
+  ]
+ ],
+ "f2odds": [
+  [
+   "ai/corp/hold.ts",
+   "export const CHECK = { runnerExtra: 0 };\n",
+   "export const CHECK = { runnerExtra: 0 };\n\n/** ARM f2 (follow-up 4, exploit F2): money events the Runner may hold, from its deck list less the public cards (the grip and the stack as one: their union is the deck list less what is public, 10.2.2a, 10.2.3a); each event's credits over a click for a credit (Overclock's and Trick Shot's over the run's own click; Sell Out needs an installed resource; Wildcat Strike is the Corp's choice, Aircheck locks the pool: 0). `max`: the largest the Runner may hold (none with an empty grip); `odds`: the expected best one held, a grip of g drawn from the unseen cards (hypergeometric). */\nconst GRIP_MONEY: Record<string, number> = { '30030': 3, '30020': 2, '34001': 2, '30029': 4, '34087': 3, '36011': 2 };\nfunction gripMoney(s: GameState): { max: number; odds: number } {\n  const unseen = [...s.runner.grip, ...s.runner.stack];\n  const g = s.runner.grip.length;\n  const n = unseen.length;\n  const byGain = new Map<number, number>();\n  for (const c of unseen) {\n    const m = GRIP_MONEY[c.cardCode];\n    if (m && !(c.cardCode === '36011' && !s.runner.rig.resources.length)) byGain.set(m, (byGain.get(m) ?? 0) + 1);\n  }\n  if (!g || !byGain.size) return { max: 0, odds: 0 };\n  const gains = [...byGain.keys()].sort((a, b) => b - a);\n  // The chance no card of a set of k unseen cards is in the grip: C(n - k, g) / C(n, g)\n  const none = (k: number) => {\n    let p = 1;\n    for (let i = 0; i < g; i++) p *= Math.max(0, n - k - i) / (n - i);\n    return p;\n  };\n  let odds = 0;\n  let k = 0;\n  let prev = 1;\n  for (const m of gains) {\n    k += byGain.get(m)!;\n    const p = none(k);\n    odds += m * (prev - p);\n    prev = p;\n  }\n  return { max: gains[0], odds };\n}\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;",
+   "export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra + gripMoney(s).odds;"
+  ]
+ ],
+ "_arms": {
+  "counter": [
+   "counter"
+  ],
+  "runBegin": [
+   "runBegin"
+  ],
+  "saci": [
+   "saci"
+  ],
+  "lightning": [
+   "lightning"
+  ],
+  "arru": [
+   "arru"
+  ],
+  "installed": [
+   "counter",
+   "runBegin",
+   "saci",
+   "lightning",
+   "arru"
+  ],
+  "f2max": [
+   "f2max"
+  ],
+  "f2odds": [
+   "f2odds"
+  ],
+  "runBeginBound": [
+   "runBeginBound"
+  ],
+  "arruBound": [
+   "arruBound"
+  ],
+  "installedBound": [
+   "counter",
+   "runBeginBound",
+   "saci",
+   "lightning",
+   "arruBound"
+  ],
+  "part1": [
+   "counter",
+   "runBeginBound",
+   "saci",
+   "lightning"
+  ]
+ },
+ "runBeginBound": [
+  [
+   "ai/corp/hold.ts",
+   "/** No way through. */\n",
+   "/** ARM runBegin (follow-up 4): Runner cards that act when a run begins (6.9.1c). Side Hustle: 1 credit placed, all taken at 6 (then trashed, a card drawn); Knickknack O'Brian: the first time each turn, trash another installed card for its printed install cost and a card. */\nconst RUN_BEGINS: Record<string, { payAt?: number; trashForCost?: true }> = { '35034': { payAt: 6 }, '35033': { trashForCost: true } };\nconst runBeginFacts = (c: CardInstance) => ({ hustle: counters(c, 'credit'), hustleAt: RUN_BEGINS[c.cardCode]?.payAt ?? 0, knick: !!RUN_BEGINS[c.cardCode]?.trashForCost, cost: cardDef(c).cost ?? 0 });\n\n/** No way through. */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** A breaker or Botulus: its counters are read (memo key). */\n  counted: boolean;\n}\n",
+   "  /** A breaker or Botulus: its counters are read (memo key). */\n  counted: boolean;\n  /** ARM runBegin: hosted credits and the payout (Side Hustle); Knickknack; printed install cost. */\n  hustle?: number;\n  hustleAt?: number;\n  knick?: boolean;\n  cost?: number;\n}\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "/\\btrojan\\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };\n",
+   "/\\btrojan\\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords), ...runBeginFacts(c) };\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    let best = this.approach({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, j, this.targets[j].ice.length - 1);\n",
+   "    let best = this.runBegins({ ...ws, clicks: ws.clicks - 1, spike: false, fund, moved: false }, w => this.approach(w, j, this.targets[j].ice.length - 1));\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** The breach of run j (6.9.5)",
+   "  /**\n   * ARM runBegin: the run begins (6.9.1c): each Side Hustle places 1 credit and, at its payout, the Runner takes all\n   * (1.10.4a; trashed, a card drawn); the first time this turn, Knickknack may trash another installed card for its\n   * printed install cost and a card, the Runner's choice (BOUND: as money, no choice). The pool needed before a gain: the rest's need less it, at\n   * least 0. Arm state rides in `chose` ('hustle:<rig index>:<credits>', 'begun'), which every memo key reads.\n   */\n  private runBegins(ws: WalkState, then: (w: WalkState) => number): number {\n    let w = ws;\n    let gain = 0;\n    const marks: string[] = [];\n    const draw = (x: WalkState): WalkState => ({ ...x, grip: x.grip + (x.stack > 0 ? 1 : 0), stack: Math.max(0, x.stack - 1) });\n    this.board.rig.forEach((r, i) => {\n      if (!r.hustleAt || w.gone.includes(i)) return;\n      const tag = ws.chose.find(x => x.startsWith(`hustle:${i}:`));\n      const n = (tag ? Number(tag.split(':')[2]) : r.hustle ?? 0) + 1;\n      if (n >= r.hustleAt) {\n        gain += n;\n        w = draw({ ...w, gone: [...w.gone, i].sort((a, b) => a - b) });\n      } else marks.push(`hustle:${i}:${n}`);\n      w = { ...w, moved: true };\n    });\n    const first = !ws.chose.includes('begun');\n    w = { ...w, chose: [...ws.chose.filter(x => !x.startsWith('hustle:') && x !== 'begun'), ...marks, 'begun'].sort() };\n    // BOUND: Knickknack's trash as money, the largest printed install cost among the other rig cards, the card kept\n    const knick = first ? this.board.rig.findIndex((r, i) => r.knick && !w.gone.includes(i)) : -1;\n    if (knick >= 0) gain += Math.max(0, ...this.board.rig.map((r, i) => (i === knick || w.gone.includes(i) ? 0 : r.cost ?? 0)));\n    return Math.max(0, then(w) - gain);\n  }\n\n  /** The breach of run j (6.9.5)"
+  ]
+ ],
+ "arruBound": [
+  [
+   "ai/corp/hold.ts",
+   "import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';",
+   "import { canBreakSubroutinesWith, iceScript, iceStrength, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** Botulus may break its subroutines (not Semak-samun's fracters-only). */\n",
+   "  /** ARM arru: its strength as met, and the weakened view (Arruaceiras Crew's -2: plans keyed '|w'). */\n  strength?: number;\n  weak?: boolean;\n  /** Botulus may break its subroutines (not Semak-samun's fracters-only). */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      anyBreaker: canBreakSubroutinesWith(c, null),\n",
+   "      strength: iceStrength(view, up),\n      anyBreaker: canBreakSubroutinesWith(c, null),\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */\n",
+   "  /** ARM arru: the rig index of Arruaceiras Crew, or -1. */\n  arru?: number;\n  /** plan.bypass: the Runner's own bypasses (Physarum Entangler) are tried. */\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    firstDraw: [...start.rig,",
+   "    arru: start.rig.findIndex(c => c.cardCode === '34073'),\n    firstDraw: [...start.rig,"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "          if (!list) cache.set(key, (list = planFor(board, start, card, z)));\n          plans[key] = list;\n",
+   "          if (!list) cache.set(key, (list = planFor(board, start, card, z)));\n          plans[key] = list;\n          if (start.rig.some(c => c.cardCode === '34073')) {\n            // ARM arru: the plans against the ice at -2 strength for this encounter (the engine's run strength)\n            const run = board.activeRun;\n            const weak = { ...board, activeRun: { ...(run ?? {}), iceRunStrength: { ...(run?.iceRunStrength ?? {}), [card.instanceId]: (run?.iceRunStrength?.[card.instanceId] ?? 0) - 2 } } } as GameState;\n            let w = cache.get(`${key}|w`);\n            if (!w) cache.set(`${key}|w`, (w = planFor(weak, start, card, z)));\n            plans[`${key}|w`] = w;\n          }\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}|${this.choiceOf(ice, ws)}`] ?? [];",
+   "    return this.board.plans[`${ice.id}|${z}|${ice.granters.filter(i => ws.gone.includes(i))}|${this.choiceOf(ice, ws)}${(this.board.arru ?? -1) >= 0 ? '|w' : ''}`] ?? [];"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));",
+   "    return Math.min(best, this.tolls(ws, ice, w => Math.min(this.breaks(w, ice, types, next, at), this.arru(w, ice, next)), at));"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  private spendBotulus(",
+   "  /**\n   * ARM arruBound: Arruaceiras Crew as a bound with no choice: every ice met is priced at -2 strength (its plans keyed\n   * '|w'; no tag, no once-per-turn), and trashed for 2 when that makes its strength 0 or less, the card kept.\n   */\n  private arru(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number): number {\n    if ((this.board.arru ?? -1) < 0 || ice.strength === undefined || ice.strength - 2 > 0) return FAIL;\n    return this.pay(ws, 2, x => next({ ...x, trashed: [...x.trashed, ice.id].sort(), moved: true }));\n  }\n\n  private spendBotulus("
+  ]
+ ]
+}
