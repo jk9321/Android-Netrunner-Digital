@@ -61,6 +61,8 @@ const TREES = ['beta', 'control', 'hosted'];
 const GEN = Number(process.env.GEN ?? 2000);
 const ORACLE_CAP = Number(process.env.ORACLE_CAP ?? 150_000);
 const Q2_CAP = Number(process.env.Q2_CAP ?? 80);
+// FROM_I, TO_I: only a human game's decisions numbered in [FROM_I, TO_I) are asked (a resume of a shard cut by its timeout)
+const inRange = (i: number) => i >= Number(process.env.FROM_I ?? 0) && i < Number(process.env.TO_I ?? Infinity);
 const root = resolve(process.env.TROOT ?? '.mh-fire', String(shard));
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
@@ -363,11 +365,16 @@ async function main() {
         if (!s.winner) {
           if (isRezWindow(s, wantsStop)) {
             const cards = beta.rezCandidates(structuredClone(s), s.priority!.step);
-            if (cards.length) decision(src, i++, s, 'rez');
+            if (cards.length) {
+              const at = i++;
+              if (inRange(at)) decision(src, at, s, 'rez');
+            }
           } else if (actingSide(s) === 'corp' && !(s.priority && s.priority.holder === 'corp' && s.activePlayer === 'runner')) {
             const at = i++;
-            decision(src, at, s, s.pendingPrompts.length ? 'prompt' : s.activeRun ? 'run' : 'main');
-            if (move.player === 'corp') commit(src, at, s, move);
+            if (inRange(at)) {
+              decision(src, at, s, s.pendingPrompts.length ? 'prompt' : s.activeRun ? 'run' : 'main');
+              if (move.player === 'corp') commit(src, at, s, move);
+            }
           }
         }
         const before = s;

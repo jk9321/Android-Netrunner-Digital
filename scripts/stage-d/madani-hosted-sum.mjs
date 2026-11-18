@@ -4,6 +4,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 const [dealsFile, ...files] = process.argv.slice(2);
+// ORACLE=x: the Q2, commit and generated tables read the extended oracle (madani-hosted-oracle.ts, rule 8.5.6c) where
+// the line has it; plain otherwise. A line without oracleX (the first run) reads the plain oracle either way.
+const O = process.env.ORACLE === 'x' ? 'oracleX' : 'oracle';
+const sets = x => (O === 'oracleX' && x.oracleXSets ? x.oracleXSets : x.oracleSets ?? []);
+const memTag = x => (x.mem ? `${x.mem.used}/${x.mem.limit}${x.mem.over ? ' over' : ''}` : '-');
 const lines = files.flatMap(f => readFileSync(f, 'utf8').split('\n')).filter(l => l.startsWith('{')).map(l => JSON.parse(l));
 const by = k => lines.filter(x => x.kind === k);
 const aiOf = new Map();
@@ -96,7 +101,7 @@ if (w) {
 // ---------------------------------------------------------------- Q2
 const qs = by('q');
 const qd = by('qd');
-p('\n## Q2. Hold questions on boards with a walked hosted program (beta, the arm, the engine oracle on the same board)\n');
+p(`\n## Q2. Hold questions on boards with a walked hosted program (beta, the arm, the engine oracle on the same board; ${O === 'oracleX' ? 'EXTENDED oracle, installs over full memory' : 'PLAIN oracle'})\n`);
 p(`Decisions probed: ${qd.length}; questions asked ${qd.reduce((n, x) => n + x.asked, 0)}, unique by board, server and options ${qd.reduce((n, x) => n + x.unique, 0)}.\n`);
 const callerOf = x => x.callers.map(c => c.replace(/^ai\//, '').replace(/ .*/, '')).join('+');
 p('| source | caller | when | unique questions | oracle asked | beta holds, oracle gets in | beta gets in, oracle holds | hosted holds, oracle gets in | hosted gets in, oracle holds | oracle unknown or capped |');
@@ -106,17 +111,17 @@ for (const g of GROUPS) {
   const keys = [...new Set(d.map(x => `${callerOf(x)}|${x.opts.when}`))].sort();
   for (const k of keys) {
     const e = d.filter(x => `${callerOf(x)}|${x.opts.when}` === k);
-    const asked = e.filter(x => x.oracle === 'holds' || x.oracle === 'getsIn');
+    const asked = e.filter(x => x[O] === 'holds' || x[O] === 'getsIn');
     const hh = x => (typeof x.hosted === 'object' ? x.hosted.holds : null);
-    p(`| ${g} | ${k.split('|')[0]} | ${k.split('|')[1]} | ${e.length} | ${asked.length} | ${asked.filter(x => x.beta.holds && x.oracle === 'getsIn').length} | ${asked.filter(x => !x.beta.holds && x.oracle === 'holds').length} | ${asked.filter(x => hh(x) === true && x.oracle === 'getsIn').length} | ${asked.filter(x => hh(x) === false && x.oracle === 'holds').length} | ${e.length - asked.length} |`);
+    p(`| ${g} | ${k.split('|')[0]} | ${k.split('|')[1]} | ${e.length} | ${asked.length} | ${asked.filter(x => x.beta.holds && x[O] === 'getsIn').length} | ${asked.filter(x => !x.beta.holds && x[O] === 'holds').length} | ${asked.filter(x => hh(x) === true && x[O] === 'getsIn').length} | ${asked.filter(x => hh(x) === false && x[O] === 'holds').length} | ${e.length - asked.length} |`);
   }
 }
-const wrong = qs.filter(x => (x.beta.holds && x.oracle === 'getsIn') || (!x.beta.holds && x.oracle === 'holds') || (typeof x.hosted === 'object' && x.hosted.holds !== (x.oracle === 'holds') && (x.oracle === 'holds' || x.oracle === 'getsIn')));
+const wrong = qs.filter(x => (x.beta.holds && x[O] === 'getsIn') || (!x.beta.holds && x[O] === 'holds') || (typeof x.hosted === 'object' && x.hosted.holds !== (x[O] === 'holds') && (x[O] === 'holds' || x[O] === 'getsIn')));
 p(`\nEvery question where beta or the arm disagrees with the oracle (${wrong.length}):\n`);
-p('| source | # | T | caller | server | when | beta | hosted | oracle | oracle sets |');
-p('|---|---|---|---|---|---|---|---|---|---|');
+p('| source | # | T | caller | server | when | memory | beta | hosted | oracle | oracle sets |');
+p('|---|---|---|---|---|---|---|---|---|---|---|');
 const h = x => (typeof x === 'object' ? `${x.holds ? 'holds' : 'in'} need ${x.need} budget ${x.budget}${x.rez ? ` rez ${x.rez}` : ''}` : x);
-for (const x of wrong.slice(0, 150)) p(`| ${x.src} | ${x.i} | ${x.T} | ${callerOf(x)} | ${x.server} (${x.sk}) | ${x.opts.when} | ${h(x.beta)} | ${h(x.hosted)} | ${x.oracle} | ${x.oracleSets.join(' ')} |`);
+for (const x of wrong.slice(0, 150)) p(`| ${x.src} | ${x.i} | ${x.T} | ${callerOf(x)} | ${x.server} (${x.sk}) | ${x.opts.when} | ${memTag(x)} | ${h(x.beta)} | ${h(x.hosted)} | ${x[O]} | ${sets(x).join(' ')} |`);
 
 // ---------------------------------------------------------------- commits and exposures
 const cs = by('c');
@@ -126,28 +131,29 @@ p('| source | # | T | commit | server | beta after | hosted after | oracle after
 p('|---|---|---|---|---|---|---|---|---|---|---|');
 for (const x of cs) {
   const next = runs.filter(r => r.src === x.src && r.server === x.server && (r.T === x.T || r.T === x.T + 1));
-  p(`| ${x.src} | ${x.i} | ${x.T} | \`${x.action}\` | ${x.server} | ${h(x.beta)} | ${h(x.hosted)} | ${x.oracle} | \`${x.betaPick}\` | \`${x.hostedPick}\` | ${next.map(r => `T${r.T} ${r.ok ? 'in' : 'out'}${r.stolen ? `, stolen ${r.stolen}` : ''}`).join('; ') || 'no run'} |`);
+  p(`| ${x.src} | ${x.i} | ${x.T} | \`${x.action}\` | ${x.server} | ${h(x.beta)} | ${h(x.hosted)} | ${x[O]} | \`${x.betaPick}\` | \`${x.hostedPick}\` | ${next.map(r => `T${r.T} ${r.ok ? 'in' : 'out'}${r.stolen ? `, stolen ${r.stolen}` : ''}`).join('; ') || 'no run'} |`);
 }
 
 // ---------------------------------------------------------------- generated servers
 const gs = by('g').filter(x => !x.error);
-p('\n## Q3. Generated servers with Madani and 1 to 4 hosted programs (tests/holdWalkReference.test.ts randomBoard, extended)\n');
-const known = gs.filter(x => x.oracle === 'holds' || x.oracle === 'getsIn');
+p(`\n## Q3. Generated servers with Madani and 1 to 4 hosted programs (tests/holdWalkReference.test.ts randomBoard, extended; ${O === 'oracleX' ? 'EXTENDED oracle' : 'PLAIN oracle'})\n`);
+const known = gs.filter(x => x[O] === 'holds' || x[O] === 'getsIn');
 const tab = (name, f) => {
-  const a = known.filter(x => f(x) === true && x.oracle === 'getsIn');
-  const b = known.filter(x => f(x) === false && x.oracle === 'holds');
+  const a = known.filter(x => f(x) === true && x[O] === 'getsIn');
+  const b = known.filter(x => f(x) === false && x[O] === 'holds');
   return { name, holdsWrong: a, inWrong: b };
 };
 const tb = tab('beta', x => x.beta.holds);
 const th = tab('hosted', x => x.hosted.holds);
-p(`Servers ${gs.length} (errors ${by('g').length - gs.length}); oracle known on ${known.length} (holds ${known.filter(x => x.oracle === 'holds').length}, gets in ${known.filter(x => x.oracle === 'getsIn').length}); unknown or capped ${gs.length - known.length}.\n`);
+p(`Servers ${gs.length} (errors ${by('g').length - gs.length}); oracle known on ${known.length} (holds ${known.filter(x => x[O] === 'holds').length}, gets in ${known.filter(x => x[O] === 'getsIn').length}); unknown or capped ${gs.length - known.length}.\n`);
 p('| tree | says holds, oracle gets in | says gets in, oracle holds | of the first, oracle on the bare server (nothing hosted) holds too (the hosted programs are the cause) |');
 p('|---|---|---|---|');
 for (const t of [tb, th]) p(`| ${t.name} | ${t.holdsWrong.length} | ${t.inWrong.length} | ${t.holdsWrong.filter(x => x.oracleBare === 'holds').length} |`);
 const removed = tb.holdsWrong.filter(x => !x.hosted.holds).length;
+for (const [lab, f] of [['memory full', x => x.mem?.full], ['memory not full', x => !x.mem?.full]]) { const k = known.filter(f); p(`${lab}: ${k.length} servers; beta holds/oracle in ${k.filter(x => x.beta.holds && x[O] === 'getsIn').length}, beta in/oracle holds ${k.filter(x => !x.beta.holds && x[O] === 'holds').length}; hosted holds/oracle in ${k.filter(x => x.hosted.holds && x[O] === 'getsIn').length}, hosted in/oracle holds ${k.filter(x => !x.hosted.holds && x[O] === 'holds').length}; plain and extended oracle differ on ${k.filter(x => x.oracleX && x.oracleX !== x.oracle).length}`); }
 p(`\nBeta's wrong "holds" the arm removes: ${removed} of ${tb.holdsWrong.length}. The arm's wrong "gets in": ${th.inWrong.length} (criterion 1 asks fewer than ${removed}).`);
 p(`Time on these servers, serverHold median: beta ${med(gs.map(x => x.beta.ms))} ms, hosted ${med(gs.map(x => x.hosted.ms))} ms; worst hosted ${Math.max(...gs.map(x => x.hosted.ms))} ms.\n`);
-const show = x => `#${x.k}: ice ${x.board.ice.join(', ')}; rig ${x.board.rig.join(', ') || '-'}; hosted ${x.board.hosted.join(', ')}; runner $${x.board.runner} clicks ${x.board.clicks} tags ${x.board.tags} grip ${x.board.grip}; corp $${x.board.corp}; beta ${h(x.beta)}; hosted ${h(x.hosted)}; oracle ${x.oracle} (${x.oracleSets.join(' ')}), bare ${x.oracleBare}`;
+const show = x => `#${x.k}: ice ${x.board.ice.join(', ')}; rig ${x.board.rig.join(', ') || '-'}; hosted ${x.board.hosted.join(', ')}; runner $${x.board.runner} clicks ${x.board.clicks} tags ${x.board.tags} grip ${x.board.grip}; corp $${x.board.corp}; memory ${memTag(x)}; beta ${h(x.beta)}; hosted ${h(x.hosted)}; oracle ${x[O]} (${sets(x).join(' ')}), bare ${x.oracleBare}`;
 p(`The arm says holds, the oracle gets in (${th.holdsWrong.length}):\n`);
 for (const x of th.holdsWrong) p(`- ${show(x)}`);
 p(`\nThe arm says gets in, the oracle holds (${th.inWrong.length}):\n`);
