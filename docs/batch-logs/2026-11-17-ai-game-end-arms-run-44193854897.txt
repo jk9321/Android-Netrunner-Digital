@@ -1,0 +1,14 @@
+ai-script run 44193854897: scripts/stage-d/game-end.ts on ai-game-end d2ece4f (Stage D item 4 step 1), summed by scripts/stage-d/game-end-sum.mjs.
+92 games (56 self-play deals, 21 person-Runner, 15 person-Corp), 8,833 Corp decisions, 0 errors; each arm a patched copy of src/ (scripts/stage-d/game-end-patches.ts).
+Changed decisions a game (self / person-Runner / person-Corp):
+  a1  the order, a game-ending access outright first   0.09 / 0.43 / 0     (14 picks: 0 better, 3 worse by the count, all through R&D's one-access test)
+  a2  the order by the odds                            0.02 / 0    / 0
+  a2e a2 with the forfeit term                         0.07 / 0    / 0
+  b1  variant E near-loss price                        0.07 / 0    / 0.07
+  b2  the old ±1000 terminal                           0.36 / 0.57 / 0.47
+Paired continuations (base and arm on the same decisions): a1 on 14, Runner wins next turn base 0 / a1 1, holds more 0, fewer 2, same 12;
+b2 on 26, Runner wins next turn base 15 / b2 12, holds more 3, fewer 2, same 21. Time ratios 1.003 to 1.011.
+Corp losses on points: 43 (held by the count 4, a holding move existed 3, no move held 32, multi-access or Archives 4); no arm turns one into a hold.
+Follow-up trace (local, scripts/stage-d/game-end-installs.ts @ 7116ee2): the seven own-install losses; the reply's Runner (planner off) cannot find the
+end on deals 1041 and 2121 (0 of 8 against 8 of 8). Detail: netrunner-ai/stage-d/item4-game-end/design-note.md, trace-installs.md;
+ruling design-answer.md sections 7-8 (counted, not built).

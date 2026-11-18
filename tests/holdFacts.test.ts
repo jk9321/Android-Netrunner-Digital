@@ -47,7 +47,7 @@ describe('holdFacts card entries', () => {
     expect(CARDS['35079'].holdFacts?.rezDuringRun).toEqual({ purgeVirus: true });
     expect(CARDS['30055'].holdFacts?.rezDuringRun).toEqual({ tags: 1 });
     expect(CARDS['35041'].holdFacts?.rezDuringRun).toEqual({ corpMayTrashInstalled: 'trojan' });
-    expect(CARDS['34096'].holdFacts?.rezDuringRun?.anyIce).toEqual({ subtypes: ['ap', 'destroyer'], strength: 1, gains: 'End the run unless the Runner trashes 1 of their installed cards.' });
+    expect(CARDS['34096'].holdFacts?.rezDuringRun?.anyIce).toEqual({ subtypes: ['ap', 'destroyer'], gains: 'End the run unless the Runner trashes 1 of their installed cards.' });
   });
   it('encounter (6.9.3a): Paywall, Funhouse, Jaguarundi at threat 4, Seraph', () => {
     expect(CARDS['36052'].holdFacts?.encounter).toEqual({ loses: 1 });

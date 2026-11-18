@@ -1,7 +1,7 @@
 import { CardInstance, GameState, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
 import { rezCost, stealthCredits, threatLevel } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
-import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, runStealthCredits, subroutineFacts } from '../runs';
+import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, subroutineFacts } from '../runs';
 import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
@@ -221,7 +221,7 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
-  /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not carried). */
+  /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
   liability: boolean;
@@ -296,8 +296,9 @@ export interface WalkState {
   fund: number;
   /** Bad publicity the Corp took during the walk (a liability rez): in the fund from the next run on (10.6.3c). */
   bp: number;
-  /** Credits on cards that pay during runs (Methuselah, Touchstone): shared through the turn. */
+  /** Credits on cards that pay during runs (runCredits: no stealth card's), any cost but a stealth part: shared through the turn. */
   hosted: number;
+  /** Credits on stealth cards (runCredits): a plan's stealth part, and any other cost during a run too. */
   stealth: number;
   /** Counters on each rig card (by rig index). */
   virus: number[];
@@ -406,6 +407,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
+      // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
       choices,
@@ -414,12 +416,13 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
 }
 
 /**
- * A server's ice as met on the Runner's turn (walkIce from walkStart(state, true)), once per board and server: serverHold's
- * question and the run sequence's ask it of the same boards (the 14:39Z ruling: gathered once). On valueModel's memo, so
- * it is dropped when the board is changed in place.
+ * A server's ice as met (walkIce), once per board, server and kind of start: serverHold's question and the run sequence's
+ * ask it of the same boards (the 14:39Z ruling: gathered once; every caller passes walkStart(state, true) today, and the
+ * key names the start's kind so a 'thisRun' start is never served the turn's ice). On valueModel's memo, so it is
+ * dropped when the board is changed in place.
  */
 function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {
-  return memo(state, `turnIce:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
+  return memo(state, `turnIce:${start.runnerTurn ? 1 : 0}:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
 }
 
 
@@ -656,7 +659,6 @@ export class Walk {
     return v;
   }
 
-  /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
   /**
    * A liability rez's additional cost (Valentão, Piranhas: "take 1 bad publicity or remove 1 tag"; 1.14.3a), the
    * Corp's choice worse for the Runner (ruling 6): the bad publicity fills the fund from the next run on (10.6.3c), the
@@ -668,6 +670,7 @@ export class Walk {
     return ws.tags > 0 ? Math.max(bp, then({ ...ws, tags: ws.tags - 1 })) : bp;
   }
 
+  /** The ice was rezzed during this run against its server: its rez-time facts (Flyswatter: purge virus counters). */
   private rezzed(ws: WalkState, ice: SearchIce, next: (w: WalkState) => number, at: Step): number {
     if (ice.choices && this.choiceOf(ice, ws) === '') {
       // Lycian: the Corp chooses the ice's subtypes as it rezzes it, the choice worst for the Runner (ruling 6)
@@ -822,15 +825,19 @@ export class Walk {
   }
 
   /**
-   * Pays `n` credits during the run: the run-only credits first (the fund, which goes back at the run's end, then the
-   * credits on cards that pay during runs), the pool last (spendCredits' order): a pool credit can do all they can and
-   * more (conditions read the pool; 10.6.2: the fund is not part of it). The pool part is added to what the rest needs.
+   * Pays `n` credits during the run in the engine's order (spendCredits), which gives the Runner no choice of source: the
+   * fund (bad publicity, then the run's bonus credits; 10.6.2: not part of the pool), then the credits on cards that pay
+   * during runs (`hosted`, then the stealth cards': Methuselah, Touchstone), then the pool. The pool part is added to what
+   * the rest needs. Rule 1.10.3c lets the Runner divide a payment among the allowed sources; the engine does not yet
+   * (found-list row 49), and the walk follows the engine: when it gives the choice, a kept stealth credit can beat a pool
+   * credit (a later stealth part, a later loss) and pay must try the splits (registry, the hold row's debt).
    */
   private pay(ws: WalkState, n: number, then: (w: WalkState) => number): number {
     const fund = Math.min(n, ws.fund);
     const hosted = Math.min(n - fund, ws.hosted);
-    const w = fund || hosted ? { ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted } : ws;
-    return then(w) + (n - fund - hosted);
+    const stealth = Math.min(n - fund - hosted, ws.stealth);
+    const w = fund || hosted || stealth ? { ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted, stealth: ws.stealth - stealth } : ws;
+    return then(w) + n - fund - hosted - stealth;
   }
 
   /** The unbroken subroutines `list` (indexes into ice.subs) resolve one at a time in printed order (9.8.7b). */
@@ -970,10 +977,23 @@ function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: stri
   return out;
 }
 
-/** Credits on the rig's cards that pay during runs (Methuselah, Touchstone; cardEffects runPayers). */
-function duringRuns(state: GameState): number {
-  const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
-  return rig.filter(c => getCardScript(c.cardCode)?.paysDuringRuns).reduce((n, c) => n + counters(c, 'credit'), 0);
+/**
+ * The run-time credits on the Runner's cards, split with no overlap (audit AI-HOLD-STEALTH-TWICE, found-list row 31):
+ * `stealth`, the credits on stealth cards, which pay a plan's stealth part (Corsair) and, during a run, any other cost
+ * too; `hosted`, the credits on the other cards that pay during runs, any cost but a stealth part. On the Runner's turn,
+ * the rig's (runStealthCredits' stealth cards; Methuselah, Touchstone); during the run under way, the engine's: its run payers
+ * (availableCredits less the pool it counts, none with the pool locked, and the fund; Trick Shot's and Aircheck's
+ * hosted credits too) and its stealth credits. Read by the turn's first state and the run under way alike.
+ */
+function runCredits(state: GameState, start: WalkStart): { hosted: number; stealth: number } {
+  const run = state.activeRun;
+  if (run && !start.runnerTurn) {
+    const stealth = stealthCredits(state);
+    const pool = run.poolLocked ? 0 : state.runner.credits;
+    return { hosted: availableCredits(state, 'runner') - pool - run.bonusCredits - (run.badPublicityCredits ?? 0) - stealth, stealth };
+  }
+  const sum = (f: (c: CardInstance, stealth: boolean) => boolean) => start.rig.filter(c => f(c, /stealth/i.test(cardDef(c).keywords ?? ''))).reduce((n, c) => n + counters(c, 'credit'), 0);
+  return { hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns), stealth: sum((_, stealth) => stealth) };
 }
 
 /** The walk's first state on the Runner's turn: `clicks` for the turn, the rest from the board at its start. */
@@ -987,8 +1007,7 @@ export function firstState(state: GameState, start: WalkStart, clicks: number, c
     chose: [],
     corp,
     fund: 0,
-    hosted: duringRuns(state),
-    stealth: runStealthCredits(state),
+    ...runCredits(state, start),
     virus: start.virus,
     power: start.power,
     gone: [],
@@ -1058,7 +1077,7 @@ export function corpStart(state: GameState, ice: WalkIce[], corpCredits: number)
   return Number.isFinite(corpCredits) ? corpCredits : state.corp.credits + ice.filter(c => !c.rezzed).reduce((n, c) => n + c.rezCost, 0);
 }
 
-/** The board runBypasses reads for a rez set: the ice rezzed at the walk's start and the set's (as rezzedSet before). */
+/** The board runBypasses reads for a rez set: the ice rezzed at the walk's start and the set's. */
 function bypassBoard(state: GameState, serverId: string, ice: WalkIce[], set: Set<string>): GameState {
   const server = state.corp.servers[serverId];
   return withServerIce(state, serverId, server.ice.map((c, i) => ({ ...c, isRezzed: ice[i].rezzed || set.has(c.instanceId) })));
@@ -1220,6 +1239,8 @@ function walkRunnerTurn(state: GameState, server: string, corpCredits: number): 
  * the fund filled at each run, the credits hosted on cards and the counters shared, the board carried from run to run
  * (an ice rezzed on one run is met rezzed on the next). `need` is in runnerBudget's units, as serverHold's. Each run's
  * bypasses are priced again (a known gap: a counter one bypass spends is not taken from the next).
+ * A test and script entry point (the brute-force reference, scripts/stage-d): no reader in src; keepFor reads
+ * reachQuestion and reachSets, which answer the same.
  */
 export function turnReach(state: GameState, servers: string[], rezSets: string[][], corpCredits = state.corp.credits): { reaches: boolean; need: number; budget: number } {
   return counted(() => {
@@ -1300,7 +1321,10 @@ function setInput(q: ReachQuestion, set: string[]): TurnInput {
 const reaches = (q: ReachQuestion, order: string[], input: TurnInput, memos = walkMemos()): boolean =>
   passes(input, order.map(id => q.targets[id]), order.reduce((n, id) => n + q.prices[id], 0), q.budget, memos);
 
-/** turnReach(state, order, no rezzes) from the gathered question, its own memo (pure: it reads `q` alone). */
+/**
+ * turnReach(state, order, no rezzes) from the gathered question, its own memo (pure: it reads `q` alone). A test and
+ * script entry point: no reader in src (reachSets is keepFor's).
+ */
 export function reachOrder(q: ReachQuestion, order: string[]): boolean {
   return !order.length || reaches(q, order, setInput(q, order));
 }
@@ -1416,10 +1440,9 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
     const ice = ice0.map(c => ({ ...searchIce(c), inS: up.has(c.id), bypassed: skipped.has(c.id) }));
     // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand
     const corp = spare + base;
-    // The run's own credits: the fund and Overclock's, and the cards that pay during it (availableCredits less the pool)
+    // The run's own credits: the fund and Overclock's; the cards that pay during it are the first state's (runCredits)
     const fund = run.bonusCredits + (run.badPublicityCredits ?? 0);
-    const hosted = Math.max(0, availableCredits(state, 'runner') - state.runner.credits - fund);
-    const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund, hosted, stealth: stealthCredits(state) };
+    const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund };
     const need = new Walk(board, [{ server, ice }], undefined, false).fromIce(ws, pos);
     if (need > mostNeed) mostNeed = need;
     if (need > budget) {
