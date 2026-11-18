@@ -159,7 +159,10 @@ const options = (s: GameState, side: SideCode): GameAction[] => (getLegalActions
 const label = (s: GameState, a: GameAction): string => {
   if (a.type !== 'RESOLVE_PROMPT') return a.type;
   const c = a.choice as Record<string, unknown>;
-  if (c.kind === 'effect_choice') return String(c.optionId);
+  if (c.kind === 'effect_choice') {
+    const card = /^inst-\d+$/.test(String(c.optionId)) ? core.findCardAnywhere(s, String(c.optionId)) : undefined;
+    return card ? `${c.optionId}:${core.cardDef(card).title}` : String(c.optionId);
+  }
   if (c.kind === 'effect_cards') return `cards:${((c.cardInstanceIds as string[]) ?? []).map(id => core.cardDef(core.findCardAnywhere(s, id)!).title).join('+') || 'none'}`;
   return JSON.stringify(c).slice(0, 60);
 };
@@ -276,6 +279,7 @@ function inspect(src: string, i: number, s: GameState, side: SideCode, given: Ga
     const w = opts.find(o => same(o.action, a.action));
     rec.walk = a.sep ? w?.id : null;
     rec.disagree = a.sep && g?.out === 'in';
+    rec.givenIsFallback = same(given, today(s));
     if (a.sep) {
       // Variant (reported, not the arm): today's one-step score, less the Corp's run loss (pools.ts runLoss, the owner
       // rez.ts's LEO answer reads) for an answer after which the walk lets the Runner in
@@ -387,7 +391,7 @@ function playDeal(seed: number, armed: boolean) {
         }
       } else if (!same(chosen, given)) {
         counter.changed++;
-        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), options: a.opts?.map(o => ({ id: o.id, out: o.out })) };
+        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), runLoss: Math.round(pools.runLoss(state) * 10) / 10, options: a.opts?.map(o => ({ id: o.id, out: o.out })) };
         watches.push({ rec, turn: state.turnNumber, server: state.activeRun!.server, score: state.runner.score });
       }
       return chosen;

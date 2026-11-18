@@ -28,6 +28,7 @@ for (const [g, is] of Object.entries(groups)) {
   p(`priced variant (score less runLoss when the walk lets the Runner in): changed ${sepD.filter(d => d.priced !== d.given).length} (${f2(sepD.filter(d => d.priced !== d.given).length / n)} a game); keeps out where the given lets in ${dis.filter(d => d.pricedOut === 'out').length} of ${dis.length}`);
   const cause = {};
   for (const d of dis) cause[d.cause] = (cause[d.cause] ?? 0) + 1;
+  p(`given answer is the fallback's (answerPrompt on the state): ${D.filter(d => d.givenIsFallback).length} of ${D.filter(d => d.givenIsFallback !== undefined).length}`);
   p(`cause: ${JSON.stringify(cause)}; walk's answer leaves a prompt pending with the run on: ${dis.filter(d => d.walkPending).length}`);
   const cards = {};
   for (const d of dis) cards[d.card] = (cards[d.card] ?? 0) + 1;
@@ -48,7 +49,7 @@ const base = Object.fromEntries(srcs.filter(s => s.play === 'base').map(s => [s.
 const flips = A.filter(a => base[a.src] && base[a.src].winner !== a.winner);
 p(`deal winners base -> arm: Corp ${srcs.filter(s => s.play === 'base' && s.winner === 'corp').length} -> ${A.filter(s => s.winner === 'corp').length} of ${A.length}; flipped ${flips.length}: ${flips.map(a => `${a.src} ${base[a.src].winner}->${a.winner}`).join(', ')}`);
 p('\nchanged decisions (self-play), each: src T server card given -> arm | options | followed');
-for (const a of arms) p(`- ${a.src} T${a.turn} ${a.server} ${a.card}: ${a.given} -> ${a.arm} | ${a.options?.map(o => `${o.id}:${o.out}`).join(' ')} | ${JSON.stringify(a.followed)}`);
+for (const a of arms) p(`- ${a.src} T${a.turn} ${a.server} ${a.card}: ${a.given} -> ${a.arm} (runLoss ${a.runLoss}) | ${a.options?.map(o => `${o.id}:${o.out}`).join(' ')} | ${JSON.stringify(a.followed)}`);
 p('\ndisagreements, each: src T server card shred given (out) -> walk | cause | score one-step/full given vs walk | followed');
 for (const d of decs.filter(d => d.disagree)) p(`- ${d.src} T${d.turn} ${d.server} ${d.card}${d.shred ? ' [Shred]' : ''}: ${d.given} -> ${d.walk} | ${d.cause} | priced ${d.priced} (runLoss ${d.runLoss}) | ${JSON.stringify(d.score)} | ${JSON.stringify(d.followed)}${d.recorded ? ` | recorded ${d.recorded}` : ''}`);
 
