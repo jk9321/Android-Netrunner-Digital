@@ -7,6 +7,7 @@ import { archivesPayoffOf, rezEffectOf } from '../cards';
 import { modelRezGain, runBypassed } from '../rezModel';
 import { agendasUnseen, reachablePoints, runLoss, stake } from './pools';
 import { serverHold } from './hold';
+import { rezMoney } from './rezMoney';
 import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
 import { plan, pricing } from '../pricing';
@@ -65,11 +66,31 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   // R2: the rez stops a steal from the root on this run
   if (isStopper) return 'rez';
   const hqAgendas = state.corp.hq.filter(isAgenda).length;
-  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll
-  if (run.server === 'hq' && hqAgendas > 0) return 'rez';
-  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll
-  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return 'rez';
+  // R3 (Jeff): a run on HQ with an agenda in it, stop or toll; a toll that spends the money kept for the rest of the
+  // Runner's turn is passed (F1, spendsKept)
+  if (run.server === 'hq' && hqAgendas > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';
+  // R4 (Jeff): a run on R&D with no agenda in HQ and agendas left in R&D by the deck list, stop or toll (F1 as R3)
+  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';
   return null;
+}
+
+/**
+ * Stage D item 3, exploit F1 (item3-rez-money/design-answer.md section 2): a toll rez on R3 or R4 (it does not stop the
+ * run) spends the money the Corp keeps when the Corp could pay the rest-of-turn keep before the rez and cannot after it:
+ * rezMoney's keep through the rest of the Runner's turn (restOfTurn: the run over, its clicks left, its credits once it
+ * has paid through this ice and the rezzed ice further in), the run's own server left out. A Corp already below that
+ * keep rezzes as before (the money was not holding the other servers). Asked only at an R3 or R4 toll.
+ */
+export function spendsKept(state: GameState, ice: CardInstance): boolean {
+  const run = state.activeRun;
+  const cost = rezCost(state, ice);
+  // No run left this turn keeps nothing; a free rez spends nothing
+  if (!run || cost <= 0 || state.runner.clicks <= 0) return false;
+  const credits = state.corp.credits;
+  const toll = serverHold(state, run.server, { when: 'thisRun', mustRez: [ice.instanceId], further: false });
+  const runnerCredits = toll.holds ? state.runner.credits : Math.max(0, state.runner.credits - toll.need);
+  const keep = rezMoney(state, { restOfTurn: { runnerCredits }, except: run.server }).keep;
+  return credits >= keep && credits - cost < keep;
 }
 
 /** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */

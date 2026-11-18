@@ -18,7 +18,7 @@ import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
-import { Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, orders, reachOrder, reachQuestion, reachSets, runTarget, holdCacheStats, questionKey, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
+import { TurnFrom, Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, orders, reachOrder, reachQuestion, reachSets, runTarget, holdCacheStats, nextTurn, questionKey, restOfTurn, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { SubEffect, SubFacts, bioroidBreakClicks, subroutineFacts } from '../src/ai/runs';
 import { CARDS } from '../src/ai/cards';
@@ -263,18 +263,22 @@ function counterSplits(virus: number[], hosted: number[], max: number): number[]
   return out;
 }
 
-/** The brute force's answer for turnReach(state, servers, rezSets): some split of the clicks gets through them all. */
-function bruteReach(state: GameState, servers: string[], rezSets: string[][]): boolean | null {
-  const start = walkStart(state, true);
+/**
+ * The brute force's answer for turnReach(state, servers, rezSets): some split of the clicks gets through them all. `from`:
+ * the turn's start (hold.ts TurnFrom): the next turn (default), or the rest of the turn under way (Stage D item 3: its
+ * clicks left, its credits, no turn-start money or counters again).
+ */
+function bruteReach(state: GameState, servers: string[], rezSets: string[][], from: TurnFrom = nextTurn(state)): boolean | null {
+  const start = walkStart(state, true, !from.rest);
   const bases = new Map<string, WalkIce[]>();
-  const runs = servers.map((id, i) => runTarget(state, bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!, id, new Set(rezSets[i])));
+  const runs = servers.map((id, i) => runTarget(state, bases.get(id) ?? bases.set(id, walkIce(state, start, state.corp.servers[id]?.ice ?? [])).get(id)!, id, new Set(rezSets[i]), from.clicks));
   // A bypass's price is a worth, not credits (registry debt): boards with one are left out
   if (runs.some(r => r.price > 0)) return null;
   const corp = corpStart(state, [...bases.values()].flat(), state.corp.credits);
-  const earn = runnerEarnings(state);
-  const c = Math.max(0, state.runner.maxClicks);
+  const earn = runnerEarnings(state, from);
+  const c = from.clicks;
   const brute = new Brute(state, start, runs.map(r => r.target));
-  for (let e = 0; e + servers.length <= c; e++) if (brute.beforeRun({ ...firstState(state, start, c - e, corp), pool: state.runner.credits + earn[e] }, 0)) return true;
+  for (let e = 0; e + servers.length <= c; e++) if (brute.beforeRun({ ...firstState(state, start, c - e, corp), pool: from.credits + earn[e] }, 0)) return true;
   return false;
 }
 
@@ -352,8 +356,8 @@ const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisio
  * server's unrezzed ice, at the walk's rez costs) that no line of the Runner's turn gets through. Null where a set's
  * bypass has a price (as bruteReach).
  */
-function bruteHolds(state: GameState, server: string): boolean | null {
-  const start = walkStart(state, true);
+function bruteHolds(state: GameState, server: string, from: TurnFrom = nextTurn(state)): boolean | null {
+  const start = walkStart(state, true, !from.rest);
   const all = state.corp.servers[server].ice;
   const base = walkIce(state, start, all);
   const open = all.map((_, i) => i).filter(i => !base[i].rezzed);
@@ -361,7 +365,7 @@ function bruteHolds(state: GameState, server: string): boolean | null {
   for (let mask = 0; mask < 1 << open.length; mask++) {
     const set = open.filter((_, k) => mask & (1 << k));
     if (set.reduce((n, i) => n + base[i].rezCost, 0) > state.corp.credits) continue;
-    const got = bruteReach(state, [server], [set.map(i => all[i].instanceId)]);
+    const got = bruteReach(state, [server], [set.map(i => all[i].instanceId)], from);
     if (got === null) return null;
     if (!got) holds = true;
   }
@@ -453,6 +457,72 @@ describe('the hold walk against a brute force of the same model (brief section 6
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(misses).toEqual([]);
   }, 600_000);
+});
+
+/**
+ * Stage D item 3 (F1; item3-rez-money/design-answer.md section 2, point 5): the 'restOfTurn' horizon is the same walk from
+ * a different start, the rest of the Runner's turn under way: its clicks left, its credits (once the run under way is
+ * paid), no turn-start money or counters placed again (walkStart's fresh false: Botulus, Tranquilizer, Lycian), the
+ * turn's first draw taken or not (turnFlags basic_draws). On mid-turn boards serverHold 'restOfTurn' and rez money's run
+ * sequence (reachQuestion from the same start, reachOrder) must agree with the brute force from that start.
+ */
+describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", () => {
+  const midTurn = (s: GameState, r: () => number): number => {
+    s.runner.maxClicks = 2 + Math.floor(r() * 3);
+    s.runner.clicks = Math.floor(r() * (s.runner.maxClicks + 1));
+    if (r() < 0.5) s.turnFlags = { ...s.turnFlags, basic_draws: 1 };
+    // Half the boards with a run under way (on HQ): the horizon reads the board with it over
+    if (r() < 0.5) s.activeRun = { server: 'hq' } as GameState['activeRun'];
+    return Math.floor(r() * 9);
+  };
+
+  it('agrees with serverHold and reachOrder on 2,000 mid-turn servers, one run and two (seed 20261124)', () => {
+    const r = rng(20261124);
+    const misses: string[] = [];
+    let compared = 0;
+    let reached = 0;
+    let held = 0;
+    let holdsAsked = 0;
+    let differs = 0;
+    for (let n = 0; n < 2000; n++) {
+      const { s } = randomBoard(r, undefined, n % 3 === 2);
+      if (r() < 0.3) installIceForTest(s, ICE[Math.floor(r() * ICE.length)], 'hq', true);
+      const credits = midTurn(s, r);
+      const board: GameState = { ...s, activeRun: null };
+      // The brute force's start written out (not hold.ts's restOfTurn, which the walk side reads)
+      const from: TurnFrom = { rest: true, clicks: s.runner.clicks, credits };
+      const order = n % 2 ? ['remote1'] : ['hq', 'remote1'];
+      const want = inCorp(s, () => bruteReach(board, order, order.map(() => []), from));
+      if (want !== null) {
+        compared++;
+        if (want) reached++;
+        const got = inCorp(s, () => reachOrder(reachQuestion(board, order, restOfTurn(board, credits)), order));
+        if (got !== want) misses.push(`#${n} reach [${order}]: walk ${got}, brute ${want}; $${credits} clicks ${s.runner.clicks}/${s.runner.maxClicks}`);
+      }
+      const holds = inCorp(s, () => bruteHolds(board, 'remote1', from));
+      if (holds === null) continue;
+      holdsAsked++;
+      if (holds) held++;
+      const h = inCorp(s, () => serverHold(s, 'remote1', { when: 'restOfTurn', runnerCredits: credits }));
+      if (h.holds !== holds) misses.push(`#${n} holds: walk ${h.holds}, brute ${holds}; $${credits} clicks ${s.runner.clicks}/${s.runner.maxClicks}`);
+      // The start matters: the next turn's answer differs from the rest of this one's on some boards
+      if (inCorp(s, () => bruteHolds(board, 'remote1')) !== holds) differs++;
+    }
+    expect(compared).toBeGreaterThan(1200);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(differs).toBeGreaterThan(holdsAsked / 20);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // The earnings are a fact both sides read (runnerEarnings): the turn-start money is not paid again mid-turn
+  it("pays no turn-start money from the rest of the turn (Smartware Distributor's 1 hosted credit)", () => {
+    const s = newGame(3);
+    s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [{ ...createCardInstance(s, '30033'), isRezzed: true, tokens: { credit: 3 } }] };
+    expect(getCardDefinition('30033').title).toBe('Smartware Distributor');
+    expect(runnerEarnings(s)[0]).toBe(1);
+    expect(runnerEarnings(s, restOfTurn(s))[0]).toBe(0);
+  });
 });
 
 /**

@@ -1,5 +1,5 @@
 import { CardInstance, GameState, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
-import { rezCost, stealthCredits, threatLevel } from '../../core/engine/cardEffects';
+import { rezCost, stealthCredits, threatLevel, TurnFlag, turnFlag } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
 import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, subroutineFacts } from '../runs';
 import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
@@ -11,9 +11,12 @@ import { memo } from '../valueModel';
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
  *
- * One function, serverHold, answers for both horizons the Corp counts today:
+ * One function, serverHold, answers for the horizons the Corp counts today:
  *  - 'runnerTurn': can the Runner get in on its next turn, against the cheapest set of ice the Corp can afford to rez
  *    (holdCost's count, moved here from countedScore.ts);
+ *  - 'restOfTurn' (Stage D item 3, F1): the same walk from a different start, the rest of the Runner's turn under way
+ *    once its run is over (TurnFrom: the clicks it has left, the credits it is left with, no turn-start money or
+ *    counters again, its first draw of the turn taken if it was): what rez money keeps for the rest of this turn;
  *  - 'thisRun': can the Runner get through the rest of the run under way with its credits now (stopCost's count, moved
  *    here from rezModel.ts).
  * The Corp rezzes ice as it is approached (rules 3.4.3a, 6.4.3, 6.9.2b); unrezzed ice is passed (6.9.2c); a bypassed
@@ -26,10 +29,15 @@ import { memo } from '../valueModel';
  */
 
 export interface HoldOptions {
-  /** 'runnerTurn' (the Runner's next turn, runnerBudget) or 'thisRun' (the run under way, the Runner's credits now). */
-  when: 'runnerTurn' | 'thisRun';
+  /**
+   * 'runnerTurn' (the Runner's next turn, runnerBudget), 'thisRun' (the run under way, the Runner's credits now) or
+   * 'restOfTurn' (the rest of the Runner's turn under way once its run is over, runnerBudget of restOfTurn).
+   */
+  when: 'runnerTurn' | 'thisRun' | 'restOfTurn';
   /** The credits the Corp may spend on rezzes ('thisRun' defaults to its credits now). */
   corpCredits?: number;
+  /** 'restOfTurn': the Runner's credits once the run under way is over (default its credits now). */
+  runnerCredits?: number;
   /** 'thisRun': the approached ice's position (default the run's icePosition); the ice from it inward is counted. */
   from?: number;
   /** 'thisRun': ice that must be rezzed (the approached ice, priced at its rez cost; stopCost's `ice`). */
@@ -55,7 +63,7 @@ export interface Hold {
    * then `holds` is false and `margin` above 0 (the brief rev 2, 2.5).
    */
   need: number;
-  /** The most the Runner can bring: runnerBudget ('runnerTurn') or its credits now ('thisRun'). */
+  /** The most the Runner can bring: runnerBudget ('runnerTurn', 'restOfTurn' from its start) or its credits now ('thisRun'). */
   budget: number;
   /** need - budget: above 0 when it holds; above 0 with `holds` false where only a run after a failed one gets in. */
   margin: number;
@@ -75,7 +83,22 @@ export const CHECK = { runnerExtra: 0 };
  * every click but the run's make (runnerMoney: card entries, never the grip; 5.2.7a). Count inputs F2: before it, 1
  * credit a click, so a loaded Telework Contract was missed (paired +0.0 ± 0.4 at games=3, run 42918973725).
  */
-export const runnerBudget = (s: GameState) => s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;
+export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number =>
+  from.rest ? from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra : s.runner.credits + runnerMoney(s) + CHECK.runnerExtra;
+
+/**
+ * Where a turn's walk starts (Stage D item 3, F1). The Runner's next turn (`rest` false): its turn begins (5.7.1: the
+ * turn-start money and counters), every click (maxClicks), its credits now. The rest of the turn under way once its run
+ * is over (`rest` true): the clicks it has left, the credits it is left with (`credits`), nothing of the turn's start
+ * again; a once-per-turn click ability already used this turn is counted again (toward a richer Runner).
+ */
+export interface TurnFrom {
+  rest: boolean;
+  clicks: number;
+  credits: number;
+}
+export const nextTurn = (s: GameState): TurnFrom => ({ rest: false, clicks: Math.max(0, s.runner.maxClicks), credits: s.runner.credits });
+export const restOfTurn = (s: GameState, credits = s.runner.credits): TurnFrom => ({ rest: true, clicks: Math.max(0, s.runner.clicks), credits });
 
 const hosted = (c: CardInstance) => counters(c, 'credit');
 
@@ -93,24 +116,25 @@ export function runnerMoney(s: GameState): number {
  * What k earning clicks make on the Runner's next turn, for k = 0 .. maxClicks (runnerMoney is k = maxClicks - 1): each
  * installed card's turn-start payment (no more than it holds), then the best set of its paying click abilities within
  * the k clicks (one use each), the other clicks 1 credit each (5.2.7a). The hold walk splits the turn's clicks between
- * earning and the rest (brief 5.3) and reads this for both.
+ * earning and the rest (brief 5.3) and reads this for both. From the rest of a turn (`from.rest`): k = 0 .. its clicks left,
+ * with no turn-start payment or turn-start counter (paid or placed already this turn).
  */
-export function runnerEarnings(s: GameState): number[] {
+export function runnerEarnings(s: GameState, from: TurnFrom = nextTurn(s)): number[] {
   const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources];
   let drip = 0;
   const uses: { clicks: number; credits: number }[] = [];
   for (const c of rig) {
     const pay = turnIncomeOf(c.cardCode);
-    if (pay) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;
+    if (pay && !from.rest) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;
     const m = clickMoneyOf(c.cardCode);
     if (!m) continue;
     let credits = m.credits;
     if (m.hosted === 'cap') credits = Math.min(credits, hosted(c));
     if (m.hosted === 'add') credits += hosted(c);
-    if (m.perVirus) credits += m.perVirus.credits * (counters(c, 'virus') + m.perVirus.turnStart);
+    if (m.perVirus) credits += m.perVirus.credits * (counters(c, 'virus') + (from.rest ? 0 : m.perVirus.turnStart));
     if (credits > m.clicks) uses.push({ clicks: m.clicks, credits });
   }
-  const max = Math.max(0, s.runner.maxClicks);
+  const max = from.clicks;
   const n = Math.min(uses.length, 10);
   const out: number[] = [];
   for (let clicks = 0; clicks <= max; clicks++) {
@@ -131,7 +155,24 @@ export function runnerEarnings(s: GameState): number[] {
 
 /** Does the server hold, and by how much (see the file comment)? */
 export function serverHold(state: GameState, server: string, opts: HoldOptions): Hold {
-  return opts.when === 'thisRun' ? walkThisRun(state, server, opts) : counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
+  if (opts.when === 'thisRun') return walkThisRun(state, server, opts);
+  if (opts.when === 'restOfTurn') {
+    const board = afterRun(state);
+    return counted(() => walkRunnerTurn(board, server, opts.corpCredits ?? state.corp.credits, restOfTurn(board, opts.runnerCredits)));
+  }
+  return counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
+}
+
+/**
+ * The board of the rest of the turn: the run under way over (its once-per-run uses and run flags gone, 6.8.5, 6.9.6d),
+ * once per board, so the memos keyed on it (turnIce, the break plans) serve every ask at one rez window.
+ */
+const afterRuns = new WeakMap<GameState, GameState>();
+export function afterRun(state: GameState): GameState {
+  if (!state.activeRun) return state;
+  let board = afterRuns.get(state);
+  if (!board) afterRuns.set(state, (board = { ...state, activeRun: null }));
+  return board;
 }
 
 /** Counted with countingHold up: the rez budget its prices reach does not ask this count again (deal 2138's hang). */
@@ -345,15 +386,18 @@ export interface WalkStart {
   derezzed: Set<string>;
   /** 'runnerTurn': the Runner's next turn (a run under way is not part of it). */
   runnerTurn: boolean;
+  /** A turn's start (5.7.1) comes first: its counters placed, Lycian derezzed; false for the rest of a turn under way. */
+  fresh: boolean;
 }
 
-export function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
+/** The walk's start: the run under way (`runnerTurn` false), the Runner's next turn, or (`fresh` false) the rest of this turn. */
+export function walkStart(state: GameState, runnerTurn: boolean, fresh = runnerTurn): WalkStart {
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   const index = new Map(rig.map((c, i) => [c.instanceId, i]));
   const virus = rig.map(c => counters(c, 'virus'));
   const power = rig.map(c => counters(c, 'power'));
   const derezzed = new Set<string>();
-  if (runnerTurn) {
+  if (runnerTurn && fresh) {
     // When a turn ends, Lycian Multi-Munition derezzes itself: by the Runner's next turn it is unrezzed
     for (const sv of Object.values(state.corp.servers)) for (const c of sv.ice) if (c.isRezzed && CARDS[c.cardCode]?.holdFacts?.turnEndDerezSelf) derezzed.add(c.instanceId);
     // 5.7.1d: the Runner's turn begins: Botulus and Tranquilizer place a counter, then Tranquilizer derezzes its host at 3
@@ -365,7 +409,7 @@ export function walkStart(state: GameState, runnerTurn: boolean): WalkStart {
       if (t.derezHostAt !== undefined && c.hostedOnId && virus[i] >= t.derezHostAt) derezzed.add(c.hostedOnId);
     });
   }
-  return { rig, index, virus, power, derezzed, runnerTurn };
+  return { rig, index, virus, power, derezzed, runnerTurn, fresh: runnerTurn && fresh };
 }
 
 /** The server's ice as the walk meets it, innermost first; inS and bypassed are set per rez set. */
@@ -417,14 +461,17 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
 
 /**
  * A server's ice as met (walkIce), once per board, server and kind of start: serverHold's question and the run sequence's
- * ask it of the same boards (the 14:39Z ruling: gathered once; every caller passes walkStart(state, true) today, and the
+ * ask it of the same boards (the 14:39Z ruling: gathered once; a turn's start or the rest of a turn (startKind), and the
  * key names the start's kind so a 'thisRun' start is never served the turn's ice). On valueModel's memo, so it is
  * dropped when the board is changed in place.
  */
 function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {
-  return memo(state, `turnIce:${start.runnerTurn ? 1 : 0}:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
+  return memo(state, `turnIce:${startKind(start)}:${server}`, () => walkIce(state, start, state.corp.servers[server]?.ice ?? []));
 }
 
+
+/** A start's kind in a memo key: 0 the run under way, 1 the next turn, 2 the rest of this turn. */
+const startKind = (start: WalkStart): number => (!start.runnerTurn ? 0 : start.fresh ? 1 : 2);
 
 /** The board with the hosted subtype-giving cards at rig indexes `off` taken off (for the ice's subtypes and plans). */
 function without(state: GameState, start: WalkStart, off: number[]): GameState {
@@ -438,7 +485,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
   // Each ice's break plans, by the number of subroutines, worked out once per board (time condition: not once per rez
   // set), on valueModel's memo (review R3: dropped when the board is changed in place, keyed by the pricing context);
   // by the walk's kind too, as its start reads the rig
-  const cache = memo(state, `walkPlans:${start.runnerTurn ? 1 : 0}`, () => new Map<string, WalkPlan[]>());
+  const cache = memo(state, `walkPlans:${startKind(start)}`, () => new Map<string, WalkPlan[]>());
   const plans: Record<string, WalkPlan[]> = {};
   const types: Record<string, string[]> = {};
   const ices = new Map(targets.flatMap(t => t.ice.map(i => [i.id, i] as const)));
@@ -996,14 +1043,17 @@ function runCredits(state: GameState, start: WalkStart): { hosted: number; steal
   return { hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns), stealth: sum((_, stealth) => stealth) };
 }
 
-/** The walk's first state on the Runner's turn: `clicks` for the turn, the rest from the board at its start. */
+/**
+ * The walk's first state on the Runner's turn: `clicks` for the turn, the rest from the board at its start. From the rest
+ * of a turn (a start not `fresh`), the turn's first basic draw is taken if it was (5.2.7c; WalkBoard.firstDraw).
+ */
 export function firstState(state: GameState, start: WalkStart, clicks: number, corp: number): WalkState {
   return {
     clicks,
     tags: state.runner.tags,
     grip: state.runner.grip.length,
     stack: state.runner.stack.length,
-    drew: false,
+    drew: start.runnerTurn && !start.fresh && turnFlag(state, TurnFlag.basicDraws) > 0,
     chose: [],
     corp,
     fund: 0,
@@ -1031,8 +1081,8 @@ interface TurnInput {
 }
 
 /** The turn's input from the board (gathering: the only part of a question that reads `state`). */
-function turnInput(state: GameState, start: WalkStart, targets: WalkTarget[], corp: number): TurnInput {
-  return { board: walkBoard(state, start, targets), earn: runnerEarnings(state), maxClicks: state.runner.maxClicks, first: firstState(state, start, Math.max(0, state.runner.maxClicks), corp) };
+function turnInput(state: GameState, start: WalkStart, targets: WalkTarget[], corp: number, from: TurnFrom = nextTurn(state)): TurnInput {
+  return { board: walkBoard(state, start, targets), earn: runnerEarnings(state, from), maxClicks: from.clicks, first: firstState(state, start, from.clicks, corp) };
 }
 
 /**
@@ -1084,10 +1134,10 @@ function bypassBoard(state: GameState, serverId: string, ice: WalkIce[], set: Se
 }
 
 /** A run of the walk's turn on `server` with `set` to rez: its ice as met, and what its bypasses cost (runBypasses; 6.5.8a). */
-export function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>): { target: WalkTarget; price: number } {
+export function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>, clicks = state.runner.maxClicks): { target: WalkTarget; price: number } {
   const all = state.corp.servers[server]?.ice ?? [];
-  // The view runBypasses read before (the Runner's clicks but the run's)
-  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, state.runner.maxClicks - 1) } };
+  // The view runBypasses read before (the Runner's clicks but the run's; `clicks`: the turn's, TurnFrom)
+  const view: GameState = { ...state, runner: { ...state.runner, clicks: Math.max(0, clicks - 1) } };
   const bypassed = all.length ? runBypasses(bypassBoard(view, server, base, set), server) : undefined;
   const ice = base.map(c => ({ ...c, inS: set.has(c.card.instanceId), bypassed: !!bypassed?.ids.has(c.card.instanceId) }));
   return { target: { server, ice }, price: bypassed?.price ?? 0 };
@@ -1130,9 +1180,9 @@ export function questionKey(q: unknown): string {
   });
 }
 
-function turnQuestion(state: GameState, server: string, corpCredits: number): TurnQuestion {
+function turnQuestion(state: GameState, server: string, corpCredits: number, from: TurnFrom): TurnQuestion {
   const all = state.corp.servers[server]?.ice ?? [];
-  const start = walkStart(state, true);
+  const start = walkStart(state, true, !from.rest);
   const base = turnIce(state, start, server);
   const n = Math.min(all.length, 10);
   const sets: TurnQuestion['sets'] = [];
@@ -1143,16 +1193,16 @@ function turnQuestion(state: GameState, server: string, corpCredits: number): Tu
     // as unlimited, by holdingRez, it was walked again for nothing)
     const affordable = rez < Infinity && rez <= corpCredits;
     if (!affordable && mask) continue;
-    const { target, price } = runTarget(state, base, server, new Set(all.slice(0, n).filter((_, i) => mask & (1 << i)).map(c => c.instanceId)));
+    const { target, price } = runTarget(state, base, server, new Set(all.slice(0, n).filter((_, i) => mask & (1 << i)).map(c => c.instanceId)), from.clicks);
     const bypassed = target.ice.reduce((m, c, i) => (c.bypassed ? m | (1 << i) : m), 0);
     sets.push({ mask, rez, affordable, bypassed, price });
   }
   // Cheapest first, ties in mask order (as before): the first that holds is the answer
   sets.sort((a, b) => a.rez - b.rez || a.mask - b.mask);
   return {
-    ...turnInput(state, start, [{ server, ice: base }], corpStart(state, base, corpCredits)),
+    ...turnInput(state, start, [{ server, ice: base }], corpStart(state, base, corpCredits), from),
     server,
-    budget: runnerBudget(state),
+    budget: runnerBudget(state, from),
     ice: base.map(searchIce),
     sets,
   };
@@ -1196,9 +1246,9 @@ function sequenceEntries(q: TurnQuestion, a: TurnAnswer): number {
   return k;
 }
 
-/** 'runnerTurn' by the walk: the cheapest affordable rez set that keeps the Runner out, or the one that asks the most. */
-function walkRunnerTurn(state: GameState, server: string, corpCredits: number): Hold {
-  const q = turnQuestion(state, server, corpCredits);
+/** 'runnerTurn' (and 'restOfTurn', from its start) by the walk: the cheapest affordable rez set that keeps the Runner out, or the one that asks the most. */
+function walkRunnerTurn(state: GameState, server: string, corpCredits: number, from: TurnFrom = nextTurn(state)): Hold {
+  const q = turnQuestion(state, server, corpCredits, from);
   holdCacheStats.asked++;
   const anchor = pricing().anchor;
   let cache = anchor ? turnAnswers.get(anchor) : undefined;
@@ -1277,13 +1327,13 @@ export interface ReachQuestion extends TurnInput {
   views: { id: string; server: string | null; walked?: Lender; unwalked?: Lender }[];
 }
 
-/** The question for `servers` (the Corp's credits as they are; corpStart with a finite budget is that budget). */
-export function reachQuestion(state: GameState, servers: string[]): ReachQuestion {
+/** The question for `servers` (the Corp's credits as they are; corpStart with a finite budget is that budget), from `from` (TurnFrom; the rest of a turn asks it of afterRun's board). */
+export function reachQuestion(state: GameState, servers: string[], from: TurnFrom = nextTurn(state)): ReachQuestion {
   return counted(() => {
-    const start = walkStart(state, true);
-    const runs = servers.map(id => runTarget(state, turnIce(state, start, id), id, new Set()));
+    const start = walkStart(state, true, !from.rest);
+    const runs = servers.map(id => runTarget(state, turnIce(state, start, id), id, new Set(), from.clicks));
     const targets = runs.map(r => r.target);
-    const input = turnInput(state, start, targets, state.corp.credits);
+    const input = turnInput(state, start, targets, state.corp.credits, from);
     const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
     const serverOf = new Map(targets.flatMap(t => t.ice.map(x => [x.id, t.server] as const)));
     const borrows = Object.fromEntries(targets.map(t => [t.server, t.ice.some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')))]));
@@ -1301,7 +1351,7 @@ export function reachQuestion(state: GameState, servers: string[]): ReachQuestio
       ...input,
       first: corpRead ? input.first : { ...input.first, corp: 0 },
       board: { ...input.board, lenders: [], hq: hqRead ? input.board.hq : 0 },
-      budget: runnerBudget(state),
+      budget: runnerBudget(state, from),
       targets: Object.fromEntries(targets.map(t => [t.server, searchTarget(t)])),
       prices: Object.fromEntries(runs.map(r => [r.target.server, r.price])),
       borrows,
