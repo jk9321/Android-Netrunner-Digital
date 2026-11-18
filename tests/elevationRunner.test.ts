@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, iceStrength, isLegalAction, breakerStrength } from '../src/core';
 import { availableCredits } from '../src/core/engine/cardEffects';
+import { seatCan } from '../src/ui/seatLegality';
 import { answer, cont, giveCard, installCorpForTest, keepGoing, installIceForTest, installProgramForTest, newGame, passTurn, play, rezForTest, run, runnerInstall, setIdentity, startRunnerTurn, useAbility, toCorp } from './helpers';
 
 const E = {
@@ -230,6 +231,10 @@ describe('Elevation Runner events', () => {
     // The legal answers name the programs to trash (rules 8.5.6c), so a player picking from the list can install it
     const listed = getLegalActions(s, 'runner').filter(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.cardInstanceIds[0] === mayfly.instanceId);
     expect(listed.map(x => x.type === 'RESOLVE_PROMPT' && x.choice.kind === 'effect_cards' && x.choice.trashFirst)).toEqual([[old]]);
+    // The prompt panel's seat check asks the engine, so the plain Confirm button is not offered: the free-MU one is
+    const plain = { type: 'RESOLVE_PROMPT', player: 'runner', promptId: prompt(s).id, choice: { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId] } } as const;
+    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, plain)).toBe(false);
+    expect(seatCan(getLegalActions(s, 'runner'), 'runner', s, { ...plain, choice: { ...plain.choice, trashFirst: [old] } })).toBe(true);
     s = keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: [mayfly.instanceId], trashFirst: [old] }));
     expect(s.runner.rig.programs.map(c => c.instanceId)).toEqual([mayfly.instanceId]);
     expect(s.runner.heap.map(c => c.instanceId)).toContain(old);
