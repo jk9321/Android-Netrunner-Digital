@@ -29,6 +29,7 @@
  *    rez set held it.
  *    SHARD=0/64 npx vite-node scripts/stage-d/place-open.ts > out-0.txt
  *    DEALS=1001 HUMAN=none ARMS=a1 NO_PLAY=1 npx vite-node scripts/stage-d/place-open.ts
+ *    ONLY=73,85 (rerun those sources of the full list, e.g. after a shard ran out of memory)
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -58,6 +59,7 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve('.fc-variants', process.env.PO_ROOT ?? 'place-open', String(shard));
 const out = (o: unknown) => console.log(JSON.stringify(o));
 const WIN = 7; // rule 1.7.2a
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the probe's globals, written by the patched trees
 const G = globalThis as unknown as Record<string, any>;
 const key = (a: GameAction | null) => (a ? JSON.stringify(Object.fromEntries(Object.entries(a).filter(([k]) => k !== 'player').sort())) : 'null');
 
@@ -206,7 +208,7 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held
     const discarded = discardedFrom(t);
     for (const c of [...hqIce, ...discarded, ...extra]) add.push({ ...c, isRezzed: false });
     let n = servers[x].ice.length;
-    for (const c of add) credits -= n++;
+    for (let j = 0; j < add.length; j++) credits -= n++;
     servers[x] = { ...servers[x], ice: [...servers[x].ice, ...add] };
     const hqIds = new Set(hqIce.map(c => c.instanceId));
     const view: GameState = { ...e, corp: { ...e.corp, hq: e.corp.hq.filter(c => !hqIds.has(c.instanceId)), servers } };
@@ -272,10 +274,10 @@ function watcher(src: string, who: string, arm: string, order: (s: GameState) =>
       if (!card) return;
       const type = typeOf(card);
       if (type !== 'ice' && type !== 'asset') return;
-      let o: ReturnType<typeof order> | null = null;
+      let o: ReturnType<typeof order> | null;
       try {
         o = order(s);
-      } catch (e) {
+      } catch {
         o = null;
       }
       const k = key(a);
@@ -516,7 +518,7 @@ function playOn(t: Tree, s: GameState) {
     moves.push(`error: ${(e as Error).message}`);
   }
   const atEnd = game.state;
-  let servers: unknown = null;
+  let servers: unknown;
   try {
     servers = staked(atEnd);
   } catch (e) {
@@ -676,8 +678,10 @@ async function main() {
     ...(process.env.NO_PLAY ? [] : ARMS.filter(a => a !== 'base').flatMap(arm => deals().map(seed => () => playDeal(seed, arm, false)))),
   ];
   void wantsStop;
+  // ONLY=k,k,...: rerun just those sources (their numbers in the full list), one per shard in turn.
+  const only = (process.env.ONLY ?? '').split(',').filter(Boolean).map(Number);
   sources.forEach((run, k) => {
-    if (k % shards !== shard) return;
+    if (only.length ? !only.includes(k) || only.indexOf(k) % shards !== shard : k % shards !== shard) return;
     const t0 = performance.now();
     try {
       run();

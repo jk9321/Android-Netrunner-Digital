@@ -58,6 +58,7 @@ function board(spec: string): { s: GameState; recorded: string } {
   throw new Error(`board ${spec} not found`);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the probe globals of the patched trees
 const G = globalThis as unknown as Record<string, any>;
 function short(s: GameState, a: GameAction | null): string {
   if (!a) return 'pass';
@@ -89,6 +90,7 @@ function endOf(s: GameState) {
 
 async function main() {
   const dirs = makeTrees();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- modules imported from the patched trees
   const trees: Record<string, { ai: Record<string, any>; clear: () => void }> = {};
   for (const arm of ARMS) {
     const m = (p: string) => import(/* @vite-ignore */ join(dirs[arm], 'src', p));
