@@ -219,7 +219,7 @@ function promptAnswers(state: GameState): GameAction[] {
       // "Install it?": the same answer, trashing programs first to make room (rules 8.5.6c)
       const card = prompt.source.data?.install && prompt.side === 'runner' ? findCardAnywhere(state, String(prompt.source.data.cardId ?? '')) : undefined;
       if (card && prompt.options.some(o => o.id === 'install')) {
-        for (const trashFirst of makeRoomSets(state, card)) answers.push({ ...base, choice: { kind: 'effect_choice' as const, optionId: 'install', trashFirst } });
+        answers.push(...makeRoomAnswers(state, card, trashFirst => ({ ...base, choice: { kind: 'effect_choice' as const, optionId: 'install', trashFirst } })));
       }
       return answers;
     }
@@ -232,7 +232,7 @@ function promptAnswers(state: GameState): GameAction[] {
           answers.push({ ...base, choice: { kind: 'effect_cards' as const, cardInstanceIds } });
           // A Runner card to install: the same answer, trashing programs first to make room (rules 8.5.6c)
           const card = prompt.source.data?.install && prompt.side === 'runner' && cardInstanceIds.length === 1 ? findCardAnywhere(state, cardInstanceIds[0]) : undefined;
-          if (card) for (const trashFirst of makeRoomSets(state, card)) answers.push({ ...base, choice: { kind: 'effect_cards' as const, cardInstanceIds, trashFirst } });
+          if (card) answers.push(...makeRoomAnswers(state, card, trashFirst => ({ ...base, choice: { kind: 'effect_cards' as const, cardInstanceIds, trashFirst } })));
           if (answers.length >= MAX_LISTED_ANSWERS) break outer;
         }
       }
@@ -257,10 +257,11 @@ const MAX_LISTED_ANSWERS = 256;
 
 /**
  * When a program would exceed the memory limit, the Runner must trash installed programs first (rules 8.5.6c): the
- * smallest sets of installed programs that free enough memory (every single one that does, else every pair, else
- * every triple). None when the program already fits; the engine still checks each answer.
+ * answers trashing the smallest sets of installed programs that free enough memory AND that the engine accepts (every
+ * single one, else every pair, else every triple). A size whose sets the effect may not trash (only Muse frees enough,
+ * and Muse can't be trashed for that program) moves on to the next size. None when the program already fits.
  */
-function makeRoomSets(state: GameState, card: CardInstance): string[][] {
+function makeRoomAnswers(state: GameState, card: CardInstance, answer: (trashFirst: string[]) => GameAction): GameAction[] {
   const def = cardDef(card);
   if (def.type_code !== 'program') return [];
   const programs = state.runner.rig.programs.filter(c => c.instanceId !== card.instanceId);
@@ -268,8 +269,11 @@ function makeRoomSets(state: GameState, card: CardInstance): string[][] {
   if (over <= 0) return [];
   const mu = (c: CardInstance) => cardDef(c).memory_cost || 0;
   for (let k = 1; k <= Math.min(3, programs.length); k++) {
-    const sets = [...combinationsOf(programs, k)].filter(set => set.reduce((n, c) => n + mu(c), 0) >= over);
-    if (sets.length > 0) return sets.map(set => set.map(c => c.instanceId));
+    const answers = [...combinationsOf(programs, k)]
+      .filter(set => set.reduce((n, c) => n + mu(c), 0) >= over)
+      .map(set => answer(set.map(c => c.instanceId)))
+      .filter(a => isLegalAction(state, a));
+    if (answers.length > 0) return answers;
   }
   return [];
 }
