@@ -212,8 +212,38 @@ export function freeInstallOrder(state: GameState, options: string[]): Candidate
 
 const lineOk = (expr: string): Patch[] => ownersAnswer.map(([f, from, to]) => [f, from, to.replace('__PP_LINE_OK__', expr)] as Patch);
 
+/**
+ * chain  the narrower candidate (AI Coordinator, design-answer.md section 2.3): the per-card blocks stay; an install
+ *        prompt's server question is answered by place (the owners' server answer above); the fallback scores each
+ *        card pick on the board after its server question is answered that way (followChain follows one step: the
+ *        picked card's own server question from the same source), decline left in the comparison. Removes the tie and
+ *        nothing else.
+ */
+const chain: Patch[] = [
+  ...lineOk('c.line !== 9').filter(([f]) => f !== 'ai/prompts.ts'),
+  [
+    'ai/prompts.ts',
+    '  if (run?.length === 1) return run[0];\n  const today = todayAnswer(state, side, memory, synergy);',
+    `  if (run?.length === 1) {\n    ${G}.__ppRun?.(state, run[0]);\n    return run[0];\n  }\n  const p0 = activePrompt(state);\n  const owned = side === 'corp' && p0?.kind === 'effect_choice' ? (corpPorts as unknown as { installAnswer(s: GameState): GameAction | undefined }).installAnswer(state) : undefined;\n  ${G}.__ppProbe?.(state, side, owned, () => todayAnswer(state, side, memory, synergy));\n  const today = owned ?? todayAnswer(state, side, memory, synergy);`,
+  ],
+  [
+    'ai/prompts.ts',
+    "  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;",
+    `  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') {
+    // arm chain: a card pick is scored after its own server question (same source), answered as answerPrompt answers it
+    const next = activePrompt(after);
+    if (side === 'corp' && prompt.kind === 'effect_cards' && next?.side === 'corp' && next.kind === 'effect_choice' && 'source' in next && next.source.instanceId === prompt.source.instanceId && next.source.data?.cardId) {
+      const r = simulate(after, answerPrompt(after, side, memory, synergy));
+      return r ?? after;
+    }
+    return after;
+  }`,
+  ],
+];
+
 export const ARM_PATCHES: Record<string, Patch[]> = {
   base: probeOnly,
   owners: lineOk('true'),
   no9: lineOk('c.line !== 9'),
+  chain,
 };

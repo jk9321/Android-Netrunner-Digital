@@ -389,6 +389,38 @@
    "inRun": false
   },
   {
+   "code": "35056",
+   "title": "Mitra Aman",
+   "type": "upgrade",
+   "set": "elevation",
+   "file": "src/core/scripts/elevation/corp/upgrades.ts",
+   "text": "Whenever the Runner approaches a piece of ice protecting this server, you may trash this upgrade. If you do, gain 3 credits and you may swap the ice being approached with a piece of ice from Archives or HQ.",
+   "steps": [
+    {
+     "flow": "mitraFlow",
+     "step": "swap",
+     "kind": "cards",
+     "cls": "pick+place",
+     "opts": {
+      "ignoreCosts": false,
+      "discount": null,
+      "revealed": false,
+      "remoteRootOnly": false,
+      "installAndRez": false
+     },
+     "today": "fallback"
+    }
+   ],
+   "from": [
+    "trigger:approach_ice"
+   ],
+   "zones": [],
+   "mayDecline": true,
+   "agendaPickable": "by text: restricted",
+   "reveals": false,
+   "inRun": true
+  },
+  {
    "code": "35058",
    "title": "Synapse Global: Faster than Thought",
    "type": "identity",

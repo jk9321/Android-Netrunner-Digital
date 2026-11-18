@@ -109,7 +109,7 @@ for (const [file, s] of text) {
   }
 }
 
-const INSTALLS = /installCorpChoice\(|installAndRez\(|installCorpCardFrom\(|\.ice\.splice\([^)]*,\s*0\s*,\s*[\w$]+\)/;
+const INSTALLS = /swapWithInstalled\(|installCorpChoice\(|installAndRez\(|installCorpCardFrom\(|\.ice\.splice\([^)]*,\s*0\s*,\s*[\w$]+\)/;
 function classify(st: Step, all: Step[]): 'server' | 'pick' | 'pick+place' | null {
   const b = st.body;
   if (st.kind === 'choice' && (INSTALLS.test(b) || /InstallData|install: true/.test(b.slice(0, 200)))) return 'server';

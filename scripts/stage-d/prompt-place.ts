@@ -34,6 +34,11 @@ import type { Agent } from '../../src/ai/agent';
 import { dealState, deals, humanFiles } from '../stage-a/harness';
 import { ARM_PATCHES } from './prompt-place-patches';
 
+// The ai-script workflow passes only ARGS: NAME=value words there set the same switches (ARMS=chain)
+for (const w of (process.env.ARGS ?? '').split(/\s+/)) {
+  const m = /^([A-Z_]+)=(.*)$/.exec(w);
+  if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+}
 const ARMS = ['base', ...Object.keys(ARM_PATCHES).filter(a => a !== 'base' && (!(process.env.ARMS ?? '') || (process.env.ARMS ?? '').split(',').includes(a)))];
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve('.fc-variants', 'prompt-place', String(shard));
