@@ -34,7 +34,7 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 if (process.env.ONLY && !process.env.ONLY.split(',').map(Number).includes(shard)) process.exit(0);
 const file = readArms();
 const ARMS = Object.keys(file.arms);
-const CONT = new Set((process.env.CONT ?? 'f2max,f2odds,installed').split(',').filter(Boolean));
+const CONT = new Set((process.env.CONT ?? 'f2max,f2odds,installed,installedBound').split(',').filter(Boolean));
 const root = resolve('.rm-fire', String(shard));
 
 interface Tree {

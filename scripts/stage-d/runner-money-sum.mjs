@@ -36,7 +36,7 @@ if (srcs.length) {
   console.log('Unmodelled inventory cards in play (distinct questions): ' + (Object.entries(t.known).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'));
   console.log('\n| arm | flips (holds -> does not hold or back) | in its group | outside every group | sources |');
   console.log('|---|---|---|---|---|');
-  const own = { counter: ['counter'], runBegin: ['runBegin'], saci: ['saci'], lightning: ['lightning'], arru: ['arru'], installed: ['counter', 'runBegin', 'saci', 'lightning', 'arru'], f2max: ['f2'], f2odds: ['f2'] };
+  const own = { counter: ['counter'], runBegin: ['runBegin'], saci: ['saci'], lightning: ['lightning'], arru: ['arru'], installed: ['counter', 'runBegin', 'saci', 'lightning', 'arru'], runBeginBound: ['runBegin'], arruBound: ['arru'], installedBound: ['counter', 'runBegin', 'saci', 'lightning', 'arru'], f2max: ['f2'], f2odds: ['f2'] };
   for (const [a, n] of Object.entries(t.flips)) {
     const fig = t.flipsInGroup[a] ?? {};
     console.log(`| ${a} | ${n} | ${(own[a] ?? []).map(g => `${g} ${fig[g] ?? 0}`).join(', ')} | ${fig.none ?? 0} | ${srcs.filter(s => s.flips[a]).map(s => s.src.replace('human:', '').replace('.json', '')).join(' ')} |`);
@@ -74,7 +74,7 @@ if (qs.length) {
   }
   console.log('\nBeta\'s false "holds" left by every arm, by position:');
   const pos = {};
-  for (const q of qs.filter(x => x.oracle?.labels?.beta === 'false holds' && x.oracle?.labels?.installed === 'false holds')) add(pos, `${q.src} ${q.server} T${q.turn} [${q.ice.join(', ')}] rig [${q.rig.join(', ')}]`);
+  for (const q of qs.filter(x => x.oracle?.labels?.beta === 'false holds' && x.oracle?.labels?.installed === 'false holds' && (x.oracle?.labels?.installedBound ?? 'false holds') === 'false holds')) add(pos, `${q.src} ${q.server} T${q.turn} [${q.ice.join(', ')}] rig [${q.rig.join(', ')}]`);
   for (const [k, n] of Object.entries(pos).sort((a, b) => b[1] - a[1])) console.log(`- ${n} ${k}`);
 }
 
@@ -87,7 +87,7 @@ if (ds.length) {
   console.log('Decisions with a card of the group in play: ' + Object.entries(inGroup).map(([g, n]) => `${g} ${n} (${pct(n, ds.length)})`).join(', '));
   console.log('\n| arm | changed | a game | with its group in play | errors | time mean x | p95 x | over 2x at >= 0.5 s | +3 s or more | slowest arm decision |');
   console.log('|---|---|---|---|---|---|---|---|---|---|');
-  const own = { counter: 'counter', runBegin: 'runBegin', saci: 'saci', lightning: 'lightning', arru: 'arru', f2max: 'f2', f2odds: 'f2' };
+  const own = { counter: 'counter', runBegin: 'runBegin', saci: 'saci', lightning: 'lightning', arru: 'arru', runBeginBound: 'runBegin', arruBound: 'arru', f2max: 'f2', f2odds: 'f2' };
   for (const a of arms) {
     const ch = ds.filter(d => d.changed.includes(a));
     const err = ds.filter(d => String(d.picks?.[a] ?? '').startsWith('error')).length;
@@ -97,7 +97,7 @@ if (ds.length) {
     const slow2 = ds.filter(d => d.ms.beta >= 500 && d.ms[a] > 2 * d.ms.beta);
     const slow3 = ds.filter(d => d.ms[a] - d.ms.beta >= 3000);
     const top = ds.reduce((m, d) => (d.ms[a] > (m?.ms[a] ?? -1) ? d : m), null);
-    const g = a === 'installed' ? ch.filter(d => d.groups.some(x => x !== 'f2')).length : ch.filter(d => d.groups.includes(own[a])).length;
+    const g = a.startsWith('installed') ? ch.filter(d => d.groups.some(x => x !== 'f2')).length : ch.filter(d => d.groups.includes(own[a])).length;
     console.log(`| ${a} | ${ch.length} | ${(ch.length / games).toFixed(2)} | ${g} | ${err} | ${mean.toFixed(3)} | ${p95.toFixed(3)} | ${slow2.length}${slow2.length ? ` (${slow2.slice(0, 3).map(d => `${d.src}#${d.i} ${d.ms.beta}->${d.ms[a]}`).join(', ')})` : ''} | ${slow3.length} | ${top ? `${top.src}#${top.i} ${top.ms[a]} (beta ${top.ms.beta})` : '-'} |`);
   }
   console.log('\nChanged decisions by source:');
