@@ -1582,13 +1582,16 @@ export function runStands(state: GameState, server: string): RunStand | null {
   // The Success Phase or the server's approach: no ice is left (6.9.4e, 6.9.5)
   if (run.breached || run.isSuccessful || run.phase === 'access' || run.phase === 'approach_server') return settled('in');
   const sv = state.corp.servers[server];
-  if (!sv) return settled('out');
+  // A run that ended short of the server (6.9.6): over, out
+  if (!sv || run.phase === 'complete') return settled('out');
   let view = state;
   let from: number;
   let approached: string | undefined;
-  if (run.phase === 'movement') {
+  // At an ice no longer there (trashed during the run), the Runner moves on inward as from the Movement Phase
+  const gone = run.icePosition !== null && !sv.ice[run.icePosition];
+  if (run.phase === 'movement' || gone) {
     // The next ice inward is approached next (6.9.4d, 6.9.2): unrezzed, the Corp may rez it then
-    from = run.icePosition === null ? -1 : run.icePosition - 1;
+    from = run.icePosition === null ? -1 : Math.min(run.icePosition, sv.ice.length) - 1;
     const next = sv.ice[from];
     if (next && !next.isRezzed) approached = next.instanceId;
   } else if (run.phase === 'encounter_ice' && run.encounter) {

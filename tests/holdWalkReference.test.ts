@@ -12,13 +12,13 @@
  * oracle tests those (tests/holdWalk.test.ts); this tests the search and its arithmetic.
  */
 import { describe, expect, it } from 'vitest';
-import { CardInstance, GameState, cardDef } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../src/core';
 import { getCardDefinition } from '../src/core/cards';
 import { threatLevel } from '../src/core/engine/cardEffects';
 import { iceSubroutines, iceSubtypes } from '../src/core/engine/ice';
 import { createCardInstance } from '../src/core/engine/gameState';
-import { installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
-import { TurnFrom, Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, orders, reachOrder, reachQuestion, reachSets, runTarget, holdCacheStats, nextTurn, questionKey, restOfTurn, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
+import { installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
+import { TurnFrom, Walk, WalkIce, WalkPlan, WalkState, WalkTarget, corpStart, firstState, orders, reachOrder, reachQuestion, reachSets, runTarget, holdCacheStats, nextTurn, questionKey, restOfTurn, runStands, runnerEarnings, searchTarget, serverHold, turnReach, walkBoard, walkIce, walkStart } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { SubEffect, SubFacts, bioroidBreakClicks, subroutineFacts } from '../src/ai/runs';
 import { CARDS } from '../src/ai/cards';
@@ -37,8 +37,15 @@ class Brute {
     private readonly state: GameState,
     private readonly start: ReturnType<typeof walkStart>,
     private readonly targets: WalkTarget[],
+    /** Off for the run under way ('thisRun', follow-up 3): a run that ends is over, no new run follows. */
+    private readonly retries = true,
   ) {
     this.walk = new Walk(walkBoard(state, start, targets), targets.map(searchTarget));
+  }
+
+  /** The run under way from the ice at `pos` (approached next): does a line get in on this one run? */
+  thisRun(ws: S, pos: number): boolean {
+    return this.approach(ws, 0, pos);
   }
 
   beforeRun(ws: S, j: number): boolean {
@@ -57,6 +64,7 @@ class Brute {
 
   /** A run that ends: the turn goes on from the state it left, the same target run again (the walk's `ended`). */
   private ended(ws: S, j: number): boolean {
+    if (!this.retries) return false;
     return this.beforeRun({ ...ws, fund: 0, gone: sorted([...ws.gone, ...ws.mayfly]), mayfly: [] }, j);
   }
 
@@ -602,6 +610,101 @@ describe("the hold walk from the rest of the Runner's turn (mid-turn starts)", (
  * over one gathered question, the question its own key). Many boards in one decision, from different games (their
  * instance ids collide), some asked twice, some one field apart: each answer must be the answer searched afresh.
  */
+/**
+ * Stage D item 1 follow-up 3 (followup3-run-answers/design-answer.md ruling 4): the 'thisRun' walk from where a run
+ * stands (runStands) is the same walk from a different start. Runs are played in the engine on random servers (the
+ * Runner's moves, the Corp's rezzes and its prompt answers at random; never a jack out) and stopped at random points: at
+ * initiation, at an ice's approach, inside an encounter after some of its subroutines resolved (9.8.7b-c: they resolve no
+ * more), and in the Movement Phase past an ice (6.9.4d: the next ice inward is approached next, and the Corp may rez it
+ * then, 6.9.2b). The brute force below writes the start out from those rules, then tries every rez set the Corp can
+ * afford with one run and no retry; it must agree with runStands' verdict.
+ */
+describe('the hold walk from where a run stands (the run under way)', () => {
+  /** The brute force's verdict: 'out' when some affordable rez set keeps this one run out. Null where a bypass applies. */
+  function bruteStand(s: GameState, server: string): 'in' | 'out' | null {
+    const run = s.activeRun!;
+    const all = s.corp.servers[server].ice;
+    let view = s;
+    let pos: number;
+    let approached: CardInstance | undefined;
+    // An ice trashed during the run leaves its position empty: the Runner moves on inward from it
+    if (run.phase === 'movement' || (run.icePosition !== null && !all[run.icePosition])) {
+      pos = Math.min(run.icePosition ?? 0, all.length) - 1;
+      approached = all[pos];
+    } else if (run.phase === 'encounter_ice' && run.encounter) {
+      pos = run.icePosition!;
+      const done = run.encounter.resolvingIndex ?? 0;
+      view = { ...s, activeRun: { ...run, encounter: { ...run.encounter, broken: run.encounter.broken.map((b, i) => b || i < done) } } };
+    } else {
+      pos = run.icePosition ?? all.length - 1;
+      approached = all[pos];
+    }
+    if (pos < 0) return 'in';
+    if (approached?.isRezzed) approached = undefined;
+    const start = walkStart(view, false);
+    const base = walkIce(view, start, all);
+    const credits = s.corp.credits;
+    const inner = all.slice(0, pos).filter(c => !c.isRezzed);
+    const fund = run.bonusCredits + (run.badPublicityCredits ?? 0);
+    let out = false;
+    for (const rezNow of approached ? [false, true] : [false]) {
+      for (let mask = 0; mask < 1 << inner.length; mask++) {
+        const set = [...(rezNow ? [approached!] : []), ...inner.filter((_, k) => mask & (1 << k))];
+        if (set.reduce((n, c) => n + base[all.indexOf(c)].rezCost, 0) > credits) continue;
+        const { target, price } = runTarget(view, base, server, new Set(set.map(c => c.instanceId)), view.runner.clicks + 1);
+        if (price > 0 || target.ice.some(c => c.bypassed)) return null;
+        const brute = new Brute(view, start, [target], false);
+        if (!brute.thisRun({ ...firstState(view, start, view.runner.clicks, credits), fund, pool: view.runner.credits }, pos)) out = true;
+      }
+    }
+    return out ? 'out' : 'in';
+  }
+
+  it('agrees with runStands on 3,000 random servers at random points of a run (seed 20261125)', () => {
+    const r = rng(20261125);
+    const misses: string[] = [];
+    const seen: Record<string, number> = {};
+    const outs: Record<string, number> = {};
+    for (let n = 0; n < 3000; n++) {
+      let { s } = randomBoard(r, undefined, n % 4 === 3);
+      startRunnerTurn(s);
+      s.runner.clicks = 1 + Math.floor(r() * s.runner.maxClicks);
+      try {
+        s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+      } catch {
+        continue;
+      }
+      for (let k = 0; k < 40 && s.activeRun?.server === 'remote1' && !s.winner; k++) {
+        const p = activePrompt(s);
+        const run = s.activeRun;
+        const at = run.phase === 'encounter_ice' && (run.encounter?.resolvingIndex ?? 0) > 0 ? 'encounter, after a subroutine' : run.phase;
+        const asked = !(p && p.side === 'corp') && !run.breached && !run.isSuccessful && !['access', 'approach_server', 'complete'].includes(run.phase);
+        if (asked && r() < 0.5) {
+          const want = inCorp(s, () => bruteStand(s, 'remote1'));
+          if (want !== null) {
+            const got = inCorp(s, () => runStands(s, 'remote1')?.verdict() ?? null);
+            seen[at] = (seen[at] ?? 0) + 1;
+            if (want === 'out') outs[at] = (outs[at] ?? 0) + 1;
+            if (got !== want) misses.push(`#${n} ${at} at ${run.icePosition}: walk ${got}, brute ${want}; ice ${s.corp.servers.remote1.ice.map(c => `${cardDef(c).title}${c.isRezzed ? '*' : ''}`)}; $${s.runner.credits} clicks ${s.runner.clicks} corp $${s.corp.credits}`);
+          }
+        }
+        const side = p ? p.side : (s.priority?.holder ?? s.activePlayer);
+        // The Corp only rezzes or passes outside its prompts; the Runner moves on outside an encounter (no jack out)
+        const legal = (getLegalActions(s, side) as GameAction[]).filter(a => a.type !== 'JACK_OUT' && (p || (side === 'corp' ? a.type === 'PASS' || a.type === 'REZ_CARD' : run.phase === 'encounter_ice' || a.type === 'CONTINUE_RUN' || a.type === 'PASS')));
+        if (!legal.length) break;
+        s = executeAction(s, legal[Math.floor(r() * legal.length)]);
+      }
+    }
+    // Every start well represented, both verdicts at each
+    // (The engine moves a run from initiation to its first approach at once: no stop there to ask)
+    for (const at of ['approach_ice', 'encounter_ice', 'encounter, after a subroutine', 'movement']) {
+      expect(seen[at] ?? 0, `${at}: ${JSON.stringify(seen)}`).toBeGreaterThan(100);
+      expect(Math.min(outs[at] ?? 0, (seen[at] ?? 0) - (outs[at] ?? 0)), `${at}: ${JSON.stringify(outs)}`).toBeGreaterThan(10);
+    }
+    expect(misses.slice(0, 20)).toEqual([]);
+  }, 600_000);
+});
+
 describe("the hold walk's per-decision cache", () => {
   const answer = (s: GameState, corpCredits?: number) => {
     const h = serverHold(s, 'remote1', { when: 'runnerTurn', corpCredits });
