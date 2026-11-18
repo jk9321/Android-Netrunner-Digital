@@ -26,9 +26,6 @@ for (const [g, is] of Object.entries(groups)) {
     console.log(`  changed ${changed.length} (${(changed.length / n).toFixed(2)} a game): top-level Corp prompt in a run ${changed.filter(d => d.inRun).length}; with the run term deciding inside ${changed.filter(d => d.run.decided > 0).length}; neither ${changed.filter(d => !d.inRun && d.run.decided === 0).length}`);
     for (const d of changed) console.log(`  - ${d.src} #${d.i} T${d.T} ${d.m}${d.inRun ? ' [run prompt]' : ''} ${d.card ?? ''} ${d.server ?? ''} decided ${d.run.decided} | beta ${d.picks.beta.slice(0, 140)} | here ${d.picks.here.slice(0, 140)}`);
   }
-  const folds = D.filter(d => is(d.src) && d.fold);
-  console.log(`LEO fold (here vs nofold, rez windows): ${D.filter(d => is(d.src) && d.fold !== undefined).length} windows, changed ${folds.length}`);
-  for (const d of folds) console.log(`  - ${d.src} #${d.i} T${d.T} nofold ${d.fold.nofold} | here ${d.fold.here}`);
 }
 const errs = D.filter(d => (d.picks?.here ?? '').startsWith('error') || (d.picks?.beta ?? '').startsWith('error'));
 console.log(`\nerrors: ${errs.length}`);

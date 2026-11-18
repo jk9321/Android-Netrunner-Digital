@@ -4,15 +4,14 @@
  * driven by beta's Normal agents; the human games, their recorded moves), a fresh Normal agent of the acting side decides
  * on a copy of the state in each tree, each its own module graph, every hand cache cleared first:
  *   beta    the beta commit given as BETA=<40-char sha> (git archive into .ra-tree/<sha>);
- *   here    this checkout's src (the run term, the hold owner's run stand, LEO folded onto runLoss);
- *   nofold  this checkout's src with leoGain's stolen-board branch put back (rez windows only: the fold's own arm).
+ *   here    this checkout's src (the run term and the hold owner's run stand; rez.ts is unchanged, section 9).
  * One JSON line per decision ('d': side, kind, ms per tree, changed, in a run with a Corp prompt, run-term asks and
  * decisions and hold run-stand asks inside the `here` decision), and per source a 'src' line. Changed decisions carry
  * both picks. Order of the two trees alternates by decision (the time is paired).
  *   ARGS="BETA=<sha>" SHARD=0/64 npx vite-node scripts/stage-d/run-answers-fire.ts     (sum: run-answers-fire-sum.mjs)
  */
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { CardInstance, GameAction, GameState } from '../../src/core';
 import type { Agent } from '../../src/ai/agent';
@@ -48,34 +47,6 @@ function archived(sha: string): string {
   return dir;
 }
 
-/** This checkout's src with leoGain as on beta (the stolen board for the root's agendas). */
-const FOLD_NEW = "  return evaluate(next(after), 'corp') - (evaluate(state, 'corp') - runLoss(state));\n}";
-const FOLD_OLD = `  const server = state.corp.servers[state.activeRun!.server];
-  const agendas = server.root.filter(c => type(c) === 'agenda');
-  let letIn: number;
-  if (agendas.length > 0) {
-    const stolen = structuredClone(state);
-    const root = stolen.corp.servers[server.id].root;
-    for (const a of agendas) {
-      const i = root.findIndex(c => c.instanceId === a.instanceId);
-      stolen.runner.scoreArea.push(...root.splice(i, 1));
-      stolen.runner.score += cardDef(a).agenda_points ?? 0;
-    }
-    stolen.activeRun = null;
-    letIn = evaluate(next(stolen), 'corp');
-  } else letIn = evaluate(state, 'corp') - runLoss(state);
-  return evaluate(next(after), 'corp') - letIn;
-}`;
-function noFold(): string {
-  const dir = resolve('.ra-tree', `nofold-${process.pid}`);
-  execSync(`rm -rf ${dir} && mkdir -p ${dir} && cp -r src ${dir}/src`);
-  const file = join(dir, 'src', 'ai', 'corp', 'rez.ts');
-  const text = readFileSync(file, 'utf8');
-  if (text.split(FOLD_NEW).length !== 2) throw new Error('run-answers-fire: the fold patch does not match once');
-  writeFileSync(file, text.replace(FOLD_NEW, FOLD_OLD));
-  return dir;
-}
-
 interface Tree {
   name: string;
   core: typeof import('../../src/core');
@@ -108,7 +79,6 @@ async function tree(name: string, root: string): Promise<Tree> {
 
 const beta = await tree('beta', archived(betaSha));
 const here = await tree('here', resolve('.'));
-const nofold = await tree('nofold', noFold());
 
 type Ask = { method: 'chooseAction' | 'chooseRez' | 'chooseOffTurn'; cards?: CardInstance[] };
 const key = (a: GameAction | null) => JSON.stringify(a);
@@ -149,11 +119,6 @@ function decide(src: string, i: number, side: 'corp' | 'runner', state: GameStat
     line.card = prompt && 'source' in prompt ? `${prompt.source.cardCode}:${prompt.source.step}` : null;
     line.server = state.activeRun?.server ?? null;
   }
-  // The fold's own arm: a rez window of the Corp's, LEO folded (here) against not (nofold)
-  if (side === 'corp' && a.method === 'chooseRez') {
-    const f = ask(nofold, side, state, a);
-    line.fold = f.pick !== r.here.pick ? { nofold: f.pick.slice(0, 200), here: r.here.pick.slice(0, 200) } : false;
-  }
   console.log(JSON.stringify(line));
 }
 
@@ -173,7 +138,7 @@ let dealStateOf: (seed: number) => GameState;
 }
 
 function playDeal(seed: number) {
-  for (const t of [beta, here, nofold]) t.loops.clear();
+  for (const t of [beta, here]) t.loops.clear();
   const src = `deal:${seed}`;
   const counter = { corp: 0, runner: 0 };
   const drive = { corp: beta.ai.createAgent('corp', 'normal') as Agent, runner: beta.ai.createAgent('runner', 'normal') as Agent };
@@ -206,7 +171,7 @@ function replayHuman(file: string) {
   const report = JSON.parse(readFileSync(file, 'utf8'));
   const src = `human:${file.split('/').pop()}`;
   if (!report.moves?.length) return;
-  for (const t of [beta, here, nofold]) t.loops.clear();
+  for (const t of [beta, here]) t.loops.clear();
   const setup = (globalThis as { __deckSetup?: (...a: unknown[]) => unknown }).__deckSetup!;
   let s: GameState = beta.core.createInitialGameState(setup(report.config.seed, report.config.corpDeck, report.config.runnerDeck) as never);
   if (report.startStops) s = { ...s, stops: report.startStops };

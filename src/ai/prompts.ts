@@ -14,8 +14,6 @@ import { iceStop, iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
 import { plan } from './pricing';
-import { runStands } from './corp/hold';
-import { runLoss } from './corp/pools';
 import { ownHandValue } from './handValues';
 import { SHRED_STEP } from '../core/engine/runEnd';
 
@@ -471,8 +469,9 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
   let best: GameAction = options[0];
   let bestScore = -Infinity;
   const skip = bypassSkips(state, side, prompt, memory, synergy);
+  const simulated = side === 'corp' ? runAfters.get(state) : undefined;
   for (const action of options) {
-    const after = simulate(state, action);
+    const after = simulated?.get(JSON.stringify(action)) ?? simulate(state, action);
     if (!after) continue;
     let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
     if (side === 'corp') score += freeRezSaving(state, after);
@@ -649,22 +648,27 @@ function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: 
  */
 /** The run term's asks (a run that stakes something) and the ones it decided (the answers separated), for the time report. */
 export const runTermStats = { asked: 0, decided: 0 };
+/** The one-step boards the run term simulated, by answer, for the fallback on the same state (the same simulate, not done twice). */
+const runAfters = new WeakMap<GameState, Map<string, GameState>>();
 
 function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): GameAction[] | null {
   const prompt = activePrompt(state);
   const run = state.activeRun;
   if (!prompt || prompt.side !== 'corp' || prompt.kind === 'mulligan' || !run || state.winner) return null;
-  const loss = runLoss(state);
+  const loss = corpPorts.runLoss(state);
   if (!(loss > 0)) return null;
   const options = answers(state, 'corp', synergy);
   if (options.length < 2) return null;
   runTermStats.asked++;
   const outs: { action: GameAction; after: GameState; key: string; verdict: () => 'in' | 'out' }[] = [];
+  const afters = new Map<string, GameState>();
+  runAfters.set(state, afters);
   for (const action of options) {
     const after = simulate(state, action);
     if (!after) continue;
+    afters.set(JSON.stringify(action), after);
     // Settled only where the answer leaves the run's next prompt open (followChain 'run' returns the board as it is otherwise)
-    const stand = runStands(followChain(prompt, after, 'corp', memory, synergy, 'run'), run.server);
+    const stand = corpPorts.runStands(followChain(prompt, after, 'corp', memory, synergy, 'run'), run.server);
     if (!stand) return null;
     outs.push({ action, after, key: stand.key, verdict: stand.verdict });
   }

@@ -204,9 +204,11 @@ describe('AI code health (audit guards)', () => {
     expect(found.filter(f => !(f in ALLOWED)), 'read a Corp owner through corpPorts.ts').toEqual([]);
   });
 
-  it('keeps the Corp ports to exactly these four (corpPorts.ts; freeInstallTarget goes with Stage D3)', async () => {
+  // Four to six with ai-run-answers (Stage D item 1 follow-up 3, ruling 9.1): prompts.ts's run term reads the hold
+  // owner's run stand (its walk key with it, not a third port) and the let-in loss, runLoss, and may not import corp/
+  it('keeps the Corp ports to exactly these six (corpPorts.ts; freeInstallTarget goes with Stage D3)', async () => {
     const { corpPorts } = await import('../src/ai/corpPorts');
-    expect(Object.keys(corpPorts).sort()).toEqual(['freeInstallTarget', 'holdingRezIds', 'keep', 'perfectRecallTarget']);
+    expect(Object.keys(corpPorts).sort()).toEqual(['freeInstallTarget', 'holdingRezIds', 'keep', 'perfectRecallTarget', 'runLoss', 'runStands']);
     expect(aiFiles().filter(f => /\bregisterCorpPorts\(/.test(aiText(f)) && !f.endsWith('corpPorts.ts'))).toEqual(['corpAI.ts']);
   });
 
@@ -393,10 +395,15 @@ describe('AI code health (audit guards)', () => {
   // afterRun and the start threaded through runnerEarnings, walkStart, turnInput, runTarget, turnQuestion and
   // reachQuestion, + 50; rezMoney's restOfTurn keep with except, + 19; countedRez's toll pass and spendsKept, + 21; with
   // their comments): corp/ 3,606, src/ai 15,392. Then + 5 (ai-rez-keep review R1, R3, R4: spendsKept's second world and
-  // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397
-  it('keeps src/ai/corp at or under 3,611 lines and src/ai at or under 15,397 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep)', () => {
+  // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397.
+  // Then + 246 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
+  // question and its search, the stand from inside an encounter, the Movement Phase and an approach, its per-decision
+  // answers, with comments, + 122; prompts.ts's run term, the priced pick before the per-card blocks, Shred's reveal as
+  // chance on HQ's subsets, followChain's 'run' reach, with comments, + 115; the two ports and their registration
+  // + 9): corp/ 3,733, src/ai 15,643
+  it('keeps src/ai/corp at or under 3,733 lines and src/ai at or under 15,643 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-run-answers)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3611);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15397);
+    expect(corp).toBeLessThanOrEqual(3733);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15643);
   });
 });

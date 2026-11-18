@@ -241,9 +241,8 @@ function runStopper(state: GameState, importance: number, synergy: boolean): Gam
 
 /**
  * LEO against letting the Runner in: the board after trashing the bioroid the AI would pick and
- * ending the run, against the board as it is less what the run takes (runLoss, pools.ts: the one
- * let-in loss, which prompts.ts's run term reads too; follow-up 3 ruling 2 folded the stolen-board
- * copy that priced the root's agendas here).
+ * ending the run, against the board after the run takes what it would (agendas in the root
+ * stolen; HQ and R&D by the odds, runLoss).
  */
 function leoGain(state: GameState, action: GameAction, synergy: boolean): number {
   let after = simulate(state, action);
@@ -251,7 +250,21 @@ function leoGain(state: GameState, action: GameAction, synergy: boolean): number
   if (!after) return -Infinity;
   // Out of clicks, the Runner can't come back this turn: the Corp moves next (protects or scores the agenda)
   const next = (st: GameState): GameState => (st.runner.clicks > 0 ? st : { ...st, activePlayer: 'corp' });
-  return evaluate(next(after), 'corp') - (evaluate(state, 'corp') - runLoss(state));
+  const server = state.corp.servers[state.activeRun!.server];
+  const agendas = server.root.filter(c => type(c) === 'agenda');
+  let letIn: number;
+  if (agendas.length > 0) {
+    const stolen = structuredClone(state);
+    const root = stolen.corp.servers[server.id].root;
+    for (const a of agendas) {
+      const i = root.findIndex(c => c.instanceId === a.instanceId);
+      stolen.runner.scoreArea.push(...root.splice(i, 1));
+      stolen.runner.score += cardDef(a).agenda_points ?? 0;
+    }
+    stolen.activeRun = null;
+    letIn = evaluate(next(stolen), 'corp');
+  } else letIn = evaluate(state, 'corp') - runLoss(state);
+  return evaluate(next(after), 'corp') - letIn;
 }
 
 /** An asset whose whole worth is what it does when rezzed (Spin Doctor), not a money asset that pays out. */

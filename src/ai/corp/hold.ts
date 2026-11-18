@@ -1587,7 +1587,10 @@ export function runStands(state: GameState, server: string): RunStand | null {
   let from: number;
   let approached: string | undefined;
   if (run.phase === 'movement') {
+    // The next ice inward is approached next (6.9.4d, 6.9.2): unrezzed, the Corp may rez it then
     from = run.icePosition === null ? -1 : run.icePosition - 1;
+    const next = sv.ice[from];
+    if (next && !next.isRezzed) approached = next.instanceId;
   } else if (run.phase === 'encounter_ice' && run.encounter) {
     from = run.icePosition ?? -1;
     const at = run.encounter.resolvingIndex;

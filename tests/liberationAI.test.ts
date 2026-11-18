@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import '../src/ai';
 import { answerPrompt, psiBid } from '../src/ai/prompts';
 import { bestBreakPlan, knownSubroutineCost } from '../src/ai/runs';
 import { giveCard, installIceForTest, installProgramForTest, newGame, run, scoreForTest, startRunnerTurn } from './helpers';
