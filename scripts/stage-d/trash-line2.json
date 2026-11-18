@@ -1,0 +1,71 @@
+{
+ "all": [
+  [
+   "ai/corp/hold.ts",
+   "const INERT = new Set<SubEffect['kind']>(['toGrip',",
+   "const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip',"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      case 'trashInstalled':\n",
+   "      case 'trashInstalledOff':\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "this.board.rig.reduce((m, r, i) => (ws.gone.includes(i) ? m : Math.max(m, r.firstDraw)), this.board.firstDraw)",
+   "this.board.rig.reduce((m, r) => Math.max(m, r.firstDraw), this.board.firstDraw)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "const pool = run.poolLocked ? 0 : state.runner.credits;\n    return { hosted: availableCredits(state, 'runner') - pool - run.bonusCredits - (run.badPublicityCredits ?? 0) - stealth, stealth };",
+   "return { hosted: Math.max(0, availableCredits(state, 'runner') - state.runner.credits - run.bonusCredits - (run.badPublicityCredits ?? 0)), stealth };"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns)",
+   "hosted: sum(c => !!getCardScript(c.cardCode)?.paysDuringRuns)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    for (let s = 1; s <= Math.min(rest, w.stealth); s++) best = Math.min(best, then({ ...w, stealth: w.stealth - s }) + rest - s);\n",
+   ""
+  ],
+  [
+   "ai/corp/hold.ts",
+   "turnIce:${start.runnerTurn ? 1 : 0}:${server}",
+   "turnIce:$${server}"
+  ]
+ ],
+ "_probe": [
+  [
+   "ai/corp/hold.ts",
+   "  trashed: string[];\n",
+   "  trashed: string[];\n  /** probe (trash-line): a Corp trash of an installed card happened on this line; later ones are inert. */\n  ct?: boolean;\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "        return this.corpTrash(ws, e.what, next, at);",
+   "        return (globalThis as { __trashMode?: string }).__trashMode === 'inert' || (ws.ct && (globalThis as { __trashMode?: string }).__trashMode !== 'exact') ? next(ws) : this.corpTrash(ws, e.what, next, at);"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b) }));",
+   "      worst = Math.max(worst, next({ ...ws, gone: [...ws.gone, i].sort((a, b) => a - b), ct: true }));"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "${this.retries ? (ws.moved ? '|1' : '|0') : ''}`;",
+   "$${this.retries ? (ws.moved ? '|1' : '|0') : ''}$${ws.ct ? '|t' : ''}`;"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "|${ws.chose}|${ws.trashed}|${ws.bp}`;",
+   "|$${ws.chose}|$${ws.trashed}|$${ws.bp}$${ws.ct ? '|t' : ''}`;"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, f, next, at));",
+   "      for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, (globalThis as { __trashMode?: string }).__trashMode === 'exact' ? f : { ...f, does: f.does.filter(e => e.kind !== 'trashInstalled') }, next, at));"
+  ]
+ ]
+}
