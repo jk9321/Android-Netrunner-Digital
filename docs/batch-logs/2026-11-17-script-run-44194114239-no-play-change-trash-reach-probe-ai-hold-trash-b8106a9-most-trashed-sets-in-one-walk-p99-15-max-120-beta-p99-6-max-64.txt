@@ -1,0 +1,26 @@
+AI script run 44194114239: value-b1/fire-count.ts with scripts/stage-d/trash-reach.json at ai-hold-trash b8106a9 (a probe in both trees: the distinct sets of trashed cards one walk reaches). Summed with scripts/stage-d/trash-reach-sum.mjs.
+
+base: 7544 Corp decisions, 722783 walks; most trashed sets in one walk: p50 1, p99 6, max 64; walks over 4: 7329 (in 135 decisions)
+  human:report-49.json #205 T14: 64 sets; base 2945.5 ms, branch 5098.1 ms
+  human:report-49.json #146 T11: 42 sets; base 4360.9 ms, branch 465.7 ms
+  human:report-49.json #147 T11: 42 sets; base 2787.9 ms, branch 4562.3 ms
+  human:report-49.json #178 T12: 42 sets; base 196.8 ms, branch 526.2 ms
+  human:report-49.json #170 T12: 26 sets; base 2923.4 ms, branch 392.9 ms
+  human:report-49.json #171 T12: 26 sets; base 2456.2 ms, branch 298 ms
+  human:report-49.json #148 T11: 22 sets; base 1268.3 ms, branch 1579.1 ms
+  human:report-49.json #169 T12: 22 sets; base 2910.2 ms, branch 396.3 ms
+branch: 7544 Corp decisions, 720726 walks; most trashed sets in one walk: p50 1, p99 15, max 120; walks over 4: 9965 (in 381 decisions)
+  human:report-49.json #205 T14: 120 sets; base 2945.5 ms, branch 5098.1 ms
+  human:report-28.json #251 T15: 64 sets; base 2246.1 ms, branch 2652 ms
+  human:report-49.json #178 T12: 57 sets; base 196.8 ms, branch 526.2 ms
+  human:report-49.json #147 T11: 56 sets; base 2787.9 ms, branch 4562.3 ms
+  human:report-49.json #148 T11: 56 sets; base 1268.3 ms, branch 1579.1 ms
+  human:report-49.json #203 T14: 38 sets; base 12.6 ms, branch 17.7 ms
+  human:report-49.json #204 T14: 38 sets; base 9.9 ms, branch 12.8 ms
+  human:report-49.json #206 T14: 38 sets; base 25.8 ms, branch 25.4 ms
+slowest Corp decisions on the branch:
+  human:report-39.json #72 T6: base 7492.5 ms, branch 7697.3 ms
+  deal:2081 #189 T14: base 7503.6 ms, branch 7526.6 ms
+  human:report-52.json #170 T11: base 7327.5 ms, branch 7064.3 ms
+  human:report-39.json #73 T6: base 6158.1 ms, branch 6742.1 ms
+  human:report-47.json #236 T14: base 6389.4 ms, branch 6627.4 ms

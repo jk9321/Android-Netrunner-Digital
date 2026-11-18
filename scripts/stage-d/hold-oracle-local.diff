@@ -1,0 +1,48 @@
+diff --git a/scripts/stage-d/hold-oracle.ts b/scripts/stage-d/hold-oracle.ts
+index efaa5f0..9db08b9 100644
+--- a/scripts/stage-d/hold-oracle.ts
++++ b/scripts/stage-d/hold-oracle.ts
+@@ -126,7 +126,10 @@ export function oracleStart(state: GameState, ask: OracleAsk): { state: GameStat
+ }
+ 
+ /** Asks the oracle (see the file comment). */
++export const PV: { stack: string[]; found: string[] | null } = { stack: [], found: null };
+ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
++  PV.stack = [];
++  PV.found = null;
+   const start = oracleStart(state, ask);
+   if ('skipped' in start) return { reached: null, work: 0, skipped: start.skipped };
+   const cap = ask.cap ?? 40_000;
+@@ -146,7 +149,7 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
+ 
+   // seen: the Runner's turn has begun ('runnerTurn'); k: targets breached so far
+   const solve = (s: GameState, k: number, seen: boolean, depth: number): number => {
+-    if (k >= n) return n;
++    if (k >= n) { if (!PV.found && (!process.env.PVNEED || PV.stack.some(l => l.includes(process.env.PVNEED!)))) PV.found = [...PV.stack]; return n; }
+     if (s.winner) return k;
+     if (depth > 400) throw new Capped();
+     if (ask.when === 'thisRun' && !s.activeRun) return k;
+@@ -161,6 +164,14 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
+     const hit = memo.get(key);
+     if (hit !== undefined) return hit;
+     const step = (a: GameAction): number | null => {
++      PV.stack.push(`${actingSide(s)}: ${JSON.stringify(a)} | runner $${s.runner.credits} clicks ${s.runner.clicks}${s.activeRun ? ` run ${s.activeRun.phase} pos ${s.activeRun.icePosition}` : ''}`);
++      try {
++        return stepIn(a);
++      } finally {
++        PV.stack.length -= 1;
++      }
++    };
++    const stepIn = (a: GameAction): number | null => {
+       const t = apply(s, a);
+       if (!t) return null;
+       // The breach (6.9.5): the run reaches its Success Phase on the server asked next. A run with nothing to access
+@@ -169,7 +180,7 @@ export function oracle(state: GameState, ask: OracleAsk): OracleAnswer {
+       const before = !!run && run.server === ask.targets[k] && run.phase !== 'access' && !run.breached;
+       const now = !!t.activeRun && (t.activeRun.phase === 'access' || t.activeRun.breached);
+       const ended = !t.activeRun && !!t.runsThisTurn.at(-1)?.successful && t.runsThisTurn.length === s.runsThisTurn.length;
+-      const breachedNow = before && (now || ended);
++      const breachedNow = before && (now || ended) && !(process.env.NOSTEAL && (t.activeRun ?? run)?.cannotStealOrTrash);
+       return solve(t, k + (breachedNow ? 1 : 0), seen, depth + 1);
+     };
+     let value: number;
