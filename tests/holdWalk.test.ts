@@ -927,8 +927,16 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
     // The next turn is a new turn: its first run is open again
     expect(walk(knick(false)).holds).toBe(false);
   });
-  it('Knickknack installed this turn after a run began: its first run still counts from the rest of the turn (the engine\'s once-per-turn use is its own)', () => {
-    expect(rest(knick(true)).holds).toBe(false);
+  // "The first time each turn a run begins" counts the turn's runs, not the card's: a Knickknack installed after the
+  // turn's first run gets no first run this turn (rules 9.3.2b, 9.6.5b, the example under 10.11.5; the engine's
+  // firstEachTurn count, tests/firstEachTurn.test.ts)
+  it('Knickknack installed this turn after a run began: no first run is left this turn, it holds (rules 9.6.5b, 10.11.5)', () => {
+    expect(rest(knick(true)).holds).toBe(true);
+  });
+  it('Knickknack mirror: installed this turn with no run begun yet, the next run is the first, it gets in', () => {
+    const s = knick(true);
+    s.runsThisTurn = [];
+    expect(rest(s).holds).toBe(false);
   });
 
   // Lightning Laboratory: "When this turn ends, derez 2 pieces of ice protecting that server" (the server it rezzed ice

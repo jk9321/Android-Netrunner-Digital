@@ -34,7 +34,7 @@ const sorted = (xs: number[]) => [...xs].sort((a, b) => a - b);
 /** The model of the walk, forward, with the pool as a number: does any line of the Runner's get through every target? */
 class Brute {
   private readonly walk: Walk;
-  /** Knickknack's first run of the turn is over (from the rest of a turn where a run has begun, not installed this turn). */
+  /** Knickknack's first run of the turn is over (from the rest of a turn where a run has begun; rules 9.6.5b, 10.11.5). */
   private readonly knickUsed: boolean;
   constructor(
     private readonly state: GameState,
@@ -60,7 +60,7 @@ class Brute {
         const held = counters(c, 'credit') + f.runBeginCredits.place * w.runs;
         if (held >= f.runBeginCredits.takeAllAt) w = draw({ ...w, pool: w.pool + held, gone: sorted([...w.gone, i]) }, f.runBeginCredits.draw);
       }
-      if (f?.firstRunTrashForCost && ws.runs === 0 && (!this.knickUsed || c.installedTurn === turnKey(this.state))) {
+      if (f?.firstRunTrashForCost && ws.runs === 0 && !this.knickUsed) {
         const most = Math.max(0, ...this.start.rig.map((r, k) => (k === i || w.gone.includes(k) ? 0 : (cardDef(r).cost ?? 0))));
         w = draw({ ...w, pool: w.pool + most }, f.firstRunTrashForCost.draw);
       }

@@ -5,7 +5,6 @@ import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, pla
 import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
-import { turnKey } from '../../core/engine/helpers';
 import { plan, pricing, withPricing } from '../pricing';
 import { memo } from '../valueModel';
 
@@ -590,7 +589,8 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
 /**
  * The rig's cards that act as a run begins (WalkBoard.runBegins), from the board: Side Hustle's credits as they stand;
  * Knickknack's first run of the turn over from the rest of a turn where a run has begun this turn ("The first time each
- * turn a run begins"; still open if it was installed this turn, as the engine's once-per-turn use is its own).
+ * turn a run begins" counts the turn's runs, in play or not, so a Knickknack installed after a run gets none this turn:
+ * rules 9.3.2b, 9.6.5b and the example under 10.11.5; the engine's firstEachTurn count).
  */
 function runBegins(state: GameState, start: WalkStart): RunBegin[] {
   const begun = start.runnerTurn && !start.fresh && state.runsThisTurn.length > 0;
@@ -600,8 +600,7 @@ function runBegins(state: GameState, start: WalkStart): RunBegin[] {
     const out: RunBegin = { idx };
     if (f.runBeginCredits) out.credits = { hosted: hosted(c), ...f.runBeginCredits };
     if (f.firstRunTrashForCost) {
-      const used = begun && c.installedTurn !== turnKey(state);
-      out.trashForCost = { draw: f.firstRunTrashForCost.draw, costs: start.rig.map(r => cardDef(r).cost ?? 0), used };
+      out.trashForCost = { draw: f.firstRunTrashForCost.draw, costs: start.rig.map(r => cardDef(r).cost ?? 0), used: begun };
     }
     return [out];
   });
