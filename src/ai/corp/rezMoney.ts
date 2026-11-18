@@ -15,15 +15,14 @@ import { memo } from '../valueModel';
  *    the Corp's money unbounded: what it should keep, not what it has). Rezzed ice that holds costs 0. This is
  *    afterLineFloor's definition, server by server (count inputs F1, moved here from countedScore.ts).
  *  - unholdable: staked servers no rez set holds (money can't fix them, so they add nothing).
- *  - keep: the most the Runner can make the Corp spend in one turn. The Runner has one budget and its clicks: each run
- *    takes a click and costs at least what getting past the server's rezzed ice costs it (serverHold's need with
- *    nothing more rezzed), and a click used to run earns no credit. keep is the largest byServer total over the staked
- *    servers one affordable run sequence reaches. With one or two staked servers, or a rich Runner, it is the sum.
+ *  - keep: the most the Runner can make the Corp spend in one turn (keepFor): the largest byServer total over the sets
+ *    of staked servers one Runner turn reaches in some order past the ice rezzed now, the Corp rezzing nothing more
+ *    (the run sequence, owned by hold.ts: reachQuestion and reachSets). A set is reached only if every set inside it
+ *    is (one run fewer frees its click). With one or two staked servers, or a rich Runner, it is the sum.
  *
- * In Stage A no decision read `keep` (the counted lines read the byServer sum through lineFloor); since Stage C6 lineFloor
- * returns `keep`, as the placement rules read it. The other reserves (rezReserve, reservePenalty, moneyTarget, the pacing gate, scoringShort, reservedForAgenda's
- * horizon, centralIce's rez gate, boardNeed, rezBudget) are untouched: scripts/stage-a/rez-money.ts measures how far
- * each is from `keep`.
+ * Since Stage C6 lineFloor returns `keep`; the placement rules (scoringShort, reservedForAgenda, centralIce's rez gate)
+ * read it, and the valuation reaches it through corpPorts (boardNeed reads keep, rezBudget the holding rezzes; registry
+ * row "rez money the Corp must keep").
  */
 
 export interface RezMoney {

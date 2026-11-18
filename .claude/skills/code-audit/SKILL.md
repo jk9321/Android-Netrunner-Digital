@@ -39,7 +39,7 @@ State the mode, branch and commit SHA at the top of the report. Audit a fixed SH
    empty catch, TODO), card codes named in generic code, plan switches (defined-never-read, folded-still-read,
    read only once), beta-only imports outside the build flags, skipped tests. Numbers are signals to look at,
    not findings by themselves.
-3. Read `CLAUDE.md`, `PROJECT_STATUS.md` and the project memory notes for the area (decisions Jeff already
+3. Read `CLAUDE.md` (and `docs/ai-process.md` for AI work), `PROJECT_STATUS.md` and the project memory notes for the area (decisions Jeff already
    made are not findings: "Hard Runner AI knows its draw order" is kept on purpose; rules windows 6.9.1e,
    5.6.3b, 5.7.2b are skipped on purpose). A decision recorded in memory but contradicted by code IS a finding.
 4. Run the checks: `npm run typecheck`, `npm run lint`, and `npx vitest run --reporter=json --outputFile=<scratchpad>/vitest.json`

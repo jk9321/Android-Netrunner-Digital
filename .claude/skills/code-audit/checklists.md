@@ -53,7 +53,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
   gates that hide moves from the planner? Is the same situation priced in two places?
 - **Parallel implementations.** The same quantity (rez money, income slide, steal odds, draw worth, click
   price, agenda pace) computed in more than one function. Grep for the concept name and its synonyms.
-- **Tuning ladder and lever counts** (CLAUDE.md, AI work). Count and compare with the previous audit: counted questions, lines in
+- **Tuning ladder and lever counts** (`docs/ai-process.md`, Tuning ladder). Count and compare with the previous audit: counted questions, lines in
   the Corp's list of ordinary moves, condition clauses per line, per-card rules (`corp/cardRules.ts` exports),
   planner settings, hand-set numbers in the valuation model. For each AI branch merged since the last audit
   that changed play: does its spec or hand-off hold the trace (top down) and is the fix in the layer the trace

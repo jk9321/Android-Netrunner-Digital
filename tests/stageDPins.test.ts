@@ -40,6 +40,11 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // It held only by the rez budget's per-decision stop note (anchor.stops), which served a look-ahead board's stop to the
   // decision's own board (Tithe on remote-2: 3.91 noted, 3.72 on the root). With the note deleted (ai-rez-stops) the
   // Corp installs Ansel on remote-6 again, the original D4 mistake: known-failing until D4 owes the HQ ice
+  // Stage D item 5 (2026-11-18, counted, not built; netrunner-ai/stage-d/item5-placement/design-answer.md, found-list
+  // rows 50 to 52): spec 1.8 ice rule 2 and HQ-first do not fix this board with the look-ahead on (the planner then plays
+  // another card), and played out they cost the Corp games: the destination alone is not where the Corp loses. The cause
+  // is a lead for tuning (row 50: each ice is offered at one destination, so the planner cannot weigh HQ against the
+  // remote). Known-failing
   for (const [n, m, title, remote, since, fails] of [
     [49, 82, 'Lycian Multi-Munition', 'remote-4', 'guard since beta 545f146', false],
     [49, 111, 'Ansel 1.0', 'remote-6', 'known-failing again since ai-rez-stops', true],
@@ -55,6 +60,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // A guard, not a pin: since centralIce the Corp puts Descent on bare R&D, not remote-1. D4 decides whether R&D or HQ
   // (4 agendas behind one ice) is right here; Jeff expected HQ
+  // Item 5 (2026-11-18, counted, not built): rule 2 and HQ-first put Descent on HQ only with the look-ahead off (HQ is
+  // still open then, need 3 of 10); with the look-ahead on the Corp draws. item5-placement/design-note.md section 8
   it('#53 #191 guard: Descent is not installed on remote-1 (R&D since centralIce; D4 decides R&D or HQ)', { timeout: T }, () => {
     const { s, recorded } = at(53, 191);
     const id = (recorded as Install).cardInstanceId!;
@@ -122,8 +129,13 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // Bug report #4 under the new core (c0-rulings 16:00Z (1)): the order's first move is ice on HQ (corpCandidates.test.ts),
   // but the look-ahead plays Palisade into a new remote (the build slot) and then two Clearinghouse advances; HQ ends at
-  // two ice (scripts/stage-c/turn-trace.ts STATE=tests/fixtures/bug-report-4-turn13.json). Cause: the playouts' leaf
-  // prices the game-ending steal as ordinary points (valuation, Stage D5), not the order. A regression on #4 until then
+  // two ice (scripts/stage-c/turn-trace.ts STATE=tests/fixtures/bug-report-4-turn13.json). Stage C thought the cause was
+  // the playouts' leaf pricing the game-ending steal as ordinary points (valuation, Stage D5), not the order; Stage D item 4
+  // found otherwise (below)
+  // Stage D item 4 (2026-11-17, counted, not built; netrunner-ai/stage-d/item4-game-end/design-answer.md sections 7 and 8):
+  // neither ordering a game-ending access first nor pricing a near loss moves this board. The reply's Runner never runs HQ
+  // here (found-list row 44) and plays with its planner off (row 36), and the count says the third ice does not hold HQ
+  // (need 2, budget 9), so this pin asks for a toll, not a hold. Known-failing until the Runner rework
   it.fails('Stage C, bug report #4: with the look-ahead HQ gets its third ice', { timeout: 240_000 }, () => {
     let s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-4-turn13.json', import.meta.url), 'utf8'));
     {
