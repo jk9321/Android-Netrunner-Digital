@@ -48,6 +48,8 @@ interface EncounterPanelProps {
   onAction: (action: GameAction) => void;
   /** Show the encounter without the Runner's buttons (the Corp is watching). */
   readOnly?: boolean;
+  /** Stack breaker/ability labels above buttons to fit narrow sidebar widths cleanly. */
+  compact?: boolean;
 }
 
 /** Every way to pick 1..max subroutines out of `count`, in the engine's order. */
@@ -72,7 +74,7 @@ function clickBreakLabel(cb?: { clicks: number; max: number }): string {
  * Break window for the ice being encountered: shows each subroutine and offers
  * the BREAK / BOOST / BIOROID_BREAK actions the engine reports as legal.
  */
-export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction, readOnly = false }) => {
+export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction, readOnly = false, compact = false }) => {
   const seat = useSeat();
   const encounter = state.activeRun?.encounter;
   const ice = encounteredIce(state);
@@ -178,12 +180,12 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
             const targetStrength = iceStrength(state, ice);
             const hasEnoughStrength = bStr >= targetStrength;
             return (
-              // Buttons wrap within their own column on desktop, and stack cleanly under the breaker name on narrow screens
-              <div key={breaker.instanceId} className="flex flex-col sm:flex-row items-start gap-1 sm:gap-1.5">
-                <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40 shrink-0 min-h-[24px] sm:min-h-[28px] flex items-center gap-1.5 min-w-0">
+              // Buttons wrap within their own column on desktop, and stack cleanly under the breaker name on narrow screens or when sidebar-docked
+              <div key={breaker.instanceId} className={`flex flex-col ${compact ? 'border-t border-slate-800/80 pt-1.5' : 'sm:flex-row sm:gap-1.5'} items-start gap-1`}>
+                <span className={`text-[12px] font-mono text-slate-400 w-full ${compact ? '' : 'sm:w-40 sm:min-h-[28px]'} shrink-0 min-h-[24px] flex items-center gap-1.5 min-w-0`}>
                   {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
                   <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
-                  <span className="min-w-0 flex sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0 leading-tight">
+                  <span className={`min-w-0 flex flex-1 ${compact ? 'items-baseline justify-between gap-2' : 'sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0'} leading-tight`}>
                     <span className="truncate text-slate-200 font-semibold" title={cardDef(breaker).title}>
                       {cardDef(breaker).title}
                     </span>
@@ -278,8 +280,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
       )}
 
       {otherAbilities.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">Card abilities</span>
+        <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'border-t border-slate-800/80 pt-1.5' : ''}`}>
+          <span className={`text-[12px] font-mono text-slate-400 w-full ${compact ? '' : 'sm:w-40'}`}>Card abilities</span>
           {otherAbilities.map((a, k) => abilityButton(a, k, false))}
         </div>
       )}
@@ -291,8 +293,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
           ? <>{text} (<Credits amount={creditBreak} />)</>
           : <><ClickIcon className="inline w-3 h-3 mr-1 -mt-0.5" />{text}</>;
         return (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">
+        <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'border-t border-slate-800/80 pt-1.5' : ''}`}>
+          <span className={`text-[12px] font-mono text-slate-400 w-full ${compact ? '' : 'sm:w-40'}`}>
             {creditBreak !== undefined ? <>Pay <Credits amount={creditBreak} /> per subroutine</> : clickBreakLabel(iceScript(ice)?.clickBreak)}
           </span>
           {subs.map((_, i) => {

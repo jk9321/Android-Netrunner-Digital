@@ -23,8 +23,16 @@ async function dragOffBottom(page: Page, testId: string) {
   await page.mouse.up();
 }
 
-// A dragged panel doesn't stay where it was dragged: restoring it or opening the next one puts it back in the centre
-test('the run panel reopens centred after being dragged', async ({ page }) => {
+/** Do two bounding boxes overlap? */
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+// Desktop runs dock into the sidebar without blocking the board; popping out opens a centred floating panel whose dragged spot does not persist
+test('the run panel docks by default, toggles log, and reopens centred when popped out after dragging', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
   await page.goto('/');
   await page.getByTestId('mode-computer').click();
@@ -35,7 +43,32 @@ test('the run panel reopens centred after being dragged', async ({ page }) => {
 
   const runArchives = page.getByTestId('server-archives').getByRole('button', { name: 'Run', exact: true });
   await runArchives.click();
-  await expect(page.getByTestId('run-overlay')).toBeVisible();
+  const overlay = page.getByTestId('run-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(page.getByTestId('run-overlay-popout')).toBeVisible();
+  expect(await fullyInView(page, 'run-overlay')).toBe(true);
+
+  const overlayBox = (await overlay.boundingBox())!;
+  const archivesBox = (await page.getByTestId('server-archives').boundingBox())!;
+  expect(boxesOverlap(overlayBox, archivesBox)).toBe(false);
+
+  // Hovering a card on the board while docked shows a transient hover zoom preview, which hides on leave
+  const corpCard = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
+  await page.mouse.move(corpCard.x + corpCard.width / 2, corpCard.y + corpCard.height / 2);
+  await expect(page.getByTestId('floating-hover-zoom')).toBeVisible();
+  await page.mouse.move(5, 5, { steps: 3 });
+  await expect(page.getByTestId('floating-hover-zoom')).toHaveCount(0);
+
+  // Switch sidebar to Log and back to Run
+  await page.getByTestId('run-sidebar-log-toggle').click();
+  await expect(page.getByTestId('run-sidebar-back-to-run')).toBeVisible();
+  await expect(overlay).toHaveCount(0);
+  await page.getByTestId('run-sidebar-back-to-run').click();
+  await expect(overlay).toBeVisible();
+
+  // Pop out into floating mode: opens centred, can be dragged off bottom
+  await page.getByTestId('run-overlay-popout').click();
+  await expect(page.getByTestId('run-overlay-dock')).toBeVisible();
   expect(await centred(page, 'run-overlay')).toBe(true);
   await dragOffBottom(page, 'run-overlay');
   expect(await fullyInView(page, 'run-overlay')).toBe(false); // dragging off screen is still allowed
@@ -45,12 +78,17 @@ test('the run panel reopens centred after being dragged', async ({ page }) => {
   await page.getByTestId('run-overlay-restore').click();
   expect(await centred(page, 'run-overlay')).toBe(true);
 
-  // Drag it off again and finish the run; the next run's panel opens in the centre
+  // Can re-dock back into sidebar and pop out again cleanly
+  await page.getByTestId('run-overlay-dock').click();
+  await expect(page.getByTestId('run-overlay-popout')).toBeVisible();
+  await page.getByTestId('run-overlay-popout').click();
+  expect(await centred(page, 'run-overlay')).toBe(true);
+
+  // Drag it off again and finish the run; the next run opens cleanly docked in the sidebar
   await dragOffBottom(page, 'run-overlay');
-  const overlay = page.getByTestId('run-overlay');
   // Wait for the panel's state, not a fixed number of clicks: how many steps the run takes depends on the deal
   // and on how fast the computer decides. Click whichever step button is showing until the panel closes.
-  const step = overlay.getByRole('button', { name: /Continue Run|Pass|Let Subroutines Fire|Keep Going/ });
+  const step = overlay.getByRole('button', { name: /Approach|Move Inward|Continue Run|Pass|Let Subroutines Fire|Keep Going/ });
   await expect
     .poll(
       async () => {
@@ -71,6 +109,6 @@ test('the run panel reopens centred after being dragged', async ({ page }) => {
   await page.keyboard.press('Escape'); // close an access panel if one opened
   await runArchives.click();
   await expect(overlay).toBeVisible();
-  expect(await centred(page, 'run-overlay')).toBe(true);
+  await expect(page.getByTestId('run-overlay-popout')).toBeVisible();
   expect(await fullyInView(page, 'run-overlay')).toBe(true);
 });

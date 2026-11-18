@@ -22,19 +22,32 @@ export interface ZoomTarget {
  */
 export function createZoomStore() {
   let current: ZoomTarget | null = null;
+  let activeId: string | null = null;
   const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach(l => l());
   return {
     get: () => current,
+    isHovering: () => activeId !== null,
     show(target: ZoomTarget) {
-      if (current?.card.instanceId === target.card.instanceId && current.hidden === target.hidden && !!current.seen === !!target.seen) return;
+      const sameTarget = current?.card.instanceId === target.card.instanceId && current.hidden === target.hidden && !!current.seen === !!target.seen;
+      const sameActive = activeId === target.card.instanceId;
+      if (sameTarget && sameActive) return;
       current = target;
-      listeners.forEach(l => l());
+      activeId = target.card.instanceId;
+      notify();
+    },
+    /** Marks the pointer as having left `instanceId` while keeping `current` sticky for the sidebar zoom panel. */
+    leave(instanceId: string) {
+      if (activeId !== instanceId) return;
+      activeId = null;
+      notify();
     },
     /** Forgets the card shown (a new viewer sits down: it was the last one's card). */
     clear() {
-      if (!current) return;
+      if (!current && activeId === null) return;
       current = null;
-      listeners.forEach(l => l());
+      activeId = null;
+      notify();
     },
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -54,7 +67,12 @@ export const ZoomContext = createContext<ZoomStore | null>(null);
 export const useZoom = () => useContext(ZoomContext);
 
 /** Full-size view of the hovered card, as on jinteki.net. Double-click a card for the rules text. */
-export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect: (card: CardInstance) => void }> = ({ store, state, onInspect }) => {
+export const ZoomPanel: React.FC<{
+  store: ZoomStore;
+  state: GameState;
+  onInspect: (card: CardInstance) => void;
+  showDetails?: boolean;
+}> = ({ store, state, onInspect, showDetails = true }) => {
   const target = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -101,7 +119,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
         <span className="truncate text-slate-300" title={seen ? `Unrezzed, last seen as ${def.title}` : undefined}>
           {hidden ? 'Face-down card' : seen ? `Unrezzed, last seen as ${def.title}` : `${def.title} · ${typeLine(def, card)}`}
         </span>
-        {!hidden && (
+        {!hidden && showDetails && (
           <button
             onClick={() => onInspect(card)}
             className="shrink-0 flex items-center gap-1 text-amber-300 hover:text-amber-100"

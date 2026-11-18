@@ -10,7 +10,11 @@ import { readStorage, readStorageJson, removeStorage, writeStorage, writeStorage
 import { GameHeader } from '../src/ui/components/GameHeader';
 import { DeckPicker } from '../src/ui/components/DeckPicker';
 import { DeckBuilder, DeckViewer } from '../src/ui/components/DeckBuilder';
-import { newGame } from './helpers';
+import { createZoomStore } from '../src/ui/components/ZoomPanel';
+import { RunOverlay } from '../src/ui/components/RunOverlay';
+import { SeatContext } from '../src/ui/seat';
+import { executeAction } from '../src/core';
+import { newGame, startRunnerTurn } from './helpers';
 
 const corpStarter = STARTER_DECKS.find(d => d.side === 'corp')!;
 const runnerStarter = STARTER_DECKS.find(d => d.side === 'runner')!;
@@ -24,6 +28,8 @@ function stubBrowser(entries: Record<string, string> = {}) {
       removeItem: (k: string) => void store.delete(k),
     },
     location: { origin: 'https://example.test', pathname: '/' },
+    addEventListener: () => {},
+    removeEventListener: () => {},
   });
   vi.stubGlobal('document', {
     documentElement: { dataset: {} },
@@ -71,6 +77,35 @@ describe('storage wrapper', () => {
     expect(readStorage('k')).toBeNull();
     expect(writeStorage('k', 'v')).toBe(false);
     expect(() => removeStorage('k')).not.toThrow();
+  });
+});
+
+describe('zoom store hover tracking', () => {
+  it('tracks active hover state separately from sticky zoom target', () => {
+    const state = newGame();
+    const cardA = state.corp.hq[0];
+    const cardB = state.runner.grip[0];
+    const store = createZoomStore();
+
+    expect(store.get()).toBeNull();
+    expect(store.isHovering()).toBe(false);
+
+    store.show({ card: cardA, hidden: false });
+    expect(store.get()?.card.instanceId).toBe(cardA.instanceId);
+    expect(store.isHovering()).toBe(true);
+
+    // Leaving a different card does not clear current hover
+    store.leave(cardB.instanceId);
+    expect(store.isHovering()).toBe(true);
+
+    // Leaving the hovered card clears isHovering while keeping sticky current
+    store.leave(cardA.instanceId);
+    expect(store.isHovering()).toBe(false);
+    expect(store.get()?.card.instanceId).toBe(cardA.instanceId);
+
+    store.clear();
+    expect(store.isHovering()).toBe(false);
+    expect(store.get()).toBeNull();
   });
 });
 
@@ -150,5 +185,47 @@ describe('UI component smoke renders', () => {
     for (const id of ['deck-viewer', 'close-deck-view', 'viewed-deck-name', 'viewed-identity', 'deck-view-cards', 'select-viewed-deck']) {
       expect(viewerHtml).toContain(`data-testid="${id}"`);
     }
+  });
+
+  it('RunOverlay renders cleanly in both docked sidebar mode and floating pop-out mode', () => {
+    const base = newGame();
+    startRunnerTurn(base);
+    const running = executeAction(base, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+    const seat = { can: () => false, legal: [], waitingOn: null } as unknown as React.ContextType<typeof SeatContext>;
+
+    const dockedHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <RunOverlay
+          state={running}
+          onContinueRun={() => {}}
+          onJackOut={() => {}}
+          runnerControls
+          canPeekCorp={false}
+          onAction={() => {}}
+          docked
+          onToggleDock={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(dockedHtml).toContain('data-testid="run-overlay"');
+    expect(dockedHtml).toContain('data-testid="run-overlay-popout"');
+    expect(dockedHtml).not.toContain('data-testid="run-overlay-handle"');
+
+    const floatingHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <RunOverlay
+          state={running}
+          onContinueRun={() => {}}
+          onJackOut={() => {}}
+          runnerControls
+          canPeekCorp={false}
+          onAction={() => {}}
+          onToggleDock={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(floatingHtml).toContain('data-testid="run-overlay"');
+    expect(floatingHtml).toContain('data-testid="run-overlay-handle"');
+    expect(floatingHtml).toContain('data-testid="run-overlay-dock"');
   });
 });

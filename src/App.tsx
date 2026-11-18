@@ -19,7 +19,9 @@ import { GameHeader } from './ui/components/GameHeader';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { CorpBoard } from './ui/components/CorpBoard';
 import { RunnerBoard } from './ui/components/RunnerBoard';
-import { GameOverlays } from './ui/components/GameOverlays';
+import { GameOverlays, runOverlayPropsFromController } from './ui/components/GameOverlays';
+import { RunOverlay } from './ui/components/RunOverlay';
+import { ArrowLeft, Terminal } from 'lucide-react';
 import { showAlert, showConfirm } from './ui/components/Dialog';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
@@ -174,6 +176,23 @@ function OnlineTableScreen({ table, onLeave }: { table: OnlineTable; onLeave: ()
   return <GameScreen ctl={ctl} config={null} onNewGame={onLeave} />;
 }
 
+/** Tracks whether the viewport matches Tailwind's `lg:` desktop breakpoint (1024px+), where the right sidebar is visible. */
+function useIsDesktop(): boolean {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : true,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return desktop;
+}
+
 /** The game screen, the same for local and online games: everything it shows comes from the controller. */
 function GameScreen({
   ctl,
@@ -207,8 +226,12 @@ function GameScreen({
     online,
   } = ctl;
 
+  const isDesktop = useIsDesktop();
   const [gameOverHidden, setGameOverHidden] = useState(false);
+  const [runPoppedOut, setRunPoppedOut] = useState(false);
+  const [runSidebarTab, setRunSidebarTab] = useState<'run' | 'log'>('run');
   const [zoomStore] = useState(createZoomStore);
+  const isHoveringCard = useSyncExternalStore(zoomStore.subscribe, zoomStore.isHovering, zoomStore.isHovering);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
@@ -286,6 +309,23 @@ function GameScreen({
   // Online the room can also end a game with no winner (a server update), and says why
   const ended = !!winner || !!online?.over;
   const winReason = online?.over?.reason ?? gameState.winReason;
+  const hasActiveRun = !ended && !!gameState.activeRun;
+  const runDocked = isDesktop && hasActiveRun && !runPoppedOut;
+
+  // Reset dock/tab state when a run ends so the next run opens cleanly docked on the Run tab.
+  useEffect(() => {
+    if (!hasActiveRun) {
+      setRunPoppedOut(false);
+      setRunSidebarTab('run');
+    }
+  }, [hasActiveRun]);
+
+  const latestLog = gameState.log[gameState.log.length - 1];
+  const latestLogText = latestLog
+    ? latestLog.secret?.from === viewer
+      ? latestLog.secret.publicMessage
+      : latestLog.message
+    : 'Run active';
 
   const [shiftSide, setShiftSide] = useState<SideCode | null>(null);
   const prevActivePlayer = useRef(activePlayer);
@@ -333,7 +373,17 @@ function GameScreen({
           <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
             {/* Cards on the table send their hover to the zoom panel in the side bar */}
             <ZoomContext.Provider value={zoomStore}>
-              <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
+              <main className="relative flex-1 min-w-0 min-h-0 flex flex-col gap-2">
+                {/* While the Run panel occupies the desktop sidebar, hovering a board card shows a transient non-blocking preview here */}
+                {runDocked && isHoveringCard && (
+                  <div
+                    data-testid="floating-hover-zoom"
+                    className="hidden lg:block absolute top-2 right-2 z-30 w-56 p-2 bg-[#090d15]/95 border border-amber-400/60 rounded-[2px] shadow-2xl pointer-events-none"
+                  >
+                    <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} showDetails={false} />
+                  </div>
+                )}
+
                 {/* Victory Banner */}
                 {ended && (
                   <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">
@@ -389,22 +439,75 @@ function GameScreen({
               </main>
             </ZoomContext.Provider>
 
-            {/* Side bar: the hovered card, the acting side's actions (sticky at bottom on mobile), then the log */}
-            <aside className="contents lg:flex lg:w-80 2xl:w-96 shrink-0 flex-col gap-2 min-h-0">
-              <div className="hidden lg:block shrink-0">
-                <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
-              </div>
-              <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-                {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
-                {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
-                {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
-                {activePlayer === 'runner' && runnerCanAct && (
-                  <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
-                )}
-                {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
-                {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
-              </div>
-              <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
+            {/* Side bar: docked run panel on desktop during runs, otherwise zoom panel, turn actions, and log */}
+            <aside
+              className={`contents lg:flex ${runDocked ? 'lg:w-96 2xl:w-[26rem]' : 'lg:w-80 2xl:w-96'} shrink-0 flex-col gap-2 min-h-0`}
+            >
+              {runDocked ? (
+                runSidebarTab === 'run' ? (
+                  <>
+                    <RunOverlay
+                      {...runOverlayPropsFromController(ctl, setInspectedCard)}
+                      docked
+                      onToggleDock={() => {
+                        setRunSidebarTab('run');
+                        setRunPoppedOut(true);
+                      }}
+                    />
+                    <div className="shrink-0 max-h-[24vh] overflow-y-auto flex flex-col gap-1.5 empty:hidden">
+                      {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                      {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRunSidebarTab('log')}
+                      data-testid="run-sidebar-log-toggle"
+                      className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 bg-[#070b12] hover:bg-[#0c121d] border border-slate-800 hover:border-slate-700 rounded-[2px] text-[11px] font-mono text-slate-300 text-left transition-colors"
+                      title="Expand game log"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="truncate flex-1 min-w-0 text-slate-400">{latestLogText}</span>
+                      <span className="shrink-0 inline-flex items-center gap-1 text-cyan-300 font-bold">
+                        <Terminal className="w-3 h-3" /> Log ({gameState.log.length})
+                      </span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setRunSidebarTab('run')}
+                      data-testid="run-sidebar-back-to-run"
+                      className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 bg-[#090d15] hover:bg-[#0f1624] border border-cyber-neonPink/80 rounded-[2px] text-xs font-mono font-bold text-pink-300 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back to Run
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-normal uppercase">
+                        {gameState.activeRun?.phase.replace(/_/g, ' ')}
+                      </span>
+                    </button>
+                    <LogFeed logs={gameState.log} viewer={viewer} className="flex-1 min-h-[6rem]" />
+                  </>
+                )
+              ) : (
+                <>
+                  <div className="hidden lg:block shrink-0">
+                    <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
+                  </div>
+                  <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+                    {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+                    {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
+                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {activePlayer === 'runner' && runnerCanAct && (
+                      <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
+                    )}
+                    {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
+                    {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                  </div>
+                  <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
+                </>
+              )}
             </aside>
           </div>
 
@@ -421,6 +524,8 @@ function GameScreen({
             onGameOverHiddenChange={setGameOverHidden}
             onNewGame={onNewGame}
             onRematch={onRematch}
+            hideRunOverlay={runDocked}
+            onToggleRunDock={isDesktop ? () => setRunPoppedOut(false) : undefined}
           />
         </div>
       </SeatContext.Provider>

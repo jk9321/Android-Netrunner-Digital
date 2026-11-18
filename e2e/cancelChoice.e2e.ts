@@ -38,6 +38,7 @@ test('cancel an ability whose first step is choosing', async ({ page }) => {
 
   await useRedTeam();
   await page.getByTestId('prompt-panel').getByRole('button', { name: 'Archives' }).click();
-  await expect(page.getByText('Runner Actions (3 Clicks):')).toBeVisible();
+  await expect(page.getByText('3 / 4 Clicks')).toBeVisible();
+  await expect(page.getByTestId('run-overlay')).toContainText('RUN // ARCHIVES');
   expect(errors).toEqual([]);
 });

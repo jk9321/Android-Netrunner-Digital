@@ -43,6 +43,8 @@ interface FloatingPanelProps {
   /** Controlled minimized state (optional). */
   minimized?: boolean;
   onMinimizedChange?: (minimized: boolean) => void;
+  /** Optional extra buttons rendered beside the minimize button in the header. */
+  headerActions?: React.ReactNode;
   children: React.ReactNode;
   testId?: string;
   role?: string;
@@ -66,6 +68,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   zIndexClass = 'z-50',
   minimized: minimizedProp,
   onMinimizedChange,
+  headerActions,
   children,
   testId,
   role,
@@ -175,6 +178,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         >
           <GripHorizontal className="w-4 h-4 text-slate-600 shrink-0" />
           <div className="flex-1 min-w-0">{title}</div>
+          {headerActions}
           <button
             onClick={() => setMinimized(true)}
             className="p-1 rounded-[2px] text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 shrink-0"
