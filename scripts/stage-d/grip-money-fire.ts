@@ -321,12 +321,26 @@ async function main() {
     const setupDeck = countCodes([...setup.runner.grip, ...setup.runner.stack, ...rigOf(setup)]);
     let open: Commit[] = [];
     let ci = 0;
+    // Found row 70 (the AI Coordinator, 15:20Z): Corp decisions with Madani installed and a program hosted on it (public)
+    const madani = { decisions: 0, codes: new Set<string>() };
+    // Each hosted program with what it changes in a run: 'ice' (Chromatophores: the ice's subtypes), 'breaker', 'other'
+    const madaniHosted = (s: GameState) =>
+      rigOf(s)
+        .filter(c => c.cardCode === '35028')
+        .flatMap(c => (c.hostedCards ?? []).map(h => `${h.cardCode}:${h.cardCode === '35030' ? 'ice' : /Icebreaker/.test(cardDef(h).keywords ?? '') ? 'breaker' : 'other'}`));
     const flush = (c: Commit, why: string) => {
       console.log(JSON.stringify({ ...c.line, outcome: why, plays: c.plays, breached: c.breached, runs: c.runs, stolen: c.stolen, endRez: c.endRez }));
     };
     return {
       feed(before: GameState, a: GameAction | null, after: GameState) {
         if (!PARTS.has('commits') || !a) return;
+        if (before.activePlayer === 'corp' && a.player === 'corp') {
+          const h = madaniHosted(before);
+          if (h.length) {
+            madani.decisions++;
+            for (const c of h) madani.codes.add(c);
+          }
+        }
         // A commit (Q1)
         if (a.player === 'corp' && before.activePlayer === 'corp') {
           const m = agendaMoveOf(before, a, after);
@@ -347,6 +361,7 @@ async function main() {
                 kind: 'c', src, ci: ci++, aid: m.id, T: before.turnNumber, act: m.act, agenda: m.code, server: m.server, corpSide: sides.corp, runnerSide: sides.runner,
                 margin: r1(h.margin), need: r1(h.need), budget: r1(h.budget), grip: after.runner.grip.length, credits: after.runner.credits, clicks: after.runner.maxClicks,
                 money, arms, p: Math.round(ch.p * 1000) / 1000, covering: ch.covering, unseenTotal: ch.unseenTotal, coveringCopies: ch.coveringCopies,
+                madaniHosted: madaniHosted(after),
                 truth: { gripMoney: grip.filter(c => MONEY.has(c)), gripCovering: grip.filter(c => ch.covering.includes(c)).length, deckVsGripStack: codeDiff(unseen, gs), deckVsSetup: codeDiff(unseen, setupLess) },
               };
               // One open commit per agenda: a later move on it the same turn replaces the earlier (both lines are kept)
@@ -401,6 +416,7 @@ async function main() {
       },
       end() {
         for (const o of open) flush(o, 'source end');
+        console.log(JSON.stringify({ kind: 'm', src, corpSide: sides.corp, runnerSide: sides.runner, madaniDecisions: madani.decisions, madaniHosted: [...madani.codes] }));
         open = [];
       },
     };

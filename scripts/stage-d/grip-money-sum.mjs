@@ -88,6 +88,27 @@ console.log(`STOP cases (exposures): ${stops.length}`);
 for (const e of stops) console.log(`- ${e.src} T${e.T} decision ${e.ci} ${e.act} ${e.agenda} in ${e.server}, margin ${e.margin}, at the Runner turn ${JSON.stringify(e.atRunnerTurn)}, at the breach ${JSON.stringify(e.atBreach)}, runs ${e.runs}`);
 const both = [...new Map(outs.filter(x => x.o.k.startsWith('money') || x.o.k.startsWith('rez:') || x.o.k.startsWith('hidden') || x.o.k.startsWith('none')).map(x => [`${x.o.e.src}|${x.o.e.aid}|${x.o.e.T}`, x])).values()];
 console.log(`\nEvery exposure the Runner got in on (plays before the breach; $ a money event): ${both.map(x => `${srcName(x.o.e.src)} T${x.o.e.T} m${x.o.e.margin === null ? 'none' : x.o.e.margin} ${x.o.k.split(':')[0]} [${x.o.e.plays.map(p => p.code + (p.money ? '$' : '') + (p.drawn ? '(drawn)' : '')).join(' ')}]${x.o.e.stolen ? ' stolen' : ''}`).join('; ') || 'none'}`);
+// Opportunity (the AI Coordinator, 15:20Z): a covering money event really in the grip (measuring only), used or not
+console.log('\nOpportunity: commits whose recorded grip held a covering money event (measuring only), and whether the Runner got in with one:');
+for (const cls of CLASSES) {
+  const rows = outs.filter(x => runnerClass(x.c) === cls && x.c.truth.gripCovering > 0);
+  const used = rows.filter(x => x.o.e.breached && x.o.e.plays.some(p => x.c.covering.includes(p.code)));
+  const ex = new Set(rows.map(x => `${x.c.src}|${x.c.aid}|${x.c.T}`));
+  console.log(`- ${cls}: ${rows.length} commits (${ex.size} exposures), got in with it ${used.length}, did NOT use it to get in ${rows.length - used.length}${rows.length ? ': ' + [...new Map(rows.map(x => [`${x.c.src}|${x.c.aid}|${x.c.T}`, x])).values()].map(x => `${srcName(x.c.src)} T${x.c.T} m${x.c.margin} grip$ [${x.c.truth.gripMoney.join(' ')}] ${x.o.k}`).join('; ') : ''}`);
+}
+// Found row 70: Madani with hosted programs
+const ms = lines.filter(l => l.kind === 'm');
+if (ms.length) {
+  console.log('\nMadani with a hosted program (public; found row 70):');
+  for (const cls of CLASSES) {
+    const srcs = ms.filter(m => runnerClass(m) === cls);
+    const withM = srcs.filter(m => m.madaniDecisions > 0);
+    const com = outs.filter(x => runnerClass(x.c) === cls && x.c.madaniHosted?.length);
+    const kinds = {};
+    for (const x of com) add(kinds, x.c.madaniHosted.some(h => h.endsWith(':ice') || h.endsWith(':breaker')) ? 'changes the ice met or the breakers' : 'does not');
+    console.log(`- ${cls}: ${withM.length} of ${srcs.length} sources (${withM.map(m => `${srcName(m.src)} ${m.madaniDecisions} Corp actions [${m.madaniHosted.join(' ')}]`).join('; ') || 'none'}); commits on such boards ${com.length} (${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ') || '-'}); of them the Runner got in ${com.filter(x => x.o.e.breached && x.o.k !== 'out').length}`);
+  }
+}
 const diff = cs.filter(c => c.truth.deckVsGripStack || c.truth.deckVsSetup);
 console.log(`\nDeck list less public cards vs grip + stack / vs the setup deck list less public: ${diff.length} commits differ${diff.length ? ': ' + diff.slice(0, 10).map(c => `${srcName(c.src)} T${c.T} (${c.truth.deckVsGripStack}, ${c.truth.deckVsSetup})`).join('; ') : ''}`);
 
@@ -213,17 +234,18 @@ const p95 = xs => {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor(0.95 * s.length))];
 };
-console.log('| tree | source | decisions | total x control | p95 x control | mean ms (control) | over 2x at 0.5 s or more (medians of 3) | 3 s or more slower | slowest |');
-console.log('|---|---|---|---|---|---|---|---|---|');
+console.log('| tree | source | decisions | total x control | p95 x control | mean ms (control) | over 2x of a control decision of 0.5 s or more (the stop; medians of 3) | 3 s or more slower (the stop) | under 0.5 s in control, over 0.5 s and 2x in the arm (not a stop) | slowest |');
+console.log('|---|---|---|---|---|---|---|---|---|---|');
 for (const t of ['beta', ...ARMS])
   for (const [label, f] of [['self-play', self], ['human', d => !self(d)], ['all', () => true]]) {
     const r = ds.filter(f).filter(d => d.ms[t] !== undefined && d.ms.control !== undefined);
     if (!r.length) continue;
     const sum = k => r.reduce((s, d) => s + d.ms[k], 0);
-    const over = r.filter(d => d.ms[t] >= 500 && d.ms[t] > 2 * d.ms.control);
-    const slow = r.filter(d => d.ms[t] > d.ms.control + 3000);
+    const over = r.filter(d => d.ms.control >= 500 && d.ms[t] > 2 * d.ms.control);
+    const jump = r.filter(d => d.ms.control < 500 && d.ms[t] >= 500 && d.ms[t] > 2 * d.ms.control);
+    const slow = r.filter(d => d.ms[t] >= d.ms.control + 3000);
     const top = [...r].sort((x, y) => y.ms[t] - x.ms[t])[0];
-    console.log(`| ${t} | ${label} | ${r.length} | ${(sum(t) / sum('control')).toFixed(3)} | ${(p95(r.map(d => d.ms[t])) / p95(r.map(d => d.ms.control))).toFixed(3)} | ${(sum(t) / r.length).toFixed(0)} (${(sum('control') / r.length).toFixed(0)}) | ${over.length}${over.length ? ' (' + over.slice(0, 4).map(d => `${srcName(d.src)}#${d.i} ${d.ms.control}->${d.ms[t]}`).join(', ') + ')' : ''} | ${slow.length}${slow.length ? ' (' + slow.slice(0, 4).map(d => `${srcName(d.src)}#${d.i} ${d.ms.control}->${d.ms[t]}`).join(', ') + ')' : ''} | ${srcName(top.src)}#${top.i} ${top.ms[t]} (control ${top.ms.control}) |`);
+    console.log(`| ${t} | ${label} | ${r.length} | ${(sum(t) / sum('control')).toFixed(3)} | ${(p95(r.map(d => d.ms[t])) / p95(r.map(d => d.ms.control))).toFixed(3)} | ${(sum(t) / r.length).toFixed(0)} (${(sum('control') / r.length).toFixed(0)}) | ${over.length}${over.length ? ' (' + over.slice(0, 4).map(d => `${srcName(d.src)}#${d.i} ${d.ms.control}->${d.ms[t]}`).join(', ') + ')' : ''} | ${slow.length}${slow.length ? ' (' + slow.slice(0, 4).map(d => `${srcName(d.src)}#${d.i} ${d.ms.control}->${d.ms[t]}`).join(', ') + ')' : ''} | ${jump.length} | ${srcName(top.src)}#${top.i} ${top.ms[t]} (control ${top.ms.control}) |`);
   }
 const re = ds.filter(d => d.retimed);
 console.log(`\nRe-timed decisions (a first reading over a stop): ${re.length}${re.length ? ': ' + re.slice(0, 12).map(d => `${srcName(d.src)}#${d.i} ${d.retimed.join(' ')}`).join('; ') : ''}`);
