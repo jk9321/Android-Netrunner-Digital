@@ -126,7 +126,7 @@ for (const { src, from, to } of CASES) {
     for (const move of r.moves as GameAction[]) {
       if (actingSide(s) === 'corp' && s.turnNumber >= from && s.turnNumber <= to && s.activePlayer === 'corp') {
         clearCaches();
-        let ai = '';
+        let ai: string;
         try {
           ai = short(s, createAgent('corp', 'normal').chooseAction(s));
         } catch (e) {
