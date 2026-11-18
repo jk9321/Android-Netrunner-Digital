@@ -61,7 +61,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   const server = state.corp.servers[activeRun.server];
   const pools = runCreditPools(state);
   const currentIce =
-    activeRun.icePosition !== null && server ? server.ice[activeRun.icePosition] : null;
+    activeRun.icePosition !== null && !activeRun.positionEmpty && server ? server.ice[activeRun.icePosition] : null;
   const canJackOut = seat.can({ type: 'JACK_OUT', player: 'runner' });
   const step = state.priority?.step;
   const continueLabel =

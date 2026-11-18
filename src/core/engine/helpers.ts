@@ -166,6 +166,38 @@ export function noteTrashedFromHand(state: GameState, cards: CardInstance[]): vo
 /** "When this card would be uninstalled" interrupts on a rezzed Corp card (Luana Campos), before it leaves play. */
 export function beforeCorpCardUninstalled(state: GameState, card: CardInstance): void {
   if (card.isRezzed) getCardScript(card.cardCode)?.onUninstall?.({ state, card, side: 'corp' });
+  iceLeavingPosition(state, card);
+}
+
+/**
+ * The Runner's position is an element of the server's positions, not an index (rules 6.2.6): when a piece of ice
+ * inward of it leaves, the index of the Runner's position drops by one (6.2.6b); when the ice in the Runner's own
+ * position leaves, that position stays, empty, until the Runner moves on (6.2.4, 8.5.10). Call before removing it.
+ */
+function iceLeavingPosition(state: GameState, card: CardInstance): void {
+  const run = state.activeRun;
+  if (!run || run.icePosition === null) return;
+  const index = state.corp.servers[run.server]?.ice.indexOf(card) ?? -1;
+  if (index < 0) return;
+  // While the position is empty, server.ice[icePosition] is the ice just outward of it
+  if (index < run.icePosition) run.icePosition -= 1;
+  else if (index === run.icePosition && !run.positionEmpty) run.positionEmpty = true;
+}
+
+/** Ice was just put at `index` of `server.ice` (Brân 1.0, Tatu-Bola): positions inward of the Runner shift theirs (rules 6.2.6b). */
+export function iceInsertedAt(state: GameState, server: ServerState, index: number): void {
+  const run = state.activeRun;
+  if (!run || run.server !== server.id || run.icePosition === null) return;
+  // A swap from HQ fills the Runner's emptied position itself (rules 6.2.2f: no new position)
+  if (run.positionEmpty && index === run.icePosition) run.positionEmpty = false;
+  else if (index <= run.icePosition) run.icePosition += 1;
+}
+
+/** The ice in the Runner's current position, if there is one (none while that position is empty, rules 6.2.4). */
+export function iceAtPosition(state: GameState): CardInstance | undefined {
+  const run = state.activeRun;
+  if (!run || run.icePosition === null || run.positionEmpty) return undefined;
+  return state.corp.servers[run.server]?.ice[run.icePosition];
 }
 
 /** True if the card can receive advancement counters via the advance action. */

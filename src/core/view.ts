@@ -201,6 +201,7 @@ export interface RunView {
   server: string;
   phase: RunState['phase'];
   icePosition: number | null;
+  positionEmpty?: boolean;
   isSuccessful: boolean;
   isJackedOut: boolean;
   cannotJackOut: boolean;
@@ -387,6 +388,7 @@ export const RUN_STATE_FIELDS = {
   server: 'public',
   phase: 'public',
   icePosition: 'public',
+  positionEmpty: 'public',
   isSuccessful: 'public',
   isJackedOut: 'public',
   cannotJackOut: 'public',
@@ -789,6 +791,7 @@ function runView(
     server: run.server,
     phase: run.phase,
     icePosition: run.icePosition,
+    ...opt('positionEmpty'),
     isSuccessful: run.isSuccessful,
     isJackedOut: run.isJackedOut,
     cannotJackOut: run.cannotJackOut,

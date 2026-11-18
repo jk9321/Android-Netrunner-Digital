@@ -4,7 +4,7 @@ import { addLog } from '../engine/log';
 import { dealDamage, dealNetDamage, giveTags, registerDamageFollowUp, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import { endRun, endTheRun } from '../engine/runEnd';
 import { availableCredits, spendCredits } from '../engine/cardEffects';
-import { runnerSawBeforeInstall } from '../engine/helpers';
+import { iceInsertedAt, runnerSawBeforeInstall } from '../engine/helpers';
 import { CardScript, Subroutine } from './types';
 import { installCorpChoice } from './effects';
 import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from './steps';
@@ -276,7 +276,6 @@ const ansel: CardScript = {
 const branFlow = prompts({
   install: cards(({ state, card: bran }, a) => {
     if (a.ids.length === 0) return;
-    const run = state.activeRun;
     const server = Object.values(state.corp.servers).find(s => s.ice.some(c => c.instanceId === bran.instanceId));
     if (!server) return;
     const id = a.ids[0];
@@ -289,9 +288,8 @@ const branFlow = prompts({
     // Index 0 is innermost: "directly inward" takes Brân's current index.
     const branIndex = server.ice.findIndex(c => c.instanceId === bran.instanceId);
     server.ice.splice(branIndex, 0, ice);
-    if (run && run.server === server.id && run.icePosition !== null && run.icePosition >= branIndex) {
-      run.icePosition += 1; // the Runner is still at Brân, now one position further out
-    }
+    iceInsertedAt(state, server, branIndex); // the Runner is still at Brân, now one position further out
+
     addLog(state, 'corp', `Corp installed a piece of ice inward from Brân 1.0 in ${server.name}.`, undefined, 'install');
   }),
 });

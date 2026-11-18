@@ -3,7 +3,7 @@ import { SideCode } from '../types/card';
 import { GameState, PriorityWindow, StopLevel, WindowStep } from '../types/state';
 import { cardDef } from '../cards';
 import { getCardScript } from '../scripts';
-import { illegal } from './helpers';
+import { iceAtPosition, illegal } from './helpers';
 import { sideName } from './prompts';
 import { abilitySources, abilityUsableFrom, abilityUsedKey } from './actions/ability';
 import { availableCredits, counters, turnFlag } from './cardEffects';
@@ -130,7 +130,7 @@ export function wantsStop(state: GameState, side: SideCode, pw: PriorityWindow):
   switch (step) {
     case 'approach_ice': {
       // The Corp's rez decision for the approached ice
-      const ice = run && run.icePosition !== null ? state.corp.servers[run.server]?.ice[run.icePosition] : undefined;
+      const ice = iceAtPosition(state);
       return side === 'corp' && !!ice && !ice.isRezzed;
     }
     case 'approach_server': {
@@ -171,7 +171,7 @@ function autoStop(state: GameState, side: SideCode, pw: PriorityWindow): boolean
     const server = run ? state.corp.servers[run.server] : undefined;
     const here = new Set(
       step === 'approach_ice'
-        ? [run && run.icePosition !== null ? server?.ice[run.icePosition]?.instanceId : undefined]
+        ? [iceAtPosition(state)?.instanceId]
         : (server?.root ?? []).map(c => c.instanceId)
     );
     return options.some(a => a.type === 'USE_ABILITY' || (a.type === 'REZ_CARD' && here.has(a.cardInstanceId)));

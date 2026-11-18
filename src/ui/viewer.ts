@@ -33,7 +33,7 @@ export function corpRezWindow(seat: Seat): RezWindow | null {
   const server = state.corp.servers[run.server];
   if (!server) return null;
   const at =
-    w.step === 'approach_ice' && run.icePosition !== null
+    w.step === 'approach_ice' && run.icePosition !== null && !run.positionEmpty
       ? [server.ice[run.icePosition]].filter(Boolean)
       : w.step === 'approach_server' || w.step === 'move_inward' || w.step === 'run_initiation'
         ? server.root
