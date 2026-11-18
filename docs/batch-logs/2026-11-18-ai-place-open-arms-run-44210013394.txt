@@ -1,0 +1,16 @@
+ai-script runs 44210013394 + 44215178561 (the 10 sources the first lost to out-of-memory in the script's backward trace, rerun with ONLY=)
+and 44210348921 (backward trace with held-and-discarded ice, base only; its 2 lost sources rerun locally at 521270b): scripts/stage-d/place-open.ts
+on ai-place-open (Stage D item 5 step 1), summed by scripts/stage-d/place-open-sum.mjs and place-open-cont.mjs.
+92 games (56 self-play deals, 21 person-Runner, 15 person-Corp), 7,658 Corp decisions, 0 errors; each arm a patched copy of src/
+(scripts/stage-d/place-open-patches.ts); each arm also played out on the 56 deals as its own tree.
+Changed decisions a game (self / person-Runner / person-Corp); played out, Corp wins of 56 (base 30):
+  a1  spec 1.8 ice rule 2 (HQ/R&D, stake x fall in entries)   3.07 / 2.90 / 1.80   23
+  a2  rule 2 over every server                                2.88 / 2.95 / 2.00   24
+  b   rule 2 with HQ first until it holds                     3.18 / 3.05 / 1.80   23
+  c1  an asset's worth in its remote's stake                  0.27 / 1.43 / 1.00   29
+  c2  an asset to an iced remote a rez set holds              0.11 / 0.10 / 0.13   30 (0 deals differ)
+Continuations (the rest of that Corp turn, then the next Runner turn), points stolen base vs arm: a1 123 vs 175 (same ice moved: 16 vs 17;
+another move picked: 107 vs 158), a2 140 vs 173, b 121 vs 175, c1 4 vs 16, c2 2 vs 0. Time 1.03x to 1.04x; hold asks 1.00x to 1.07x (a2).
+Backward table: 35 point losses of the open class, re-placing the Corp's ice holds 9 (traced: 0 a rule without hindsight finds), money
+unbounded 25; missing money 16, deck ice 8. Asset breaches open with worth: 205, re-placing holds 70, money 55, deck ice 68.
+Detail: netrunner-ai/stage-d/item5-placement/design-note.md, trace-nine.md; ruling design-answer.md (counted, not built).
