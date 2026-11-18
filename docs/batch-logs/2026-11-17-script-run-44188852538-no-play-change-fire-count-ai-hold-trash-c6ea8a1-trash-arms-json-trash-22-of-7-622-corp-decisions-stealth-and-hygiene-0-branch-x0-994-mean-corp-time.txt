@@ -1,0 +1,28 @@
+AI script run 44188852538: value-b1/fire-count.ts with scripts/stage-d/trash-arms.json at ai-hold-trash c6ea8a1 (arms trash, stealth, hygiene; base has every arm back and plays as beta da1c93e). Summed with scripts/value-b1/fire-count-sum.mjs.
+
+21027 decisions in 92 sources (64 files)
+
+corp: 7622 decisions, changed 22 (0.24 a game), errors 0, unexplained 0
+  trash: alone reproduces 22, needed (leave-one-out) 22
+  stealth: alone reproduces 0, needed (leave-one-out) 0
+  hygiene: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {"main":22}
+  time base: mean 423.9 ms, p95 1625.6, total 3231 s, x1.000 mean, p95 x1.000
+  time branch: mean 421.4 ms, p95 1619.2, total 3212 s, x0.994 mean, p95 x0.996
+  time trash: mean 440.6 ms, p95 1691.3, total 3358 s, x1.039 mean, p95 x1.040
+  time stealth: mean 438.2 ms, p95 1682.3, total 3340 s, x1.034 mean, p95 x1.035
+  time hygiene: mean 438.1 ms, p95 1682.6, total 3339 s, x1.033 mean, p95 x1.035
+
+runner: 13405 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  trash: alone reproduces 0, needed (leave-one-out) 0
+  stealth: alone reproduces 0, needed (leave-one-out) 0
+  hygiene: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 46.9 ms, p95 228.7, total 629 s, x1.000 mean, p95 x1.000
+  time branch: mean 46.5 ms, p95 226.1, total 623 s, x0.991 mean, p95 x0.989
+  time trash: mean 48.9 ms, p95 236.2, total 655 s, x1.042 mean, p95 x1.033
+  time stealth: mean 48.7 ms, p95 237.0, total 653 s, x1.039 mean, p95 x1.036
+  time hygiene: mean 48.8 ms, p95 237.9, total 654 s, x1.040 mean, p95 x1.040
+
+upgrade rezzes picked (all decisions): base 54 (0.59 a game), branch 51 (0.55 a game)
+  Mercia B4LL4RD: 10 -> 7

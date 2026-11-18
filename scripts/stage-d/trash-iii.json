@@ -1,0 +1,56 @@
+{
+ "all": [
+  [
+   "ai/corp/hold.ts",
+   "const INERT = new Set<SubEffect['kind']>(['toGrip',",
+   "const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip',"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      case 'trashInstalled':\n",
+   "      case 'trashInstalledOff':\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "this.board.rig.reduce((m, r, i) => (ws.gone.includes(i) ? m : Math.max(m, r.firstDraw)), this.board.firstDraw)",
+   "this.board.rig.reduce((m, r) => Math.max(m, r.firstDraw), this.board.firstDraw)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "const pool = run.poolLocked ? 0 : state.runner.credits;\n    return { hosted: availableCredits(state, 'runner') - pool - run.bonusCredits - (run.badPublicityCredits ?? 0) - stealth, stealth };",
+   "return { hosted: Math.max(0, availableCredits(state, 'runner') - state.runner.credits - run.bonusCredits - (run.badPublicityCredits ?? 0)), stealth };"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns)",
+   "hosted: sum(c => !!getCardScript(c.cardCode)?.paysDuringRuns)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    for (let s = 1; s <= Math.min(rest, w.stealth); s++) best = Math.min(best, then({ ...w, stealth: w.stealth - s }) + rest - s);\n",
+   ""
+  ],
+  [
+   "ai/corp/hold.ts",
+   "turnIce:${start.runnerTurn ? 1 : 0}:${server}",
+   "turnIce:$${server}"
+  ]
+ ],
+ "_probe": [
+  [
+   "ai/corp/hold.ts",
+   "    const kinds = [...new Set(allEffects.flatMap(e => (e.kind === 'trashInstalled' ? [e.what] : [])))];\n    if (kinds.length) {",
+   "    const kinds = [...new Set(allEffects.flatMap(e => (e.kind === 'trashInstalled' ? [e.what] : [])))];\n    const trashIce = (i: SearchIce) => [...i.subs, ...(i.rezGains ? [i.rezGains] : [])].some(f => f.does.some(e => e.kind === 'trashInstalled'));\n    this.trashInert = targets.some(t => t.ice.filter(trashIce).length > 1);\n    if (kinds.length && !this.trashInert) {"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "        return this.corpTrash(ws, e.what, next, at);",
+   "        return this.trashInert ? next(ws) : this.corpTrash(ws, e.what, next, at);"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "  private readonly trashReads?:",
+   "  private readonly trashInert: boolean;\n  private readonly trashReads?:"
+  ]
+ ]
+}
