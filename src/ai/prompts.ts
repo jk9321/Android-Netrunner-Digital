@@ -659,8 +659,9 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
     if (!after) continue;
     afters.set(JSON.stringify(action), after);
     const stand = settledStand(after, run.server, synergy);
-    if (!stand) return null;
-    outs.push({ action, after, key: stand.key, verdict: stand.verdict });
+    // Not known (past the cap, ruling 12): the rule is silent on this prompt and today's answer stands
+    if (!stand || stand.key === NOT_KNOWN) return null;
+    outs.push({ action, after, key: stand.key, verdict: stand.verdict as () => 'in' | 'out' });
   }
   // The walk is asked only of boards it tells apart (equal keys, equal verdicts)
   if (new Set(outs.map(o => o.key)).size < 2) return null;
@@ -678,9 +679,17 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
  * The Corp follow-ups a settle goes through (ruling 11.1): a bound on work, not a value. The recorded chains of run
  * choices are 1 to 2 deep (Boto's second subroutine, Shred's reveal after Ballista's end); 3 is one more. The chain
  * that reached the old cap of 8 is an install's prompts (Mycoweb's borrowed install in deal 2041: which ice, which
- * server, rez or not), which do not decide this run, and it cost single decisions up to 7.7x.
+ * server, rez or not), which do not decide this run, and it cost single decisions up to 7.7x. Past it the verdict is
+ * not known (ruling 12): a bound on work never decides a pick.
  */
 const SETTLE_DEPTH = 3;
+/** The settle's third verdict: the cap reached (ruling 12). Its key; no walk key is this string. */
+const NOT_KNOWN = 'not known';
+/** Where the run stands after an answer: "in", "out", or not known (the cap reached). */
+export interface SettledStand {
+  key: string;
+  verdict(): 'in' | 'out' | typeof NOT_KNOWN;
+}
 
 /**
  * Where the run stands after an answer, by the walk's own model of the choices still ahead (ruling 10, option A; the
@@ -695,27 +704,29 @@ const SETTLE_DEPTH = 3;
  *    9.8.3e; ruling 11.2); one open outside them (an ice's encounter ability, a trigger such as Botulus's break) the walk
  *    cannot read: runStands gives "in", the Runner's side (counted, `runnerOther`);
  *  - no prompt, or the run over or moved: the board as it is;
- *  - past the cap (counted, `capped`): "in". Read as it is, the board would leave a Corp prompt open in the middle of a
- *    subroutine, and the walk, modelling that subroutine from its start, could credit an option the chain already
- *    passed over ("trash" answered, "end the run" read), which errs toward "out"; "in" charges the answer runLoss.
+ *  - past the cap (counted, `capped`): not known (ruling 12). A Corp follow-up with an answer not known is not known
+ *    (not "out" beside it: the Corp will not be deciding that follow-up by this rule), and its other answers are not
+ *    walked; the run term does not decide a prompt with an answer not known, so today's answer stands there. Neither
+ *    "in" nor the board as it is: at Mycoweb's rez step one answer ends the chain and another reaches the cap, so either
+ *    reading would separate the answers by the chain's length, not by the board.
  * Known side (ruling 10.3, found row 48): where an answer of a follow-up keeps the Runner out, the stand is "out" even if
  * the Corp's priced pick at that follow-up would let it in; the first answer is then not charged runLoss (counted,
  * `inPick`, at the follow-up when the game reaches it).
  */
-export function settledStand(board: GameState, server: string, synergy = false, depth = 0): { key: string; verdict: () => 'in' | 'out' } | null {
+export function settledStand(board: GameState, server: string, synergy = false, depth = 0): SettledStand | null {
   const p = activePrompt(board);
   const run = board.activeRun;
   if (p && p.side === 'corp' && run && run.server === server && !board.winner) {
     if (depth >= SETTLE_DEPTH) {
       runTermStats.capped++;
-      return { key: 'in', verdict: () => 'in' };
+      return { key: NOT_KNOWN, verdict: () => NOT_KNOWN };
     }
-    const subs: { key: string; verdict: () => 'in' | 'out' }[] = [];
+    const subs: SettledStand[] = [];
     for (const a of answers(board, 'corp', synergy)) {
       const next = simulate(board, a);
       if (!next) continue;
       const sub = settledStand(next, server, synergy, depth + 1);
-      if (!sub) return null;
+      if (!sub || sub.key === NOT_KNOWN) return sub;
       subs.push(sub);
     }
     if (subs.length === 0) return corpPorts.runStands({ ...board, pendingPrompts: [] }, server);

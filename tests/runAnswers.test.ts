@@ -367,22 +367,46 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
     expect(firstDiffers).toBeGreaterThan(0);
   });
 
-  it('past the cap (3 Corp follow-ups) reads "in" and counts it; at the cap the follow-up is still followed (ruling 11.1)', () => {
-    // Boto's first subroutine with the second to come: answering "no trash" opens the second, a Corp follow-up whose
-    // answers separate (one ends the run), so the follow-up read as "in" is visible
+  it('past the cap (3 Corp follow-ups) the verdict is not known, and a follow-up with an answer not known is not known; one short of that it is followed (ruling 12)', () => {
+    // Boto's first subroutine with the second to come: its "trash" answer ends the run ("out"), its "no trash" answer
+    // opens the second subroutine, a Corp follow-up whose answers separate (one ends the run)
     const s = fixture('report-39-t7-34109-107');
     const server = s.activeRun!.server;
     const before = runTermStats.capped;
     const past = settledStand(s, server, false, 3);
     expect(runTermStats.capped).toBe(before + 1);
-    expect(past?.key).toBe('in');
-    expect(past?.verdict()).toBe('in');
-    // One short of the cap: the prompt is a choice node (its answers are followed), and here one answer ends the run
+    expect(past?.key).toBe('not known');
+    expect(past?.verdict()).toBe('not known');
+    // At depth 2 the second subroutine's prompt is past the cap: not known, and so is this follow-up, though its "trash"
+    // answer is a known "out" (no "out" beside a "not known": the Corp will not decide that follow-up by this rule)
     const at = settledStand(s, server, false, 2);
-    expect(at?.key.startsWith('["or"')).toBe(true);
-    expect(at?.verdict()).toBe('out');
-    // Its "no trash" answer meets the second subroutine's prompt past the cap
+    expect(at?.key).toBe('not known');
+    expect(at?.verdict()).toBe('not known');
     expect(runTermStats.capped).toBe(before + 2);
+    // One shallower, the second subroutine's prompt is at the cap's last level: followed, a choice node, "out"
+    const followed = settledStand(s, server, false, 1);
+    expect(followed?.key.startsWith('["or"')).toBe(true);
+    expect(followed?.verdict()).toBe('out');
+    expect(runTermStats.capped).toBe(before + 2);
+  });
+
+  it("deals 2111 T7 and 2051 T8, Mycoweb's rez step (a chain longer than the cap): one answer known, another not known, so the run term does not decide and the pick is beta's (fails on d1b15d2: 2111 rezzed nothing, 2051 another ice)", () => {
+    for (const [name, beta] of [['deal-2111-t7-35053', 'inst-35'], ['deal-2051-t8-35053', 'inst-34']] as const) {
+      const s = fixture(name);
+      const server = s.activeRun!.server;
+      const p = activePrompt(s)!;
+      const stands = (getLegalActions(s, 'corp') as GameAction[])
+        .filter(a => a.type === 'RESOLVE_PROMPT' && a.promptId === p.id)
+        .map(a => {
+          clearCaches();
+          return settledStand(executeAction(s, a), server)?.verdict();
+        });
+      expect(stands, name).toContain('not known');
+      expect(stands.some(v => v === 'in' || v === 'out'), name).toBe(true);
+      const decided = runTermStats.decided;
+      expect(pick(corpMove(s)), name).toEqual([beta]);
+      expect(runTermStats.decided, name).toBe(decided);
+    }
   });
 
   it("a Runner prompt that is not a subroutine's choice is the Runner's side, and counted", () => {

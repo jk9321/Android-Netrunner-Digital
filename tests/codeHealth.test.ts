@@ -401,16 +401,16 @@ describe('AI code health (audit guards)', () => {
   // key for Side Hustle and Knickknack; turnEndDerezPicks, the pick through walkStart and turnIce, walkPick, reachPick,
   // reachPickQuestion and reachSetsOf for Lightning Laboratory) and + 31 elsewhere (the four facts' types and entries):
   // corp/ 3,787, src/ai 15,604
-  // Then + 324 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
+  // Then + 335 (ai-run-answers, Stage D item 1 follow-up 3, row 13: hold.ts's run stand, 'thisRun' split into its
   // question and its search, the stand from inside an encounter (resolving: no more breaking, a half-resolved subroutine
   // read both ways), the Movement Phase and an approach, an ice trashed under the run, a run over short of the server, a
   // Runner prompt the walk cannot read, a granted subroutine's prompt as the ice's own, its per-decision answers, with
   // comments, + 151; prompts.ts's run term, the priced pick before the per-card blocks, Shred's reveal as chance on HQ's
-  // subsets, the settle as the Corp's choice (ruling 10) with its depth cap (ruling 11.1), its counts, with comments,
-  // + 164; the two ports and their registration + 9): corp/ 3,938, src/ai 15,928
-  it('keeps src/ai/corp at or under 3,938 lines and src/ai at or under 15,928 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers)', () => {
+  // subsets, the settle as the Corp's choice (ruling 10) with its depth cap (ruling 11.1) and its "not known" past it
+  // (ruling 12), its counts, with comments, + 175; the two ports and their registration + 9): corp/ 3,938, src/ai 15,939
+  it('keeps src/ai/corp at or under 3,938 lines and src/ai at or under 15,939 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3938);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15928);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15939);
   });
 });
