@@ -89,10 +89,14 @@ function recordedRigValues(): Record<string, number[]> {
     if (!report.moves?.length) continue;
     let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
     if (report.startStops) s = { ...s, stops: report.startStops };
+    // A part of a split game (report-40b, 40c: scripts/stage-d/make-room-split.ts) starts from its state, its moves
+    // numbered from the original file's index, so its boards are the ones the whole file gave
+    if (report.startsAt === 'state') s = report.state;
+    const first: number = report.firstMove ?? 0;
     const values: number[] = [];
     (report.moves as GameAction[]).every((move, i) => {
       const rig = s.runner.rig;
-      if (i % 6 === 0 && rig.programs.length + rig.hardware.length + rig.resources.length > 0) {
+      if ((first + i) % 6 === 0 && rig.programs.length + rig.hardware.length + rig.resources.length > 0) {
         clearHandCaches();
         values.push(runnerRigValue(s));
       }
