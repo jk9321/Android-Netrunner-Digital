@@ -483,9 +483,13 @@ describe('AI code health (audit guards)', () => {
   // empty position's at runStands, the one-reading argument and the line that would make it false (ruling on found row
   // 68 b) in place of the two readings, and `lends`, the lender rule the tripwire reads; runs.ts + 1, runRestWorth's
   // empty position): corp/ 3,947, src/ai 15,949
-  it('keeps src/ai/corp at or under 3,947 lines and src/ai at or under 15,949 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes)', () => {
+  // Then + 21 in corp/ (ai-rez-set, Stage D rez-follow: rez.ts + 15, countedRez's R2 on rezStops with the set further in,
+  // the free gate's countNeeds with its strict test and comments; hold.ts + 6, Saci's rezPays on the walk's ice and its
+  // reader where the walk rezzes a set's ice) and + 7 elsewhere (the hostRezPays fact's type and Saci's entry):
+  // corp/ 3,968, src/ai 15,977
+  it('keeps src/ai/corp at or under 3,968 lines and src/ai at or under 15,977 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3947);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15949);
+    expect(corp).toBeLessThanOrEqual(3968);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15977);
   });
 });

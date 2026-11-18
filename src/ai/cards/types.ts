@@ -98,6 +98,12 @@ export interface HoldFacts {
    * with the card kept.
    */
   firstRunTrashForCost?: { draw: number };
+  /**
+   * A Runner card hosted on ice: whenever its host is rezzed, the Runner gains this many credits (Saci: "Whenever host
+   * ice is rezzed or derezzed, gain 3 credits."). The walk reads it where it rezzes a set's ice (ai-rez-set); a derez is
+   * not walked for it.
+   */
+  hostRezPays?: number;
 }
 
 /**

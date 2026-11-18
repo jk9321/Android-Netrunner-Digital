@@ -106,7 +106,9 @@ class Brute {
     if (ws.trashed.includes(ice.card.instanceId)) return next(ws);
     if (!ice.rezzed && !ws.up.includes(ice.card.instanceId)) {
       if (ice.inS && ws.corp >= ice.rezCost) {
-        const w: S = { ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort() };
+        // A hosted card that pays the Runner as its host is rezzed (Saci, holdFacts.hostRezPays): into the pool at the rez
+        const pays = ice.rezPays.reduce((n, [i, c]) => (ws.gone.includes(i) ? n : n + c), 0);
+        const w: S = { ...ws, corp: ws.corp - ice.rezCost, up: [...ws.up, ice.card.instanceId].sort(), pool: ws.pool + pays };
         // A liability rez: the Corp takes 1 bad publicity (the fund from the next run on) or removes 1 tag, its choice
         if (!ice.liability) return this.rezzed(w, ice, next, end);
         return this.rezzed({ ...w, bp: w.bp + 1 }, ice, next, end) && (w.tags === 0 || this.rezzed({ ...w, tags: w.tags - 1 }, ice, next, end));
@@ -483,6 +485,26 @@ describe('the hold walk against a brute force of the same model (brief section 6
     };
     const { compared, reached, misses, held, holdsAsked } = check(20261123, 3000, undefined, false, touchstone);
     expect(compared).toBeGreaterThan(2000);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // Saci (34017, "Whenever host ice is rezzed or derezzed, gain 3 credits.", ai-rez-set): hosted on a random ice of
+  // remote1, a second on another ice on 1 board in 4; the walk takes its credits off the need where the Corp rezzes the
+  // host (Walk.approach), the brute force gains them into the pool at the rez. Bumi 1.0's trojan trash comes after
+  const saci = (s: GameState, r: () => number) => {
+    const ice = s.corp.servers.remote1.ice;
+    for (let k = r() < 0.25 ? 2 : 1; k > 0; k--) {
+      const c = createCardInstance(s, '34017');
+      c.isRezzed = true;
+      c.hostedOnId = ice[Math.floor(r() * ice.length)].instanceId;
+      s.runner.rig.programs.push(c);
+    }
+  };
+  it('agrees with turnReach and serverHold on 2,000 servers with Saci on the ice (seed 20261126)', () => {
+    const { compared, reached, misses, held, holdsAsked } = check(20261126, 2000, undefined, false, saci);
+    expect(compared).toBeGreaterThan(1500);
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
     expect(misses).toEqual([]);
