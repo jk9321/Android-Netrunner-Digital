@@ -1106,7 +1106,7 @@ export class Walk {
   private borrow(ws: WalkState, card: string, subtype: string, next: (w: WalkState) => number, at: Step): number {
     let worst = -1;
     for (const l of this.lenders) {
-      if (l.id === card || ws.trashed.includes(l.id) || !(l.rezzed || ws.up.includes(l.id)) || !l.types.includes(subtype)) continue;
+      if (l.id === card || ws.trashed.includes(l.id) || !(l.rezzed || ws.up.includes(l.id)) || !lends(l.types, subtype)) continue;
       for (const f of l.facts) worst = Math.max(worst, this.subroutine(ws, l.id, l.types, f, next, at));
     }
     return worst < 0 ? next(ws) : worst;
@@ -1118,6 +1118,9 @@ interface Step {
   key: string;
   j: number;
 }
+
+/** The walk's lender rule: an ice of these subtypes lends to a borrow of `subtype` (runStands' one-reading argument reads it). */
+export const lends = (types: string[], subtype: string): boolean => types.includes(subtype);
 
 /** A borrow's lender: rezzed now, or walked (rezzed when the walk rezzes it), its subroutines but the borrowing ones. */
 interface Lender {
@@ -1653,9 +1656,12 @@ function runQuestion(state: GameState, server: string, opts: HoldOptions): RunQu
   const run = state.activeRun;
   const sv = state.corp.servers[server];
   // The Runner's credits, and on its turn what its hosted counters pay with no click (counterCredits; 6.9.3b: a paid
-  // ability's window during the run)
+  // ability's window during the run). Both are the pool's: a counter's credits are gained into the pool (1.10.3a), so
+  // while the run locks the pool (Aircheck: "you cannot lose or spend credits from your credit pool"; the "cannot"
+  // wins, 1.2.2) neither can be spent, as the engine spends none (spendablePool) and runCredits counts none
+  // (audit AI-RUN-POOL-LOCKED). The hosted credits that still pay are the first state's.
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
-  const budget = state.runner.credits + (state.activePlayer === 'runner' ? rig.reduce((n, c) => n + counterCredits(c), 0) : 0);
+  const budget = run?.poolLocked ? 0 : state.runner.credits + (state.activePlayer === 'runner' ? rig.reduce((n, c) => n + counterCredits(c), 0) : 0);
   const pos = opts.from ?? run?.icePosition ?? null;
   const none: RunQuestion = { server, pos: pos ?? -1, budget, none: true, ice: [], board: null, first: null, sets: [] };
   if (!run || !sv || pos === null) return none;
@@ -1732,7 +1738,7 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
 
 /**
  * The open prompt is the Runner's choice in a subroutine of the encountered ice as it resolves (the walk reads it, the
- * subroutine still ahead), whatever card the prompt names as its source: only ice has subroutines (9.8.1), and one a
+ * subroutine resolved: runStands), whatever card the prompt names as its source: only ice has subroutines (9.8.1), and one a
  * card grants is the ice's own, ordered among its subroutines (9.8.3a, e; ruling 11.2). A Runner prompt outside the
  * resolution (an encounter ability, a trigger) is not one.
  */
@@ -1778,13 +1784,13 @@ export function runStands(state: GameState, server: string): RunStand | null {
   const sv = state.corp.servers[server];
   // A run that ended short of the server (6.9.6): over, out
   if (!sv || run.phase === 'complete') return settled('out');
-  // The boards the walk reads (one, or two readings of an open subroutine choice: the Runner's side wins between them)
-  let views = [state];
+  let view = state;
   let from: number;
   let approached: string | undefined;
-  // At an ice no longer there (trashed during the run), the Runner moves on inward as from the Movement Phase
-  const gone = run.icePosition !== null && !sv.ice[run.icePosition];
-  if (run.phase === 'movement' || gone) {
+  // The Runner's position empty (its ice left during the run: 6.2.4, 8.5.10): server.ice[icePosition] is then the ice
+  // just outward of it, already passed (6.2.6b), so in every phase the Runner moves on inward as from the Movement Phase
+  // (audit AI-RUN-POSITION-EMPTY; the engine keeps the index, src/core/engine/helpers.ts iceLeavingPosition)
+  if (run.phase === 'movement' || run.positionEmpty) {
     // The next ice inward is approached next (6.9.4d, 6.9.2): unrezzed, the Corp may rez it then
     from = run.icePosition === null ? -1 : Math.min(run.icePosition, sv.ice.length) - 1;
     const next = sv.ice[from];
@@ -1795,12 +1801,15 @@ export function runStands(state: GameState, server: string): RunStand | null {
     if (at !== null) {
       // Resolving (6.9.3c): the subroutines before the index have resolved (9.8.7b) and resolve no more; none is broken
       // now. The engine moves the index past a subroutine before it resolves, so with the Runner's choice in one open,
-      // that one is partly resolved: its choice may come before its effect (Semak-samun: suffer 3 net damage or end the
-      // run) or after part of it (Karunā: 2 net damage, then the Runner may jack out). The walk cannot tell which part
-      // is left, so it reads both, the subroutine still ahead and resolved, and the stand is "out" only if both are
-      const at2 = open ? [at - 1, at] : [at];
+      // that one is partly resolved (Semak-samun's choice before its effect, Karunā's after 2 net damage), and the walk
+      // reads it resolved. Sound because by the walk's facts a subroutine still ahead never lowers what the Runner needs
+      // (every SubEffect ends the run, takes credits, clicks or cards, adds tags or is inert; ended() is FAIL with no
+      // retries), so reading it ahead too never changed a verdict (review R8, audit AI-RUNSTAND-SECOND-READING). The one
+      // line that would make it false: an ice still ahead that trashes itself (trashThisIce) whose subroutine an ice
+      // further in would have borrowed (borrow skips a trashed lender). None can today (tests/codeHealth.test.ts); if
+      // one comes, read that subroutine both ways again for that case only, "out" only if both readings are
       const encounter = run.encounter;
-      views = at2.map(done => ({ ...state, activeRun: { ...run, encounter: { ...encounter, broken: encounter.broken.map((b, i) => b || i < done) } } }));
+      view = { ...state, activeRun: { ...run, encounter: { ...encounter, broken: encounter.broken.map((b, i) => b || i < at) } } };
     }
   } else {
     // Initiation or an approach: from the approached ice (initiation: the outermost)
@@ -1809,8 +1818,8 @@ export function runStands(state: GameState, server: string): RunStand | null {
     if (ice && !ice.isRezzed) approached = ice.instanceId;
   }
   if (from < 0) return settled('in');
-  // Per reading, the Corp's choices: the approached ice rezzed now or not (6.9.2b)
-  const qs = views.map(view => [runQuestion(view, server, { when: 'thisRun', from }), ...(approached ? [runQuestion(view, server, { when: 'thisRun', from, mustRez: [approached] })] : [])]);
+  // The Corp's choices: the approached ice rezzed now or not (6.9.2b)
+  const qs = [runQuestion(view, server, { when: 'thisRun', from }), ...(approached ? [runQuestion(view, server, { when: 'thisRun', from, mustRez: [approached] })] : [])];
   const key = questionKey(qs);
   return {
     key,
@@ -1822,7 +1831,7 @@ export function runStands(state: GameState, server: string): RunStand | null {
       let v = cache?.get(key);
       if (!v) {
         runStandStats.searched++;
-        v = qs.every(reading => reading.some(q => solveRun(q).holds)) ? 'out' : 'in';
+        v = qs.some(q => solveRun(q).holds) ? 'out' : 'in';
         cache?.set(key, v);
       }
       return v;

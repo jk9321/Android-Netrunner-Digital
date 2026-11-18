@@ -729,6 +729,54 @@ describe('hold walk: stealth credits counted once (found-list row 31)', () => {
     expect(h.holds).toBe(false);
     expect(o).toBe('getsIn');
   });
+
+  // The locked pool (audit 2026-11-18 AI-RUN-POOL-LOCKED, scripts/stage-d/aircheck-probe.ts). Aircheck 36018: "you cannot
+  // lose or spend credits from your credit pool" (the "cannot" wins, rules 1.2.2): the 'thisRun' budget is the pool's
+  // part of every cost, so it is 0 while the pool is locked, as the engine spends none (spendablePool). One Palisade on
+  // HQ (strength 2), Cleaver: 1 to break it
+  const lockedPool = (hostedCredits: number, pool: number, locked: boolean, coalescence = 0) => {
+    const s0 = board(st => {
+      st.corp.servers.hq.ice = [];
+      installIceForTest(st, C.PALISADE, 'hq', true);
+      installProgramForTest(st, C.CLEAVER);
+      if (coalescence) {
+        const id = installProgramForTest(st, C.COALESCENCE);
+        st.runner.rig.programs.find(c => c.instanceId === id)!.tokens = { power: coalescence };
+      }
+      const a = createCardInstance(st, '36018');
+      a.tokens = { credit: hostedCredits };
+      st.runner.heap.push(a);
+    });
+    startRunnerTurn(s0);
+    const s = structuredClone(executeAction(s0, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' }));
+    s.runner.credits = pool;
+    s.activeRun = { ...s.activeRun!, creditHosts: [s.runner.heap.at(-1)!.instanceId], poolLocked: locked };
+    return { h: inCorp(s, () => serverHold(s, 'hq', { when: 'thisRun', further: false })), o: oracleGetsIn(s, 'hq', 'thisRun', []).answer };
+  };
+
+  it('Aircheck holding 0, pool 5 locked, Palisade on HQ: holds, budget 0 (fails with the pool counted: need 1, budget 5)', () => {
+    const { h, o } = lockedPool(0, 5, true);
+    expect(h).toMatchObject({ holds: true, need: 1, budget: 0 });
+    expect(o).toBe('holds');
+  });
+
+  it('mirror: the same board with the pool not locked: it gets in, budget 5', () => {
+    const { h, o } = lockedPool(0, 5, false);
+    expect(h).toMatchObject({ holds: false, need: 1, budget: 5 });
+    expect(o).toBe('getsIn');
+  });
+
+  it('mirror: Aircheck holding 4, pool 5 locked: it gets in, need 0 (the hosted credits pay)', () => {
+    const { h, o } = lockedPool(4, 5, true);
+    expect(h).toMatchObject({ holds: false, need: 0, budget: 0 });
+    expect(o).toBe('getsIn');
+  });
+
+  it("Coalescence's 2 credits during the run go into the locked pool (1.10.3a), so they cannot be spent either: holds (fails with its counters in the budget)", () => {
+    const { h, o } = lockedPool(0, 0, true, 2);
+    expect(h).toMatchObject({ holds: true, budget: 0 });
+    expect(o).toBe('holds');
+  });
 });
 
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
