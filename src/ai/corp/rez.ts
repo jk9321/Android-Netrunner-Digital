@@ -29,10 +29,12 @@ export const hasEndTheRun = (ice: CardInstance) => (iceScript(ice)?.subroutines 
  * approach-ice window (rules 6.4.3, 6.9.2b); ice left unrezzed is passed (6.9.2c). Uses the run's real numbers:
  *  - stops: the Runner can't pay through this ice with its credits now (iceCreditNeed, 7.1 aside), counting the rezzed
  *    ice still ahead of it, while that ice alone would not stop it (the rez is what ends the run);
- *  - toll: it can, for credits; free: it passes for no credits (no opinion: the rez costs the Runner nothing).
- * R2 an agenda in the root and the rez stops the run: rez. R3 a run on HQ with an agenda in HQ (R3s stops, R3t toll):
- * rez. R4 a run on R&D with no agenda in HQ and agendas left in R&D by the Corp's own deck list minus what it has seen
- * (never the order; R4s, R4t): rez. R5 Archives ice with no agenda in Archives and no Runner card that pays off an
+ *  - toll: it can, for credits; free: it passes for no credits (no opinion: the rez costs the Runner nothing), unless
+ *    the hold count needs this ice for an agenda in the root (countNeeds: Ballista's "or end the run" is free by the
+ *    price rules against a Runner with programs, and the hold walk takes the end, 1.14.5).
+ * R2 an agenda in the root and the rez stops the run by the count with the set further in (rezStops): rez. R3 a run
+ * on HQ with an agenda in HQ (R3s stops, R3t toll): rez. R4 a run on R&D with no agenda in HQ and agendas left in R&D
+ * by the Corp's own deck list minus what it has seen (never the order; R4s, R4t): rez. R5 Archives ice with no agenda in Archives and no Runner card that pays off an
  * Archives run (installed or in its deck list, CardAI archivesPayoff): don't rez. Stacked with corpAI's R6 at 10 games
  * +0.4 ± 0.7 (run 42981640841 vs 42978477338), 130 fewer central points in Corp losses; went broke +3.8 ± 1.2 and stayed
  * broke +2.1 ± 0.9, never recovered flat (292 vs 293): shipped on recovery (AI Coordinator ruling, step3-report.md).
@@ -55,16 +57,17 @@ export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' 
   // its own rez effect (Ping's tag) goes to modelRez, which prices the rez with the ice passed
   if (runBypassed(view, up)) return rezEffectOf(cardDef(ice).code) ? null : 'pass';
   const need = iceCreditNeed(view, up);
-  if (need === 0) return null;
+  if (need === 0 && !countNeeds(state, ice)) return null;
   // The rezzed ice further in stops the Runner already (the hold owner, nothing more rezzed): this rez adds nothing the
   // run needs. Stage B2 replaced countedRez's own sum over iceCreditNeed (stage-b/b2-rez-log.md section 3)
   if (serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: false }).holds) return null;
-  // The one stop count (rezStops), here with no further rezzes: this ice and the rezzed ice further in
+  // The one stop count (rezStops), here with no further rezzes: this ice and the rezzed ice further in (R3, R4)
   const stops = rezStops(state, ice, false);
   const isAgenda = (c: CardInstance) => cardDef(c).type_code === 'agenda';
-  const isStopper = stops && server.root.some(isAgenda);
-  // R2: the rez stops a steal from the root on this run
-  if (isStopper) return 'rez';
+  // R2: the rez stops a steal from the root on this run, by the count the agenda was committed on: this ice with the set
+  // of the ice further in that the Corp can still afford (rez-set build brief; deal 1081 T16, an outer ice that stops
+  // only with the inner one)
+  if (server.root.some(isAgenda) && rezStops(state, ice, true)) return 'rez';
   const hqAgendas = state.corp.hq.filter(isAgenda).length;
   // R3 (Jeff): a run on HQ with an agenda in it, stop or toll; a toll that spends the money kept for the rest of the
   // Runner's turn is passed (F1, spendsKept)
@@ -142,12 +145,24 @@ export function matchPointRez(state: GameState, ice: CardInstance): 'rez' | 'pas
  * is left out of the sum. With further, a set without this ice that the Corp can afford and that stops for less makes
  * this window no opinion: that inner rez happens at its own window (6.9.2b).
  */
-export function rezStops(state: GameState, ice: CardInstance, further = true): boolean {
+export function rezStops(state: GameState, ice: CardInstance, further = true, strict = false): boolean {
   const run = state.activeRun;
   if (!run) return false;
   const withIt = serverHold(state, run.server, { when: 'thisRun', mustRez: [ice.instanceId], further }).rezCost;
   if (withIt === Infinity) return false;
-  return !further || serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: true }).rezCost >= withIt;
+  if (!further) return true;
+  const without = serverHold(state, run.server, { when: 'thisRun', mustRez: [], further: true }).rezCost;
+  return strict ? without > withIt : without >= withIt;
+}
+
+/**
+ * The hold count needs this ice for an agenda in the root (rez-set build brief rev 2; red team findings 4 and 5): with it
+ * rezzed a set stops the run (rezStops with further), and no set without it stops for the same cost or less (strict: a
+ * free ice that adds nothing to the stop is not shown). Where it does, the free gate gives way; R3 and R4 never meet it.
+ */
+function countNeeds(state: GameState, ice: CardInstance): boolean {
+  const server = state.activeRun ? state.corp.servers[state.activeRun.server] : undefined;
+  return !!server?.root.some(c => type(c) === 'agenda') && rezStops(state, ice, true, true);
 }
 
 /**

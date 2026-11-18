@@ -50,7 +50,10 @@ for (const kv of (process.env.ARGS ?? '').split(/\s+/).filter(x => x.includes('=
 process.env.ARMS_FILE ||= 'scripts/stage-d/rez-follow-arms.json';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const file = readArms();
-const TREES = Object.keys(file.arms);
+// SOURCE=<arm> (ai-rez-set's bar): the source games are played by that copy, which is never asked or cleared, so a branch
+// checkout (whose own tree is the change) still plays the batch's games; unset, by this checkout's tree as before
+const SOURCE = process.env.SOURCE ?? '';
+const TREES = Object.keys(file.arms).filter(t => t !== SOURCE);
 const PARTS = new Set((process.env.PARTS ?? 'fire,windows,cont,expose').split(','));
 const END = process.env.END !== '0';
 const EXPOSE = (process.env.EXPOSE ?? 'deal:1081:16:remote-2,deal:1601:6:remote-1,deal:1641:18:remote-1,human:report-33.json:7:remote-3').split(',').filter(Boolean).map(x => {
@@ -67,6 +70,7 @@ async function main() {
   const trees: Record<string, Tree> = {};
   for (const t of TREES) trees[t] = await loadTree(t, dirs[t]);
   const beta = trees.beta;
+  const player = SOURCE ? await loadTree(SOURCE, dirs[SOURCE]) : { createAgent, GameRunner };
 
   // ------------------------------------------------------------------------------------------------ continuations
   const cont = (t: string, s: GameState) => {
@@ -338,7 +342,7 @@ async function main() {
           },
         });
       const start = dealState(seed);
-      const game = new GameRunner(start, { corp: watch(createAgent('corp', 'normal')), runner: createAgent('runner', 'normal') });
+      const game = new player.GameRunner(start, { corp: watch(player.createAgent('corp', 'normal')), runner: player.createAgent('runner', 'normal') });
       const cr: number[] = [];
       const sc: number[] = [];
       let lastTurn = -1;

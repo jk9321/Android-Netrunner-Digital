@@ -1,0 +1,48 @@
+{
+ "_comment": [
+  "ai-rez-set bar (build-brief.md rev 2, the bar): copies of THIS tree (the branch) with patches that put beta back.",
+  "beta and control: the branch with both groups reverted (beta dbefb94's behaviour); set: the branch as it is; saci: beta plus the Saci reader only (rez reverted), to attribute a change to Saci's fact; source: beta, plays the source games (SOURCE=source), never asked.",
+  "base: the same as beta, for runner-money-diverge.ts (ARMS=base); the fire run passes ARMS=beta,control,set,saci,source."
+ ],
+ "rez": [
+  [
+   "ai/corp/rez.ts",
+   "  if (need === 0 && !countNeeds(state, ice)) return null;\n",
+   "  if (need === 0) return null;\n"
+  ],
+  [
+   "ai/corp/rez.ts",
+   "  if (server.root.some(isAgenda) && rezStops(state, ice, true)) return 'rez';\n",
+   "  if (server.root.some(isAgenda) && stops) return 'rez';\n"
+  ]
+ ],
+ "saci": [
+  [
+   "ai/corp/hold.ts",
+   "w => Math.max(0, this.rezzed(w, ice, next, { key: at, j }) - pays(w))) : next(ws);",
+   "w => this.rezzed(w, ice, next, { key: at, j })) : next(ws);"
+  ]
+ ],
+ "_arms": {
+  "beta": [
+   "rez",
+   "saci"
+  ],
+  "control": [
+   "rez",
+   "saci"
+  ],
+  "set": [],
+  "saci": [
+   "rez"
+  ],
+  "source": [
+   "rez",
+   "saci"
+  ],
+  "base": [
+   "rez",
+   "saci"
+  ]
+ }
+}
