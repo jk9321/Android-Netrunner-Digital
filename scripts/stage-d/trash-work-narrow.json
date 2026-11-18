@@ -1,0 +1,51 @@
+{
+ "all": [
+  [
+   "ai/corp/hold.ts",
+   "const INERT = new Set<SubEffect['kind']>(['toGrip',",
+   "const INERT = new Set<SubEffect['kind']>(['trashInstalled', 'toGrip',"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "      case 'trashInstalled':\n",
+   "      case 'trashInstalledOff':\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "this.board.rig.reduce((m, r, i) => (ws.gone.includes(i) ? m : Math.max(m, r.firstDraw)), this.board.firstDraw)",
+   "this.board.rig.reduce((m, r) => Math.max(m, r.firstDraw), this.board.firstDraw)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "const pool = run.poolLocked ? 0 : state.runner.credits;\n    return { hosted: availableCredits(state, 'runner') - pool - run.bonusCredits - (run.badPublicityCredits ?? 0) - stealth, stealth };",
+   "return { hosted: Math.max(0, availableCredits(state, 'runner') - state.runner.credits - run.bonusCredits - (run.badPublicityCredits ?? 0)), stealth };"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "hosted: sum((c, stealth) => !stealth && !!getCardScript(c.cardCode)?.paysDuringRuns)",
+   "hosted: sum(c => !!getCardScript(c.cardCode)?.paysDuringRuns)"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    for (let s = 1; s <= Math.min(rest, w.stealth); s++) best = Math.min(best, then({ ...w, stealth: w.stealth - s }) + rest - s);\n",
+   ""
+  ],
+  [
+   "ai/corp/hold.ts",
+   "turnIce:${start.runnerTurn ? 1 : 0}:${server}",
+   "turnIce:$${server}"
+  ]
+ ],
+ "_probe": [
+  [
+   "ai/corp/hold.ts",
+   "    const ice = this.targets[j].ice[pos];\n",
+   "    const ice = this.targets[j].ice[pos];\n    { const t = this as unknown as { __n?: number; trashReads?: unknown }; if (t.trashReads) { t.__n = (t.__n ?? 0) + 1; const g = globalThis as { __tl?: (v: string, ms?: number) => void; __nfn?: unknown; __nwmax?: number }; if (g.__nfn !== g.__tl) { g.__nfn = g.__tl; g.__nwmax = 0; } g.__tl?.('nwork'); if (t.__n > (g.__nwmax ?? 0)) { g.__tl?.('nwmax', t.__n - (g.__nwmax ?? 0)); g.__nwmax = t.__n; } } }\n"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "    this.tagUseful = all.some(",
+   "    { const k = Math.max(0, ...targets.map(t => t.ice.filter(i => [...i.subs, ...(i.rezGains ? [i.rezGains] : [])].some(f => f.does.some(e => e.kind === 'trashInstalled'))).length)); if (k) (globalThis as { __tl?: (v: string) => void }).__tl?.(`t$${k}`); }\n    this.tagUseful = all.some("
+  ]
+ ]
+}
