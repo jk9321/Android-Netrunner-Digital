@@ -1,0 +1,19 @@
+AI script run 44217299250: value-b1/fire-count.ts with scripts/stage-d/stealth-arms.json at ai-hold-stealth 900dffd (src = 06ce80f). Arm "stealth" reverts runCredits run branch, the turn hosted sum and Walk.pay to beta's double count. Summed with scripts/value-b1/fire-count-sum.mjs.
+
+21150 decisions in 92 sources (64 files)
+
+corp: 7658 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  stealth: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 375.1 ms, p95 1428.3, total 2872 s, x1.000 mean, p95 x1.000
+  time branch: mean 370.9 ms, p95 1422.8, total 2841 s, x0.989 mean, p95 x0.996
+  time stealth: mean 388.3 ms, p95 1494.0, total 2974 s, x1.035 mean, p95 x1.046
+
+runner: 13492 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  stealth: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 41.3 ms, p95 202.3, total 557 s, x1.000 mean, p95 x1.000
+  time branch: mean 40.3 ms, p95 194.2, total 544 s, x0.977 mean, p95 x0.960
+  time stealth: mean 42.8 ms, p95 208.4, total 577 s, x1.036 mean, p95 x1.030
+
+upgrade rezzes picked (all decisions): base 52 (0.57 a game), branch 52 (0.57 a game)

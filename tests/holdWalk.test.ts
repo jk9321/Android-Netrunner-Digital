@@ -610,6 +610,125 @@ describe('hold walk: a liability rez, the Corp choosing bad publicity or a tag (
   });
 });
 
+// Found-list row 31 (audit AI-HOLD-STEALTH-TWICE, probes/stealth-double.ts): Touchstone's credits are stealth credits that
+// pay any cost during a run, counted once (runCredits). Corsair lowers Palisade (strength 4 on a remote) by 3 for each
+// stealth credit, then breaks for 1
+describe('hold walk: stealth credits counted once (found-list row 31)', () => {
+  const corsair = (credits: number, pool: number, breaker = '36004') =>
+    board(st => {
+      ice(st, C.PALISADE);
+      installProgramForTest(st, breaker);
+      const t = createCardInstance(st, '36021');
+      t.isRezzed = true;
+      t.tokens = { credit: credits };
+      st.runner.rig.hardware.push(t);
+      st.runner.credits = pool;
+      st.runner.maxClicks = 1;
+    });
+
+  it('Palisade, Corsair, Touchstone holding 2, pool 0: holds (2 stealth credits lower it; the break needs 1 more; before, need 0)', () => {
+    const s = corsair(2, 0);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it('mirror: pool 1: it gets in', () => {
+    const s = corsair(2, 1);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+
+  it('Touchstone pays any cost during the run: Cleaver, Touchstone holding 3, pool 0: it gets in; holding 2: holds', () => {
+    const open = corsair(3, 0, C.CLEAVER);
+    expect(agrees(open).holds).toBe(false);
+    expect(oracleOn(open, [])).toBe('getsIn');
+    const shut = corsair(2, 0, C.CLEAVER);
+    expect(agrees(shut).holds).toBe(true);
+    expect(oracleOn(shut, [])).toBe('holds');
+  });
+
+  // The run under way (runCredits' first branch: the engine's credits less its stealth credits): the same boards after
+  // the Runner has made its run on remote1 with its one click, Palisade at its approach
+  const during = (credits: number, pool: number) => {
+    const s = corsair(credits, pool);
+    startRunnerTurn(s);
+    return toCorp(executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' }));
+  };
+  const thisRun = (r: GameState) => inCorp(r, () => serverHold(r, 'remote1', { when: 'thisRun', further: false }));
+
+  it('thisRun: Corsair, Touchstone holding 2, pool 0, the run under way: holds (counted twice, 4 credits got in)', () => {
+    const r = during(2, 0);
+    expect(r.activeRun?.server).toBe('remote1');
+    expect(thisRun(r).holds).toBe(true);
+    expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('holds');
+  });
+
+  it('thisRun mirror: pool 1: it gets in', () => {
+    const r = during(2, 1);
+    expect(thisRun(r).holds).toBe(false);
+    expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('getsIn');
+  });
+
+  // The engine pays in a fixed order (spendCredits: the fund, then the cards that pay during runs, then the pool), and the
+  // walk with it. Rule 1.10.3c would let the Runner divide a payment; on these two boards the best division gets in where
+  // the fixed order does not (found-list row 49). They break the day the engine gives the choice: then the walk must too
+  const ordered = (inner: string, outer: string, breaker: string, credits: number, pool: number) =>
+    board(st => {
+      ice(st, inner);
+      ice(st, outer);
+      installProgramForTest(st, breaker);
+      const t = createCardInstance(st, '36021');
+      t.isRezzed = true;
+      t.tokens = { credit: credits };
+      st.runner.rig.hardware.push(t);
+      st.runner.credits = pool;
+      st.runner.maxClicks = 1;
+    });
+
+  it('fixed order, a loss on the way: Palisade then Paywall, Cleaver, Touchstone 3, pool 1: holds (Touchstone pays Palisade, Paywall takes the pool; paying 1 from the pool first would get in)', () => {
+    const s = ordered(C.PAYWALL, C.PALISADE, C.CLEAVER, 3, 1);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  it('fixed order, Corsair after a cost: Paywall then Palisade, Corsair, Touchstone 2, pool 3: holds (Paywall\'s 1 drains a stealth credit; paying it from the pool would get in)', () => {
+    const s = ordered(C.PALISADE, C.PAYWALL, '36004', 2, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+
+  // Aircheck (scripts/stage-d/aircheck-probe.ts): its run's credit hosts pay any cost, and the engine counts them with
+  // the stealth credits (stealthCredits reads every run payer). Two Palisades on HQ (strength 2), Cleaver: 2 to break both
+  const aircheck = (credits: number) => {
+    const s0 = board(st => {
+      st.corp.servers.hq.ice = [];
+      installIceForTest(st, C.PALISADE, 'hq', true);
+      installIceForTest(st, C.PALISADE, 'hq', true);
+      installProgramForTest(st, C.CLEAVER);
+      const a = createCardInstance(st, '36018');
+      a.tokens = { credit: credits };
+      st.runner.heap.push(a);
+    });
+    startRunnerTurn(s0);
+    // the run made by the engine, then Aircheck's part of it (its hosted credits pay, the pool locked) set on a copy
+    const s = structuredClone(executeAction(s0, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' }));
+    s.activeRun = { ...s.activeRun!, creditHosts: [s.runner.heap.at(-1)!.instanceId], poolLocked: true };
+    return { s, h: inCorp(s, () => serverHold(s, 'hq', { when: 'thisRun', further: false })), o: oracleGetsIn(s, 'hq', 'thisRun', []).answer };
+  };
+
+  it('Aircheck holding 1, pool locked at 0, two Palisades on HQ: holds (1 credit breaks one)', () => {
+    const { h, o } = aircheck(1);
+    expect(h.holds).toBe(true);
+    expect(o).toBe('holds');
+  });
+
+  it('Aircheck mirror: holding 2: it gets in', () => {
+    const { h, o } = aircheck(2);
+    expect(h.holds).toBe(false);
+    expect(o).toBe('getsIn');
+  });
+});
+
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {
   it('a breaker installed in place on the same board is read: Palisade, $5, holds; Cleaver added: gets in', () => {
     const s = board(st => { ice(st, C.PALISADE); st.runner.credits = 5; });

@@ -52,6 +52,7 @@ The one seam through which the valuation layer and prompts.ts reach a Corp owner
 - Two encodings of "this subroutine ends the run": the price rules' `blocks` condition (runs.ts `SUB_RULES`, the price's look-ahead included: Whitespace's `credits - 3 <= 6`) and the literal text (`subroutineFacts`: "6 or less", read by the hold walk against its own state). Closed when the Runner rework makes the price read the facts.
 - `runBypasses().price` (a worth) is added to the hold count's `need` (credits): it overstates `need` when a bypass is used. Closed by the bypass follow-up branch of item 1 (bypass costs as clicks, counters and cards).
 - A subroutine that trashes an installed Runner card (a breaker needed further in) is not modelled by the walk: it errs toward "does not hold" (found-list row 21, its own follow-up with a time design: walked as the Corp's choice it multiplies the retry's time, ai-hold-retry measurements section 7).
+- Stealth credits (found-list row 31, ai-hold-stealth): `runCredits` (src/ai/corp/hold.ts) splits the run-time credits into stealth and the rest with no overlap, and the walk lets a stealth credit pay any cost during a run. Debt: the walk pays in `spendCredits`' fixed order (the fund and bonus credits, then the cards that pay during runs, the stealth cards' among them, then the pool; `Walk.pay`); rule 1.10.3c gives the Runner the choice (found-list row 49); when the engine gives it, the walk needs the split (measured at up to 3.1x on built boards, so under the work cap if there is one), and the two fixed-order pins in tests/holdWalk.test.ts fail that day. Not modelled in the order: Aircheck's credits, which the engine spends before the fund, are spent after it (a Corsair part can find them: toward "does not hold"); Shackleton Grid's pool-first (either way: the pool spent first is safer from a loss, worse for a condition that reads it). Not fixed, not the same split: 'thisRun' takes the Runner's pool as its budget even while Aircheck locks it (scripts/stage-d/aircheck-probe.ts): toward "does not hold". The beta picker's vp-sourdough-starter (Hiram) holds 3 Aircheck.
 - The literal count rises by 4 (1,103 to 1,107) with ai-hold-facts: card-text numbers in `holdFacts` (Tranquilizer's derez at 3 counters, Jaguarundi's threat 4, Seraph's 3 credits and 2 net damage), facts the walk applies, not hand-set worths.
 - The failed run (ai-hold-retry), what it does not count, each toward "does not hold" (the comment at the top of the walk in src/ai/corp/hold.ts):
   - "X or end the run" is taken as the end (ruling 6; 1.14.5, the Corp chooses), so a stronger X (Ballista's program trash, not modelled) is missed.
@@ -389,7 +390,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 33 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, dead 1, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
-| lines of src/ai | 15280 |
+| lines of src/ai | 15302 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 2, V10 1, V11 1, V12 3, V13 0, V14 0, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 1, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
