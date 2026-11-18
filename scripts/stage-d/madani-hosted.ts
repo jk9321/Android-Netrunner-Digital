@@ -45,6 +45,8 @@ import { deckGameSetup } from '../../src/data/decks';
 import { makeTrees, readArms } from './runner-money-trees';
 import { Tree, askAction, askRez, isRezWindow, key, loadTree, serverKind } from './rez-follow-lib';
 import { oracleGetsIn } from './hold-oracle';
+import { oracleGetsIn as oracleGetsInX } from './madani-hosted-oracle';
+import { memoryLimit } from '../../src/core/engine/cardEffects';
 import { breakerCodes, iceCodes } from './golden-prices';
 import { installIceForTest, installProgramForTest, newGame } from '../../tests/helpers';
 
@@ -85,6 +87,22 @@ function presence(s: GameState) {
 }
 const anyPres = (p: ReturnType<typeof presence>) => p.madani.length > 0 || p.bling > 0 || p.jeitinho;
 
+const plainOracle = oracleGetsIn;
+const memOf = (c: CardInstance) => (cardDef(c).type_code === 'program' ? cardDef(c).memory_cost || 0 : 0);
+/** Memory: full now, and whether some install of the hosted programs can go over it (only then can the extended oracle differ). */
+function memory(s: GameState) {
+  const limit = memoryLimit(s);
+  const hostedMU = rigOf(s).flatMap(c => (c.cardCode === MADANI || c.cardCode === '35006' ? (c.hostedCards ?? []) : [])).reduce((n, c) => n + memOf(c), 0);
+  return { used: s.runner.memoryUnitsUsed, limit, full: s.runner.memoryUnitsUsed >= limit, over: s.runner.memoryUnitsUsed + hostedMU > limit };
+}
+/** Plain and extended oracle (madani-hosted-oracle.ts, rule 8.5.6c); the extended one asked only where an install can go over memory. */
+function oracles(s: GameState, server: string, opts: Parameters<typeof oracleAnswer>[2]) {
+  const o = oracleAnswer(s, server, opts);
+  const mem = memory(s);
+  const x = mem.over ? oracleAnswer(s, server, opts, oracleGetsInX) : o;
+  return { o, x, mem };
+}
+
 const hashOf = (s: GameState) => {
   const rest: Partial<GameState> = { ...s };
   delete rest.log;
@@ -95,7 +113,7 @@ type HoldLike = { holds: boolean; rez: string[] | null; rezCost: number; need: n
 const hOut = (h: HoldLike) => ({ holds: h.holds, rez: h.rez, cost: Number.isFinite(h.rezCost) ? h.rezCost : null, need: Number.isFinite(h.need) ? Math.round(h.need * 100) / 100 : 'inf', budget: h.budget });
 
 /** The engine oracle's answer to a hold question on board `s` (see the file comment). */
-function oracleAnswer(s: GameState, server: string, opts: { when: string; corpCredits?: number; mustRez?: string[]; further?: boolean }): { answer: string; sets: string[]; work: number } {
+function oracleAnswer(s: GameState, server: string, opts: { when: string; corpCredits?: number; mustRez?: string[]; further?: boolean }, oracleGetsIn: typeof oracleGetsInX = plainOracle): { answer: string; sets: string[]; work: number } {
   const ice = s.corp.servers[server]?.ice ?? [];
   const credits = opts.corpCredits ?? s.corp.credits;
   const sets: string[] = [];
@@ -242,8 +260,9 @@ async function main() {
       } catch (err) {
         arm = `error ${(err as Error).message.slice(0, 80)}`;
       }
-      const o = k < Q2_CAP ? oracleAnswer(r.state, r.server, r.opts as never) : { answer: 'capped', sets: [], work: 0 };
-      out({ kind: 'q', src, i, T: s.turnNumber, dk, callers: [...e.callers], asked: e.asked, server: r.server, sk: serverKind(beta, r.state, r.server), opts, own: r.state.turnNumber === s.turnNumber && r.state.activePlayer === s.activePlayer, beta: hOut(r.h), hosted: typeof arm === 'string' ? arm : hOut(arm), oracle: o.answer, oracleSets: o.sets, work: o.work });
+      const capped = { answer: 'capped', sets: [], work: 0 };
+      const { o, x, mem } = k < Q2_CAP ? oracles(r.state, r.server, r.opts as never) : { o: capped, x: capped, mem: memory(r.state) };
+      out({ kind: 'q', src, i, T: s.turnNumber, dk, callers: [...e.callers], asked: e.asked, server: r.server, sk: serverKind(beta, r.state, r.server), opts, own: r.state.turnNumber === s.turnNumber && r.state.activePlayer === s.activePlayer, beta: hOut(r.h), hosted: typeof arm === 'string' ? arm : hOut(arm), oracle: o.answer, oracleX: x.answer, mem, oracleSets: o.sets, oracleXSets: x === o ? undefined : x.sets, work: o.work });
     });
   };
 
@@ -273,7 +292,7 @@ async function main() {
     const b = ask(beta);
     hosted.clear();
     const h = ask(hosted);
-    out({ kind: 'c', src, i, T: s.turnNumber, action: key(a), server: sid, beta: b, hosted: h, hostedPick: askAction(hosted, s).a, betaPick: askAction(beta, s).a, oracle: oracleAnswer(after, sid, { when: 'runnerTurn', corpCredits: after.corp.credits }).answer });
+    out({ kind: 'c', src, i, T: s.turnNumber, action: key(a), server: sid, beta: b, hosted: h, hostedPick: askAction(hosted, s).a, betaPick: askAction(beta, s).a, ...(({ o, x, mem }) => ({ oracle: o.answer, oracleX: x.answer, mem }))(oracles(after, sid, { when: 'runnerTurn', corpCredits: after.corp.credits })) });
   };
 
   /** Runs, for following an exposure to its end. */
@@ -428,6 +447,9 @@ function madaniBoard(r: () => number): GameState {
   }
   s.runner.rig.hardware.push(m);
   if (r() < 0.25) installIceForTest(s, pick(ICE), 'hq', true);
+  // A quarter of the servers with the memory full (AI Coordinator's ruling, 19:15Z): programs that are neither breaker
+  // nor trojan fill what the rig leaves (drawn after the board, so the other boards' draws are unchanged)
+  if (r() < 0.25) while (s.runner.memoryUnitsUsed < memoryLimit(s)) installProgramForTest(s, NEITHER);
   return s;
 }
 
@@ -446,11 +468,11 @@ function generated(k: number, trees: Record<string, Tree>) {
   // The same server with nothing hosted: whether beta and the oracle agree without the hosted programs (a cause)
   const bare = structuredClone(s);
   for (const c of bare.runner.rig.hardware) if (c.cardCode === MADANI) c.hostedCards = [];
-  let b, h, o, ob;
+  let b, h, o, x, mem, ob;
   try {
     b = ask(trees.beta, s);
     h = ask(trees.hosted, s);
-    o = oracleAnswer(s, 'remote1', { when: 'runnerTurn' });
+    ({ o, x, mem } = oracles(s, 'remote1', { when: 'runnerTurn' }));
     ob = oracleAnswer(bare, 'remote1', { when: 'runnerTurn' });
   } catch (e) {
     out({ kind: 'g', k, error: (e as Error).message.slice(0, 120) });
@@ -463,6 +485,8 @@ function generated(k: number, trees: Record<string, Tree>) {
     beta: b,
     hosted: h,
     oracle: o.answer,
+    oracleX: x.answer,
+    mem,
     oracleBare: ob.answer,
     oracleSets: o.sets,
     work: o.work,
