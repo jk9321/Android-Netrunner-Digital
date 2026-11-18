@@ -10,7 +10,6 @@ import { readStorage, readStorageJson, removeStorage, writeStorage, writeStorage
 import { GameHeader } from '../src/ui/components/GameHeader';
 import { DeckPicker } from '../src/ui/components/DeckPicker';
 import { DeckBuilder, DeckViewer } from '../src/ui/components/DeckBuilder';
-import { createZoomStore } from '../src/ui/components/ZoomPanel';
 import { RunOverlay } from '../src/ui/components/RunOverlay';
 import { SeatContext } from '../src/ui/seat';
 import { executeAction } from '../src/core';
@@ -77,35 +76,6 @@ describe('storage wrapper', () => {
     expect(readStorage('k')).toBeNull();
     expect(writeStorage('k', 'v')).toBe(false);
     expect(() => removeStorage('k')).not.toThrow();
-  });
-});
-
-describe('zoom store hover tracking', () => {
-  it('tracks active hover state separately from sticky zoom target', () => {
-    const state = newGame();
-    const cardA = state.corp.hq[0];
-    const cardB = state.runner.grip[0];
-    const store = createZoomStore();
-
-    expect(store.get()).toBeNull();
-    expect(store.isHovering()).toBe(false);
-
-    store.show({ card: cardA, hidden: false });
-    expect(store.get()?.card.instanceId).toBe(cardA.instanceId);
-    expect(store.isHovering()).toBe(true);
-
-    // Leaving a different card does not clear current hover
-    store.leave(cardB.instanceId);
-    expect(store.isHovering()).toBe(true);
-
-    // Leaving the hovered card clears isHovering while keeping sticky current
-    store.leave(cardA.instanceId);
-    expect(store.isHovering()).toBe(false);
-    expect(store.get()?.card.instanceId).toBe(cardA.instanceId);
-
-    store.clear();
-    expect(store.isHovering()).toBe(false);
-    expect(store.get()).toBeNull();
   });
 });
 

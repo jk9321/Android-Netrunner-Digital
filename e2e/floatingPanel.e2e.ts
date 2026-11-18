@@ -52,13 +52,6 @@ test('the run panel docks by default, toggles log, and reopens centred when popp
   const archivesBox = (await page.getByTestId('server-archives').boundingBox())!;
   expect(boxesOverlap(overlayBox, archivesBox)).toBe(false);
 
-  // Hovering a card on the board while docked shows a transient hover zoom preview, which hides on leave
-  const corpCard = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
-  await page.mouse.move(corpCard.x + corpCard.width / 2, corpCard.y + corpCard.height / 2);
-  await expect(page.getByTestId('floating-hover-zoom')).toBeVisible();
-  await page.mouse.move(5, 5, { steps: 3 });
-  await expect(page.getByTestId('floating-hover-zoom')).toHaveCount(0);
-
   // Switch sidebar to Log and back to Run
   await page.getByTestId('run-sidebar-log-toggle').click();
   await expect(page.getByTestId('run-sidebar-back-to-run')).toBeVisible();

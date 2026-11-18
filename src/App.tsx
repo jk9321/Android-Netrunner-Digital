@@ -231,7 +231,6 @@ function GameScreen({
   const [runPoppedOut, setRunPoppedOut] = useState(false);
   const [runSidebarTab, setRunSidebarTab] = useState<'run' | 'log'>('run');
   const [zoomStore] = useState(createZoomStore);
-  const isHoveringCard = useSyncExternalStore(zoomStore.subscribe, zoomStore.isHovering, zoomStore.isHovering);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
@@ -373,17 +372,7 @@ function GameScreen({
           <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
             {/* Cards on the table send their hover to the zoom panel in the side bar */}
             <ZoomContext.Provider value={zoomStore}>
-              <main className="relative flex-1 min-w-0 min-h-0 flex flex-col gap-2">
-                {/* While the Run panel occupies the desktop sidebar, hovering a board card shows a transient non-blocking preview here */}
-                {runDocked && isHoveringCard && (
-                  <div
-                    data-testid="floating-hover-zoom"
-                    className="hidden lg:block absolute top-2 right-2 z-30 w-56 p-2 bg-[#090d15]/95 border border-amber-400/60 rounded-[2px] shadow-2xl pointer-events-none"
-                  >
-                    <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} showDetails={false} />
-                  </div>
-                )}
-
+              <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
                 {/* Victory Banner */}
                 {ended && (
                   <div className="shrink-0 p-3 bg-gradient-to-r from-amber-950/80 to-pink-950/80 border-2 border-amber-500 rounded-[4px] flex flex-wrap items-center justify-between gap-2 shadow-2xl">

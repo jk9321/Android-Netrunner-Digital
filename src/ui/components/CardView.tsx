@@ -116,10 +116,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
     setShowTooltip(true);
   };
   const holdTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => {
-    window.clearTimeout(holdTimer.current);
-    zoom?.leave(card.instanceId);
-  }, [zoom, card.instanceId]);
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
   const handleMouseEnter = () => {
     window.clearTimeout(holdTimer.current);
     // A spreading hand slides cards under the pointer: wait for it to settle, then preview the card still under it
@@ -135,7 +132,6 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   const handleMouseLeave = () => {
     window.clearTimeout(holdTimer.current);
     setShowTooltip(false);
-    zoom?.leave(card.instanceId);
   };
 
   // When face-down and viewer cannot peek (e.g. Runner looking at Corp ICE/Root)
