@@ -180,6 +180,9 @@ interface IceRow {
  * money); `missing` when no turn holds: 'money' (holds with the money unbounded), 'deck ice' (holds when every ice
  * still in R&D is added too, unbounded), else 'ice' (no placement of ice it had or could draw).
  */
+/** The most ice the backward trace's deck test puts on one server (the hold walk's size grows with each unrezzed ice). */
+const DECK_CAP = 6; // a script bound (no AI number): above it a test reports capped (7 ice took 27 s, 8 took 112 s and 2 GB)
+
 function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held: { T: number; ids: string[] }[] = []) {
   const target = e.corp.servers[x];
   if (!target) return null;
@@ -213,7 +216,10 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held
     const hqIds = new Set(hqIce.map(c => c.instanceId));
     const view: GameState = { ...e, corp: { ...e.corp, hq: e.corp.hq.filter(c => !hqIds.has(c.instanceId)), servers } };
     if (!unbounded && credits < 0) return { holds: false, added: add.length, discarded: discarded.length, credits };
+    if (servers[x].ice.length > DECK_CAP) return { holds: false, capped: true, added: add.length, discarded: discarded.length, credits };
+    const t0 = performance.now();
     const h = asSide('corp', () => serverHold(view, x, { when: 'runnerTurn', corpCredits: unbounded ? 999 : credits }));
+    if (process.env.PO_DEBUG) console.error(`backTrace ${x} t${t} ${unbounded ? 'free' : 'paid'} ice ${servers[x].ice.length}: ${Math.round(performance.now() - t0)} ms, heap ${process.memoryUsage().heapUsed >> 20} MB`);
     return { holds: h.holds, need: h.need, budget: h.budget, rezCost: h.rezCost, added: add.length, discarded: discarded.length, credits };
   };
   const now = asSide('corp', () => serverHold(e, x, { when: 'runnerTurn' }));
@@ -224,7 +230,7 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held
   for (const t of turns.length ? turns : [tEnd]) {
     const r = test(t, false);
     const f = latest === null || freeLatest === null ? test(t, true) : null;
-    tests.push({ t, holds: r.holds, free: f?.holds, added: r.added, discarded: r.discarded, credits: r.credits, need: (r as { need?: number }).need, budget: (r as { budget?: number }).budget });
+    tests.push({ t, holds: r.holds, free: f?.holds, capped: (r as { capped?: boolean }).capped || (f as { capped?: boolean } | null)?.capped || undefined, added: r.added, discarded: r.discarded, credits: r.credits, need: (r as { need?: number }).need, budget: (r as { budget?: number }).budget });
     if (r.holds && latest === null) latest = t;
     if (f?.holds && freeLatest === null) freeLatest = t;
     if (latest !== null && freeLatest !== null) break;
@@ -232,7 +238,23 @@ function backTrace(e: GameState, x: string, ledger: IceRow[], tEnd: number, held
   let missing: string | null = null;
   if (latest === null) {
     if (freeLatest !== null) missing = 'money';
-    else missing = test(first, true, e.corp.rd.filter(isIce)).holds ? 'deck ice' : 'ice';
+    else {
+      // R&D's ice added one at a time (deck order, unbounded money) until the count holds: the hold walk grows with
+      // every unrezzed ice, so past DECK_CAP ice on the server the answer is reported as not counted
+      const deck = e.corp.rd.filter(isIce);
+      const base = target.ice.length + test(first, true).added;
+      missing = 'ice';
+      for (let n = 1; n <= deck.length; n++) {
+        if (base + n > DECK_CAP) {
+          missing = 'ice (deck not counted past the cap)';
+          break;
+        }
+        if (test(first, true, deck.slice(0, n)).holds) {
+          missing = 'deck ice';
+          break;
+        }
+      }
+    }
   }
   return { now: { holds: now.holds, need: now.need, budget: now.budget, ice: target.ice.length }, tEnd, latest, back: latest === null ? null : tEnd - latest, freeLatest, missing, hqIce: hqIce.length, tests };
 }
