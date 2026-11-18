@@ -18,7 +18,12 @@ import { GameAction, GameState, activePrompt, executeAction, getLegalActions } f
 import { createCardInstance } from '../src/core/engine/gameState';
 import { createAgent } from '../src/ai';
 import { answerPrompt, runTermStats, scoreOutcome, settledStand } from '../src/ai/prompts';
-import { runStands } from '../src/ai/corp/hold';
+import { runStands, serverHold } from '../src/ai/corp/hold';
+import { runRestWorth } from '../src/ai/runs';
+import { asSide } from '../src/ai/pricing';
+import { decisionContext } from '../src/ai/handValues';
+import { approachIce, beginEncounter, enterMovement } from '../src/core/engine/ice';
+import { trashInstalledCorpCard } from '../src/core/engine/helpers';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { clearCaches } from '../scripts/stage-a/harness';
 import { installIceForTest, installProgramForTest, newGame, scoreForTest, startRunnerTurn } from './helpers';
@@ -690,5 +695,77 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
     // Trashing the one program that leaves the Runner unable to pay the granted subroutine and break on: out; the others in
     expect(stands).toEqual(['in', 'out', 'in']);
     expect(runTermStats.runnerOther).toBe(before);
+  });
+});
+
+describe('the run reads of the audit of 2026-11-18 (AI-RUN-POSITION-EMPTY, AI-SOLVERUN-CHEAPEST-UNPINNED)', () => {
+  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+
+  // The audit's board (probes/position-empty.ts). remote1, innermost first: Palisade (unrezzed, the Corp at 0: it cannot
+  // be rezzed), Kessleroid (rezzed, the Runner's position), Kessleroid (rezzed, outermost, passed). No breaker, an agenda
+  // in the root. The Runner's own ice leaves (as Vicsek's or Arruaceiras Crew's trash): the position stays, empty (rules
+  // 6.2.4, 8.5.10), and server.ice[icePosition] is the passed ice outward of it (6.2.6b). The truth is the engine's next
+  // state from there, the Movement Phase before the next ice inward
+  const emptied = (phase: 'approach_ice' | 'encounter_ice' | 'movement') => {
+    const s0 = newGame(3);
+    s0.runner.rig = { ...s0.runner.rig, programs: [], hardware: [], resources: [] };
+    installIceForTest(s0, '30072', 'remote1', false);
+    installIceForTest(s0, '35075', 'remote1', true);
+    installIceForTest(s0, '35075', 'remote1', true);
+    s0.corp.servers.remote1.root.push(createCardInstance(s0, '30036'));
+    startRunnerTurn(s0);
+    s0.runner.credits = 5;
+    const s = executeAction(s0, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    s.corp.credits = 0;
+    approachIce(s, 1);
+    const mid = s.corp.servers.remote1.ice[1];
+    if (phase !== 'approach_ice') beginEncounter(s, mid);
+    if (phase === 'movement') {
+      s.activeRun!.encounter = null;
+      enterMovement(s);
+    }
+    trashInstalledCorpCard(s, s.corp.servers.remote1, mid);
+    expect(s.activeRun).toMatchObject({ phase, positionEmpty: true, icePosition: 1 });
+    const truth = structuredClone(s);
+    truth.activeRun!.phase = 'movement';
+    truth.activeRun!.encounter = null;
+    clearCaches();
+    return { s, truth };
+  };
+
+  for (const phase of ['approach_ice', 'encounter_ice', 'movement'] as const) {
+    it(`runStands with the Runner's position empty in the ${phase} phase starts from the next ice inward: in, as the Movement Phase reads it (fails on beta 173bc26 in approach and encounter: out)`, () => {
+      const { s, truth } = emptied(phase);
+      expect(inCorp(truth, () => runStands(truth, 'remote1')?.verdict())).toBe('in');
+      expect(inCorp(s, () => runStands(s, 'remote1')?.verdict())).toBe('in');
+    });
+  }
+
+  it("runRestWorth with the Runner's position empty at an approach leaves out the passed ice outward of it: the Movement Phase's worth (fails on beta 173bc26: 0, Kessleroid priced as a block)", () => {
+    for (const phase of ['approach_ice', 'encounter_ice', 'movement'] as const) {
+      const { s, truth } = emptied(phase);
+      const worth = runRestWorth(truth);
+      expect(worth).toBeGreaterThan(0);
+      expect(runRestWorth(s)).toBeCloseTo(worth, 6);
+    }
+  });
+
+  it("solveRun picks the cheapest set that holds: Kessleroid for 2, not both ice for 5 (audit probes/cheapest-set.ts; fails with the review's mutation H20, the line 'set.cost >= best' removed)", () => {
+    // remote1, innermost first: Kessleroid (rez 2), Palisade (rez 3), Palisade (outermost); all unrezzed. The Runner has
+    // no breaker and $0 and approaches the outermost; the Corp at $20. Each of {Kessleroid} and {inner Palisade} holds alone
+    const s0 = newGame(3);
+    s0.runner.rig = { ...s0.runner.rig, programs: [], hardware: [], resources: [] };
+    s0.corp.credits = 20;
+    const kess = installIceForTest(s0, '35075', 'remote1', false);
+    const pal = installIceForTest(s0, '30072', 'remote1', false);
+    installIceForTest(s0, '30072', 'remote1', false);
+    startRunnerTurn(s0);
+    s0.runner.credits = 0;
+    const s = executeAction(s0, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote1' });
+    clearCaches();
+    const ask = (opts: Parameters<typeof serverHold>[2]) => inCorp(s, () => serverHold(s, 'remote1', opts));
+    expect(ask({ when: 'thisRun', mustRez: [kess], further: false, from: s.activeRun!.icePosition! - 2 }).holds).toBe(true);
+    expect(ask({ when: 'thisRun', mustRez: [pal], further: false, from: s.activeRun!.icePosition! - 1 }).holds).toBe(true);
+    expect(ask({ when: 'thisRun', mustRez: [], further: true })).toMatchObject({ holds: true, rez: [kess], rezCost: 2 });
   });
 });

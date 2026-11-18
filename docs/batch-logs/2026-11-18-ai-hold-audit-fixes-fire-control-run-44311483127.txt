@@ -1,0 +1,27 @@
+sources 92 (deals 56, human 36); decisions 22573
+
+## self (56 games)
+corp: 5114 decisions; time beta 1800.6 s, here 1872.8 s: mean x1.040, p95 x1.037 (beta p95 1415 ms, here 1467 ms), max 4421 -> 4555 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 2128 (38.0 a game), decided 210 (3.8 a game); run-stand verdicts 6022, searched 1566
+  settle (ruling 10): depth cap reached 25, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 73, at a top-level run prompt 4
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+runner: 8377 decisions; time beta 345.2 s, here 360.9 s: mean x1.046, p95 x1.049 (beta p95 211 ms, here 222 ms), max 1266 -> 1271 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 0 (0.0 a game), decided 0 (0.0 a game); run-stand verdicts 0, searched 0
+  settle (ruling 10): depth cap reached 0, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 0, at a top-level run prompt 0
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+
+## human (36 games)
+corp: 3756 decisions; time beta 1321.2 s, here 1319.3 s: mean x0.999, p95 x0.972 (beta p95 1639 ms, here 1593 ms), max 12148 -> 11997 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 2610 (72.5 a game), decided 166 (4.6 a game); run-stand verdicts 9741, searched 1167
+  settle (ruling 10): depth cap reached 2, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 1, at a top-level run prompt 1
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+runner: 5326 decisions; time beta 256.5 s, here 257.6 s: mean x1.005, p95 x0.993 (beta p95 219 ms, here 218 ms), max 5020 -> 4878 ms
+  decisions of 0.5 s or more on beta over 2x here: 0
+  run term inside (here): asked 0 (0.0 a game), decided 0 (0.0 a game); run-stand verdicts 0, searched 0
+  settle (ruling 10): depth cap reached 0, Runner prompts read as "in" (open outside the subroutines' resolution) 0; picks that let the Runner in with a keep-out answer available 0, at a top-level run prompt 0
+  changed 0 (0.00 a game): top-level Corp prompt in a run 0; with the run term deciding inside 0; neither 0
+
+errors: 0

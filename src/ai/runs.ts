@@ -1458,8 +1458,9 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
   const server = state.corp.servers[run.server];
   if (!server) return 0;
   const pos = run.icePosition;
-  // Ice not yet passed: further in, and the one being approached (an encounter in progress is priced by its own answer)
-  const ahead = server.ice.filter((_, i) => pos === null || i < pos || (i === pos && run.phase === 'approach_ice'));
+  // Ice not yet passed: further in, and the one being approached (an encounter in progress is priced by its own answer).
+  // With the Runner's position empty, server.ice[pos] is the ice just outward of it, already passed (rules 6.2.4, 6.2.6b)
+  const ahead = server.ice.filter((_, i) => pos === null || i < pos || (i === pos && run.phase === 'approach_ice' && !run.positionEmpty));
   let credits = 0;
   let lost = 0;
   let damage = 0;

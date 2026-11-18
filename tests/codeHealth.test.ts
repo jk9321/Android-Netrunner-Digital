@@ -2,6 +2,12 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { sideOff, tuning } from '../src/ai/synergy';
+import { ALL_CARDS, getCardScript } from '../src/core';
+import { createCardInstance } from '../src/core/engine/gameState';
+import { iceScript, iceSubtypes } from '../src/core/engine/ice';
+import { subroutineFacts } from '../src/ai/runs';
+import { lends } from '../src/ai/corp/hold';
+import { newGame } from './helpers';
 
 /**
  * Guards from the AI code audit (2026-11-05, thread "Audit AI code for overlaps and conflicts", cleanup item 1).
@@ -131,6 +137,71 @@ describe('AI code health (audit guards)', () => {
   const aiFiles = () => (readdirSync(new URL('../src/ai/', import.meta.url), { recursive: true }) as string[]).filter(f => f.endsWith('.ts'));
   const aiText = (f: string) => readFileSync(new URL(`../src/ai/${f}`, import.meta.url), 'utf8');
   const lines = (f: string) => aiText(f).split('\n').length - 1;
+
+  it('reads the run position in src/ai only through iceAtPosition or at a listed read that is right while the position is empty (audit 2026-11-18, AI-RUN-POSITION-EMPTY)', () => {
+    // While run.positionEmpty is set (the Runner's ice left: rules 6.2.4, 8.5.10), server.ice[icePosition] is the ice just
+    // outward of the empty position, already passed (6.2.6b; src/core/engine/helpers.ts iceLeavingPosition). A new read
+    // goes through iceAtPosition, or comes here with why it is right then. The reasons are the audit's table (question 4)
+    const REZ_WINDOW = 'a rez window only, and the engine allows no rez at an empty position (src/core/engine/actions/corp.ts, iceAtPosition)';
+    const INWARD = 'slice(0, icePosition) is exactly the ice inward of the Runner, empty position or not';
+    const READS: [file: string, line: string, why: string][] = [
+      ['corp/rez.ts', 'if (!run || run.icePosition === null) return null;', `countedRez: ${REZ_WINDOW}`],
+      ['corp/rez.ts', 'if (!run || !server || run.icePosition === null) return null;', `matchPointRez: ${REZ_WINDOW}`],
+      ['corp/hold.ts', 'const pos = opts.from ?? run?.icePosition ?? null;', `runQuestion's default: every caller without \`from\` is ${REZ_WINDOW}`],
+      ['corp/hold.ts', 'sv.ice[run.icePosition ?? -1]?.instanceId && isLegalAction', `runQuestion's paidAnotherWay: ${REZ_WINDOW}, and the rez's legality is asked`],
+      ['corp/hold.ts', 'from = run.icePosition === null ? -1 : Math.min(run.icePosition, sv.ice.length) - 1;', 'runStands, the Movement Phase or an empty position: icePosition - 1 is the next ice inward either way'],
+      ['corp/hold.ts', 'from = run.icePosition ?? -1;', "runStands' encounter: an empty position takes the Movement branch before it"],
+      ['corp/hold.ts', 'from = run.icePosition ?? sv.ice.length - 1;', "runStands' approach: an empty position takes the Movement branch before it"],
+      ['runnerAI.ts', "if (run.phase === 'movement' && run.icePosition !== null && server) {", `the jack-out check: a null check; creditsAhead reads ${INWARD}`],
+      ['runs.ts', 'if (!run || !server || run.icePosition === null) return 0;', 'creditsAhead and iceCreditsAhead: null checks'],
+      ['runs.ts', 'bioroidClicks(state, server.ice.slice(0, run.icePosition))', `creditsAhead: ${INWARD}`],
+      ['runs.ts', 'const inner = server.ice.slice(0, run.icePosition);', `iceCreditsAhead: ${INWARD}`],
+      ['runs.ts', 'if (!plan().bypass || !run || run.icePosition === null) return new Set();', 'bypassesAhead: a null check'],
+      ['runs.ts', 'const current = state.corp.servers[run.server]?.ice[run.icePosition];', "bypassesAhead: the outward ice counts as one more encounter, the same \"to be safe\" count it makes for the ice just passed"],
+      ['runs.ts', 'const pos = run.icePosition;', "runRestWorth: `i < pos` is the ice inward; `i === pos` only with the position not empty"],
+      ['playout.ts', 'server.ice[run.icePosition] ? [server.ice[run.icePosition]] : []', 'rezCandidates: the legality filter after it drops the outward ice (no rez at an empty position)'],
+      ['rezModel.ts', 'if (!run || run.icePosition === null) return undefined;', `modelRezParts: ${REZ_WINDOW}`],
+      ['rezModel.ts', 'const pass = restOfRun(state, run.icePosition - 1, synergy);', `modelRezParts: ${REZ_WINDOW}`],
+      ['rezModel.ts', 'if (runBypassed(after, rezzed)) return { pass, rez: restOfRun(after, run.icePosition - 1, synergy), stops: false };', `modelRezParts: ${REZ_WINDOW}`],
+      ['rezModel.ts', 'throughIce(after, rezzed, run.icePosition, synergy)', `modelRezParts: ${REZ_WINDOW}`],
+      ['rezModel.ts', 'if (!run || run.icePosition === null) return false;', `runBypassed: ${REZ_WINDOW}`],
+      ['rezModel.ts', 'ice.slice(0, run.icePosition + 1), true).has(ice.instanceId);', `runBypassed: ${REZ_WINDOW}`],
+    ];
+    const comment = (t: string) => /^(\/\/|\*|\/\*\*)/.test(t);
+    const reads = aiFiles().flatMap(f =>
+      aiText(f)
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => !comment(l) && /\bicePosition\b/.test(l.replace(/'icePosition'/g, '')) && !l.includes('iceAtPosition('))
+        .map(l => ({ file: f.replace(/\\/g, '/'), line: l })),
+    );
+    const unlisted = reads.filter(r => READS.filter(([f, l]) => f === r.file && r.line.includes(l)).length !== 1);
+    expect(unlisted, 'a read of run.icePosition with no reason listed: use iceAtPosition, or list why it is right while run.positionEmpty').toEqual([]);
+    const unused = READS.filter(([f, l]) => !reads.some(r => r.file === f && r.line.includes(l)));
+    expect(unused, 'a listed read that is gone: drop it from the list').toEqual([]);
+  });
+
+  it("runStands' one reading at an open subroutine choice stays sound: no self-trashing ice can lend to a borrow (AI Coordinator ruling on found row 68; read the comment at runStands in src/ai/corp/hold.ts)", () => {
+    // The argument: a subroutine still ahead never lowers what the Runner needs, except trashThisIce, which takes its ice
+    // out of a later borrow (Mycoweb 35053: "Resolve 1 subroutine on a rezzed sentry." / "... on another rezzed code
+    // gate."). So every ice with a trashThisIce fact, printed or granted, is run through the walk's lender rule (lends) for
+    // every borrow any ice makes, and none may lend
+    const s = newGame(3);
+    const facts = (labels: string[]) => labels.map(l => subroutineFacts(l).does);
+    const ice = ALL_CARDS.filter(c => c.type_code === 'ice').map(c => createCardInstance(s, c.code));
+    const labelsOf = (c: ReturnType<typeof createCardInstance>) => (iceScript(c)?.subroutines ?? []).map(sub => sub.label);
+    const borrows = [...new Set(ice.flatMap(c => facts(labelsOf(c)).flat().flatMap(e => (e.kind === 'borrow' ? [e.subtype] : []))))];
+    const trashes = (does: { kind: string }[][]) => does.some(d => d.some(e => e.kind === 'trashThisIce'));
+    const selfTrashers = ice.filter(c => trashes(facts(labelsOf(c))));
+    // Not vacuous: Vicsek trashes itself, Mycoweb borrows
+    expect(selfTrashers.map(c => c.cardCode)).toContain('36042');
+    expect(borrows.length).toBeGreaterThan(0);
+    const lending = selfTrashers.flatMap(c => borrows.filter(b => lends(iceSubtypes(c, s), b)).map(b => `${c.cardCode} lends to a ${b} borrow`));
+    expect(lending, 'a self-trashing ice can lend: read the comment at runStands (src/ai/corp/hold.ts) and read that subroutine both ways again for this case').toEqual([]);
+    // A granted subroutine (Thunderbolt Armaments) goes on any ice, a lender too: none may trash its ice
+    const granted = ALL_CARDS.filter(c => trashes(facts((getCardScript(c.code)?.grantedSubroutines ?? []).map(sub => sub.label)))).map(c => c.code);
+    expect(granted, 'a granted subroutine trashes its ice: read the comment at runStands (src/ai/corp/hold.ts)').toEqual([]);
+  });
 
   it('returns an install destination for an ordinary Corp install only in corp/placement.ts', () => {
     // An install action built with a server: the placement owner, the counted lines' steps (in it too). The ranking's own
@@ -408,9 +479,13 @@ describe('AI code health (audit guards)', () => {
   // comments, + 151; prompts.ts's run term, the priced pick before the per-card blocks, Shred's reveal as chance on HQ's
   // subsets, the settle as the Corp's choice (ruling 10) with its depth cap (ruling 11.1) and its "not known" past it
   // (ruling 12), its counts, with comments, + 175; the two ports and their registration + 9): corp/ 3,938, src/ai 15,939
-  it('keeps src/ai/corp at or under 3,938 lines and src/ai at or under 15,939 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers)', () => {
+  // Then + 10 (ai-hold-audit-fixes, audit 2026-11-18: hold.ts + 9, the locked pool's reason at 'thisRun''s budget, the
+  // empty position's at runStands, the one-reading argument and the line that would make it false (ruling on found row
+  // 68 b) in place of the two readings, and `lends`, the lender rule the tripwire reads; runs.ts + 1, runRestWorth's
+  // empty position): corp/ 3,947, src/ai 15,949
+  it('keeps src/ai/corp at or under 3,947 lines and src/ai at or under 15,949 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3938);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15939);
+    expect(corp).toBeLessThanOrEqual(3947);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15949);
   });
 });
