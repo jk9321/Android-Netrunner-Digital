@@ -1,0 +1,128 @@
+AI script run 44200015527: stage-d/hold-walk-compare (the hold walk against the oracle) at ai-hold-trash 3e8f4ad against beta da1c93e. Cancelled at 01:13Z 11-18 with one job open; all 64 shard files reached ai-batch-results (5abae1c). Summed with scripts/stage-d/hold-walk-compare-sum.mjs. The 250 false holds are traced in netrunner-ai/stage-d/item1-hold-count/followup2-trash/trace-false-holds.md (Runner money, Lightning Laboratory, oracle faults; none an error of the exact trash).
+
+questions 11942 from 92 sources (64 files)
+
+## runnerTurn
+### flips: 2740 questions (1348 moved to the Corp's end of turn)
+| answer | beta: holds | beta: does not | beta all | walk: holds | walk: does not | walk all |
+|---|---|---|---|---|---|---|
+| agree | 0 | 250 | 250 (9.1%) | 1701 | 0 | 1701 (62.1%) |
+| false holds | 0 | 0 | 0 (0.0%) | 250 | 0 | 250 (9.1%) |
+| false does not hold | 0 | 1701 | 1701 (62.1%) | 0 | 0 | 0 (0.0%) |
+| unknown | 0 | 789 | 789 (28.8%) | 789 | 0 | 789 (28.8%) |
+beta: "holds" false - of 0; "does not hold" false 87.2% of 1951
+walk: "holds" false 12.8% of 1951; "does not hold" false - of 0
+
+flips to "holds" 2740 (right 1701, wrong 250); to "does not hold" 0 (right 0, wrong 0)
+flips to "holds", by family: click ice 2292 (only 195), E bad publicity 1551 (only 0), A bioroid 911 (only 15), G1 tagged 714 (only 0), G3 damage 422 (only 0), R rez-time 107 (only 0), G2 tag subs 95 (only 0), C credit condition 71 (only 0), B pay or lose 20 (only 4), A/T counters 5 (only 0)
+flips to "does not hold", by family: none
+flips the walk gets wrong, by family: A bioroid 247 (only 0), G3 damage 196 (only 0), C credit condition 51 (only 0), B pay or lose 16 (only 0), R rez-time 15 (only 0), G2 tag subs 10 (only 0), click ice 3 (only 2), E bad publicity 1 (only 0)
+
+### sampled non-flips: 9060 questions (695 moved to the Corp's end of turn)
+| answer | beta: holds | beta: does not | beta all | walk: holds | walk: does not | walk all |
+|---|---|---|---|---|---|---|
+| agree | 2234 | 6796 | 9030 (99.7%) | 2234 | 6796 | 9030 (99.7%) |
+| false holds | 20 | 0 | 20 (0.2%) | 20 | 0 | 20 (0.2%) |
+| false does not hold | 0 | 8 | 8 (0.1%) | 0 | 8 | 8 (0.1%) |
+| unknown | 0 | 2 | 2 (0.0%) | 0 | 2 | 2 (0.0%) |
+beta: "holds" false 0.9% of 2254; "does not hold" false 0.1% of 6804
+walk: "holds" false 0.9% of 2254; "does not hold" false 0.1% of 6804
+
+#### runnerTurn: false answers by family, beta / walk (flips + sampled non-flips; "up" where the walk is wrong more often)
+| family | questions (only) | false holds | false does not hold | flips: false holds | flips: false does not | non-flips: false holds | non-flips: false does not |
+|---|---|---|---|---|---|---|---|
+| none | 5760 (5760) | 0 / 0 | 7 / 7 | 0 / 0 | 0 / 0 | 0 / 0 | 7 / 7 |
+| click ice | 2330 (232) | 0 / 3 **up** | 1603 / 0 | 0 / 3 **up** | 1603 / 0 | 0 / 0 | 0 / 0 |
+| G3 damage | 1663 (675) | 0 / 196 **up** | 104 / 1 | 0 / 196 **up** | 103 / 0 | 0 / 0 | 1 / 1 |
+| E bad publicity | 1567 (0) | 0 / 1 **up** | 1415 / 0 | 0 / 1 **up** | 1415 / 0 | 0 / 0 | 0 / 0 |
+| A bioroid | 1426 (322) | 0 / 247 **up** | 94 / 0 | 0 / 247 **up** | 94 / 0 | 0 / 0 | 0 / 0 |
+| G2 tag subs | 1139 (147) | 11 / 21 **up** | 3 / 1 | 0 / 10 **up** | 2 / 0 | 11 / 11 | 1 / 1 |
+| G1 tagged | 865 (63) | 7 / 7 | 688 / 0 | 0 / 0 | 688 / 0 | 7 / 7 | 0 / 0 |
+| R rez-time | 849 (335) | 18 / 33 **up** | 92 / 0 | 0 / 15 **up** | 92 / 0 | 18 / 18 | 0 / 0 |
+| C credit condition | 585 (490) | 2 / 53 **up** | 0 / 0 | 0 / 51 **up** | 0 / 0 | 2 / 2 | 0 / 0 |
+| B pay or lose | 270 (81) | 0 / 16 **up** | 4 / 0 | 0 / 16 **up** | 4 / 0 | 0 / 0 | 0 / 0 |
+| A/T counters | 30 (12) | 0 / 0 | 5 / 0 | 0 / 0 | 5 / 0 | 0 / 0 | 0 / 0 |
+| T turn start | 3 (0) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+entries changed on 3 of 6806 questions both answer "does not hold" (fewer 3, more 0)
+oracle time per question: median 14 ms, p95 5650 ms, max 11177 ms
+truth unknown (dropped from both counts' tables alike): 791 of 11800 (flips 789); stopped by the per-question cap 791 (flips 789)
+  capped: human:report-49.json T10 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $9 4 clicks (231 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $8 4 clicks (98 questions)
+  capped: human:report-49.json T12 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $12 4 clicks (91 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition] $2 4 clicks (63 questions)
+  capped: human:report-49.json T9 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $5 4 clicks (48 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition, Tithe] $2 4 clicks (24 questions)
+  capped: human:report-43.json T10 rd [Mycoweb, Cloud Eater] $2 4 clicks (24 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $11 4 clicks (20 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $10 4 clicks (20 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition, Diviner] $2 4 clicks (17 questions)
+  capped: deal:1201 T14 remote-4 [Pharos*, Whitespace*, Ansel 1.0] $8 4 clicks (12 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition] $6 4 clicks (11 questions)
+  capped: human:report-43.json T13 rd [Mycoweb, Cloud Eater, Boto] $6 4 clicks (11 questions)
+  capped: human:report-36.json T16 rd [Tatu-Bola, Lycian Multi-Munition] $0 4 clicks (10 questions)
+  capped: human:report-43.json T10 rd [Mycoweb, Cloud Eater*] $3 4 clicks (10 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $6 4 clicks (10 questions)
+  capped: human:report-43.json T16 rd [Mycoweb, Cloud Eater, Whitespace] $0 4 clicks (8 questions)
+  capped: human:report-36.json T7 rd [Tatu-Bola, Lycian Multi-Munition] $5 4 clicks (5 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition, Bumi 1.0] $8 4 clicks (5 questions)
+  capped: human:report-36.json T10 remote-1 [Tatu-Bola*, Ansel 1.0*] $0 4 clicks (4 questions)
+  capped: human:report-43.json T10 rd [Mycoweb, Cloud Eater] $1 4 clicks (4 questions)
+  capped: human:report-43.json T10 rd [Mycoweb, Cloud Eater] $3 4 clicks (4 questions)
+  capped: human:report-43.json T11 rd [Mycoweb, Cloud Eater] $0 4 clicks (4 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition*] $10 4 clicks (4 questions)
+  capped: human:report-49.json T12 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition] $8 4 clicks (4 questions)
+  capped: human:report-36.json T10 remote-1 [Tatu-Bola*, Ansel 1.0] $0 4 clicks (3 questions)
+  capped: human:report-36.json T15 rd [Tatu-Bola, Lycian Multi-Munition] $1.5 4 clicks (3 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition] $1 4 clicks (3 questions)
+  capped: human:report-36.json T17 rd [Tatu-Bola, Lycian Multi-Munition] $0 4 clicks (3 questions)
+  capped: human:report-49.json T6 remote-3 [Tatu-Bola, Lycian Multi-Munition] $5 4 clicks (3 questions)
+  capped: human:report-49.json T12 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition*] $12 4 clicks (3 questions)
+  capped: deal:1881 T12 hq [Brân 1.0, Brân 1.0, Ansel 1.0] $6 4 clicks (3 questions)
+  capped: human:report-36.json T10 remote-1 [Tatu-Bola*, Ansel 1.0*, Tithe] $0 4 clicks (2 questions)
+  capped: human:report-36.json T10 remote-1 [Tatu-Bola*, Ansel 1.0*, Tithe*] $0 4 clicks (2 questions)
+  capped: human:report-43.json T9 rd [Mycoweb, Cloud Eater] $9 4 clicks (2 questions)
+  capped: human:report-43.json T13 rd [Mycoweb, Cloud Eater, Boto] $5 4 clicks (2 questions)
+  capped: human:report-49.json T11 remote-6 [Tatu-Bola, Ansel 1.0, Lycian Multi-Munition*] $11 4 clicks (2 questions)
+  capped: deal:1881 T9 hq [Brân 1.0, Brân 1.0, Ansel 1.0] $9 4 clicks (2 questions)
+  capped: deal:1881 T10 hq [Brân 1.0, Brân 1.0, Ansel 1.0] $8 4 clicks (2 questions)
+  capped: human:report-28.json T16 rd [Mycoweb*, Mycoweb, Cloud Eater] $5 4 clicks
+  ... 13 more boards
+
+## thisRun
+### flips: 2 questions (0 moved to the Corp's end of turn)
+| answer | beta: holds | beta: does not | beta all | walk: holds | walk: does not | walk all |
+|---|---|---|---|---|---|---|
+| agree | 0 | 0 | 0 (0.0%) | 2 | 0 | 2 (100.0%) |
+| false does not hold | 0 | 2 | 2 (100.0%) | 0 | 0 | 0 (0.0%) |
+beta: "holds" false - of 0; "does not hold" false 100.0% of 2
+walk: "holds" false 0.0% of 2; "does not hold" false - of 0
+
+flips to "holds" 2 (right 2, wrong 0); to "does not hold" 0 (right 0, wrong 0)
+flips to "holds", by family: A bioroid 2 (only 0), G2 tag subs 1 (only 0), G3 damage 1 (only 0), click ice 1 (only 0)
+flips to "does not hold", by family: none
+flips the walk gets wrong, by family: none
+
+### sampled non-flips: 140 questions (0 moved to the Corp's end of turn)
+| answer | beta: holds | beta: does not | beta all | walk: holds | walk: does not | walk all |
+|---|---|---|---|---|---|---|
+| agree | 68 | 72 | 140 (100.0%) | 68 | 72 | 140 (100.0%) |
+beta: "holds" false 0.0% of 68; "does not hold" false 0.0% of 72
+walk: "holds" false 0.0% of 68; "does not hold" false 0.0% of 72
+
+#### thisRun: false answers by family, beta / walk (flips + sampled non-flips; "up" where the walk is wrong more often)
+| family | questions (only) | false holds | false does not hold | flips: false holds | flips: false does not | non-flips: false holds | non-flips: false does not |
+|---|---|---|---|---|---|---|---|
+| none | 68 (68) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| G2 tag subs | 47 (22) | 0 / 0 | 1 / 0 | 0 / 0 | 1 / 0 | 0 / 0 | 0 / 0 |
+| R rez-time | 26 (4) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| C credit condition | 20 (20) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| click ice | 3 (2) | 0 / 0 | 1 / 0 | 0 / 0 | 1 / 0 | 0 / 0 | 0 / 0 |
+| G1 tagged | 2 (0) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| A bioroid | 2 (0) | 0 / 0 | 2 / 0 | 0 / 0 | 2 / 0 | 0 / 0 | 0 / 0 |
+| E bad publicity | 2 (0) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| G3 damage | 1 (0) | 0 / 0 | 1 / 0 | 0 / 0 | 1 / 0 | 0 / 0 | 0 / 0 |
+
+oracle time per question: median 2 ms, p95 6 ms, max 2091 ms
+truth unknown (dropped from both counts' tables alike): 0 of 142 (flips 0); stopped by the per-question cap 0 (flips 0)
+

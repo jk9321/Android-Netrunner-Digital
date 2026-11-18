@@ -1,0 +1,20 @@
+AI script run 44217517756: value-b1/fire-count.ts with scripts/stage-d/trash-iii.json at ai-hold-trash c742520 (design (iii): the trash exact only where no path holds two trash ice; arm all plays as beta). Summed with scripts/value-b1/fire-count-sum.mjs. Design (iii) was withdrawn after the red team (adversarial/2026-11-18-hold-trash-condition).
+
+20843 decisions in 92 sources (64 files)
+
+corp: 7544 decisions, changed 17 (0.18 a game), errors 0, unexplained 0
+  all: alone reproduces 17, needed (leave-one-out) 17
+  changed by kind: {"main":17}
+  time base: mean 412.4 ms, p95 1571.2, total 3111 s, x1.000 mean, p95 x1.000
+  time branch: mean 418.7 ms, p95 1618.2, total 3158 s, x1.015 mean, p95 x1.030
+  time all: mean 434.1 ms, p95 1672.5, total 3275 s, x1.053 mean, p95 x1.064
+
+runner: 13299 decisions, changed 0 (0.00 a game), errors 0, unexplained 0
+  all: alone reproduces 0, needed (leave-one-out) 0
+  changed by kind: {}
+  time base: mean 45.5 ms, p95 220.2, total 605 s, x1.000 mean, p95 x1.000
+  time branch: mean 45.5 ms, p95 221.2, total 606 s, x1.000 mean, p95 x1.005
+  time all: mean 47.2 ms, p95 229.0, total 628 s, x1.036 mean, p95 x1.040
+
+upgrade rezzes picked (all decisions): base 54 (0.59 a game), branch 51 (0.55 a game)
+  Mercia B4LL4RD: 10 -> 7

@@ -1,0 +1,36 @@
+AI script run 44204625624: value-b1/fire-count.ts with scripts/stage-d/trash-work.json at ai-hold-trash 0ce79f6 (work probe: worked approaches, memo misses at an ice approach, per decision and largest walk). Summed with scripts/stage-d/trash-work-sum.mjs (work-cap-note.md section 2).
+
+rows 20843 corp 7544
+base: 20843 decisions; total work p50 0 p99 7157 p999 35808 max 186821; largest walk p50 0 p99 213 p999 1593 max 3463
+   human:report-49.json #146 corp T11: work 186821, largest 2405, ms 5600.1
+   human:report-49.json #147 corp T11: work 130912, largest 2405, ms 4010.7
+   human:report-49.json #170 corp T12: work 85227, largest 940, ms 4630.9
+   human:report-36.json #130 corp T10: work 82402, largest 1833, ms 3959.8
+   human:report-49.json #171 corp T12: work 75864, largest 940, ms 2895.2
+   deal:2041 #201 corp T14: work 71712, largest 385, ms 3447
+   largest: human:report-36.json #148 corp T11: 3463, work 68097, ms 1768.6
+   largest: human:report-36.json #131 corp T10: 2977, work 55831, ms 2330.4
+   largest: human:report-49.json #146 corp T11: 2405, work 186821, ms 5600.1
+   largest: human:report-49.json #147 corp T11: 2405, work 130912, ms 4010.7
+all: 20843 decisions; total work p50 0 p99 8384 p999 43863 max 160459; largest walk p50 0 p99 371 p999 2595 max 13906
+   human:report-49.json #147 corp T11: work 160459, largest 4109, ms 5854.8
+   human:report-36.json #130 corp T10: work 150130, largest 3946, ms 6417.5
+   human:report-43.json #287 corp T16: work 116638, largest 2488, ms 5465
+   deal:1881 #342 corp T21: work 100254, largest 2616, ms 2480.5
+   human:report-36.json #148 corp T11: work 100150, largest 3463, ms 2685
+   human:report-49.json #205 corp T14: work 98220, largest 4001, ms 6400.8
+   largest: human:report-28.json #251 corp T15: 13906, work 33691, ms 2837.3
+   largest: human:report-49.json #178 corp T12: 7626, work 23809, ms 426.9
+   largest: human:report-36.json #131 corp T10: 5378, work 90635, ms 4344.8
+   largest: human:report-28.json #288 corp T16: 4129, work 25906, ms 1555.9
+branch: 20843 decisions; total work p50 0 p99 8384 p999 43863 max 160459; largest walk p50 0 p99 371 p999 2595 max 13906
+   human:report-49.json #147 corp T11: work 160459, largest 4109, ms 6317
+   human:report-36.json #130 corp T10: work 150130, largest 3946, ms 6693.8
+   human:report-43.json #287 corp T16: work 116638, largest 2488, ms 5305.7
+   deal:1881 #342 corp T21: work 100254, largest 2616, ms 2462
+   human:report-36.json #148 corp T11: work 100150, largest 3463, ms 2696
+   human:report-49.json #205 corp T14: work 98220, largest 4001, ms 6701.3
+   largest: human:report-28.json #251 corp T15: 13906, work 33691, ms 2733.6
+   largest: human:report-49.json #178 corp T12: 7626, work 23809, ms 493.1
+   largest: human:report-36.json #131 corp T10: 5378, work 90635, ms 4307.1
+   largest: human:report-28.json #288 corp T16: 4129, work 25906, ms 1544.9

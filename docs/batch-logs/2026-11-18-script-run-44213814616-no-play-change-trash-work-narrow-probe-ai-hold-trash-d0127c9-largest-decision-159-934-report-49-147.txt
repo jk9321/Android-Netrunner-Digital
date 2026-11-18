@@ -1,0 +1,41 @@
+AI script run 44213814616: value-b1/fire-count.ts with scripts/stage-d/trash-work-narrow.json at ai-hold-trash d0127c9 (narrow work: walks with a trash ice among their targets). The cap a counter would take, 200,000, is the max x 1.25 (work-cap-note.md section 2). Summed with scripts/stage-d/trash-work-narrow-sum.mjs.
+
+rows 20843
+base: narrow total p50 0 p99 2963 p999 28241 max 186521; largest trash walk p99 113 max 2977
+   human:report-49.json #146 corp T11: narrow 186521, largest 2405, k 3, ms 5940.2
+   human:report-49.json #147 corp T11: narrow 130563, largest 2405, k 3, ms 3849.2
+   human:report-49.json #170 corp T12: narrow 85209, largest 940, k 2, ms 3723.7
+   human:report-36.json #130 corp T10: narrow 81505, largest 1833, k 2, ms 5169.8
+   human:report-49.json #171 corp T12: narrow 75864, largest 940, k 2, ms 3284.8
+   decisions by most trash ice on one path: {"0":18670,"1":1770,"2":395,"3":8}
+all: narrow total p50 0 p99 4111 p999 37005 max 159934; largest trash walk p99 285 max 13906
+   human:report-49.json #147 corp T11: narrow 159934, largest 4109, k 3, ms 6000
+   human:report-36.json #130 corp T10: narrow 149233, largest 3946, k 2, ms 8588.9
+   human:report-49.json #205 corp T14: narrow 98158, largest 4001, k 2, ms 5639.4
+   deal:1881 #342 corp T21: narrow 97413, largest 2616, k 2, ms 2792.6
+   human:report-36.json #148 corp T11: narrow 95502, largest 2595, k 1, ms 3200.6
+   decisions by most trash ice on one path: {"0":18670,"1":1771,"2":397,"3":5}
+changed Corp decisions 22 causes ["all"]
+   deal:1161 #188 T12: k(branch) 1, k(base) 1, causes all
+   deal:1201 #221 T14: k(branch) 2, k(base) 2, causes all
+   deal:1241 #136 T11: k(branch) 1, k(base) 1, causes all
+   deal:2881 #130 T10: k(branch) 1, k(base) 1, causes all
+   deal:2881 #176 T14: k(branch) 2, k(base) 2, causes all
+   human:report-36.json #131 T10: k(branch) 2, k(base) 2, causes all
+   human:report-36.json #132 T10: k(branch) 2, k(base) 2, causes all
+   human:report-36.json #242 T16: k(branch) 1, k(base) 1, causes all
+   human:report-36.json #243 T16: k(branch) 2, k(base) 2, causes all
+   human:report-36.json #244 T16: k(branch) 1, k(base) 1, causes all
+   human:report-43.json #100 T7: k(branch) 1, k(base) 1, causes all
+   human:report-49.json #115 T9: k(branch) 2, k(base) 2, causes all
+   human:report-49.json #117 T9: k(branch) 2, k(base) 2, causes all
+   human:report-49.json #125 T10: k(branch) 2, k(base) 2, causes all
+   human:report-49.json #126 T10: k(branch) 2, k(base) 2, causes all
+   human:report-49.json #170 T12: k(branch) 2, k(base) 2, causes all
+   deal:1881 #201 T13: k(branch) 1, k(base) 1, causes all
+   deal:1881 #202 T13: k(branch) 1, k(base) 1, causes all
+   deal:1881 #203 T13: k(branch) 1, k(base) 2, causes all
+   deal:1881 #204 T13: k(branch) 1, k(base) 1, causes all
+   deal:1881 #322 T20: k(branch) 2, k(base) 2, causes all
+   deal:1881 #342 T21: k(branch) 2, k(base) 3, causes all
+changed Runner decisions 0

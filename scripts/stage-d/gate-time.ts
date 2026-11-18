@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { GameState } from '../../src/core';
 import { createCardInstance } from '../../src/core/engine/gameState';
 import { createAgent } from '../../src/ai';
-import { serverHold } from '../../src/ai/corp/hold';
+import { Walk, serverHold } from '../../src/ai/corp/hold';
 import { rezMoney } from '../../src/ai/corp/rezMoney';
 import { asSide } from '../../src/ai/pricing';
 import { decisionContext } from '../../src/ai/handValues';
@@ -63,14 +63,63 @@ for (const layers of LAYERS) for (const clicks of [4, 5]) for (const credits of 
     }
   }) });
 }
+// Found-list row 21's built worst case for time (brief followup2-trash 4): three trash subroutines (Bumi 1.0, Lycian as a
+// sentry, Cloud Eater) outside Tatu-Bola, all unrezzed (16 rez sets), and a rig of 5 to 8 programs, two of them the same
+// (Unity, Marjanah twice, Carmen, Cleaver, then Mayfly, Corsair, Fermenter), retries on (4 and 5 clicks)
+const RIG = ['30026', '30016', '30016', '30015', '30006', '30032', '36004', '30007'];
+for (const programs of [5, 8]) for (const clicks of [4, 5]) for (const credits of [3, 8]) {
+  boards.push({ name: `row 21 worst case: Bumi, Lycian, Cloud Eater outside Tatu-Bola, ${programs} programs, ${clicks} clicks, $${credits}`, server: 'remote1', corp: 25, s: board(st => {
+    st.corp.credits = 25; ice(st, '34044', false); ice(st, '35041', false); ice(st, '34100', false); ice(st, '34110', false);
+    for (const code of RIG.slice(0, programs)) installProgramForTest(st, code);
+    st.runner.grip = st.runner.grip.slice(0, 5); st.runner.credits = credits; st.runner.maxClicks = clicks; agenda(st);
+  }) });
+}
+// Scaling (AI Coordinator, the stop of 22:48Z, item b): 1, 2 or 3 trash-subroutine ice (Lycian; Cloud Eater; Bumi 1.0)
+// outside Tatu-Bola, all unrezzed, by 3, 5 or 8 programs of RIG (every one fits "trash 1 installed program"), 4 clicks
+// (retries on), $3
+const TRASH_ICE = [['34100'], ['34100', '34110'], ['35041', '34100', '34110']];
+for (const trash of TRASH_ICE) for (const programs of [3, 5, 8]) {
+  boards.push({ name: `scaling: ${trash.length} trash ice outside Tatu-Bola, ${programs} programs, 4 clicks, $3`, server: 'remote1', corp: 25, s: board(st => {
+    st.corp.credits = 25; ice(st, '34044', false);
+    for (const code of trash) ice(st, code, false);
+    for (const code of RIG.slice(0, programs)) installProgramForTest(st, code);
+    st.runner.grip = st.runner.grip.slice(0, 5); st.runner.credits = 3; st.runner.maxClicks = 4; agenda(st);
+  }) });
+}
 
+// REACH=1: the trash-reach probe's count (trash-reach.mjs) on these boards, against real boards: the most distinct sets of
+// trashed cards one walk reaches in the Corp decision, and the walks over 4 (the timings are then not clean)
+const reach: Set<string>[] = [];
+if (process.env.REACH) {
+  const proto = Walk.prototype as unknown as { approach: (ws: { gone: number[] }, j: number, pos: number) => number };
+  const original = proto.approach;
+  const seen = new WeakMap<object, Set<string>>();
+  proto.approach = function (this: object, ws, j, pos) {
+    let g = seen.get(this);
+    if (!g) {
+      seen.set(this, (g = new Set()));
+      reach.push(g);
+    }
+    g.add(String(ws.gone));
+    return original.call(this, ws, j, pos);
+  };
+}
+// WORK=1, in a tree with trash-work.mjs's probe patch made: the walk's own work in the Corp decision (worked approaches:
+// the decision's total, and its largest walk), the measure of the work cap's note
+const work = { total: 0, most: 0 };
+if (process.env.WORK) {
+  (globalThis as { __tl?: (v: string, n?: number) => void }).__tl = (v, n = 0) => {
+    if (v === 'work') work.total++;
+    if (v === 'wmax') work.most += n;
+  };
+}
 const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
-const only = process.env.ONLY;
+const only = process.env.ONLY; // REPS: repetitions per board (default 9; the first is dropped)
 for (const b of boards) {
   if (only && !b.name.includes(only)) continue;
   const holdMs: number[] = [], keepMs: number[] = [], pickMs: number[] = [];
   let holds: boolean | undefined, pick = '';
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < Number(process.env.REPS ?? 9); k++) {
     clearCaches();
     let st = structuredClone(b.s);
     let t = performance.now();
@@ -82,10 +131,20 @@ for (const b of boards) {
     asSide('corp', () => (decisionContext(st, 'corp'), rezMoney(st)));
     keepMs.push(performance.now() - t);
     clearCaches();
+    reach.length = 0;
+    if (process.env.WORK) {
+      work.total = 0;
+      work.most = 0;
+      // a fresh hook per decision, as fire-count's (the probe resets its largest walk on a new hook)
+      const hook = (globalThis as { __tl?: (v: string, n?: number) => void }).__tl!;
+      (globalThis as { __tl?: (v: string, n?: number) => void }).__tl = (v, n) => hook(v, n);
+    }
     t = performance.now();
     pick = JSON.stringify(createAgent('corp', 'normal').chooseAction(structuredClone(b.s))).slice(0, 70);
     pickMs.push(performance.now() - t);
   }
   const r = (v: number[]) => Math.round(med(v.slice(1)) * 10) / 10;
-  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
+  const worked = process.env.WORK ? { work: work.total, largestWalk: work.most } : {};
+  const sets = process.env.REACH ? { mostSets: Math.max(0, ...reach.map(g => g.size)), walksOver4: reach.filter(g => g.size > 4).length } : {};
+  console.log(JSON.stringify({ tree: process.env.TREE, board: b.name, ...sets, ...worked, holds, holdMs: r(holdMs), rezMoneyMs: r(keepMs), decisionMs: r(pickMs), pick }));
 }
