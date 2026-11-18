@@ -40,6 +40,11 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // It held only by the rez budget's per-decision stop note (anchor.stops), which served a look-ahead board's stop to the
   // decision's own board (Tithe on remote-2: 3.91 noted, 3.72 on the root). With the note deleted (ai-rez-stops) the
   // Corp installs Ansel on remote-6 again, the original D4 mistake: known-failing until D4 owes the HQ ice
+  // Stage D item 5 (2026-11-18, counted, not built; netrunner-ai/stage-d/item5-placement/design-answer.md, found-list
+  // rows 50 to 52): spec 1.8 ice rule 2 and HQ-first do not fix this board with the look-ahead on (the planner then plays
+  // another card), and played out they cost the Corp games: the destination alone is not where the Corp loses. The cause
+  // is a lead for tuning (row 50: each ice is offered at one destination, so the planner cannot weigh HQ against the
+  // remote). Known-failing
   for (const [n, m, title, remote, since, fails] of [
     [49, 82, 'Lycian Multi-Munition', 'remote-4', 'guard since beta 545f146', false],
     [49, 111, 'Ansel 1.0', 'remote-6', 'known-failing again since ai-rez-stops', true],
@@ -55,6 +60,8 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // A guard, not a pin: since centralIce the Corp puts Descent on bare R&D, not remote-1. D4 decides whether R&D or HQ
   // (4 agendas behind one ice) is right here; Jeff expected HQ
+  // Item 5 (2026-11-18, counted, not built): rule 2 and HQ-first put Descent on HQ only with the look-ahead off (HQ is
+  // still open then, need 3 of 10); with the look-ahead on the Corp draws. item5-placement/design-note.md section 8
   it('#53 #191 guard: Descent is not installed on remote-1 (R&D since centralIce; D4 decides R&D or HQ)', { timeout: T }, () => {
     const { s, recorded } = at(53, 191);
     const id = (recorded as Install).cardInstanceId!;
