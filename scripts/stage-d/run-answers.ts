@@ -99,6 +99,8 @@ const testDecks = await m('data/testDecks/nsgSamples.ts');
 const hv = await m('ai/handValues.ts');
 const ev = await m('ai/effectValues.ts');
 const vm = await m('ai/valueModel.ts');
+const iceM = await m('core/engine/ice.ts');
+const GATE = /GATE=1/.test(ARGS);
 
 const { activePrompt, actingSide, createInitialGameState, executeAction, getLegalActions } = core;
 const clearCaches = () => {
@@ -112,7 +114,7 @@ type Out = 'in' | 'out' | 'unknown';
 let holdAsks = 0;
 
 /** Whether the Runner gets in on the run under way at `s` (a settled state: no prompt left, or the chain cut). */
-function judge(s: GameState, server: string): Out {
+export function judge(s: GameState, server: string): Out {
   if (s.winner) return s.winner === 'runner' ? 'in' : 'out';
   const run = s.activeRun;
   if (!run) {
@@ -156,7 +158,7 @@ function judge(s: GameState, server: string): Out {
 
 const isPrompt = (a: GameAction) => a.type === 'RESOLVE_PROMPT';
 const options = (s: GameState, side: SideCode): GameAction[] => (getLegalActions(s, side) as GameAction[]).filter(isPrompt).slice(0, 200);
-const label = (s: GameState, a: GameAction): string => {
+export const label = (s: GameState, a: GameAction): string => {
   if (a.type !== 'RESOLVE_PROMPT') return a.type;
   const c = a.choice as Record<string, unknown>;
   if (c.kind === 'effect_choice') {
@@ -169,7 +171,7 @@ const label = (s: GameState, a: GameAction): string => {
 const same = (a: GameAction | null, b: GameAction | null) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The chain after an answer: later prompts of the same run, the Corp's by `corpPick`, the Runner's by answerPrompt. */
-function settle(s: GameState, corpPick: (s: GameState) => GameAction, depth = 8): GameState {
+export function settle(s: GameState, corpPick: (s: GameState) => GameAction, depth = 8): GameState {
   let cur = s;
   for (let d = 0; d < depth; d++) {
     const p = activePrompt(cur) as Prompt | undefined;
@@ -192,10 +194,10 @@ interface Opt {
   out: Out;
 }
 
-const today = (s: GameState) => prompts.answerPrompt(s, 'corp', undefined, true) as GameAction;
+export const today = (s: GameState) => prompts.answerPrompt(s, 'corp', undefined, true) as GameAction;
 
 /** Every answer of `side`'s prompt, settled and judged. */
-function judgeOptions(s: GameState, side: SideCode, depth: number): Opt[] {
+export function judgeOptions(s: GameState, side: SideCode, depth: number): Opt[] {
   const server = s.activeRun!.server;
   const out: Opt[] = [];
   for (const action of options(s, side)) {
@@ -215,7 +217,7 @@ function judgeOptions(s: GameState, side: SideCode, depth: number): Opt[] {
  * options (several such: today's score among them, as the fallback scores: one step, scoreOutcome + freeRezSaving);
  * otherwise today's answer.
  */
-function armPick(s: GameState, depth = 2): { action: GameAction; sep: boolean; opts?: Opt[]; asks?: number; ms?: number } {
+export function armPick(s: GameState, depth = 2): { action: GameAction; sep: boolean; opts?: Opt[]; asks?: number; ms?: number } {
   const p = activePrompt(s) as Prompt | undefined;
   if (!p || p.side !== 'corp' || !s.activeRun) return { action: today(s), sep: false };
   const opts = judgeOptions(s, 'corp', depth);
@@ -232,6 +234,57 @@ function armTop(s: GameState) {
   const t = performance.now();
   const a = armPick(planner.corpDecisionView(s));
   return { ...a, asks: holdAsks - a0, ms: performance.now() - t };
+}
+
+/**
+ * What the walk reads of the board after an answer, as a key: the run's place, the attacked server's ice (rezzed, its
+ * subtypes and subroutine count, its counters), the Runner's rig, money, clicks, tags and grip size, the Corp's credits,
+ * Shred's state and the prompt left pending. Two answers with the same key leave the walk the same question.
+ */
+export function walkInputs(s: GameState): string {
+  const run = s.activeRun;
+  if (!run || s.winner) {
+    const last = s.runsThisTurn[s.runsThisTurn.length - 1];
+    return `over:${s.winner ?? ''}:${last?.successful ? 'in' : 'out'}`;
+  }
+  const sv = s.corp.servers[run.server];
+  const p = activePrompt(s) as Prompt | undefined;
+  return JSON.stringify([
+    run.server, run.phase, run.icePosition, run.encounter?.iceId ?? null, run.encounter?.resolvingIndex ?? null, run.encounter?.broken ?? null,
+    (sv?.ice ?? []).map((c: GameState['corp']['hq'][number]) => [c.instanceId, c.isRezzed, c.isRezzed ? (iceM.iceSubtypes(c, s) as string[]).join('/') : '', c.isRezzed ? iceM.iceSubroutines(s, c).length : 0, c.tokens]),
+    s.runner.rig.programs.map(c => [c.instanceId, c.tokens]), s.runner.rig.hardware.map(c => c.instanceId), s.runner.rig.resources.map(c => c.instanceId),
+    s.runner.credits, s.runner.clicks, s.runner.tags, s.runner.grip.length, s.corp.credits, run.bonusCredits, run.shredArmed,
+    p ? `${p.side}:${'source' in p ? p.source.cardCode + ':' + p.source.step : p.kind}` : null,
+  ]);
+}
+
+/** The gates for asking the walk at a Corp prompt during a run: ruling 6's (one-step run over or not) and the board key's. */
+function gateFacts(s: GameState, opts: Opt[]) {
+  const server = s.activeRun!.server;
+  const t0 = performance.now();
+  const keys = opts.map(o => walkInputs(o.after));
+  const keyMs = performance.now() - t0;
+  const oneStep = new Set(opts.map(o => !!o.after.activeRun && !o.after.winner)).size > 1;
+  const board = new Set(keys).size > 1;
+  // The cost of the board gate when it opens: one walk ask for each distinct key (the build would ask on the answer's own
+  // board; here on the settled chain, as the count does)
+  let asks = 0;
+  let ms = 0;
+  if (board) {
+    const a0 = holdAsks;
+    const t = performance.now();
+    const seen = new Set<string>();
+    opts.forEach((o, k) => {
+      if (seen.has(keys[k])) return;
+      seen.add(keys[k]);
+      judge(o.best, server);
+    });
+    ms = performance.now() - t;
+    asks = holdAsks - a0;
+  }
+  const verdict = opts.some(o => o.out === 'in') && opts.some(o => o.out === 'out');
+  const runOnEither = opts.every(o => o.goesOn);
+  return { oneStep, board, verdict, runOnEither, distinct: new Set(keys).size, n: opts.length, asks, ms: Math.round(ms * 10) / 10, keyMs: Math.round(keyMs * 100) / 100 };
 }
 
 // ---- per decision ---------------------------------------------------------------------------------------------------
@@ -253,7 +306,9 @@ function inspect(src: string, i: number, s: GameState, side: SideCode, given: Ga
   const judgeMs = performance.now() - t;
   const family = new Set(opts.map(o => o.goesOn)).size > 1;
   const separating = opts.some(o => o.out === 'in') && opts.some(o => o.out === 'out');
-  if (!family && !separating) return null;
+  // GATE=1 (the AI Coordinator's question, 2026-11-18): every Corp prompt during a run is kept, with the two gates
+  const gate = GATE && side === 'corp' ? gateFacts(s, opts) : undefined;
+  if (!family && !separating && !gate) return null;
   const g = opts.find(o => same(o.action, given));
   const gid = g?.id ?? label(s, given);
   const rec: Record<string, unknown> = {
@@ -274,6 +329,7 @@ function inspect(src: string, i: number, s: GameState, side: SideCode, given: Ga
     ms: Math.round(ms),
     judgeMs: Math.round(judgeMs),
     holdAsks: holdAsks - asks0,
+    ...(gate ? { kind: family || separating ? 'dec' : 'gate', gate } : {}),
   };
   if (side === 'corp' && a) {
     const w = opts.find(o => same(o.action, a.action));
@@ -383,8 +439,8 @@ function playDeal(seed: number, armed: boolean) {
       const chosen = armed && a.sep && core.isLegalAction(state, a.action) ? a.action : given;
       if (!armed) {
         const rec = inspect(src, i, state, 'corp', given, ms, a);
+        if (rec?.kind === 'dec') counter.family++;
         if (rec) {
-          counter.family++;
           if (rec.separating) counter.sep++;
           if (rec.disagree) counter.disagree++;
           watches.push({ rec, turn: state.turnNumber, server: state.activeRun!.server, score: state.runner.score });
@@ -476,7 +532,7 @@ function replayHuman(file: string) {
         if (rec) {
           rec.recorded = label(s, move);
           rec.recordedIsGiven = same(move, given);
-          if (side === 'corp') {
+          if (side === 'corp' && rec.kind === 'dec') {
             counter.family++;
             if (rec.separating) counter.sep++;
             if (rec.disagree) counter.disagree++;

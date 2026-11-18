@@ -53,6 +53,25 @@ for (const a of arms) p(`- ${a.src} T${a.turn} ${a.server} ${a.card}: ${a.given}
 p('\ndisagreements, each: src T server card shred given (out) -> walk | cause | score one-step/full given vs walk | followed');
 for (const d of decs.filter(d => d.disagree)) p(`- ${d.src} T${d.turn} ${d.server} ${d.card}${d.shred ? ' [Shred]' : ''}: ${d.given} -> ${d.walk} | ${d.cause} | priced ${d.priced} (runLoss ${d.runLoss}) | ${JSON.stringify(d.score)} | ${JSON.stringify(d.followed)}${d.recorded ? ` | recorded ${d.recorded}` : ''}`);
 
+const gated = lines.filter(l => l.gate && l.side === 'corp');
+if (gated.length) {
+  p('\n## The gates (GATE=1): every Corp prompt during a run');
+  for (const [g, is] of Object.entries(groups)) {
+    const D = gated.filter(d => is(d.src));
+    const n = srcs.filter(s => is(s.src) && s.play !== 'arm').length || 1;
+    const c = f => D.filter(d => f(d.gate)).length;
+    p(`${g}: ${D.length} prompts; verdict differs ${c(x => x.verdict)}; one-step run-over differs (ruling 6) ${c(x => x.oneStep)}; board key differs ${c(x => x.board)}`);
+    p(`  verdict differs, run goes on either way one step (ruling 6 does not ask) ${c(x => x.verdict && !x.oneStep)}; verdict differs, board key same (the key would miss) ${c(x => x.verdict && !x.board)}`);
+    p(`  board key differs, verdict same (asks with no change) ${c(x => x.board && !x.verdict)}; ruling 6 opens ${c(x => x.oneStep)}`);
+    const asks = D.reduce((a, d) => a + d.gate.asks, 0);
+    const ms = D.reduce((a, d) => a + d.gate.ms, 0);
+    const keyMs = D.reduce((a, d) => a + d.gate.keyMs, 0);
+    p(`  board gate's cost at the top level: ${asks} asks (${f2(asks / n)} a game), ${Math.round(ms)} ms (${f2(ms / n)} ms a game); the keys ${Math.round(keyMs)} ms`);
+    const miss = D.filter(d => d.gate.verdict && !d.gate.oneStep);
+    for (const d of miss) p(`  - ${d.src} T${d.turn} ${d.server} ${d.card} ${d.step ?? ''}: given ${d.given} | ${d.options.map(o => `${o.id}:${o.out}`).join(' ')}`);
+  }
+}
+
 p('\n## Runner side (reported only)');
 for (const [g, is] of Object.entries(groups)) {
   const D = decs.filter(d => is(d.src) && d.side === 'runner');
