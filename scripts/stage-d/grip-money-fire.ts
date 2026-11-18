@@ -104,6 +104,8 @@ const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : unde
 const installedCorp = (s: GameState) => Object.values(s.corp.servers).flatMap(v => [...v.root, ...v.ice]);
 const serverOf = (s: GameState, id: string) => Object.values(s.corp.servers).find(v => v.root.some(c => c.instanceId === id) || v.ice.some(c => c.instanceId === id))?.id;
 const rigOf = (s: GameState) => [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources];
+/** Every Runner card installed or hosted, on its own cards or the Corp's. */
+const runnerInstalled = (s: GameState) => [...rigOf(s), ...[...rigOf(s), ...Object.values(s.corp.servers).flatMap(v => [...v.root, ...v.ice])].flatMap(c => c.hostedCards ?? [])].filter(c => cardDef(c).side_code === 'runner');
 const countCodes = (cards: CardInstance[]) => {
   const m = new Map<string, number>();
   for (const c of cards) m.set(c.cardCode, (m.get(c.cardCode) ?? 0) + 1);
@@ -267,6 +269,7 @@ async function main() {
 
   // ---------------------------------------------------------------------------------------------------- COMMITS
   interface Play {
+    id: string;
     code: string;
     how: 'event' | 'install';
     drawn: boolean;
@@ -280,6 +283,8 @@ async function main() {
     turn: number;
     phase: 'corp' | 'runner';
     gripAtStart?: Set<string>;
+    /** Runner cards installed or hosted anywhere at the Runner's turn start (a later one came from the grip: Madani, Bahia Bands, ...). */
+    rigAtStart?: Set<string>;
     plays: Play[];
     breached: boolean;
     runs: number;
@@ -359,6 +364,7 @@ async function main() {
           for (const o of open.filter(x => x.phase === 'corp')) {
             o.phase = 'runner';
             o.gripAtStart = new Set(after.runner.grip.map(c => c.instanceId));
+            o.rigAtStart = new Set(runnerInstalled(after).map(c => c.instanceId));
             const at = placeOf(after, o.id);
             const h = at === o.server ? holdOf('beta', after, o.server) : null;
             o.line.atRunnerTurn = { at, holds: h?.holds ?? null, margin: h ? r1(h.margin) : null, rezSet: h?.rez ?? null, corpCredits: after.corp.credits };
@@ -370,13 +376,13 @@ async function main() {
           // A run on the server begun by this step (a click or a run event: runsThisTurn is pushed at each run's start)
           if (after.runsThisTurn.length > before.runsThisTurn.length && after.runsThisTurn[after.runsThisTurn.length - 1].server === o.server) o.runs++;
           if (!o.breached) {
-            const gone = before.runner.grip.filter(c => !after.runner.grip.some(x => x.instanceId === c.instanceId));
-            const rigNow = [...rigOf(after), ...rigOf(after).flatMap(c => c.hostedCards ?? []), ...installedCorp(after).flatMap(c => c.hostedCards ?? [])];
-            for (const c of gone) {
-              const how = rigNow.some(x => x.instanceId === c.instanceId) ? 'install' : a.type === 'PLAY_OPERATION_OR_EVENT' && (a as { cardInstanceId?: string }).cardInstanceId === c.instanceId ? 'event' : null;
-              if (!how) continue;
-              o.plays.push({ code: c.cardCode, how, drawn: !o.gripAtStart!.has(c.instanceId), money: MONEY.has(c.cardCode), breaker: /Icebreaker/.test(cardDef(c).keywords ?? '') });
-            }
+            // An event played from the grip by this action; a card installed since the turn began (by a click, an
+            // event or an ability: Madani hosting a program from the grip mid-run), once each
+            const seen = new Set(o.plays.map(p => p.id));
+            const played = a.type === 'PLAY_OPERATION_OR_EVENT' ? before.runner.grip.find(c => c.instanceId === (a as { cardInstanceId?: string }).cardInstanceId) : undefined;
+            const fresh = runnerInstalled(after).filter(c => !o.rigAtStart!.has(c.instanceId) && !seen.has(c.instanceId));
+            for (const [c, how] of [...(played ? [[played, 'event'] as const] : []), ...fresh.map(c => [c, 'install'] as const)])
+              o.plays.push({ id: c.instanceId, code: c.cardCode, how, drawn: !o.gripAtStart!.has(c.instanceId), money: MONEY.has(c.cardCode), breaker: /Icebreaker/.test(cardDef(c).keywords ?? '') });
             const ok = (s: GameState) => s.runsThisTurn.filter(x => x.server === o.server && x.successful).length;
             const breach = ok(after) > ok(before) || (!!after.activeRun?.breached && after.activeRun.server === o.server && !(before.activeRun?.breached && before.activeRun.server === o.server));
             if (breach) {

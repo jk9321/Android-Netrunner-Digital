@@ -36,6 +36,8 @@ function outcomeOf(c) {
   if (e.outcome !== 'answered') return { k: e.outcome, e };
   if (e.atRunnerTurn && e.atRunnerTurn.at !== e.server) return { k: `agenda ${e.atRunnerTurn.at} by the Runner's turn`, e };
   if (!e.breached) return { k: 'out', e };
+  // The count assumed the Corp rezzes its holding set; where the Corp left some of it unrezzed, that is the cause first
+  if (e.atBreach?.rezSetUnrezzed?.length) return { k: 'rez: the Corp left ice of the holding set unrezzed', e, money: e.plays.some(p => p.money) };
   const money = e.plays.filter(p => p.money);
   const other = e.plays.filter(p => !p.money);
   if (money.length && !other.length) return { k: 'money', e, two: money.length >= 2 };
@@ -43,13 +45,12 @@ function outcomeOf(c) {
   if (other.length) return { k: other.some(p => p.breaker) ? 'hidden: breaker installed' : other.some(p => p.how === 'event') ? 'hidden: non-money event' : 'hidden: other install', e, drawn: other.some(p => p.drawn) };
   // No hidden card: the board the Runner met, the Corp's rezzes, else the count
   if (e.atRunnerTurn && e.atRunnerTurn.holds === false) return { k: 'none: the count at the Runner turn start says does not hold (the Corp moves after the commit)', e };
-  if (e.atBreach?.rezSetUnrezzed?.length) return { k: 'none: the Corp left ice of the holding set unrezzed', e };
   return { k: 'none: STOP (the public count)', e };
 }
 const outs = cs.map(c => ({ c, o: outcomeOf(c) }));
 console.log(`# grip-money count: ${games} sources, ${ds.length} Corp decisions, ${cs.length} commits (${exposure.size} exposures: the last commit on an agenda in a Corp turn)\n`);
 console.log('## Q1. Commits by margin (each commit takes its exposure\'s Runner turn)\n');
-const Q1COLS = ['commits', 'gone before the Runner turn', 'Runner got in', 'stolen', 'got in: money event only (F2)', 'of which two events', 'got in: money and another hidden card', 'got in: breaker installed', 'got in: non-money event', 'got in: other install', 'of the hidden: drawn that turn', 'got in: no hidden card'];
+const Q1COLS = ['commits', 'gone before the Runner turn', 'Runner got in', 'stolen', 'got in: money event only (F2)', 'of which two events', 'got in: money and another hidden card', 'got in: breaker installed', 'got in: non-money event', 'got in: other install', 'of the hidden: drawn that turn', 'got in: the Corp left the holding set unrezzed', 'got in: no hidden card'];
 for (const cls of CLASSES) {
   const rows = outs.filter(x => runnerClass(x.c) === cls);
   if (!rows.length) continue;
@@ -73,6 +74,7 @@ for (const cls of CLASSES) {
       r.filter(x => k(x) === 'hidden: non-money event').length,
       r.filter(x => k(x) === 'hidden: other install').length,
       r.filter(x => k(x).startsWith('hidden') && x.o.drawn).length,
+      r.filter(x => k(x).startsWith('rez:')).length,
       r.filter(x => k(x).startsWith('none')).length,
     ];
     console.log(`| ${b} | ${v.join(' | ')} |`);
@@ -84,8 +86,8 @@ console.log('No hidden card, by cause: ' + (Object.entries(none.reduce((o, x) =>
 const stops = [...new Map(none.filter(x => x.o.k.includes('STOP')).map(x => [`${x.o.e.src}|${x.o.e.aid}|${x.o.e.T}`, x.o.e])).values()];
 console.log(`STOP cases (exposures): ${stops.length}`);
 for (const e of stops) console.log(`- ${e.src} T${e.T} decision ${e.ci} ${e.act} ${e.agenda} in ${e.server}, margin ${e.margin}, at the Runner turn ${JSON.stringify(e.atRunnerTurn)}, at the breach ${JSON.stringify(e.atBreach)}, runs ${e.runs}`);
-const both = [...new Map(outs.filter(x => x.o.k.startsWith('money')).map(x => [`${x.o.e.src}|${x.o.e.aid}|${x.o.e.T}`, x])).values()];
-console.log(`\nThe money cases (exposures; plays before the breach): ${both.map(x => `${srcName(x.o.e.src)} T${x.o.e.T} m${x.o.e.margin} [${x.o.e.plays.map(p => p.code + (p.money ? '$' : '') + (p.drawn ? '(drawn)' : '')).join(' ')}]${x.o.e.stolen ? ' stolen' : ''}`).join('; ') || 'none'}`);
+const both = [...new Map(outs.filter(x => x.o.k.startsWith('money') || x.o.k.startsWith('rez:') || x.o.k.startsWith('hidden') || x.o.k.startsWith('none')).map(x => [`${x.o.e.src}|${x.o.e.aid}|${x.o.e.T}`, x])).values()];
+console.log(`\nEvery exposure the Runner got in on (plays before the breach; $ a money event): ${both.map(x => `${srcName(x.o.e.src)} T${x.o.e.T} m${x.o.e.margin === null ? 'none' : x.o.e.margin} ${x.o.k.split(':')[0]} [${x.o.e.plays.map(p => p.code + (p.money ? '$' : '') + (p.drawn ? '(drawn)' : '')).join(' ')}]${x.o.e.stolen ? ' stolen' : ''}`).join('; ') || 'none'}`);
 const diff = cs.filter(c => c.truth.deckVsGripStack || c.truth.deckVsSetup);
 console.log(`\nDeck list less public cards vs grip + stack / vs the setup deck list less public: ${diff.length} commits differ${diff.length ? ': ' + diff.slice(0, 10).map(c => `${srcName(c.src)} T${c.T} (${c.truth.deckVsGripStack}, ${c.truth.deckVsSetup})`).join('; ') : ''}`);
 
