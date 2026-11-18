@@ -16,11 +16,32 @@ import {
   installedIcebreakers,
 } from '../../core';
 import { legalFor, useSeat } from '../seat';
-import { Scissors, TrendingUp, Clock, Sparkles } from 'lucide-react';
-import { Credits } from './CreditIcon';
+import { Sparkles } from 'lucide-react';
+import { ClickIcon, Credits, SubroutineIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { StatTumbler } from './StatTumbler';
+
+/** Crisp up-arrow icon for icebreaker strength boosts. */
+function BoostIcon({ className = 'inline w-3 h-3 mr-1 -mt-0.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M12 19V5" />
+      <path d="M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+
+/** Crisp severed-bar icon for breaking ice subroutines. */
+function BreakIcon({ className = 'inline w-3 h-3 mr-1 -mt-0.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M3 12h5.5" />
+      <path d="M15.5 12H21" />
+      <path d="M9.5 18l5-12" />
+    </svg>
+  );
+}
 
 interface EncounterPanelProps {
   state: GameState;
@@ -144,7 +165,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                 : 'border-slate-700 bg-black/40 text-slate-200'
             }`}
           >
-            ↳ {sub.label}
+            <SubroutineIcon className={`inline w-3 h-3 mr-1.5 -mt-0.5 shrink-0 ${encounter.broken[i] ? 'text-emerald-500/70' : 'text-cyan-400'}`} />
+            {sub.label}
           </li>
         ))}
       </ol>
@@ -189,7 +211,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                         disabled={!boost}
                         className={boost ? `${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900` : usedBtn}
                       >
-                        <TrendingUp className="inline w-3 h-3 mr-1" />
+                        <BoostIcon />
                         +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
                       </button>
                     );
@@ -207,7 +229,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                           className={`${btn} bg-pink-950 border-pink-700 text-pink-200 hover:bg-pink-900`}
                           title={`Break with ${titleOf(breaker.instanceId)}`}
                         >
-                          <Scissors className="inline w-3 h-3 mr-1" />
+                          <BreakIcon />
                           Break {key} (<Credits amount={script?.breakCost(state, breaker) ?? 0} />)
                         </button>
                       );
@@ -215,7 +237,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     const broken = isBroken(indices);
                     return (
                       <button key={key} disabled className={usedBtn} title={broken ? 'Already broken' : 'Not available'}>
-                        <Scissors className="inline w-3 h-3 mr-1" />
+                        <BreakIcon />
                         {broken ? <span className="line-through">Broken {key}</span> : <>Break {key}</>}
                       </button>
                     );
@@ -231,7 +253,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     onClick={() => onAction(a)}
                     className={`${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900`}
                   >
-                    <TrendingUp className="inline w-3 h-3 mr-1" />
+                    <BoostIcon />
                     +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
                   </button>
                 ) : a.type === 'BREAK_SUBROUTINE' ? (
@@ -241,7 +263,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     className={`${btn} bg-pink-950 border-pink-700 text-pink-200 hover:bg-pink-900`}
                     title={`Break with ${titleOf(a.breakerInstanceId)}`}
                   >
-                    <Scissors className="inline w-3 h-3 mr-1" />
+                    <BreakIcon />
                     Break {a.subroutineIndices.map(i => i + 1).join('+')} (<Credits amount={script?.breakCost(state, breaker) ?? 0} />)
                   </button>
                 ) : null,
@@ -267,7 +289,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         const creditBreak = iceScript(ice)?.runnerBreakCost;
         const label = (text: React.ReactNode) => creditBreak !== undefined
           ? <>{text} (<Credits amount={creditBreak} />)</>
-          : <><Clock className="inline w-3 h-3 mr-1" />{text}</>;
+          : <><ClickIcon className="inline w-3 h-3 mr-1 -mt-0.5" />{text}</>;
         return (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[12px] font-mono text-slate-400 w-full sm:w-40">
