@@ -6,8 +6,9 @@ import { cardDef } from '../../data/cards';
 import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, rezCostOf } from '../../core';
 import { useSeat } from '../seat';
 import { EncounterPanel } from './EncounterPanel';
-import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
+import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Play } from 'lucide-react';
 import { Credits } from './CreditIcon';
+import { RezIcon } from './ServerColumn';
 import { FloatingPanel } from './FloatingPanel';
 import { Keyword } from './Keyword';
 import { cardTextHtml } from '../cardText';
@@ -214,7 +215,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     className="px-4 sm:px-5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-500 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all"
                     title="Corp rez window: rez this card before the Runner continues"
                   >
-                    <ShieldAlert className="w-4 h-4" /> Rez {cardDef(card).title} (
+                    <RezIcon className="w-4 h-4 shrink-0" /> Rez {cardDef(card).title} (
                     {live !== printed ? (
                       <span className={live < printed ? 'text-emerald-300' : 'text-amber-300'}>
                         <s className="opacity-65 mr-0.5">{printed}</s>
@@ -240,7 +241,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
                     className="px-4 sm:px-5 py-2 bg-cyan-900 hover:bg-cyan-800 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-500 border-b-2 border-b-cyan-600 active:translate-y-[1px] active:border-b-[1px] flex items-center justify-center gap-1.5 transition-all max-w-[16rem]"
                     title={ability.label}
                   >
-                    <Sparkles className="w-4 h-4 text-amber-300 shrink-0" /> {cardDef(source).title}
+                    <Play className="w-4 h-4 text-amber-300 shrink-0" /> {cardDef(source).title}
                   </button>
                 );
               })}

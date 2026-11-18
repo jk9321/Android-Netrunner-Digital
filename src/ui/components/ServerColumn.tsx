@@ -4,13 +4,24 @@ import { CardInstance, SideCode } from '../../core/types/card';
 import type { Viewer } from '../viewer';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { Database, Crosshair, Zap, ChevronsUp, Bug } from 'lucide-react';
+import { Database, Crosshair, ChevronsUp, Link2 } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import { usePromptServerHighlight } from '../promptHighlight';
 import type { IceSubtype } from '../../core/scripts/types';
 import { rezCostOf } from '../../core';
 import { useLiveGameState } from '../liveValues';
 import { AgendaDiamondIcon, Credits } from './CreditIcon';
+
+/** Card-flip icon representing rezzing (flipping a Corp card faceup). */
+export function RezIcon({ className = 'w-[1.1em] h-[1.1em] shrink-0' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 12l3-3 3 3" />
+      <path d="M12 9v6" />
+    </svg>
+  );
+}
 
 interface ServerColumnProps {
   server: ServerState;
@@ -72,7 +83,7 @@ const HostedTag: React.FC<{ ice: CardInstance; hosted: CardInstance[] }> = ({ ic
     className="pointer-events-auto max-w-full min-w-0 flex items-center gap-[0.2em] rounded bg-pink-950/95 border border-pink-500 px-[0.2em] text-[0.8em] leading-[1.3em] font-bold text-pink-100"
     data-testid={`hosts-${ice.instanceId}`}
   >
-    <Bug className="w-[1.1em] h-[1.1em] shrink-0" />
+    <Link2 className="w-[1.1em] h-[1.1em] shrink-0" />
     <span className="truncate">{hosted.map(h => cardDef(h).title).join(', ')}</span>
   </div>
 );
@@ -211,7 +222,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     }}
                     className={smallButton}
                   >
-                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(card)})
+                    <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(card)})
                   </button>
                 )}
                 {canAdvance(card) && onAdvanceCard && (
@@ -280,7 +291,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
                     className={smallButton}
                     title={`Rez ${cardDef(iceCard).title} for ${gameState ? rezCostOf(gameState, iceCard) : cardDef(iceCard).cost || 0} credits`}
                   >
-                    <Zap className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(iceCard)})
+                    <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(iceCard)})
                   </button>
                 )}
                 {canAdvance(iceCard) && onAdvanceCard && (

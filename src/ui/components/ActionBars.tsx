@@ -6,7 +6,7 @@ import { playableHostZones, runnerInstallCost } from '../../core/engine/actions/
 import { playCost } from '../../core/engine/actions/play';
 import { showConfirm } from './Dialog';
 import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
-import { ClickIcon, CreditIcon, Credits, TagIcon, VirusIcon } from './CreditIcon';
+import { ClickIcon, CreditIcon, Credits, MuIcon, TagIcon, VirusIcon } from './CreditIcon';
 import { CorpInstallOptions } from './CorpInstallOptions';
 import { hostedCardActions } from '../legal';
 import { cardPositionLabel } from '../cardLabels';
@@ -305,7 +305,7 @@ export function RunnerActions(props: ActionBarProps) {
                   }, 0);
                   const total = freeMu + freed;
                   return total >= neededMu
-                    ? <span className="text-emerald-400">✓ {total}/{neededMu} MU available</span>
+                    ? <span className="text-emerald-400 inline-flex items-center gap-1"><MuIcon className="w-3.5 h-3.5 shrink-0" /> {total}/{neededMu} MU available</span>
                     : `Need ${neededMu - total} more MU`;
                 }
               : undefined

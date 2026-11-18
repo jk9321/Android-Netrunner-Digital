@@ -16,7 +16,7 @@ import {
   installedIcebreakers,
 } from '../../core';
 import { legalFor, useSeat } from '../seat';
-import { Sparkles } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { ClickIcon, Credits, SubroutineIcon } from './CreditIcon';
 import { Keyword } from './Keyword';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
@@ -119,7 +119,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
         : ability.label.replace(/\.$/, '');
     return (
       <button key={`ab${k}`} onClick={() => onAction(a)} className={`${btn} bg-lime-950 border-lime-700 text-lime-200 hover:bg-lime-900`} title={ability.label}>
-        <Sparkles className="inline w-3 h-3 mr-1" />
+        <Play className="inline w-3 h-3 mr-1 -mt-0.5" />
         {text}
       </button>
     );
