@@ -131,7 +131,7 @@ describe('UI component smoke renders', () => {
     const html = renderToStaticMarkup(
       <DeckPicker initialCorpDeckId={corpStarter.id} initialRunnerDeckId={runnerStarter.id} onStart={() => {}} />,
     );
-    for (const id of ['app-title', 'game-settings', 'deck-columns', 'random-corp-deck', 'new-corp-deck', 'start-game']) {
+    for (const id of ['app-title', 'game-settings', 'deck-columns', 'search-corp-decks', 'search-runner-decks', 'random-corp-deck', 'new-corp-deck', 'start-game']) {
       expect(html).toContain(`data-testid="${id}"`);
     }
   });

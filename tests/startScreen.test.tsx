@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DeckPicker } from '../src/ui/components/DeckPicker';
 import type { OnlineRole, PlayMode } from '../src/ui/components/DeckPicker';
+import { matchesDeckQuery } from '../src/ui/deckPickerUtils';
 import { STARTER_DECKS, DeckList } from '../src/data/decks';
 import { LOBBY_ERROR_TEXT, codeFromPath, createGame, inviteLink, joinGame, lookupGame, onlineDeckProblems, roomPresence, submission } from '../src/net/lobby';
 import { PROTOCOL_VERSION } from '../src/net/protocol';
@@ -218,5 +219,22 @@ describe('Lobby calls against a stubbed fetch', () => {
     expect(codeFromPath('/play/k7qm2x/')).toBe('K7QM2X');
     expect(codeFromPath('/play/K7QM-20')).toBeNull();
     expect(codeFromPath('/')).toBeNull();
+  });
+});
+
+describe('Deck picker search', () => {
+  const sampleDeck = { name: 'Quick and Dirty', identity: 'Esâ Afontov: Eco-Insurrectionist' };
+
+  it('matches empty or whitespace queries against any deck', () => {
+    expect(matchesDeckQuery(sampleDeck, '')).toBe(true);
+    expect(matchesDeckQuery(sampleDeck, '   ')).toBe(true);
+  });
+
+  it('matches case-insensitively on both deck title and deck identity', () => {
+    expect(matchesDeckQuery(sampleDeck, 'quick')).toBe(true);
+    expect(matchesDeckQuery(sampleDeck, 'DIRTY')).toBe(true);
+    expect(matchesDeckQuery(sampleDeck, 'afontov')).toBe(true);
+    expect(matchesDeckQuery(sampleDeck, '  Eco-Insurrectionist  ')).toBe(true);
+    expect(matchesDeckQuery(sampleDeck, 'Catalyst')).toBe(false);
   });
 });
