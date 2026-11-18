@@ -106,6 +106,9 @@ const GATE = /GATE=1/.test(ARGS);
 // keys differ; when the verdicts separate, the priced score picks (scoreOutcome + freeRezSaving, less runLoss on an
 // answer the walk lets in), ahead of every per-card block (Lycian, Lightning Laboratory); otherwise today's answer.
 const FINAL = /FINAL=1/.test(ARGS);
+// SCORE=one: the final rule's priced score on the one-step board the fallback scores today (followChain as on beta),
+// the settled board feeding the walk only; default: on the settled board (ruling 3 read as one settle for both)
+const SCORE_ONE = /SCORE=one/.test(ARGS);
 
 const { activePrompt, actingSide, createInitialGameState, executeAction, getLegalActions } = core;
 const clearCaches = () => {
@@ -242,7 +245,7 @@ export function armPick(s: GameState, depth = 2): { action: GameAction; sep: boo
   if (FINAL) {
     // Priced on the settled board (ruling 3: the walk's board and the score's come from one settle)
     const loss = pools.runLoss(s) as number;
-    const priced = (o: Opt) => prompts.scoreOutcome(s, o.best, 'corp', undefined, true) + prompts.freeRezSaving(s, o.after) - (o.out === 'in' ? loss : 0);
+    const priced = (o: Opt) => prompts.scoreOutcome(s, SCORE_ONE ? o.after : o.best, 'corp', undefined, true) + prompts.freeRezSaving(s, o.after) - (o.out === 'in' ? loss : 0);
     const pick = opts.reduce((a, b) => (priced(b) > priced(a) ? b : a));
     return { action: pick.action, sep: true, opts };
   }
@@ -470,7 +473,7 @@ function playDeal(seed: number, armed: boolean) {
         }
       } else if (!same(chosen, given)) {
         counter.changed++;
-        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), runLoss: Math.round(pools.runLoss(state) * 10) / 10, options: a.opts?.map(o => ({ id: o.id, out: o.out, one: Math.round((prompts.scoreOutcome(state, o.after, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10, settled: Math.round((prompts.scoreOutcome(state, o.best, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10 })), step: 'source' in p! ? p!.source.step : '' };
+        const rec = { kind: 'arm', src, i, turn: state.turnNumber, server: state.activeRun!.server, card: 'source' in p! ? p!.source.cardCode : '', given: label(state, given), arm: label(state, chosen), runLoss: Math.round(pools.runLoss(state) * 10) / 10, options: a.opts?.map(o => ({ id: o.id, out: o.out, one: Math.round((prompts.scoreOutcome(state, o.after, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10, settled: Math.round((prompts.scoreOutcome(state, o.best, 'corp', undefined, true) + prompts.freeRezSaving(state, o.after)) * 10) / 10 })), step: 'source' in p! ? p!.source.step : '', root: (state.corp.servers[state.activeRun!.server]?.root ?? []).map(c => `${core.cardDef(c).title}${c.isRezzed ? '*' : ''}${c.advancementCounters ? '+' + c.advancementCounters : ''}`), corpCredits: state.corp.credits, hq: state.corp.hq.length };
         watches.push({ rec, turn: state.turnNumber, server: state.activeRun!.server, score: state.runner.score });
       }
       return chosen;
