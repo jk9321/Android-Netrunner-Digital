@@ -1,0 +1,93 @@
+{
+ "lib": [
+  [
+   "ai/corp/hold.ts",
+   "import { memo } from '../valueModel';",
+   "import { memo, sideCards } from '../valueModel';"
+  ],
+  [
+   "ai/corp/hold.ts",
+   "export const CHECK = { runnerExtra: 0 };\n",
+   "export const CHECK = { runnerExtra: 0 };\n\n/**\n * ARM grip-money (exploit F2 count step, scripts/stage-d/grip-money-arms.mjs; never built). The money events the Runner\n * may hold, from its deck list less the public cards (10.2.2, 10.2.3; Jeff: the Normal AI may know both deck lists).\n * The deck list is every Runner card the AI's decklist helper counts (valueModel.ts sideCards); the public ones taken\n * off are the heap, the score area, the installed cards and every hosted card. Nothing here reads which hidden zone a\n * card is in or the stack's order; of the grip, only its size.\n *  - cost, gain: the play cost and the credits it gives; clicks: the clicks it takes from earning (Creative Commission\n *    2: it loses the next click when any remain; Overclock and Trick Shot 0: each is the run's own click, its hosted\n *    credits spent on that run); resource: Sell Out's additional cost, an installed resource trashed;\n *  - old: the 2026-11-18 arms' amount (credits over a click for a credit).\n * Wildcat Strike is the Corp's choice and Aircheck locks the pool: not money for a run on a remote.\n */\nconst GRIP_EVENTS: Record<string, { cost: number; gain: number; clicks: number; resource?: boolean; old: number }> = {\n  '30030': { cost: 5, gain: 9, clicks: 1, old: 3 }, // Sure Gamble\n  '30020': { cost: 1, gain: 5, clicks: 2, old: 2 }, // Creative Commission\n  '34001': { cost: 1, gain: 4, clicks: 1, old: 2 }, // Strike Fund\n  '36011': { cost: 1, gain: 4, clicks: 1, resource: true, old: 2 }, // Sell Out\n  '30029': { cost: 1, gain: 5, clicks: 0, old: 4 }, // Overclock: 5 hosted, spent during its run\n  '34087': { cost: 1, gain: 4, clicks: 0, old: 3 }, // Trick Shot: 4 hosted, its remote run after R&D's\n};\n/** on: the playable amount is in runnerEarnings; only: the events it may use (the measuring script's per-event ask). */\nexport const GRIP: { on: boolean; only: string[] | null } = { on: false, only: null };\nexport const withGrip = <T>(f: () => T): T => {\n  const was = GRIP.on;\n  GRIP.on = true;\n  try {\n    return f();\n  } finally {\n    GRIP.on = was;\n  }\n};\nconst unseenMemo = new WeakMap<GameState, Map<string, number>>();\n/** The Runner's deck list less its public cards, by code (copies). */\nexport function unseenRunnerCards(s: GameState): Map<string, number> {\n  const known = unseenMemo.get(s);\n  if (known) return known;\n  const m = new Map<string, number>();\n  for (const c of sideCards(s, 'runner')) m.set(c.cardCode, (m.get(c.cardCode) ?? 0) + 1);\n  const r = s.runner;\n  const installed = [...r.rig.programs, ...r.rig.hardware, ...r.rig.resources];\n  const corpInstalled = Object.values(s.corp.servers).flatMap(v => [...v.root, ...v.ice]);\n  const open = [...r.heap, ...r.scoreArea, ...installed, ...[...installed, ...corpInstalled].flatMap(c => c.hostedCards ?? [])];\n  for (const c of open) {\n    const k = m.get(c.cardCode) ?? 0;\n    if (cardDef(c).side_code === 'runner' && k) m.set(c.cardCode, k - 1);\n  }\n  unseenMemo.set(s, m);\n  return m;\n}\n/** The 2026-11-18 amounts: max, the largest old amount unseen (0 with an empty grip); odds, the expected best one in a grip of g drawn from the unseen cards (hypergeometric). */\nexport function gripMoney(s: GameState): { max: number; odds: number } {\n  const g = s.runner.grip.length;\n  const unseen = unseenRunnerCards(s);\n  let n = 0;\n  for (const k of unseen.values()) n += k;\n  const byGain = new Map<number, number>();\n  for (const [code, k] of unseen) {\n    const e = GRIP_EVENTS[code];\n    if (e && k && !(e.resource && !s.runner.rig.resources.length)) byGain.set(e.old, (byGain.get(e.old) ?? 0) + k);\n  }\n  if (!g || !byGain.size) return { max: 0, odds: 0 };\n  const gains = [...byGain.keys()].sort((a, b) => b - a);\n  const none = (k: number) => {\n    let p = 1;\n    for (let i = 0; i < g; i++) p *= Math.max(0, n - k - i) / (n - i);\n    return p;\n  };\n  let odds = 0;\n  let k = 0;\n  let prev = 1;\n  for (const m of gains) {\n    k += byGain.get(m)!;\n    const p = none(k);\n    odds += m * (prev - p);\n    prev = p;\n  }\n  return { max: gains[0], odds };\n}\n"
+  ]
+ ],
+ "max": [
+  [
+   "ai/corp/hold.ts",
+   "export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra;",
+   "export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra + gripMoney(s).max;"
+  ]
+ ],
+ "odds": [
+  [
+   "ai/corp/hold.ts",
+   "export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra;",
+   "export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra + gripMoney(s).odds;"
+  ]
+ ],
+ "earn": [
+  [
+   "ai/corp/hold.ts",
+   "export function runnerEarnings(s: GameState, from: TurnFrom = nextTurn(s)): number[] {",
+   "/**\n * The playable amount by clicks: earn[k] (what k earning clicks make) becomes the best of earn[k] and, for each money\n * event unseen, the event played after the earning that its other clicks make: earn[k - clicks] + gain - cost, when the\n * credits it can reach then (its credits + earn[k - clicks]) pay its cost. One event at most. Sell Out reads the\n * earnings without the resource it trashes (the best one to lose).\n */\nfunction withGripEvent(s: GameState, from: TurnFrom, base: number[]): number[] {\n  if (!GRIP.on || !s.runner.grip.length) return base;\n  let out = base;\n  for (const [code, n] of unseenRunnerCards(s)) {\n    const e = GRIP_EVENTS[code];\n    if (!e || !n || (GRIP.only && !GRIP.only.includes(code))) continue;\n    const r = s.runner;\n    const bases = e.resource ? r.rig.resources.map(x => publicEarnings({ ...s, runner: { ...r, rig: { ...r.rig, resources: r.rig.resources.filter(y => y !== x) } } }, from)) : [base];\n    for (const b of bases)\n      for (let k = e.clicks; k < b.length; k++) {\n        const before = b[k - e.clicks];\n        if (from.credits + before < e.cost) continue;\n        const v = before + e.gain - e.cost;\n        if (v > out[k]) {\n          if (out === base) out = base.slice();\n          out[k] = v;\n        }\n      }\n  }\n  return out;\n}\n\nexport function runnerEarnings(s: GameState, from: TurnFrom = nextTurn(s)): number[] {\n  return withGripEvent(s, from, publicEarnings(s, from));\n}\n\n/** runnerEarnings as beta has it (the public money). */\nfunction publicEarnings(s: GameState, from: TurnFrom = nextTurn(s)): number[] {"
+  ]
+ ],
+ "on": [
+  [
+   "ai/corp/hold.ts",
+   "export const GRIP: { on: boolean; only: string[] | null } = { on: false, only: null };",
+   "export const GRIP: { on: boolean; only: string[] | null } = { on: true, only: null };"
+  ]
+ ],
+ "commitRead": [
+  [
+   "ai/corp/candidates.ts",
+   "import { serverHold } from './hold';",
+   "import { serverHold, withGrip } from './hold';"
+  ],
+  [
+   "ai/corp/candidates.ts",
+   "  const hold = server ? serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits }) : null;",
+   "  const hold = server ? withGrip(() => serverHold(after, server, { when: 'runnerTurn', corpCredits: after.corp.credits })) : null;"
+  ]
+ ],
+ "lineRead": [
+  [
+   "ai/corp/lines.ts",
+   "import { serverHold } from './hold';",
+   "import { serverHold, withGrip } from './hold';"
+  ],
+  [
+   "ai/corp/lines.ts",
+   "  const h = serverHold(state, server, { when: 'runnerTurn', corpCredits: credits });",
+   "  const h = withGrip(() => serverHold(state, server, { when: 'runnerTurn', corpCredits: credits }));"
+  ]
+ ],
+ "_arms": {
+  "control": [],
+  "f2max": [
+   "lib",
+   "max"
+  ],
+  "f2odds": [
+   "lib",
+   "odds"
+  ],
+  "playable": [
+   "lib",
+   "earn",
+   "on"
+  ],
+  "commit": [
+   "lib",
+   "earn",
+   "commitRead"
+  ],
+  "commitLine": [
+   "lib",
+   "earn",
+   "commitRead",
+   "lineRead"
+  ]
+ }
+}
