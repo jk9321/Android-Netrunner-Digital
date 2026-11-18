@@ -111,6 +111,8 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
   if (report.config.ai !== 'corp' && report.config.ai !== 'runner') continue;
   let s: GameState = createInitialGameState(deckGameSetup(report.config.seed, report.config.corpDeck, report.config.runnerDeck));
   if (report.startStops) s = { ...s, stops: report.startStops };
+  // A part of a split game (report-40b, 40c: scripts/stage-d/make-room-split.ts) starts from its recorded state
+  if (report.startsAt === 'state') s = structuredClone(report.state);
   let turnStart: GameState | null = null;
   let humanMoves: GameAction[] = [];
   const finishTurn = (end: GameState) => {

@@ -6,6 +6,7 @@ import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { inDecision } from './helpers/pricing';
 import { makeRoomInstalls } from '../src/ai/runnerAI';
+import { createAgent } from '../src/ai';
 import { evaluate } from '../src/ai/evaluate';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { clearHandCaches } from '../src/ai/handValues';
@@ -130,5 +131,7 @@ describe('AI judgement in fixed positions', () => {
     // The plain answer is not legal (it would install nothing); the AI weighs the engine's answer that trashes Cleaver first
     const mayflyAnswers = getLegalActions(s, 'runner').filter(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds[0] === mayfly.instanceId);
     expect(mayflyAnswers).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
+    // The Runner AI's own answer is that one: it prices the engine's list, the only owner of these answers
+    expect(createAgent('runner', 'normal').chooseAction(structuredClone(s))).toMatchObject({ type: 'RESOLVE_PROMPT', choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } });
   });
 });

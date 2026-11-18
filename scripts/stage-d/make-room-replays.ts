@@ -5,7 +5,12 @@
  * replayed from its `state`, else from its `config`. A file that stops earlier on this engine than on the base is a stop
  * by the brief, unless it is the make-room fault the split removed.
  *
+ * Then the files named by HARNESS (prefix match, default report-40) are replayed again through scripts/stage-a/harness.ts
+ * replayHuman, the Stage D fire scripts' loader (it asks a fresh Corp at each Corp state, so it is slow): the moves it
+ * replays must equal this engine's count.
+ *
  *   npx vite-node scripts/stage-d/make-room-replays.ts
+ *   HARNESS=none npx vite-node scripts/stage-d/make-room-replays.ts
  */
 import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -13,6 +18,7 @@ import { join, resolve } from 'node:path';
 import type { GameAction, GameState } from '../../src/core';
 import { createInitialGameState, executeAction } from '../../src/core';
 import { deckGameSetup } from '../../src/data/decks';
+import { replayHuman } from '../stage-a/harness';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const BASE = process.env.BASE ?? 'origin/beta';
@@ -45,16 +51,26 @@ async function main() {
   const core = await import(/* @vite-ignore */ join(root, 'src/core/index.ts'));
   const decks = await import(/* @vite-ignore */ join(root, 'src/data/decks.ts'));
   let shorter = 0;
+  const mineOf: Record<string, number> = {};
   for (const f of readdirSync(DIR).filter(x => x.endsWith('.json')).sort()) {
     const report = JSON.parse(readFileSync(join(DIR, f), 'utf8'));
     if (!report.moves?.length) continue;
     const mine = reach(report, createInitialGameState, deckGameSetup, executeAction);
+    mineOf[f] = mine.n;
     const base = reach(report, core.createInitialGameState, decks.deckGameSetup, core.executeAction);
     const flag = mine.n < base.n ? 'SHORTER' : mine.n > base.n ? 'longer' : '';
     if (mine.n < base.n) shorter++;
     console.log(`${f}\t${report.moves.length}\tthis ${mine.n}\tbase ${base.n}\t${flag}${mine.error && mine.n < report.moves.length ? `\tthis: ${mine.error.slice(0, 90)}` : ''}${base.error && base.n < report.moves.length ? `\tbase: ${base.error.slice(0, 90)}` : ''}`);
   }
   console.log(`files that stop earlier on this engine than on ${sha.slice(0, 7)}: ${shorter}`);
+  const want = (process.env.HARNESS ?? 'report-40').split(',').filter(w => w && w !== 'none');
+  let off = 0;
+  for (const f of Object.keys(mineOf).filter(x => want.some(w => x.startsWith(w)))) {
+    const n = replayHuman(join(DIR, f), {});
+    if (n !== mineOf[f]) off++;
+    console.log(`replayHuman ${f}: ${n} moves (this engine ${mineOf[f]})${n === mineOf[f] ? '' : ' DIFFERS'}`);
+  }
+  if (want.length) console.log(`replayHuman differs from this engine on ${off} files`);
 }
 
 main().catch(e => {
