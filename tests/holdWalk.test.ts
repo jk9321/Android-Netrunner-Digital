@@ -11,7 +11,7 @@ import { createCardInstance } from '../src/core/engine/gameState';
 import { turnKey } from '../src/core/engine/helpers';
 import { answer, installCorpForTest, installIceForTest, installProgramForTest, keepGoing, newGame, passTurn, run, scoreForTest, startRunnerTurn, toCorp } from './helpers';
 import { oracle, oracleGetsIn } from '../scripts/stage-d/hold-oracle';
-import { reachQuestion, reachSets, restOfTurn, runnerEarnings, serverHold, turnEndDerezPicks, turnReach, walkStart } from '../src/ai/corp/hold';
+import { reachOrder, reachQuestion, reachSets, restOfTurn, runnerEarnings, serverHold, turnEndDerezPicks, turnReach, walkStart } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -822,6 +822,11 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
     expect(thisRun(r).holds).toBe(true);
     expect(oracleGetsIn(r, 'remote1', 'thisRun', []).answer).toBe('holds');
   });
+  it("Coalescence mirror, the run's budget on the Corp's turn: the counters pay only during the Runner's turn, it holds", () => {
+    const r = structuredClone(during(1));
+    r.activePlayer = 'corp';
+    expect(thisRun(r)).toMatchObject({ holds: true, budget: 1 });
+  });
 
   // Side Hustle: "whenever a run begins, place 1 credit on this resource. When there are 6 or more hosted credits, take
   // all credits from this resource, trash it, and draw 1 card." (6.9.1c, 1.10.4a)
@@ -847,6 +852,52 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
   it('Side Hustle: walk state from the rest of the turn too (holding 5, 1 click left: it gets in)', () => {
     expect(rest(palisade(0, st => resource(st, C.SIDE_HUSTLE, 5))).holds).toBe(false);
     expect(rest(palisade(0, st => resource(st, C.SIDE_HUSTLE, 4))).holds).toBe(true);
+  });
+
+  // Two Side Hustles on one board (review R1; 8 of the 21 deals the one-game check changed have two): each places its
+  // own credit and pays its own payout, and one gone is that one only. Palisades on remote1, $0; the truth from the oracle
+  const hustles = (a: number, b: number, clicks: number, palisades: number) =>
+    palisade(0, st => {
+      for (let k = 1; k < palisades; k++) ice(st, C.PALISADE);
+      resource(st, C.SIDE_HUSTLE, a);
+      resource(st, C.SIDE_HUSTLE, b);
+      st.runner.maxClicks = clicks;
+      st.runner.clicks = clicks;
+    });
+  it('two Side Hustles holding 4 and 4, 2 clicks: the second run pays both, 12 for one Palisade, it gets in (beta: holds)', () => {
+    const s = hustles(4, 4, 2, 1);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 3 and 3, 2 clicks: neither pays by the second run, it holds', () => {
+    const s = hustles(3, 3, 2, 1);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 5 and 5, 1 click, 3 Palisades: both pay, 12 for 9, it gets in (one payout is not enough)', () => {
+    const s = hustles(5, 5, 1, 3);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 5 and 4, 1 click, 3 Palisades: one pays 6 of the 9, it holds', () => {
+    const s = hustles(5, 4, 1, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 0 and 5, 2 clicks, 2 Palisades: the second pays 6 on the first run and is gone, the first does not, it gets in', () => {
+    const s = hustles(0, 5, 2, 2);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
+  });
+  it('two Side Hustles mirror: holding 0 and 5, 2 clicks, 3 Palisades: the 6 the second paid is all there is (it is gone, it does not pay again), it holds', () => {
+    const s = hustles(0, 5, 2, 3);
+    expect(agrees(s).holds).toBe(true);
+    expect(oracleOn(s, [])).toBe('holds');
+  });
+  it('two Side Hustles holding 5 and 4, 2 clicks, 3 Palisades: each pays on its own run, 12 for 9, it gets in (the one gone is the one that paid)', () => {
+    const s = hustles(5, 4, 2, 3);
+    expect(agrees(s).holds).toBe(false);
+    expect(oracleOn(s, [])).toBe('getsIn');
   });
 
   // "Knickknack" O'Brian: "The first time each turn a run begins, you may trash 1 of your other installed cards. If you
@@ -935,6 +986,7 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
     const q = inCorp(s, () => reachQuestion(s, ['remote1']));
     expect(q.others?.length).toBe(2);
     expect(inCorp(s, () => reachSets(q)(['remote1']))).toBe(true);
+    expect(inCorp(s, () => reachOrder(q, ['remote1']))).toBe(true);
     expect(inCorp(s, () => turnReach(s, ['remote1'], [[]]).reaches)).toBe(true);
   });
   it('Lightning Laboratory mirror, 3 rezzed: a third Whitespace instead of Palisade, every pick leaves one: it holds', () => {
@@ -948,6 +1000,7 @@ describe("hold walk: the Runner's money the count missed (ai-runner-money part 1
     });
     expect(walk(s).holds).toBe(true);
     expect(inCorp(s, () => reachSets(reachQuestion(s, ['remote1']))(['remote1']))).toBe(false);
+    expect(inCorp(s, () => reachOrder(reachQuestion(s, ['remote1']), ['remote1']))).toBe(false);
     expect(rest(three(C.WHITESPACE)).holds).toBe(true);
   });
 

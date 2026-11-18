@@ -92,8 +92,11 @@ if (ds.length) {
   const inGroup = {};
   for (const d of ds) for (const g of d.groups) add(inGroup, g);
   console.log('Decisions with a card of the group in play: ' + Object.entries(inGroup).map(([g, n]) => `${g} ${n} (${pct(n, ds.length)})`).join(', '));
-  console.log('\n| arm | changed | a game | with its group in play | errors | time mean x | p95 x | over 2x at >= 0.5 s | +3 s or more | slowest arm decision |');
-  console.log('|---|---|---|---|---|---|---|---|---|---|');
+  // Time, the bar's measure (as scripts/value-b1/fire-count-sum.mjs): the ratio of the total decision time and the ratio
+  // of the two p95 decision times, arm over beta, on the same decisions. The per-decision ratio columns are the harness's
+  // noise on single decisions (they read above 1 both ways round), kept for the record, not the bar.
+  console.log('\n| arm | changed | a game | with its group in play | errors | time total x (bar) | p95 x (bar) | per-decision ratio: mean / p95 (noise) | over 2x at >= 0.5 s | +3 s or more | slowest arm decision |');
+  console.log('|---|---|---|---|---|---|---|---|---|---|---|');
   const own = { counter: 'counter', runBegin: 'runBegin', saci: 'saci', lightning: 'lightning', arru: 'arru', runBeginBound: 'runBegin', arruBound: 'arru', f2max: 'f2', f2odds: 'f2' };
   for (const a of arms) {
     const ch = ds.filter(d => d.changed.includes(a));
@@ -101,11 +104,14 @@ if (ds.length) {
     const ratios = ds.filter(d => d.ms.beta > 20).map(d => d.ms[a] / d.ms.beta).sort((x, y) => x - y);
     const mean = ratios.reduce((n, x) => n + x, 0) / Math.max(1, ratios.length);
     const p95 = ratios[Math.floor(0.95 * (ratios.length - 1))] ?? 0;
+    const p95of = xs => { const v = [...xs].sort((x, y) => x - y); return v[Math.floor(0.95 * (v.length - 1))] ?? 0; };
+    const total = ds.reduce((n, d) => n + d.ms[a], 0) / Math.max(1e-9, ds.reduce((n, d) => n + d.ms.beta, 0));
+    const p95bar = p95of(ds.map(d => d.ms[a])) / Math.max(1e-9, p95of(ds.map(d => d.ms.beta)));
     const slow2 = ds.filter(d => d.ms.beta >= 500 && d.ms[a] > 2 * d.ms.beta);
     const slow3 = ds.filter(d => d.ms[a] - d.ms.beta >= 3000);
     const top = ds.reduce((m, d) => (d.ms[a] > (m?.ms[a] ?? -1) ? d : m), null);
-    const g = a.startsWith('installed') || a === 'part1' ? ch.filter(d => d.groups.some(x => x !== 'f2')).length : ch.filter(d => d.groups.includes(own[a])).length;
-    console.log(`| ${a} | ${ch.length} | ${(ch.length / games).toFixed(2)} | ${g} | ${err} | ${mean.toFixed(3)} | ${p95.toFixed(3)} | ${slow2.length}${slow2.length ? ` (${slow2.slice(0, 3).map(d => `${d.src}#${d.i} ${d.ms.beta}->${d.ms[a]}`).join(', ')})` : ''} | ${slow3.length} | ${top ? `${top.src}#${top.i} ${top.ms[a]} (beta ${top.ms.beta})` : '-'} |`);
+    const g = a.startsWith('installed') || a === 'part1' || a === 'base' ? ch.filter(d => d.groups.some(x => x !== 'f2')).length : ch.filter(d => d.groups.includes(own[a])).length;
+    console.log(`| ${a} | ${ch.length} | ${(ch.length / games).toFixed(2)} | ${g} | ${err} | ${total.toFixed(3)} | ${p95bar.toFixed(3)} | ${mean.toFixed(3)} / ${p95.toFixed(3)} | ${slow2.length}${slow2.length ? ` (${slow2.slice(0, 3).map(d => `${d.src}#${d.i} ${d.ms.beta}->${d.ms[a]}`).join(', ')})` : ''} | ${slow3.length} | ${top ? `${top.src}#${top.i} ${top.ms[a]} (beta ${top.ms.beta})` : '-'} |`);
   }
   console.log('\nChanged decisions by source:');
   for (const a of arms) {
