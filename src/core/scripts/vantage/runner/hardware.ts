@@ -2,21 +2,22 @@ import { cardDef } from '../../../cards';
 import { addLog } from '../../../engine/log';
 import { removeCard } from '../../../engine/helpers';
 import { giveTags } from '../../../engine/damage';
-import { addCounters, useOncePerTurn } from '../../../engine/cardEffects';
+import { addCounters } from '../../../engine/cardEffects';
 import { iceStrength } from '../../../engine/ice';
-import { fireTrigger } from '../../../engine/triggers';
+import { fireTrigger, firstThisTurn } from '../../../engine/triggers';
 import { CardScript } from '../../types';
 import { gainCredits } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
-import { ids, isSelf, onceKey } from './helpers';
+import { ids, isSelf } from './helpers';
 
 // The Tungsten Tailor: Each piece of ice gets -1 strength. The first time each turn you
 // break a subroutine on a piece of ice with 0 or less strength, gain 1 credit.
 export const tungstenTailor: CardScript = {
   modifiers: { iceStrength: () => -1 },
+  firstEachTurn: { subroutines_broken: (state, e) => iceStrength(state, e.ice) <= 0 },
   triggers: {
     subroutines_broken: (ctx, e) => {
-      if (iceStrength(ctx.state, e.ice) > 0 || !useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+      if (iceStrength(ctx.state, e.ice) > 0 || !firstThisTurn(ctx.state, ctx.card)) return;
       gainCredits(ctx.state, 'runner', 1);
       addLog(ctx.state, 'runner', 'Runner gained 1 [credit] (The Tungsten Tailor).');
     },
@@ -104,9 +105,10 @@ export const methuselah: CardScript = {
 // hardware. You can spend hosted credits during runs.
 export const touchstone: CardScript = {
   paysDuringRuns: true,
+  firstEachTurn: { event_played: () => true },
   triggers: {
     event_played: ctx => {
-      if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+      if (!firstThisTurn(ctx.state, ctx.card)) return;
       addCounters(ctx.card, 'credit', 1);
       addLog(ctx.state, 'runner', 'Touchstone: 1 [credit] placed on it.');
     },

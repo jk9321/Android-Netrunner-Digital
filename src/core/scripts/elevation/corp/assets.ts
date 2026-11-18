@@ -19,12 +19,12 @@ import {
   takeHostedCredits,
   threatLevel,
   trashInstalledCard,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
 import { gainCredits } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
-import { archivesCards, askInstallFromHQ, ids, installFromHQ, isSelf, keywords, onceKey, safePlayBlockerFrom, serverOf, type } from './helpers';
+import { archivesCards, askInstallFromHQ, ids, installFromHQ, isSelf, keywords, safePlayBlockerFrom, serverOf, type } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 export const humanoidResources: CardScript = {
   abilities: [
@@ -90,7 +90,7 @@ export const byte: CardScript = {
 const phatMaxRemoved = (card: CardInstance) => Math.min(2, counters(card, 'power'));
 
 const phatTrigger = (ctx: EffectContext) => {
-  if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+  if (!firstThisTurn(ctx.state, ctx.card)) return;
   const max = phatMaxRemoved(ctx.card);
   const options = Array.from({ length: max + 1 }, (_, n) => ({ id: String(n), label: `Remove ${n} power counter(s): ${n + 1} net damage` }));
   phatFlow.ask(ctx, 'damage', choiceQuestion('corp', 'Phật Gioan Baotixita: remove power counters for extra net damage.', options));
@@ -106,6 +106,7 @@ const phatFlow = prompts({
 
 export const phat: CardScript = {
   liveValue: (_state, card) => `Next score or steal: up to ${1 + phatMaxRemoved(card)} net damage`,
+  firstEachTurn: { agenda_scored: () => true, agenda_stolen: () => true },
   triggers: {
     discard_phase_ends: ({ card }, e) => e.side === 'corp' && addCounters(card, 'power', 1),
     agenda_scored: phatTrigger,

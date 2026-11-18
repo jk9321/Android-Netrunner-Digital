@@ -1,15 +1,17 @@
+import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
 import { addLog } from '../../../engine/log';
 import { findInstalledCorpCard, noteTrashedFromHand } from '../../../engine/helpers';
 import { runnerTrashInstalledCorpCard, startRun } from '../../../engine/actions/run';
 import { giveTags, trashInstalledRunnerCard, uninstallRunnerCard } from '../../../engine/damage';
-import { counters, drawForEffect, loseCredits, removeTags, threatLevel, useOncePerTurn } from '../../../engine/cardEffects';
+import { counters, drawForEffect, loseCredits, removeTags, threatLevel } from '../../../engine/cardEffects';
 import { encounteredIce, enterMovement, iceStrength } from '../../../engine/ice';
 import { CardScript } from '../../types';
 import { gainCredits } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
-import { allServers, hasKeyword, ids, isInstalled, isSelf, onceKey, place, remoteServers, runQuestion, runSource, runnerTurn, spendLoad, title, type, yesNo } from './helpers';
+import { allServers, hasKeyword, ids, isInstalled, isSelf, place, remoteServers, runQuestion, runSource, runnerTurn, spendLoad, title, type, yesNo } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 // Eru Ayase-Pessoa: Once per turn -> [click], take 1 tag: Run Archives. If successful, instead of
 // breaching Archives, breach R&D. Threat 3 -> Whenever you breach R&D during a run on Archives,
@@ -80,12 +82,15 @@ const lagoFlow = prompts({
   }),
 });
 
+const corpRootInstall = (state: GameState, e: { card: CardInstance }) =>
+  cardDef(e.card).side_code === 'corp' && findInstalledCorpCard(state, e.card.instanceId)?.location === 'root';
+
 export const lagoParanoa: CardScript = {
+  firstEachTurn: { installed: corpRootInstall },
   triggers: {
     installed: (ctx, e) => {
       const { state } = ctx;
-      if (cardDef(e.card).side_code !== 'corp' || findInstalledCorpCard(state, e.card.instanceId)?.location !== 'root') return;
-      if (!useOncePerTurn(state, onceKey(ctx.card)) || state.runner.stack.length === 0) return;
+      if (!corpRootInstall(state, e) || !firstThisTurn(state, ctx.card) || state.runner.stack.length === 0) return;
       lagoFlow.ask(ctx, 'use', choiceQuestion('runner', 'Lago Paranoá Shelter: trash the top card of your stack to draw 1 card?', yesNo('Trash and draw')));
     },
   },
@@ -281,13 +286,16 @@ export const amelia: CardScript = {
 // Juli Moreira Lee: When you install this resource, load 4 power counters onto it. When it is empty,
 // trash it. The first time each turn you take an action on an installed resource, remove 1 hosted
 // power counter and gain [click].
+const actionOnResource = (state: GameState, e: { card: CardInstance; clicks: number }) =>
+  e.clicks > 0 && (state.runner.rig.resources.includes(e.card) || state.runner.heap.includes(e.card)) && type(e.card) === 'resource' && runnerTurn(state);
+
 export const juli: CardScript = {
+  firstEachTurn: { ability_used: actionOnResource },
   triggers: {
     installed: (ctx, e) => isSelf(ctx, e.card) && place(ctx.card, 'power', 4),
     ability_used: (ctx, e) => {
       const { state, card } = ctx;
-      if (e.clicks === 0 || !state.runner.rig.resources.includes(e.card) && !state.runner.heap.includes(e.card)) return;
-      if (type(e.card) !== 'resource' || !runnerTurn(state) || counters(card, 'power') === 0 || !useOncePerTurn(state, onceKey(card))) return;
+      if (!actionOnResource(state, e) || !firstThisTurn(state, card) || counters(card, 'power') === 0) return;
       state.runner.clicks += 1;
       addLog(state, 'runner', 'Runner gained [click] (Juli Moreira Lee).');
       spendLoad(state, card);

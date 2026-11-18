@@ -8,19 +8,19 @@ import {
   loadCredits,
   removeCounters,
   takeHostedCredits,
-  useOncePerTurn,
 } from '../../../engine/cardEffects';
 import { bypassIce, encounteredIce } from '../../../engine/ice';
 import { CardScript, EffectContext } from '../../types';
 import { gainCredits, resolveSabotage, sabotageQuestion, SabotageData } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, prompts } from '../../steps';
-import { isSelf, keywords, onceKey } from './helpers';
+import { isSelf, keywords } from './helpers';
+import { firstThisTurn } from '../../../engine/triggers';
 
 // Cacophony: The first time each turn you steal or trash a Corp card, place 1 power
 // counter on this resource. When your action phase ends, you may remove 2 hosted
 // power counters to sabotage 3.
 const cacophonyCounter = (ctx: EffectContext) => {
-  if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+  if (!firstThisTurn(ctx.state, ctx.card)) return;
   addCounters(ctx.card, 'power', 1);
   addLog(ctx.state, 'runner', `Cacophony gained a power counter (now ${counters(ctx.card, 'power')}).`);
 };
@@ -35,6 +35,7 @@ const cacophonyFlow = prompts({
 });
 
 export const cacophony: CardScript = {
+  firstEachTurn: { agenda_stolen: () => true, runner_trashed_corp_card: () => true },
   triggers: {
     agenda_stolen: cacophonyCounter,
     runner_trashed_corp_card: cacophonyCounter,
@@ -120,9 +121,10 @@ const knickknackFlow = prompts({
 });
 
 export const knickknack: CardScript = {
+  firstEachTurn: { run_begins: () => true },
   triggers: {
     run_begins: ctx => {
-      if (!useOncePerTurn(ctx.state, onceKey(ctx.card))) return;
+      if (!firstThisTurn(ctx.state, ctx.card)) return;
       const others = installedRunnerCards(ctx.state).filter(c => c.instanceId !== ctx.card.instanceId);
       if (others.length === 0) return;
       knickknackFlow.cards(ctx, 'trash', cardsQuestion('runner', '"Knickknack" O\'Brian: you may trash 1 of your other installed cards to gain its install cost and draw 1.', others.map(c => c.instanceId), 0, 1));
