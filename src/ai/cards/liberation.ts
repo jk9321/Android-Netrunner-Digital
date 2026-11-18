@@ -573,6 +573,8 @@ export const LIBERATION: Record<string, CardAI> = {
     // 2 counters of 2 credits each, for a memory unit
     runner: (state, code, card) => (card ? counters(card, 'power') : 2) * counterWorthOf(state, code, 'power') - 0.3 * muWorth(state),
     counters: { power: () => 2 * PAID_OUT }, // 2 credits, no click
+    // "Hosted power counter: Gain 2 credits. Use this ability only during your turn."
+    holdFacts: { counterCredits: { counter: 'power', credits: 2 } },
   },
   // Lobisomem (icebreaker)
   '34090': {
@@ -615,6 +617,8 @@ export const LIBERATION: Record<string, CardAI> = {
   '34097': {
     synergy: { gives: { econ: 0.5 }, when: ['onScore'] },
     counters: { agenda: () => 3 }, // Two ice rezzed free for a turn
+    // "When this turn ends, derez 2 pieces of ice protecting that server" (the engine's turn flag names the server)
+    holdFacts: { turnEndDerez: { count: 2, flag: 'lightning' } },
   },
   // Warm Reception
   '34098': {

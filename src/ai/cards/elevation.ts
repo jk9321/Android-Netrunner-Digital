@@ -326,6 +326,9 @@ export const ELEVATION: Record<string, CardAI> = {
       const loop = 4 + cardRate(state, 'runner') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
       return perTurn(state, Math.max(spent, 0.6 * loop), 'runner');
     },
+    // "The first time each turn a run begins, you may trash 1 of your other installed cards. If you do, gain credits
+    // equal to its printed install cost and draw 1 card."
+    holdFacts: { firstRunTrashForCost: { draw: 1 } },
   },
   // Side Hustle
   '35034': {
@@ -338,6 +341,9 @@ export const ELEVATION: Record<string, CardAI> = {
     },
     counters: { credit: () => 0.9 }, // All taken (and a card drawn) once it holds 6
     counterFormulas: { credit: (s, card) => sideHustleCredit(s, card) },
+    // "Whenever a run begins, place 1 credit on this resource. When there are 6 or more hosted credits, take all credits
+    // from this resource, trash it, and draw 1 card."
+    holdFacts: { runBeginCredits: { place: 1, takeAllAt: 6, draw: 1 } },
   },
   // LEO Construction
   '35035': { synergy: { wants: { bioroid: 2 } } },

@@ -45,9 +45,12 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // another card), and played out they cost the Corp games: the destination alone is not where the Corp loses. The cause
   // is a lead for tuning (row 50: each ice is offered at one destination, so the planner cannot weigh HQ against the
   // remote). Known-failing
+  // A guard since ai-runner-money (Stage D item 1 follow-up 4, part 1): "Knickknack" O'Brian is in the Runner's rig
+  // (Unity, Principia, Fermenter, Leech), and with its first-run money counted (the bound) the Corp draws a card here
+  // instead (with the Knickknack fact removed it installs Ansel on remote-6 again). Not a D4 fix: D4 still owes the HQ ice
   for (const [n, m, title, remote, since, fails] of [
     [49, 82, 'Lycian Multi-Munition', 'remote-4', 'guard since beta 545f146', false],
-    [49, 111, 'Ansel 1.0', 'remote-6', 'known-failing again since ai-rez-stops', true],
+    [49, 111, 'Ansel 1.0', 'remote-6', 'guard since ai-runner-money', false],
   ] as const) {
     (fails ? it.fails : it)(`D4 #${n} #${m}: ${title} is not installed on ${remote} (expected: HQ) (${since})`, { timeout: T }, () => {
       const { s, recorded } = at(n, m);
@@ -299,6 +302,29 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     it('game 49 turn 1, Thunderbolt Armaments: the hold walk does not count R&D as holding (a second run gets in)', { timeout: T }, () => {
       const f = thunderbolt();
       expect(holds(f.state, f.server, Infinity)).toBe(false);
+    });
+  });
+
+  // ai-runner-money part 1 (Stage D item 1 follow-up 4, design answer 7): "Knickknack" O'Brian is counted as a bound, the
+  // largest printed install cost among the Runner's other installed cards, gained with the card kept. Its true-answer
+  // board: human game 54, Runner turn 7, remote-2 (Pharos rezzed, N-Pot unrezzed; Principia, GAMEDRAGON Pro and
+  // Knickknack installed; the Runner on $0, the Corp on 3). The oracle, which plays the engine's Runner turn, finds no way
+  // in: the only gain that pays is Principia's 4, and Principia trashed cannot break Pharos. The bound gains the 4 and
+  // keeps Principia, so the count says "does not hold" (one of the bound's 417 false "does not hold" on the step 1
+  // questions, the hold row's debt line in docs/ai-priced-quantities.md): known-failing until Knickknack is counted
+  // exactly.
+  describe('"Knickknack" O\'Brian counted as a bound (ai-runner-money part 1)', () => {
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const knickknack = () => JSON.parse(readFileSync(new URL('./fixtures/hold-walk/knickknack-54-t7-remote2.json', import.meta.url), 'utf8')) as { server: string; opts: { corpCredits: number }; state: GameState };
+
+    it("the board's truth: the oracle finds no way in over the Runner's whole turn", { timeout: T }, () => {
+      const f = knickknack();
+      expect(f.state.runner.rig.resources.some(c => c.cardCode === '35033')).toBe(true);
+      expect(oracleGetsIn(f.state, f.server, 'runnerTurn', [], f.opts.corpCredits, undefined, true).answer).toBe('holds');
+    });
+    it.fails('game 54 turn 7: the hold count says remote-2 holds (known-failing: the bound keeps Principia and gains its 4)', { timeout: T }, () => {
+      const f = knickknack();
+      expect(inCorp(f.state, () => serverHold(f.state, f.server, { when: 'runnerTurn', corpCredits: f.opts.corpCredits }).holds)).toBe(true);
     });
   });
 });

@@ -394,9 +394,14 @@ describe('AI code health (audit guards)', () => {
   // reachQuestion, + 50; rezMoney's restOfTurn keep with except, + 19; countedRez's toll pass and spendsKept, + 21; with
   // their comments): corp/ 3,606, src/ai 15,392. Then + 5 (ai-rez-keep review R1, R3, R4: spendsKept's second world and
   // its comment + 6, afterRun on memo - 3, runnerBudget one expression - 1, its comment + 3): corp/ 3,611, src/ai 15,397
-  it('keeps src/ai/corp at or under 3,611 lines and src/ai at or under 15,397 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep)', () => {
+  // Then + 176 in corp/ (ai-runner-money, Stage D item 1 follow-up 4, part 1: hold.ts's four readers with their
+  // comments: counterCredits in runnerEarnings and 'thisRun''s budget; RunBegin, runBegins, Walk.runBegins and the runs
+  // key for Side Hustle and Knickknack; turnEndDerezPicks, the pick through walkStart and turnIce, walkPick, reachPick,
+  // reachPickQuestion and reachSetsOf for Lightning Laboratory) and + 31 elsewhere (the four facts' types and entries):
+  // corp/ 3,787, src/ai 15,604
+  it('keeps src/ai/corp at or under 3,787 lines and src/ai at or under 15,604 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3611);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15397);
+    expect(corp).toBeLessThanOrEqual(3787);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15604);
   });
 });

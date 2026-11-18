@@ -77,6 +77,27 @@ export interface HoldFacts {
   trashedOnPurge?: true;
   /** A program hosted on ice: a hosted counter of this kind breaks 1 subroutine on its host (Botulus). */
   breaksHostSubroutine?: { counter: 'virus' };
+  /**
+   * An agenda in the Corp's score area: "When this turn ends, derez `count` pieces of ice protecting that server", the
+   * server it was used on this turn kept by the engine in the turn flag `${flag}:${instance id}` (its position in the
+   * server list, plus 1) (Lightning Laboratory). With `count` or fewer rezzed there, all of them are derezzed; with
+   * more, the Corp picks `count`, and the walk asks each pick (follow-up 4, ruling 8 (a)).
+   */
+  turnEndDerez?: { count: number; flag: string };
+  /** A Runner card: each hosted counter of this kind pays `credits`, no click, during the Runner's turn (Coalescence; 9.5.1). */
+  counterCredits?: { counter: 'power'; credits: number };
+  /**
+   * A Runner card: whenever a run begins (6.9.1c) it places `place` credits on itself; when it holds `takeAllAt` or more,
+   * the Runner takes all of them (1.10.4a), trashes it and draws `draw` (Side Hustle).
+   */
+  runBeginCredits?: { place: number; takeAllAt: number; draw: number };
+  /**
+   * A Runner card: the first time each turn a run begins (6.9.1c), the Runner may trash 1 of its other installed cards
+   * to gain credits equal to that card's printed install cost and draw `draw` ("Knickknack" O'Brian). The walk counts it
+   * as a bound (follow-up 4, design answer): the largest printed install cost among the other installed cards, gained
+   * with the card kept.
+   */
+  firstRunTrashForCost?: { draw: number };
 }
 
 /**
