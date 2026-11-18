@@ -60,10 +60,22 @@ const HOOKS: [string, string][] = [
 function makeTrees(): Record<string, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
-  try {
-    execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
-  } catch {
-    execSync(`git fetch -q --depth=1 origin ${BASE}`);
+  // Four processes share one checkout on Actions: a fetch can find another's shallow.lock, so try until the commit is here
+  const have = () => {
+    try {
+      execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (let n = 0; !have(); n++) {
+    if (n === 30) throw new Error(`cannot fetch ${BASE}`);
+    try {
+      execSync(`git fetch -q --depth=1 origin ${BASE}`, { stdio: 'ignore' });
+    } catch {
+      execSync(`sleep ${1 + (shard % 4)}`);
+    }
   }
   const dirs: Record<string, string> = {};
   for (const t of ['base', 'control', 'branch', 'source']) {
