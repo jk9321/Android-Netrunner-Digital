@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { runnerInstallBlocker, runnerInstallCost } from '../core/engine/actions/install';
+import { runnerInstallCost } from '../core/engine/actions/install';
 import { evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
 import { CARDS } from './cards';
@@ -55,10 +55,15 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
   return score;
 }
 
+/**
+ * The answers to price: the engine's legal list, which also holds the Runner's make-room answers (trash programs first
+ * so an installed program fits, rules 8.5.6c; makeRoomSets in src/core/engine/legalActions.ts owns them), plus the
+ * Corp's trash-first ice answers (rules 8.5.6b), which the engine does not list.
+ */
 function answers(state: GameState, side: SideCode, synergy = false): GameAction[] {
   const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
   const iceTrash = synergy;
-  return [...legal, ...legal.flatMap(a => makeRoomAnswers(state, a)), ...(iceTrash ? iceTrashAnswers(state) : [])];
+  return [...legal, ...(iceTrash ? iceTrashAnswers(state) : [])];
 }
 
 /**
@@ -77,35 +82,6 @@ export function iceTrashAnswers(state: GameState): GameAction[] {
     const action: GameAction = { type: 'RESOLVE_PROMPT', player: 'corp', promptId: prompt.id, choice: { kind: 'effect_choice', optionId: o.id, trashFirst: [weak.instanceId] } };
     return isLegalAction(state, action) ? [action] : [];
   });
-}
-
-/**
- * A Runner effect installing a program that only fits once installed
- * programs are trashed (rules 8.5.6c): the same answer, trashing one
- * program (or two, if one isn't enough) first.
- */
-export function makeRoomAnswers(state: GameState, action: GameAction): GameAction[] {
-  if (action.type !== 'RESOLVE_PROMPT' || action.player !== 'runner') return [];
-  const prompt = activePrompt(state);
-  if (!prompt || (prompt.kind !== 'effect_cards' && prompt.kind !== 'effect_choice') || !prompt.source.data?.install) return [];
-  const choice = action.choice;
-  const cardId = choice.kind === 'effect_cards' ? choice.cardInstanceIds[0] : choice.kind === 'effect_choice' && choice.optionId === 'install' ? String(prompt.source.data.cardId) : undefined;
-  const card = cardId ? findCardAnywhere(state, cardId) : undefined;
-  if (!card || cardDef(card).type_code !== 'program' || !runnerInstallBlocker(state, card)) return [];
-  const programs = state.runner.rig.programs.map(c => c.instanceId);
-  const singles = programs.map(id => [id]);
-  const pairs = programs.flatMap((a, i) => programs.slice(i + 1).map(b => [a, b]));
-  for (const options of [singles, pairs]) {
-    // Each answer that installs the program
-    const installs = options
-      .map(trashFirst => ({ ...action, choice: { ...choice, trashFirst } }) as GameAction)
-      .filter(a => {
-        const after = simulate(state, a);
-        return !!after && after.runner.rig.programs.some(c => c.instanceId === card.instanceId);
-      });
-    if (installs.length > 0) return installs;
-  }
-  return [];
 }
 
 function mulligan(state: GameState, prompt: Prompt, synergy: boolean): boolean {

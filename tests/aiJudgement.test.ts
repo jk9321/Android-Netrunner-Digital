@@ -2,7 +2,6 @@ import { damageWorth } from '../src/ai/effectValues';
 import { RATES } from '../src/ai/valueModel';
 import { describe, expect, it } from 'vitest';
 import { cardDef, createCardInstance, executeAction, getCardDefinition, getLegalActions } from '../src/core';
-import { makeRoomAnswers } from '../src/ai/prompts';
 import { runScore, serverValue, subroutineCost } from '../src/ai/runs';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { inDecision } from './helpers/pricing';
@@ -128,8 +127,8 @@ describe('AI judgement in fixed positions', () => {
     s.runner.grip.push(scrounge);
     s.runner.clicks = 2;
     s = executeAction(s, { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: scrounge.instanceId });
-    // The plain answer installs nothing; the AI also weighs the answer that trashes Cleaver first
-    const plain = getLegalActions(s, 'runner').find(a => a.type === 'RESOLVE_PROMPT')!;
-    expect(makeRoomAnswers(s, plain)).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
+    // The plain answer is not legal (it would install nothing); the AI weighs the engine's answer that trashes Cleaver first
+    const mayflyAnswers = getLegalActions(s, 'runner').filter(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_cards' && a.choice.cardInstanceIds[0] === mayfly.instanceId);
+    expect(mayflyAnswers).toMatchObject([{ choice: { cardInstanceIds: [mayfly.instanceId], trashFirst: [old] } }]);
   });
 });
