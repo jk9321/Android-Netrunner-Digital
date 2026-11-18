@@ -3,7 +3,9 @@
  * windows of the recorded sample (56 local deals played by this tree, the human games replayed; split by SHARD). At each
  * Corp approach-ice window whose ice is unrezzed: whether countedRez's R3 or R4 toll branch answers it (the run is on HQ
  * with an agenda there, or on R&D with none in HQ and agendas left by the deck list; the rez does not stop the run,
- * rezStops), whether spendsKept passes it (the F1 condition), the Corp's credits, the rez cost, the Runner's credits and
+ * rezStops), whether spendsKept answers true (the F1 condition) and what countedRez answers (it can return before the toll
+ * branch: the ice costs the Runner nothing, the run bypasses it, or the rezzed ice further in stops the run, so `fires`
+ * counts a spendsKept true only where countedRez passes), the Corp's credits, the rez cost, the Runner's credits and
  * clicks, the time of the ask, and the agent's pick. The fire-count script (value-b1/fire-count.ts with
  * rez-keep-fire-patches.json) covers the main-phase and prompt decisions and the simulated windows inside them; this
  * covers the windows the game loop asks through chooseRez. One JSON line per window and per deal end.
@@ -11,7 +13,7 @@
  */
 import { CardInstance, GameState, cardDef } from '../../src/core';
 import { rezCost } from '../../src/core/engine/cardEffects';
-import { rezStops, spendsKept } from '../../src/ai/corp/rez';
+import { countedRez, rezStops, spendsKept } from '../../src/ai/corp/rez';
 import { agendasUnseen } from '../../src/ai/corp/pools';
 import { forEachRecorded } from '../stage-a/harness';
 
@@ -37,11 +39,13 @@ forEachRecorded({
     const rule = toll(s, ice);
     if (!rule) return;
     const t = performance.now();
-    const fires = spendsKept(s, ice);
+    const spends = spendsKept(s, ice);
     const ms = performance.now() - t;
+    const counted = countedRez(s, ice);
+    const fires = spends && counted === 'pass';
     const a = d.action as { type?: string; cardInstanceId?: string } | null;
     const pick = a?.type === 'REZ_CARD' && a.cardInstanceId === ice.instanceId ? 'rez' : 'pass';
-    console.log(JSON.stringify({ kind: 'window', src: d.src, T: s.turnNumber, server: run.server, rule, title: cardDef(ice).title, fires, pick, corp: s.corp.credits, cost: rezCost(s, ice), runner: s.runner.credits, clicks: s.runner.clicks, ms: Math.round(ms * 10) / 10, decideMs: Math.round(d.ms) }));
+    console.log(JSON.stringify({ kind: 'window', src: d.src, T: s.turnNumber, server: run.server, rule, title: cardDef(ice).title, spends, counted, fires, pick, corp: s.corp.credits, cost: rezCost(s, ice), runner: s.runner.credits, clicks: s.runner.clicks, ms: Math.round(ms * 10) / 10, decideMs: Math.round(d.ms) }));
   },
   dealEnd(src, state) {
     console.log(JSON.stringify({ kind: 'end', src, T: state.turnNumber, winner: state.winner ?? null }));
