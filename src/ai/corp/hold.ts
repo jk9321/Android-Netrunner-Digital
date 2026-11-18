@@ -515,6 +515,8 @@ export class Walk {
   private readonly drawUseful: boolean;
   /** Removing a tag can matter (some condition or effect reads the Runner's tags). */
   private readonly tagUseful: boolean;
+  /** Keeping a stealth credit for later can beat spending it (pay): some plan has a stealth part, or a loss may come. */
+  private readonly stealthKept: boolean;
 
   constructor(
     /** What it reads of the board, gathered (walkBoard): the search has no `state` in scope. */
@@ -562,6 +564,11 @@ export class Walk {
     const doubling = allEffects.some(e => e.kind === 'tags' && e.n === 'runnerTags');
     // With retries a run may be made again, so any damage can add up past the grip
     this.drawUseful = doubling || allEffects.some(e => e.kind === 'endRun' && e.if?.kind === 'hqMoreThanGrip') || Object.values(board.plans).some(list => list.some(p => p.grip > 0)) || gripMost > board.grip || (retries && gripMost > 0);
+    // A stealth credit kept does more than a pool credit kept only for a later stealth part (Corsair), or against a later
+    // loss, which takes the pool's credits and not a card's (10.6.2); with neither, paying with the stealth credits first
+    // is never worse (a pool credit pays all they pay, and conditions and tag removal read the pool), so pay tries the
+    // split only then
+    this.stealthKept = Object.values(board.plans).some(list => list.some(p => p.stealth > 0)) || allEffects.some(e => e.kind === 'runnerLosesCredits') || encounters.some(e => !!e.loses || !!e.toll?.loses);
     this.tagUseful = all.some(f => f.when?.kind === 'runnerTagsAtLeast') || allEffects.some(e => (e.kind === 'endRun' && e.if?.kind === 'runnerTagsAtLeast') || ((e.kind === 'damage' || e.kind === 'tags') && e.n === 'runnerTags') || (e.kind === 'corpGainsCredits' && e.n === 'perRunnerTag'));
   }
 
@@ -829,15 +836,18 @@ export class Walk {
    * credits on cards that pay during runs), then the pool (spendCredits' order): a pool credit can do all they can and
    * more (conditions read the pool; 10.6.2: the fund is not part of it). The pool part is added to what the rest needs.
    * The stealth credits may pay instead of the pool, the Runner's choice: one kept may pay a later stealth part, a pool
-   * credit a later condition, tag or loss, so neither is always the better spend.
+   * credit a later condition, tag or loss, so neither is always the better spend. Without a stealth part or a loss on
+   * the way (stealthKept), the stealth credits go first.
    */
   private pay(ws: WalkState, n: number, then: (w: WalkState) => number): number {
     const fund = Math.min(n, ws.fund);
     const hosted = Math.min(n - fund, ws.hosted);
     const w = fund || hosted ? { ...ws, fund: ws.fund - fund, hosted: ws.hosted - hosted } : ws;
     const rest = n - fund - hosted;
+    const most = Math.min(rest, w.stealth);
+    if (!this.stealthKept) return then(most ? { ...w, stealth: w.stealth - most } : w) + rest - most;
     let best = then(w) + rest;
-    for (let s = 1; s <= Math.min(rest, w.stealth); s++) best = Math.min(best, then({ ...w, stealth: w.stealth - s }) + rest - s);
+    for (let s = 1; s <= most; s++) best = Math.min(best, then({ ...w, stealth: w.stealth - s }) + rest - s);
     return best;
   }
 

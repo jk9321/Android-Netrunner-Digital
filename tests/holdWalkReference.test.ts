@@ -372,7 +372,7 @@ function bruteHolds(state: GameState, server: string): boolean | null {
 
 describe('the hold walk against a brute force of the same model (brief section 6)', () => {
   // Every fourth board two runs; every fifth one-run board also asks serverHold's `holds` of every affordable set
-  const check = (seed: number, boards: number, first?: string, probe = false) => {
+  const check = (seed: number, boards: number, first?: string, probe = false, dress?: (s: GameState, r: () => number) => void) => {
     const r = rng(seed);
     const misses: string[] = [];
     let compared = 0;
@@ -381,6 +381,7 @@ describe('the hold walk against a brute force of the same model (brief section 6
     let holdsAsked = 0;
     for (let n = 0; n < boards; n++) {
       const { s, rez } = randomBoard(r, first, probe);
+      dress?.(s, r);
       const runs = n % 4 === 3 ? 2 : 1;
       const servers = Array(runs).fill('remote1');
       const sets = Array(runs).fill(rez);
@@ -420,6 +421,26 @@ describe('the hold walk against a brute force of the same model (brief section 6
   // for 0), an ending ice inside it; 2 to 4 clicks, Thunderbolt's identity on 3 in 10
   it('agrees with turnReach and serverHold on 3,000 probe lines (seed 20261119)', () => {
     const { compared, reached, misses, held, holdsAsked } = check(20261119, 3000, undefined, true);
+    expect(compared).toBeGreaterThan(2000);
+    expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
+    expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
+    expect(misses).toEqual([]);
+  }, 600_000);
+
+  // Stealth credits (found-list row 31, the review of ai-hold-stealth R3): Touchstone holding 1 to 5 on every board, its
+  // credits paying any cost during a run, and Corsair (36004) on half, whose plans have a stealth part and cost more
+  // than it (lower by 3 a stealth credit, then break for 1); the pool at 0 to 3, so a stealth credit kept or spent turns
+  // the answer
+  it('agrees with turnReach and serverHold on 3,000 servers with stealth credits (seed 20261123)', () => {
+    const touchstone = (s: GameState, r: () => number) => {
+      const t = createCardInstance(s, '36021');
+      t.isRezzed = true;
+      t.tokens = { credit: 1 + Math.floor(r() * 5) };
+      s.runner.rig.hardware.push(t);
+      if (r() < 0.5) installProgramForTest(s, '36004');
+      s.runner.credits = Math.floor(r() * 4);
+    };
+    const { compared, reached, misses, held, holdsAsked } = check(20261123, 3000, undefined, false, touchstone);
     expect(compared).toBeGreaterThan(2000);
     expect(Math.min(reached, compared - reached)).toBeGreaterThan(compared / 10);
     expect(Math.min(held, holdsAsked - held)).toBeGreaterThan(holdsAsked / 10);
