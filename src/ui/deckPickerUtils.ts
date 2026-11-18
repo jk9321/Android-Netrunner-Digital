@@ -159,3 +159,10 @@ export function deckFullyVisible(side: SideCode, deckId: string): boolean {
   const r = item.getBoundingClientRect();
   return r.top >= l.top && r.bottom <= l.bottom;
 }
+
+/** Case-insensitive match against a deck's title or identity name. */
+export function matchesDeckQuery(deck: Pick<DeckList, 'name' | 'identity'>, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return deck.name.toLowerCase().includes(q) || deck.identity.toLowerCase().includes(q);
+}

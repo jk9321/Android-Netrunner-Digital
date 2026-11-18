@@ -417,7 +417,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
         </div>
       )}
       <p className="mt-8 max-w-3xl text-center text-xs text-slate-400">
-        New to the game? Start with the Starter decks. Use <strong className="text-slate-200">New deck</strong> to build or import from NetrunnerDB, or copy any deck to tweak it.
+        New to the game? Start with the Starter decks. Use <strong className="text-slate-200">New</strong> to build or import from NetrunnerDB, or copy any deck to tweak it.
       </p>
       <p className="mt-3 max-w-3xl text-center text-[11px] text-slate-500">
         Game symbols by Null Signal Games,{' '}
