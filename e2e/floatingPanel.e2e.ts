@@ -51,13 +51,7 @@ test('the run panel docks by default, toggles log, and reopens centred when popp
   const overlayBox = (await overlay.boundingBox())!;
   const archivesBox = (await page.getByTestId('server-archives').boundingBox())!;
   expect(boxesOverlap(overlayBox, archivesBox)).toBe(false);
-
-  // Switch sidebar to Log and back to Run
-  await page.getByTestId('run-sidebar-log-toggle').click();
-  await expect(page.getByTestId('run-sidebar-back-to-run')).toBeVisible();
-  await expect(overlay).toHaveCount(0);
-  await page.getByTestId('run-sidebar-back-to-run').click();
-  await expect(overlay).toBeVisible();
+  await expect(page.getByText('SYS.TRACE // STACKHEAP')).toBeVisible();
 
   // Pop out into floating mode: opens centred, can be dragged off bottom
   await page.getByTestId('run-overlay-popout').click();

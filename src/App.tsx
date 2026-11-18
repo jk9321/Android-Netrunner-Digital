@@ -21,7 +21,6 @@ import { CorpBoard } from './ui/components/CorpBoard';
 import { RunnerBoard } from './ui/components/RunnerBoard';
 import { GameOverlays, runOverlayPropsFromController } from './ui/components/GameOverlays';
 import { RunOverlay } from './ui/components/RunOverlay';
-import { ArrowLeft, Terminal } from 'lucide-react';
 import { showAlert, showConfirm } from './ui/components/Dialog';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
@@ -229,7 +228,6 @@ function GameScreen({
   const isDesktop = useIsDesktop();
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [runPoppedOut, setRunPoppedOut] = useState(false);
-  const [runSidebarTab, setRunSidebarTab] = useState<'run' | 'log'>('run');
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
@@ -311,20 +309,10 @@ function GameScreen({
   const hasActiveRun = !ended && !!gameState.activeRun;
   const runDocked = isDesktop && hasActiveRun && !runPoppedOut;
 
-  // Reset dock/tab state when a run ends so the next run opens cleanly docked on the Run tab.
+  // Reset dock state when a run ends so the next run opens cleanly docked.
   useEffect(() => {
-    if (!hasActiveRun) {
-      setRunPoppedOut(false);
-      setRunSidebarTab('run');
-    }
+    if (!hasActiveRun) setRunPoppedOut(false);
   }, [hasActiveRun]);
-
-  const latestLog = gameState.log[gameState.log.length - 1];
-  const latestLogText = latestLog
-    ? latestLog.secret?.from === viewer
-      ? latestLog.secret.publicMessage
-      : latestLog.message
-    : 'Run active';
 
   const [shiftSide, setShiftSide] = useState<SideCode | null>(null);
   const prevActivePlayer = useRef(activePlayer);
@@ -428,57 +416,22 @@ function GameScreen({
               </main>
             </ZoomContext.Provider>
 
-            {/* Side bar: docked run panel on desktop during runs, otherwise zoom panel, turn actions, and log */}
+            {/* Side bar: during desktop runs, RunOverlay replaces ZoomPanel + turn actions while LogFeed stays visible below */}
             <aside
               className={`contents lg:flex ${runDocked ? 'lg:w-96 2xl:w-[26rem]' : 'lg:w-80 2xl:w-96'} shrink-0 flex-col gap-2 min-h-0`}
             >
               {runDocked ? (
-                runSidebarTab === 'run' ? (
-                  <>
-                    <RunOverlay
-                      {...runOverlayPropsFromController(ctl, setInspectedCard)}
-                      docked
-                      onToggleDock={() => {
-                        setRunSidebarTab('run');
-                        setRunPoppedOut(true);
-                      }}
-                    />
-                    <div className="shrink-0 max-h-[24vh] overflow-y-auto flex flex-col gap-1.5 empty:hidden">
-                      {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
-                      {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setRunSidebarTab('log')}
-                      data-testid="run-sidebar-log-toggle"
-                      className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 bg-[#070b12] hover:bg-[#0c121d] border border-slate-800 hover:border-slate-700 rounded-[2px] text-[11px] font-mono text-slate-300 text-left transition-colors"
-                      title="Expand game log"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span className="truncate flex-1 min-w-0 text-slate-400">{latestLogText}</span>
-                      <span className="shrink-0 inline-flex items-center gap-1 text-cyan-300 font-bold">
-                        <Terminal className="w-3 h-3" /> Log ({gameState.log.length})
-                      </span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setRunSidebarTab('run')}
-                      data-testid="run-sidebar-back-to-run"
-                      className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 bg-[#090d15] hover:bg-[#0f1624] border border-cyber-neonPink/80 rounded-[2px] text-xs font-mono font-bold text-pink-300 transition-colors"
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <ArrowLeft className="w-3.5 h-3.5" /> Back to Run
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-normal uppercase">
-                        {gameState.activeRun?.phase.replace(/_/g, ' ')}
-                      </span>
-                    </button>
-                    <LogFeed logs={gameState.log} viewer={viewer} className="flex-1 min-h-[6rem]" />
-                  </>
-                )
+                <>
+                  <RunOverlay
+                    {...runOverlayPropsFromController(ctl, setInspectedCard)}
+                    docked
+                    onToggleDock={() => setRunPoppedOut(true)}
+                  />
+                  <div className="shrink-0 max-h-[20vh] overflow-y-auto flex flex-col gap-1.5 empty:hidden">
+                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="hidden lg:block shrink-0">
@@ -494,9 +447,13 @@ function GameScreen({
                     {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
                     {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
                   </div>
-                  <LogFeed logs={gameState.log} viewer={viewer} className="h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]" />
                 </>
               )}
+              <LogFeed
+                logs={gameState.log}
+                viewer={viewer}
+                className={runDocked ? 'h-44 2xl:h-52 shrink-0' : 'h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]'}
+              />
             </aside>
           </div>
 
