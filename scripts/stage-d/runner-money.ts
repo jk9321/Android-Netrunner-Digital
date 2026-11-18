@@ -21,7 +21,7 @@
  *   DEALS=1881 HUMAN=none npx vite-node scripts/stage-d/runner-money.ts
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { GameState, cardDef, rezCostOf } from '../../src/core';
 import * as holdModule from '../../src/ai/corp/hold';
@@ -43,6 +43,12 @@ const MAXQ = Number(process.env.MAXQ ?? 150);
 const FLIPQ = Number(process.env.FLIPQ ?? Infinity);
 const NO_ORACLE = process.env.NO_ORACLE === '1';
 const DUMP = process.env.OUT_DIR ?? process.env.DUMP ?? '';
+/**
+ * KEEP (part 1's check on the branch line): a file of question keys (their first 12 hex digits, one a line, an earlier
+ * run's kept questions): exactly those are kept (the flip and sample rules off), for labelling offline against that
+ * run's truth (with NO_ORACLE=1). ARMS_FILE names the arms (runner-money-base.json: the branch's base as the one arm).
+ */
+const KEEP = process.env.KEEP ? new Set(readFileSync(process.env.KEEP, 'utf8').split('\n').map(x => x.trim()).filter(Boolean)) : null;
 
 const file = readArms();
 const ARMS = Object.keys(file.arms);
@@ -103,6 +109,10 @@ function watched(state: GameState, server: string, opts: HoldOptions): Hold {
       tally.flips[arm] = (tally.flips[arm] ?? 0) + 1;
       for (const g of groups.length ? groups : ['none']) ((tally.flipsInGroup[arm] ??= {})[g] = (tally.flipsInGroup[arm]?.[g] ?? 0) + 1);
     }
+  }
+  if (KEEP) {
+    if (KEEP.has(key.slice(0, 12))) kept.push({ src, key, state: structuredClone(state), server, opts: structuredClone(opts), beta: structuredClone(h), arms: structuredClone(arms), groups, known, flips });
+    return h;
   }
   const installedFlips = flips.filter(a => !F2.has(a));
   const keepFlip = installedFlips.some(a => (keptBy.flips.get(`${src}|${a}`) ?? 0) < FLIPQ);

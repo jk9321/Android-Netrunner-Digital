@@ -16,7 +16,7 @@ export interface ArmFile {
   arms: Record<string, string[]>;
 }
 
-export function readArms(path = 'scripts/stage-d/runner-money-arms.json'): ArmFile {
+export function readArms(path = process.env.ARMS_FILE || 'scripts/stage-d/runner-money-arms.json'): ArmFile {
   const raw = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
   const arms = raw._arms as Record<string, string[]>;
   delete raw._arms;
