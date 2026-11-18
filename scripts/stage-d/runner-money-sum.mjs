@@ -72,6 +72,13 @@ if (qs.length) {
     for (const q of qs.filter(x => x.oracle?.labels?.beta === 'false holds' && x.oracle?.labels?.[a] !== 'false holds')) add(pos, `${q.src} ${q.server} T${q.turn} [${q.ice.join(', ')}] -> ${q.oracle.labels[a]}`);
     console.log(`- ${a}: ${Object.entries(pos).map(([k, n]) => `${n} ${k}`).join('; ') || 'none'}`);
   }
+  console.log('\nNew false "does not hold" by an arm (beta not false does not hold, the arm false does not hold), by position:');
+  for (const a of arms.filter(x => x !== 'beta')) {
+    const pos = {};
+    for (const q of qs.filter(x => x.oracle?.labels?.[a] === 'false does not hold' && x.oracle?.labels?.beta !== 'false does not hold')) add(pos, `${q.src} ${q.server} T${q.turn} [${q.ice.join(', ')}] rig [${q.rig.join(', ')}]`);
+    const total = Object.values(pos).reduce((n, x) => n + x, 0);
+    console.log(`- ${a} (${total}): ${Object.entries(pos).sort((x, y) => y[1] - x[1]).map(([k, n]) => `${n} ${k}`).join('; ') || 'none'}`);
+  }
   console.log('\nBeta\'s false "holds" left by every arm, by position:');
   const pos = {};
   for (const q of qs.filter(x => x.oracle?.labels?.beta === 'false holds' && x.oracle?.labels?.installed === 'false holds' && (x.oracle?.labels?.installedBound ?? 'false holds') === 'false holds')) add(pos, `${q.src} ${q.server} T${q.turn} [${q.ice.join(', ')}] rig [${q.rig.join(', ')}]`);
