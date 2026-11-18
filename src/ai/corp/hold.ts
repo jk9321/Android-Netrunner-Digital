@@ -1,4 +1,4 @@
-import { CardInstance, GameState, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardScript, isLegalAction, rezCostOf, availableCredits } from '../../core';
 import { rezCost, stealthCredits, threatLevel, TurnFlag, turnFlag } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
 import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, subroutineFacts } from '../runs';
@@ -270,6 +270,8 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
+  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more and meets no toll or bypass again. */
+  resolving?: boolean;
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
@@ -508,6 +510,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       encounterFacts: CARDS[c.cardCode]?.holdFacts?.encounter,
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
+      resolving: encounter?.iceId === c.instanceId && encounter.resolvingIndex !== null ? true : undefined,
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
@@ -876,7 +879,7 @@ export class Walk {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (this.board.bypass) {
+    if (this.board.bypass && !ice.resolving) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));
@@ -927,7 +930,8 @@ export class Walk {
     let best = FAIL;
     // An inert subroutine resolves to nothing (breaking it never helps): left out of the choice and of the resolution
     const open = subs.map((_, i) => i).filter(i => !ice.broken?.[i] && !inert(subs[i]));
-    for (let set = 0; set < 1 << open.length; set++) {
+    // Resolving: the break window is over (6.9.3c), every open subroutine resolves
+    for (let set = 0; set < (ice.resolving ? 1 : 1 << open.length); set++) {
       const unbroken = open.filter((_, k) => !(set & (1 << k)));
       // A subroutine left unbroken that always ends the run ends it there: without retries the way fails; with them it is
       // a way to end the run, and breaking a subroutine after it buys nothing (it never resolves)
@@ -1626,16 +1630,34 @@ function reachSetsOf(q: ReachQuestion): (set: string[]) => boolean {
   };
 }
 
-/** 'thisRun' by the walk: from the approached ice at `from`, the Runner's credits and clicks as they are. */
-function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold {
+/**
+ * One 'thisRun' question, gathered (as TurnQuestion: the search reads this and nothing else, so it is its own key): the
+ * approached ice's position, the Runner's credits now, the Corp's rez money, the server's ice as met, the board the walk
+ * reads, its first state, and each rez set the Corp can afford with the ice its bypasses skip. `none` when no set can be
+ * walked (no run, or the approached ice cannot be paid for).
+ */
+export interface RunQuestion {
+  server: string;
+  pos: number;
+  budget: number;
+  none: boolean;
+  ice: SearchIce[];
+  board: WalkBoard | null;
+  first: WalkState | null;
+  /** In mask order over the unrezzed ice further in: the set's rez cost (the approached ice's included), its ice, the ice its bypasses skip. */
+  sets: { cost: number; up: string[]; skipped: string[] }[];
+}
+
+/** The question 'thisRun' asks (walkThisRun's gathering: the only part of it that reads `state`). */
+function runQuestion(state: GameState, server: string, opts: HoldOptions): RunQuestion {
   const run = state.activeRun;
   const sv = state.corp.servers[server];
   // The Runner's credits, and on its turn what its hosted counters pay with no click (counterCredits; 6.9.3b: a paid
   // ability's window during the run)
   const rig = [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources];
   const budget = state.runner.credits + (state.activePlayer === 'runner' ? rig.reduce((n, c) => n + counterCredits(c), 0) : 0);
-  const none: Hold = { holds: false, rez: null, rezCost: Infinity, need: 0, budget, margin: -budget, entries: 1 };
   const pos = opts.from ?? run?.icePosition ?? null;
+  const none: RunQuestion = { server, pos: pos ?? -1, budget, none: true, ice: [], board: null, first: null, sets: [] };
   if (!run || !sv || pos === null) return none;
   const credits = opts.corpCredits ?? state.corp.credits;
   const must = sv.ice.filter(c => opts.mustRez?.includes(c.instanceId));
@@ -1648,32 +1670,162 @@ function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold 
   const start = walkStart(state, false);
   const ice0 = walkIce(state, start, sv.ice);
   const board = walkBoard(state, start, [{ server, ice: ice0 }]);
+  const sets: RunQuestion['sets'] = [];
+  for (let mask = 0; mask < 1 << open.length; mask++) {
+    const extra = open.filter((_, i) => mask & (1 << i));
+    const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
+    if (cost - base > spare) continue;
+    const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
+    const view = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
+    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
+    sets.push({ cost, up: [...up], skipped: [...skipped] });
+  }
+  // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand.
+  // The run's own credits: the fund and Overclock's; the cards that pay during it are the first state's (runCredits)
+  const first: WalkState = { ...firstState(state, start, state.runner.clicks, spare + base), fund: run.bonusCredits + (run.badPublicityCredits ?? 0) };
+  return { server, pos, budget, none: false, ice: ice0.map(searchIce), board, first, sets };
+}
+
+/** The search of a 'thisRun' question (pure: it reads `q` alone): the cheapest set that holds, else the most asked. */
+function solveRun(q: RunQuestion): Hold {
+  const { budget } = q;
+  const none: Hold = { holds: false, rez: null, rezCost: Infinity, need: 0, budget, margin: -budget, entries: 1 };
+  if (q.none || !q.board || !q.first) return none;
   let best = Infinity;
   let bestSet: string[] | null = null;
   let bestNeed = 0;
   let mostNeed = -Infinity;
-  for (let mask = 0; mask < 1 << open.length; mask++) {
-    const extra = open.filter((_, i) => mask & (1 << i));
-    const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
-    if (cost - base > spare || cost >= best) continue;
-    const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
-    const view = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
-    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
-    const ice = ice0.map(c => ({ ...searchIce(c), inS: up.has(c.id), bypassed: skipped.has(c.id) }));
-    // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand
-    const corp = spare + base;
-    // The run's own credits: the fund and Overclock's; the cards that pay during it are the first state's (runCredits)
-    const fund = run.bonusCredits + (run.badPublicityCredits ?? 0);
-    const ws: WalkState = { ...firstState(state, start, state.runner.clicks, corp), fund };
-    const need = new Walk(board, [{ server, ice }], undefined, false).fromIce(ws, pos);
+  for (const set of q.sets) {
+    if (set.cost >= best) continue;
+    const up = new Set(set.up);
+    const skipped = new Set(set.skipped);
+    const ice = q.ice.map(c => ({ ...c, inS: up.has(c.id), bypassed: skipped.has(c.id) }));
+    const need = new Walk(q.board, [{ server: q.server, ice }], undefined, false).fromIce({ ...q.first }, q.pos);
     if (need > mostNeed) mostNeed = need;
     if (need > budget) {
-      best = cost;
-      bestSet = [...up];
+      best = set.cost;
+      bestSet = set.up;
       bestNeed = need;
     }
   }
   if (bestSet) return { holds: true, rez: bestSet, rezCost: best, need: bestNeed, budget, margin: bestNeed - budget, entries: 0 };
   const need = mostNeed === -Infinity ? 0 : mostNeed;
   return { ...none, need, margin: need - budget };
+}
+
+/** 'thisRun' by the walk: from the approached ice at `from`, the Runner's credits and clicks as they are. */
+function walkThisRun(state: GameState, server: string, opts: HoldOptions): Hold {
+  return solveRun(runQuestion(state, server, opts));
+}
+
+// =====================================================================================================================
+// The run under way from where it stands (Stage D item 1 follow-up 3, ruling 4: the same walk from a different start)
+// =====================================================================================================================
+//
+// A Corp prompt answered during a run leaves the run anywhere: inside an encounter whose earlier subroutines have
+// resolved (6.9.3c, 9.8.7b; an ended encounter resolves no more, 9.8.7c), in the Movement Phase past an ice (6.9.4a,
+// d), at an ice's approach (6.9.2), at the server (6.9.4d-e) or over. runStands answers "does the Runner get in on this
+// run" from any of them, with the walk of 'thisRun' and nothing else: the subroutines already resolved count as broken
+// (they resolve no more), the Movement Phase starts at the next ice inward, and an unrezzed approached ice may be
+// rezzed now (6.9.2b) or not. Its key is the gathered question(s): equal keys are equal verdicts, so a reader asks once
+// per board the walk tells apart, and answers are kept per decision (the anchor) as turnAnswers are.
+
+/**
+ * The open prompt is the Runner's choice in a subroutine of the encountered ice as it resolves (the walk reads it, the
+ * subroutine still ahead), whatever card the prompt names as its source: only ice has subroutines (9.8.1), and one a
+ * card grants is the ice's own, ordered among its subroutines (9.8.3a, e; ruling 11.2). A Runner prompt outside the
+ * resolution (an encounter ability, a trigger) is not one.
+ */
+export function subroutineChoice(state: GameState): boolean {
+  const open = activePrompt(state);
+  const e = state.activeRun?.encounter;
+  return !!open && open.side === 'runner' && !!e && e.resolvingIndex !== null;
+}
+
+/** What a run stands at, for the walk: the verdict when it is settled, or the question(s) that decide it. */
+export interface RunStand {
+  /** Equal keys, equal verdicts. */
+  key: string;
+  /** Whether the Runner gets in on the run (lazy and kept per decision). */
+  verdict(): 'in' | 'out';
+}
+
+const runAnswers = new WeakMap<object, Map<string, 'in' | 'out'>>();
+/** Run-stand questions asked and searched (the time report and its test). */
+export const runStandStats = { asked: 0, searched: 0 };
+
+/**
+ * The run on `server` as it stands at `state`: null when the walk cannot say (a Corp prompt still open, or a run on
+ * another server). Read by prompts.ts's run term (follow-up 3).
+ */
+export function runStands(state: GameState, server: string): RunStand | null {
+  const settled = (v: 'in' | 'out'): RunStand => ({ key: v, verdict: () => v });
+  // 1.7.2a: a game over is a verdict
+  if (state.winner) return settled(state.winner === 'runner' ? 'in' : 'out');
+  const run = state.activeRun;
+  if (!run) {
+    const last = state.runsThisTurn[state.runsThisTurn.length - 1];
+    return settled(last?.server === server && last.successful ? 'in' : 'out');
+  }
+  if (run.server !== server) return null;
+  const open = activePrompt(state);
+  if (open && open.side === 'corp') return null;
+  // A Runner prompt the walk cannot read (a card's trigger, an ability's choice, an ice's encounter ability: open outside
+  // the subroutines' resolution): the Runner's side, "in" (ruling 10.4; prompts.ts counts it)
+  if (open && !subroutineChoice(state)) return settled('in');
+  // The Success Phase or the server's approach: no ice is left (6.9.4e, 6.9.5)
+  if (run.breached || run.isSuccessful || run.phase === 'access' || run.phase === 'approach_server') return settled('in');
+  const sv = state.corp.servers[server];
+  // A run that ended short of the server (6.9.6): over, out
+  if (!sv || run.phase === 'complete') return settled('out');
+  // The boards the walk reads (one, or two readings of an open subroutine choice: the Runner's side wins between them)
+  let views = [state];
+  let from: number;
+  let approached: string | undefined;
+  // At an ice no longer there (trashed during the run), the Runner moves on inward as from the Movement Phase
+  const gone = run.icePosition !== null && !sv.ice[run.icePosition];
+  if (run.phase === 'movement' || gone) {
+    // The next ice inward is approached next (6.9.4d, 6.9.2): unrezzed, the Corp may rez it then
+    from = run.icePosition === null ? -1 : Math.min(run.icePosition, sv.ice.length) - 1;
+    const next = sv.ice[from];
+    if (next && !next.isRezzed) approached = next.instanceId;
+  } else if (run.phase === 'encounter_ice' && run.encounter) {
+    from = run.icePosition ?? -1;
+    const at = run.encounter.resolvingIndex;
+    if (at !== null) {
+      // Resolving (6.9.3c): the subroutines before the index have resolved (9.8.7b) and resolve no more; none is broken
+      // now. The engine moves the index past a subroutine before it resolves, so with the Runner's choice in one open,
+      // that one is partly resolved: its choice may come before its effect (Semak-samun: suffer 3 net damage or end the
+      // run) or after part of it (Karunā: 2 net damage, then the Runner may jack out). The walk cannot tell which part
+      // is left, so it reads both, the subroutine still ahead and resolved, and the stand is "out" only if both are
+      const at2 = open ? [at - 1, at] : [at];
+      const encounter = run.encounter;
+      views = at2.map(done => ({ ...state, activeRun: { ...run, encounter: { ...encounter, broken: encounter.broken.map((b, i) => b || i < done) } } }));
+    }
+  } else {
+    // Initiation or an approach: from the approached ice (initiation: the outermost)
+    from = run.icePosition ?? sv.ice.length - 1;
+    const ice = sv.ice[from];
+    if (ice && !ice.isRezzed) approached = ice.instanceId;
+  }
+  if (from < 0) return settled('in');
+  // Per reading, the Corp's choices: the approached ice rezzed now or not (6.9.2b)
+  const qs = views.map(view => [runQuestion(view, server, { when: 'thisRun', from }), ...(approached ? [runQuestion(view, server, { when: 'thisRun', from, mustRez: [approached] })] : [])]);
+  const key = questionKey(qs);
+  return {
+    key,
+    verdict: () => {
+      runStandStats.asked++;
+      const anchor = pricing().anchor;
+      let cache = anchor ? runAnswers.get(anchor) : undefined;
+      if (anchor && !cache) runAnswers.set(anchor, (cache = new Map()));
+      let v = cache?.get(key);
+      if (!v) {
+        runStandStats.searched++;
+        v = qs.every(reading => reading.some(q => solveRun(q).holds)) ? 'out' : 'in';
+        cache?.set(key, v);
+      }
+      return v;
+    },
+  };
 }

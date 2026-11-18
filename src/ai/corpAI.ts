@@ -6,6 +6,8 @@ import { PlanMemory, corpDecisionView, planTurn, plannerOn, promptCardsInPlace }
 import { runnerReply } from './runnerReply';
 import { decideRez, perfectRecallTarget } from './corp/rez';
 import { holdingRezIds, rezMoney } from './corp/rezMoney';
+import { runStands } from './corp/hold';
+import { runLoss } from './corp/pools';
 import { registerCorpPorts } from './corpPorts';
 import { plan } from './pricing';
 import { CorpMemory, corpDecide, countHonest, playoutLine } from './corp/core';
@@ -100,4 +102,7 @@ registerCorpPorts({
   // Stage C1b: the free install reads the order (corp/candidates.ts)
   freeInstallTarget,
   perfectRecallTarget,
+  // Stage D item 1 follow-up 3: the run term in prompts.ts (the hold owner's run stand with its key; the let-in loss)
+  runStands,
+  runLoss,
 });
