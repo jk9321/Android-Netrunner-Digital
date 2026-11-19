@@ -240,7 +240,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     return choose(executeAction(s0, { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: id }), 'hq');
   };
   const nextTurnCosts = (s: GameState) => inCorp(s, () => [serverHold(s, 'rd', { when: 'runnerTurn', corpCredits: Infinity }).rezCost, rezMoney(s).keep]);
-  it.fails("run-turn rez cost: during Tread Lightly's run, next turn's R&D rez cost and keep are the board's after the run (3, 3)", { timeout: T }, () => {
+  it("run-turn rez cost: during Tread Lightly's run, next turn's R&D rez cost and keep are the board's after the run (3, 3)", { timeout: T }, () => {
     const s = treadRun(true);
     expect(s.activeRun?.iceRezCostIncrease).toBe(3);
     expect(nextTurnCosts({ ...s, activeRun: null })).toEqual([3, 3]);

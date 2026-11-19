@@ -48,12 +48,16 @@ export function stakedServers(state: GameState, without: string[] = []): string[
   return out;
 }
 
-/** Rez money (see the file comment). */
+/**
+ * Rez money (see the file comment). Every form reads the board with the run under way over (afterRun): the next turn and
+ * the rest of this one have no run of this turn in them (6.8.5, 6.9.6d), and keepFor's reach (reachQuestion, which does
+ * not go through serverHold) reads the same board as byServer (the review's AI-HOLD-RUNNER-TURN-ACTIVERUN, red team S3).
+ */
 export function rezMoney(state: GameState, opts: { without?: string[]; restOfTurn?: { runnerCredits: number }; except?: string } = {}): RezMoney {
+  state = afterRun(state);
   if (opts.restOfTurn) {
-    const board = afterRun(state);
-    const from = restOfTurn(board, opts.restOfTurn.runnerCredits);
-    return countRezMoney(board, holdingRez(board, opts.without, from, opts.except), from);
+    const from = restOfTurn(state, opts.restOfTurn.runnerCredits);
+    return countRezMoney(state, holdingRez(state, opts.without, from, opts.except), from);
   }
   // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
   // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
@@ -74,6 +78,7 @@ function audit<T>(memoised: T, fresh: T) {
 
 /** The ice of each staked server's holding rez (rezMoney's rezIds, without keep's count): rezBudget's order reads it. */
 export function holdingRezIds(state: GameState): Record<string, string[]> {
+  state = afterRun(state);
   const ids = holding(state).rezIds;
   if (rezMoneyAudit.on) audit(ids, holdingRez(state).rezIds);
   return ids;
@@ -150,6 +155,7 @@ const bits = (mask: number): number => (mask ? (mask & 1) + bits(mask >>> 1) : 0
  * 10 games +0.2 ± 0.4 (run 42940051464 vs 42940033908).
  */
 export function lineFloor(state: GameState, agendaId: string): number {
+  state = afterRun(state);
   const money = holdingRez(state, [agendaId]);
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
   const sum = Object.values(money.byServer).reduce((a, b) => a + b, 0);

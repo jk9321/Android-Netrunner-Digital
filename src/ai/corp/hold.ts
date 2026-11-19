@@ -170,7 +170,9 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
     const board = afterRun(state);
     return counted(() => walkRunnerTurn(board, server, opts.corpCredits ?? state.corp.credits, restOfTurn(board, opts.runnerCredits)));
   }
-  return counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
+  // The Runner's next turn has no run of this turn in it: its rez cost increase, boosts, flags and gained subroutines end
+  // with it (6.8.5, 6.9.6d; the review's AI-HOLD-RUNNER-TURN-ACTIVERUN), as for 'restOfTurn'
+  return counted(() => walkRunnerTurn(afterRun(state), server, opts.corpCredits ?? state.corp.credits));
 }
 
 /**
