@@ -23,6 +23,9 @@ async function dragOffBottom(page: Page, testId: string) {
   await page.mouse.up();
 }
 
+/** The deal the run panel test plays (any seed works; a fixed one keeps the run the same on every CI run). */
+const SEED = 20261119;
+
 /** Do two bounding boxes overlap? */
 function boxesOverlap(
   a: { x: number; y: number; width: number; height: number },
@@ -34,12 +37,12 @@ function boxesOverlap(
 // Desktop runs dock into the sidebar without blocking the board; popping out opens a centred floating panel whose dragged spot does not persist
 test('the run panel docks by default, toggles log, and reopens centred when popped out after dragging', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
-  await page.goto('/');
-  await page.getByTestId('mode-computer').click();
-  await page.getByTestId('opponent-ai-corp').click();
-  await page.getByTestId('start-game').click();
+  // A fixed deal against the computer Corp (the default starter decks), so the board when the first run ends is
+  // the same every time; a random deal made the second run flaky (CI run 44567895606)
+  await page.goto(`/?seed=${SEED}&ai=corp`);
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+  const gainCredit = page.getByRole('button', { name: '+1 Credit' });
+  await expect(gainCredit).toBeEnabled({ timeout: 60_000 });
 
   const runArchives = page.getByTestId('server-archives').getByRole('button', { name: 'Run', exact: true });
   await runArchives.click();
@@ -94,6 +97,9 @@ test('the run panel docks by default, toggles log, and reopens centred when popp
     )
     .toBe('closed');
   await page.keyboard.press('Escape'); // close an access panel if one opened
+  // The run is over only when the Runner can take an action again (the computer may still be answering it)
+  await expect(gainCredit).toBeEnabled({ timeout: 30_000 });
+  await expect(runArchives).toBeEnabled();
   await runArchives.click();
   await expect(overlay).toBeVisible();
   await expect(page.getByTestId('run-overlay-popout')).toBeVisible();
