@@ -106,9 +106,11 @@ const good = c => !c.ca.err && !c.cb.err && c.ca.winner !== undefined;
 for (const a of ARMS) {
   const xs = conts.filter(c => c.arm === a && good(c));
   const groups = [
-    ['class, self', xs.filter(c => c.cls && c.sk === 'self')],
-    ['class, human', xs.filter(c => c.cls && c.sk !== 'self')],
-    ['class, all', xs.filter(c => c.cls)],
+    ['class, Corp decisions, self', xs.filter(c => c.cls && c.side === 'corp' && c.sk === 'self')],
+    ['class, Corp decisions, human', xs.filter(c => c.cls && c.side === 'corp' && c.sk !== 'self')],
+    ['class, Corp decisions, all', xs.filter(c => c.cls && c.side === 'corp')],
+    ['class, Corp prompts (progTrash), all', xs.filter(c => c.cls === 'progTrash')],
+    ['class, Runner decisions, all', xs.filter(c => c.cls && c.side === 'runner')],
     ['Corp decisions, self', xs.filter(c => c.side === 'corp' && c.sk === 'self')],
     ['Corp decisions, all', xs.filter(c => c.side === 'corp')],
     ['Corp, outside the class, all', xs.filter(c => c.side === 'corp' && !c.cls)],
@@ -139,6 +141,11 @@ for (const a of ARMS) {
     const mr = m(xs, i) / m(xs, 1), pr = p(xs, i) / p(xs, 1);
     P(`| ${a} | ${sk} | ${r2(mr)}${mr > 1.05 ? ' STOP' : ''} | ${r2(pr)}${pr > 1.15 ? ' STOP' : ''} | ${r2(m(cm, i) / m(cm, 1))} | ${r2(p(cm, i) / p(cm, 1))} | ${over}${over ? ' STOP' : ''} |`);
   }
+}
+P('');
+for (const sk of KINDS) {
+  const xs = decs.filter(d => d.sk === sk && d.ms);
+  if (xs.length) P(`Noise reference (${sk}): beta against control, mean ${r2(mean(xs.map(d => d.ms[0])) / mean(xs.map(d => d.ms[1])))}, p95 ${r2(q(xs.map(d => d.ms[0]), 0.95) / q(xs.map(d => d.ms[1]), 0.95))}, beta over 2x control at 0.5 s or more: ${xs.filter(d => d.ms[0] >= 500 && d.ms[0] > 2 * d.ms[1]).length}.`);
 }
 P('');
 P(`Fire counts (arm's term changed a value, per decision, mean): ${ARMS.map(a => `${a} ${r2(mean(decs.map(d => d.fire?.[ASKED.indexOf(a)] ?? 0)))}`).join(', ')}.\n`);
