@@ -55,11 +55,12 @@ jobs:
           for entry in $ONE_TIME_DELETE; do
             name="${entry%@*}"; want="${entry#*@}"
             if [[ " $PROTECTED " == *" $name "* ]]; then echo "keep  $name (protected)"; continue; fi
-            sha=$(gh api "repos/$REPO/git/ref/heads/$name" --jq .object.sha 2>/dev/null || true)
+            # gh prints the 404 body on stdout, so a failed lookup must count as empty.
+            sha=$(gh api "repos/$REPO/git/ref/heads/$name" --jq .object.sha 2>/dev/null) || sha=""
             if [ -z "$sha" ]; then echo "gone  $name (already deleted)"; continue; fi
             if [ "$sha" != "$want" ]; then echo "keep  $name (tip $sha is not the listed $want: someone pushed to it)"; continue; fi
             if [ "$DRY_RUN" = "true" ]; then echo "WOULD ARCHIVE+DELETE $name (tip $sha -> tag archive/$name)"; continue; fi
-            tag=$(gh api "repos/$REPO/git/ref/tags/archive/$name" --jq .object.sha 2>/dev/null || true)
+            tag=$(gh api "repos/$REPO/git/ref/tags/archive/$name" --jq .object.sha 2>/dev/null) || tag=""
             if [ -z "$tag" ]; then
               gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/archive/$name" -f sha="$sha" >/dev/null
               tag="$sha"
