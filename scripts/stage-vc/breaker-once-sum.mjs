@@ -4,7 +4,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ARMS = ['iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
+// SUM_ARMS: the arms the run asked (its ARMS_ASK), in that order; the default is the first count's seven.
+const ARMS = process.env.SUM_ARMS ? process.env.SUM_ARMS.split(',') : ['iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
 const ASKED = ['beta', 'control', ...ARMS];
 const KINDS = ['self', 'humanRunner', 'humanCorp'];
 const files = [];
@@ -123,6 +124,30 @@ for (const a of ARMS) {
   }
 }
 P(`\nContinuation errors: ${conts.filter(c => !good(c)).length}.\n`);
+
+// ------------------------------------------------------------------------------------------------ (i) / (ii) split
+// AI Coordinator 18:32Z (red team S1): the run term is also reached inside the Corp's model of itself (the planner's
+// Runner reply, the playout's Corp, rez follow-ups). (i) = a top-level Corp prompt the arm's tree decided by the run term
+// (where its correction reads directly); (ii) = every other changed Corp decision (carried by the Corp's model of itself).
+P(`## Changed Corp decisions split: (i) top-level run-term prompt / (ii) everything else\n`);
+const dKey = d => `${d.src}#${d.i}`;
+const dBy = new Map(decs.map(d => [dKey(d), d]));
+const top = (d, a) => d.c === 'corpPrompt' && d.prices?.[a]?.by === 'run';
+P(`| arm | part | changed (self / human) | by kind | pairs | Corp points a-b | stolen a-b | run stolen a-b |`);
+P(`|---|---|---|---|---|---|---|---|`);
+for (const a of ARMS) {
+  const ch = decs.filter(d => d.side === 'corp' && d.changed?.[a]);
+  for (const [part, sel] of [['(i)', d => top(d, a)], ['(ii)', d => !top(d, a)]]) {
+    const ys = ch.filter(sel);
+    const kinds = {};
+    for (const d of ys) kinds[d.c] = (kinds[d.c] ?? 0) + 1;
+    const ps = conts.filter(c => c.arm === a && c.side === 'corp' && good(c) && dBy.get(dKey(c)) && sel(dBy.get(dKey(c))));
+    const runs = ps.filter(c => c.ca.run && c.cb.run).map(c => c.ca.run.stolen - c.cb.run.stolen);
+    P(`| ${a} | ${part} | ${ys.filter(d => d.sk === 'self').length} / ${ys.filter(d => d.sk !== 'self').length} | ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ')} | ${ps.length} | ${ps.length ? pm(ps.map(c => c.ca.cs - c.cb.cs)) : ''} | ${ps.length ? pm(ps.map(c => c.ca.rs - c.cb.rs)) : ''} | ${runs.length ? pm(runs) : ''} |`);
+  }
+  for (const d of ch.filter(d => !top(d, a))) P(`- ${a} (ii): ${dKey(d)} T${d.T ?? ''} ${d.sk} ${d.c}${d.cls ? ` ${d.cls.cls ?? d.cls}` : ''}: beta ${d.beta}; ${a} ${d.changed[a]}${d.prices?.[a] ? ` (decided by ${d.prices[a].by})` : ''}`);
+}
+P('');
 
 // ------------------------------------------------------------------------------------------------ time
 P(`## Time against the control arm (mean / p95 ratios; decisions over 2x control at 0.5 s or more)\n`);
