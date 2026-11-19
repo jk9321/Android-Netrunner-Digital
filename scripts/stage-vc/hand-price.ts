@@ -642,7 +642,10 @@ function cont(s0: GameState, firsts: GameAction[], snaps: Snaps | undefined, hq:
   let s: GameState = structuredClone(s0);
   const none: ContRes = { cs2: s0.corp.score, rs2: s0.runner.score, cs: s0.corp.score, rs: s0.runner.score, winner: null, T: s0.turnNumber };
   try {
-    for (const a of firsts) {
+    for (const a0 of firsts) {
+      // line iii's advance names its card only: the server is where the install just put it
+      const srv = a0.type === 'ADVANCE_CARD' && !(a0 as any).serverId ? (Object.values(s.corp.servers) as any[]).find(v => v.root.some((c: any) => c.instanceId === (a0 as any).cardInstanceId))?.id : null;
+      const a = (srv ? { ...a0, serverId: srv } : a0) as GameAction;
       if (!t.core.isLegalAction(s, a)) return { ...none, err: `not legal: ${a.type}` };
       s = t.core.executeAction(s, a);
     }
@@ -693,12 +696,33 @@ async function partCont() {
 
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
-  const used = PART === 'cont' || PART === 'states' ? (['beta', 'source'] as Arm[]) : ARMS.filter(a => a === 'source' || ASKED.includes(a));
+  const used = PART === 'cont' || PART === 'states' || PART === 'board' ? (['beta', 'source'] as Arm[]) : ARMS.filter(a => a === 'source' || ASKED.includes(a));
   const dirs = makeTrees(root, used);
   trees = {};
   for (const arm of used) trees[arm] = await loadTree(arm, dirs[arm]);
   if (PART === 'cont') {
     await partCont();
+  } else if (PART === 'board') {
+    // G3 on one built board (point 2: the F4 pin's board by itself): BOARD=<fixture.json> SEEDS=n. Lines: i beta's own
+    // decision, ii the agenda install the order gives (the first agenda in HQ with one), iii that install and an advance;
+    // each with beta's Runner and the HQ line, the engine's rng state varied per seed (R&D's order stays the fixture's).
+    const t = trees.beta;
+    const s0: GameState = JSON.parse(readFileSync(process.env.BOARD!, 'utf8'));
+    const ids = s0.corp.hq.filter((c: any) => t.core.cardDef(c).type_code === 'agenda').map((c: any) => c.instanceId);
+    const per = g1Order(t, s0, undefined, ids).per;
+    const id = ids.find((x: string) => per[x]?.action);
+    const ii = id ? per[id].action : null;
+    const first = t.createAgent('corp', 'normal').chooseAction(structuredClone(s0));
+    out({ kind: 'board', board: process.env.BOARD, i: label(t, s0, first), ii: ii ? label(t, s0, ii) : null });
+    for (let k = 0; k < Number(process.env.SEEDS ?? 20); k++) {
+      const sk: GameState = structuredClone(s0);
+      (sk as any).rng = { ...(sk as any).rng, state: ((((sk as any).rng?.state ?? 1) + 7919 * (k + 1)) >>> 0) || 1 };
+      for (const hq of [false, true]) {
+        out({ kind: 'bl', k, hq, line: 'i', r: cont(sk, [first], undefined, hq) });
+        if (ii) out({ kind: 'bl', k, hq, line: 'ii', r: cont(sk, [ii], undefined, hq) });
+        if (ii) out({ kind: 'bl', k, hq, line: 'iii', r: cont(sk, [ii, { type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: id } as any], undefined, hq) });
+      }
+    }
   } else if (PART === 'states') {
     // the boards for the trace (hand-price-trace.ts STATES=): PICK=<file.json of {name, src, at}>, one {name, state} line each
     for (const p of JSON.parse(readFileSync(process.env.PICK!, 'utf8')) as { name: string; src: string; at: number }[]) {
