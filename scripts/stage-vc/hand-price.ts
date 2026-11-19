@@ -693,12 +693,19 @@ async function partCont() {
 
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
-  const used = PART === 'cont' ? (['beta', 'source'] as Arm[]) : ARMS.filter(a => a === 'source' || ASKED.includes(a));
+  const used = PART === 'cont' || PART === 'states' ? (['beta', 'source'] as Arm[]) : ARMS.filter(a => a === 'source' || ASKED.includes(a));
   const dirs = makeTrees(root, used);
   trees = {};
   for (const arm of used) trees[arm] = await loadTree(arm, dirs[arm]);
   if (PART === 'cont') {
     await partCont();
+  } else if (PART === 'states') {
+    // the boards for the trace (hand-price-trace.ts STATES=): PICK=<file.json of {name, src, at}>, one {name, state} line each
+    for (const p of JSON.parse(readFileSync(process.env.PICK!, 'utf8')) as { name: string; src: string; at: number }[]) {
+      const src = p.src.startsWith('deal:') ? playDeal(Number(p.src.slice(5)), p.at) : playHuman(p.src.slice(6));
+      const d = src?.decs[p.at];
+      if (d) out({ name: p.name, state: d.s });
+    }
   } else {
     if (shard === 0) out({ kind: 'meta', asked: ASKED });
     const want = (process.env.DEALS ?? '').split(',').filter(Boolean);
