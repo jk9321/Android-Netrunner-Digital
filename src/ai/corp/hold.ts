@@ -270,8 +270,16 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
-  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more and meets no toll or bypass again. */
+  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more. */
   resolving?: boolean;
+  /**
+   * 'thisRun': the encounter with it is past its beginning (6.9.3a), so what happens as an encounter begins is over: no
+   * bypass offered then (6.5.8b; every bypass the walk models is one, Physarum's and runBypasses' alike) and no toll
+   * again. The engine's marker: the Runner's encounter triggers and the ice's own "when encountered" are done
+   * (beginEncounter, resumeOnEncounter: `onEncounterPending` cleared, as priority.ts reads it), or its subroutines
+   * resolve. Not an encounter alone: while a bypass offer is open (or stripped by settledStand) the bypass is still there.
+   */
+  begun?: boolean;
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
@@ -513,6 +521,7 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
       resolving: encounter?.iceId === c.instanceId && encounter.resolvingIndex !== null ? true : undefined,
+      begun: encounter?.iceId === c.instanceId && (!encounter.onEncounterPending || encounter.resolvingIndex !== null) ? true : undefined,
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
@@ -899,7 +908,7 @@ export class Walk {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (this.board.bypass && !ice.resolving) {
+    if (this.board.bypass && !ice.begun) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));
@@ -926,7 +935,7 @@ export class Walk {
    */
   private tolls(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number, at: Step): number {
     const e = ice.encounterFacts;
-    if (!e || ice.broken || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
+    if (!e || ice.begun || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
     // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
     if (e.loses) return lose(this.toll(ws, e, then, at), e.loses);
     return this.toll(ws, e, then, at);
@@ -1706,7 +1715,11 @@ function runQuestion(state: GameState, server: string, opts: HoldOptions): RunQu
     // the ice further in is met in encounters of its own, and the encountered ice's bypass is offered as its encounter
     // begins (6.9.3a), before any boost. The encounters so far are the run's (runFlags), not touched
     const view = outsideEncounter(withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c))));
-    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
+    // A bypass is offered as an encounter begins (6.5.8b; none the walk models is triggered later, 6.5.8c): once the
+    // encounter with the ice at `pos` is past its beginning (WalkIce.begun) that ice is left out of the list before
+    // runBypasses chooses, so a single use goes to the ice further in (never filtered out of its result)
+    const begun = ice0[pos]?.begun;
+    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, begun ? pos : pos + 1), true);
     sets.push({ cost, up: [...up], skipped: [...skipped] });
   }
   // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand.

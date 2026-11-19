@@ -208,14 +208,14 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     expect([s.activeRun?.phase, s.activeRun?.encounter?.resolvingIndex, activePrompt(s)]).toEqual(['encounter_ice', null, undefined]);
     return s;
   };
-  it.fails('resolving bypass: Malandragem declined, Palisade encountered and unbroken: the run stands "out"', { timeout: T }, () => {
+  it('resolving bypass: Malandragem declined, Palisade encountered and unbroken: the run stands "out"', { timeout: T }, () => {
     const s = declined();
     expect(oracleGetsIn(s, 'hq', 'thisRun', []).answer).toBe('holds');
     expect(verdict(s, 'hq')).toBe('out');
   });
   // The report's own state: the same, with the subroutine resolving (resolvingIndex 0, set by hand: Palisade's one
   // subroutine resolves at once in the engine, so the window is never open there)
-  it.fails("resolving bypass, the report's state (Palisade's subroutine resolving): \"out\"", { timeout: T }, () => {
+  it("resolving bypass, the report's state (Palisade's subroutine resolving): \"out\"", { timeout: T }, () => {
     const s = structuredClone(declined());
     s.activeRun!.encounter!.resolvingIndex = 0;
     expect(verdict(s, 'hq')).toBe('out');
