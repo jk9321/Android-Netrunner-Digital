@@ -15,6 +15,11 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeF
 import { join, resolve } from 'node:path';
 import { Arm, makeTrees } from './breaker-once-trees';
 
+// KEY=value pairs in ARGS or the arguments (the ai-script workflow's args), e.g. JOBS=suite:beta,agree:control
+for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.split(/\s+/).filter(x => x.includes('='))) {
+  const i = kv.indexOf('=');
+  process.env[kv.slice(0, i).replace(/^-+/, '')] = kv.slice(i + 1);
+}
 const ARM_LIST = ['beta', 'iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
 const all = (process.env.JOBS ?? [...ARM_LIST.map(a => `suite:${a}`), ...['control', ...ARM_LIST].map(a => `agree:${a}`)].join(',')).split(',');
 const [k, n] = (process.env.SHARD ?? '').split('/').map(Number);

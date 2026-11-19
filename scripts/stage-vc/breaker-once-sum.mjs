@@ -4,7 +4,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ARMS = ['iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
+// SUM_ARMS: the arms the run asked (its ARMS_ASK), in that order; the default is the first count's seven.
+const ARMS = process.env.SUM_ARMS ? process.env.SUM_ARMS.split(',') : ['iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
 const ASKED = ['beta', 'control', ...ARMS];
 const KINDS = ['self', 'humanRunner', 'humanCorp'];
 const files = [];
