@@ -90,24 +90,32 @@ for (const sk of KINDS) {
   const bs = by('b').filter(b => b.sk === sk);
   if (!bs.length) continue;
   const withFirst = bs.filter(b => b.real.first);
-  for (const reading of ['real', 'dealt']) {
-    const plays = b => (reading === 'real' ? [b.model.real] : b.model.d);
+  for (const reading of ['real', 'rngOnly', 'gripOnly', 'dealt']) {
+    const plays = b => (reading === 'real' ? [b.model.real] : reading === 'rngOnly' ? b.model.r ?? [] : reading === 'gripOnly' ? b.model.g ?? [] : b.model.d);
+    if ((reading === 'gripOnly' && !bs[0].model.g) || (reading === 'rngOnly' && !bs[0].model.r)) continue;
     const mean = (b, f) => plays(b).reduce((a, p) => a + f(p), 0) / plays(b).length;
     const A1a = ratio(withFirst.map(b => ({ g: b.game, n: 1, y: mean(b, p => n01(p.first?.k === b.real.first.k)) })));
     const A1k = ratio(withFirst.map(b => ({ g: b.game, n: 1, y: mean(b, p => n01(p.first?.kind === b.real.first.kind)) })));
     const col = f => ratio(bs.map(b => ({ g: b.game, n: 1, y: mean(b, p => n01(f(agree(p, b.real)))) })));
     say(`| ${sk} | ${bs.length} | ${reading} | ${fmt(A1a)} | ${fmt(A1k)} | ${fmt(col(a => a.stolen))} | ${fmt(col(a => a.breach))} | ${fmt(col(a => a.trashed))} | ${fmt(col(a => a.credits))} | ${fmt(col(allOf))} |`);
   }
-  // real less dealt, per board, for rule 3
-  const d = f => ratio(bs.map(b => ({ g: b.game, n: 1, y: n01(f(agree(b.model.real, b.real))) - b.model.d.reduce((a, p) => a + n01(f(agree(p, b.real))), 0) / b.model.d.length })));
-  a3diff[sk] = { all: d(allOf), stolen: d(a => a.stolen), breach: d(a => a.breach) };
+  // real less dealt, per board, for rule 3; split at gripOnly (the deals with R&D's real order put back)
+  const avg = (ps, b, f) => ps.reduce((a, p) => a + n01(f(agree(p, b.real))), 0) / ps.length;
+  const d = (f, from, to) => ratio(bs.map(b => ({ g: b.game, n: 1, y: avg(from(b), b, f) - avg(to(b), b, f) })));
+  const R = b => [b.model.real];
+  const G = b => b.model.g ?? b.model.d;
+  const Rn = b => b.model.r ?? [b.model.real];
+  const D = b => b.model.d;
+  a3diff[sk] = {};
+  for (const [name, from, to] of [['real - dealt', R, D], ['real - rngOnly (chance: the shuffler)', R, Rn], ['rngOnly - gripOnly (grip and stack)', Rn, G], ['gripOnly - dealt (R&D order)', G, D]])
+    a3diff[sk][name] = { all: d(allOf, from, to), stolen: d(a => a.stolen, from, to), breach: d(a => a.breach, from, to) };
 }
 say('');
 say('A3 real grip less dealt grip (paired per board; rule 3: the dealt grip is material if the dealt reading is lower by more than 1 SE):');
 say('');
-say('| source | all four | stolen | breached |');
-say('|---|---|---|---|');
-for (const [sk, v] of Object.entries(a3diff)) say(`| ${sk} | ${fmtD(v.all)} | ${fmtD(v.stolen)} | ${fmtD(v.breach)} |`);
+say('| source | split | all four | stolen | breached |');
+say('|---|---|---|---|---|');
+for (const [sk, vs] of Object.entries(a3diff)) for (const [name, v] of Object.entries(vs)) say(`| ${sk} | ${name} | ${fmtD(v.all)} | ${fmtD(v.stolen)} | ${fmtD(v.breach)} |`);
 say('');
 
 // ---------------------------------------------------------------- A2 per decision

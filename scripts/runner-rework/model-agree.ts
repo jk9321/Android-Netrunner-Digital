@@ -32,6 +32,9 @@
  *  cards, what it could do at best) and on the Corp's own deals guessHidden(board, k), k = 0, 1 (`d0`, `d1`: what the
  *  Corp sees today). A2's dealt reading ranks guessHidden(state, k) at each decision (the deal is redrawn at each
  *  state: its seed is the turn's, turnSeed, as outside a Corp decision; inside one it is the decision's own).
+ *  `r` (rngOnly): the real cards with each deal's fresh shuffler (guessHidden reseeds it), the chance part.
+ *  `g` (gripOnly): the same deals with R&D's real order put back (and both sides' memory of it), so the dealt
+ *  part splits into the grip and stack, and R&D's order (HIDDEN-READ).
  *  Control: the real-grip reply is played again on the `control` tree; a difference is a stop ('ctl' line).
  * M (per board, for the sum): every real run start with the decision it came from (the last main-phase decision at or
  *  before it): how it started (click or card), the server, and at that decision the reply's ranking's top pick and
@@ -278,7 +281,17 @@ function measure(g: Game) {
     const ctlOk = JSON.stringify(ctl) === JSON.stringify(real);
     if (!ctlOk) out({ kind: 'ctl', src: g.src, T: T0, beta: real, control: ctl });
     const dealt: Play[] = [];
-    for (let k = 0; k < DEALT; k++) dealt.push(playTurn(T.beta, T.beta.guessHidden(B, k)));
+    // gripOnly (rule 3's split): the same deals with R&D, the Runner's memory of it and the Corp's put back as they are
+    // (HIDDEN-READ: the real R&D order), so the dealt part is split into the grip and stack, and R&D's order
+    const grip: Play[] = [];
+    // rngOnly: the real cards with the deal's fresh shuffler (random accesses, shuffles): the part of the split that is chance
+    const rng: Play[] = [];
+    for (let k = 0; k < DEALT; k++) {
+      const dealtB = T.beta.guessHidden(B, k);
+      rng.push(playTurn(T.beta, { ...B, rng: T.beta.core.createRng(dealtB.rng.state) }));
+      dealt.push(playTurn(T.beta, dealtB));
+      grip.push(playTurn(T.beta, { ...dealtB, corp: { ...dealtB.corp, rd: B.corp.rd, rdKnownToRunner: B.corp.rdKnownToRunner } }));
+    }
     out({
       kind: 'b',
       src: g.src,
@@ -291,7 +304,7 @@ function measure(g: Game) {
       rcr: B.runner.credits,
       grip: B.runner.grip.length,
       real: { first: realFirst, o: realO, runs: realRuns.map(r => ({ server: r.server, how: r.how, dec: decs.indexOf(r.dec) })) },
-      model: { real, d: dealt },
+      model: { real, d: dealt, g: grip, r: rng },
       ctlOk,
       ms,
       decisions: decs.length,
@@ -429,7 +442,7 @@ async function main() {
       const file = join(hdir, src.id as string);
       const r = JSON.parse(readFileSync(file, 'utf8'));
       if (!r.moves?.length) continue;
-      const hard = r.config.level === 'hard';
+      const hard = (r.config.level ?? r.config.difficulty) === 'hard';
       const kind = r.config.ai === 'corp' ? (hard ? 'humanRunnerHC' : 'humanRunner') : hard ? 'aiRunnerHard' : 'aiRunnerNormal';
       const core = T.beta.core;
       let s0: GameState;
