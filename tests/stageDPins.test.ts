@@ -8,7 +8,7 @@ import { serverHold } from '../src/ai/corp/hold';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { corpDecisionView } from '../src/ai/turnPlanner';
-import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
+import { oracleGetsIn, oracleStart } from '../scripts/stage-d/hold-oracle';
 
 /**
  * Step 4 Stage D pins (spec-step4-corp-core.md section 5; AI Coordinator 2026-11-14 17:56Z), committed in Stage B as
@@ -386,6 +386,101 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
         const v = corpDecisionView(s);
         decisionContext(v, 'corp');
         return serverHold(v, 'remote-2', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds;
+      })).toBe(false);
+    });
+  });
+
+  // Side Hustle, Alarm Clock and Hannah "Wheels" Pilintra (Stage D count bound item, count 2 Part F: netrunner-ai/stage-d/
+  // count-bound/count2-note.md, ruling-2.md; found row 80a). Card text (src/data):
+  //  - Side Hustle: "When you install this resource and whenever a run begins, place 1[credit] on this resource. When there
+  //    are 6 or more hosted credits, take all credits from this resource, trash it, and draw 1 card."
+  //  - Alarm Clock: "When your turn begins, you may run HQ. The first time you encounter a piece of ice during that run,
+  //    you may spend [click][click] to bypass it."
+  //  - Hannah "Wheels" Pilintra: "Once per turn -> [click]: Gain [click]. Run a remote server. When that run ends, if it
+  //    was unsuccessful, take 1 tag. [click], [trash]: Gain [click][click]. Remove 1 tag."
+  // Human game report-33, move 308 (Corp decision #119 of the count's numbering: turn 17, the Corp on $16 and 2 clicks
+  // about to draw; the Runner on $0; R&D has Logjam rezzed and Syailendra unrezzed). The hold count, asked on the Corp's
+  // own view, says R&D holds with Syailendra rezzed (need 8, budget 4): its earnings for the Runner's turn do not see the
+  // runs Alarm Clock and Hannah start on other servers, each of which puts a credit on Side Hustle. The oracle
+  // (hold-oracle.ts: the engine, the Runner's whole turn, retries on) gets in, but only after 924k actions (5.5 minutes),
+  // too slow for a test, so the truth half replays the line the oracle found (count-bound-oracle-line.ts) through the
+  // engine from the oracle's own start board: Alarm Clock's run on HQ, three clicks for credits, Hannah's run on a remote,
+  // the click Hannah gives for a credit, then the run on R&D. Side Hustle's sixth credit lands as that run begins ($4 to $10),
+  // the Corp rezzes Syailendra, and Unity boosts and breaks. Known-failing until the count's earnings read the runs a
+  // turn's cards start.
+  describe('Side Hustle fed by runs other cards start (found row 80a)', () => {
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const board = () => {
+      const { s, recorded } = at(33, 308);
+      expect(recorded).toMatchObject({ type: 'DRAW_CARD', player: 'corp' });
+      expect([s.turnNumber, s.activePlayer, s.corp.credits, s.corp.clicks, s.runner.credits]).toEqual([17, 'corp', 16, 2, 0]);
+      const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => cardDef(c).title);
+      expect(rig).toEqual(['Unity', 'Carmen', 'Curupira', 'Hermes', 'Alarm Clock', 'Docklands Pass', 'Verbal Plasticity', 'Hannah "Wheels" Pilintra', 'Side Hustle']);
+      const ice = s.corp.servers.rd.ice;
+      expect(ice.map(c => [cardDef(c).title, c.isRezzed])).toEqual([['Logjam', true], ['Syailendra', false]]);
+      return { s, syailendra: ice[1].instanceId };
+    };
+    // The oracle's line from its start board (the Corp's turn ended with its clicks unused; then the Runner's turn)
+    const LINE: GameAction[] = [
+        {type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-59', choice: {kind: 'effect_choice', optionId: 'yes'}},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-60', choice: {kind: 'effect_choice', optionId: 'no'}},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'GAIN_CREDIT', player: 'runner'},
+        {type: 'GAIN_CREDIT', player: 'runner'},
+        {type: 'GAIN_CREDIT', player: 'runner'},
+        {type: 'USE_ABILITY', player: 'runner', cardInstanceId: 'inst-71', abilityIndex: 0},
+        {type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-61', choice: {kind: 'effect_choice', optionId: 'remote-3'}},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'PASS', player: 'corp'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'PASS', player: 'corp'},
+        {type: 'USE_ABILITY', player: 'runner', cardInstanceId: 'inst-71', abilityIndex: 1},
+        {type: 'GAIN_CREDIT', player: 'runner'},
+        {type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'REZ_CARD', player: 'corp', cardInstanceId: 'inst-44'},
+        {type: 'PASS', player: 'corp'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'RESOLVE_PROMPT', player: 'corp', promptId: 'prompt-62', choice: {kind: 'effect_cards', cardInstanceIds: []}},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: 'inst-63'},
+        {type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: 'inst-63'},
+        {type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: 'inst-74'},
+        {type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: 'inst-74'},
+        {type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: 'inst-74'},
+        {type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: 'inst-74', subroutineIndices: [0]},
+        {type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: 'inst-74', subroutineIndices: [1]},
+        {type: 'BREAK_SUBROUTINE', player: 'runner', breakerInstanceId: 'inst-74', subroutineIndices: [2]},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'CONTINUE_RUN', player: 'runner'},
+        {type: 'PASS', player: 'corp'},
+    ] as GameAction[];
+
+    it("report-33 turn 17, the board's truth: the oracle's line gets in on R&D with Syailendra rezzed", { timeout: T }, () => {
+      const { s, syailendra } = board();
+      const start = oracleStart(s, { when: 'runnerTurn', targets: ['rd'], rez: new Set([syailendra]), retries: true });
+      if ('skipped' in start) throw new Error(start.skipped);
+      let x = start.state;
+      let rezzed = false;
+      for (const a of LINE) {
+        x = executeAction(x, a);
+        if (findCardAnywhere(x, syailendra)?.isRezzed) rezzed = true;
+      }
+      expect(rezzed).toBe(true);
+      const breached = (!!x.activeRun && x.activeRun.server === 'rd' && (x.activeRun.phase === 'access' || !!x.activeRun.breached)) || x.runsThisTurn.some(r => r.server === 'rd' && r.successful);
+      expect(breached).toBe(true);
+    });
+    it.fails('report-33 turn 17: the hold count does not say R&D holds (known-failing: runs started by Alarm Clock and Hannah feed Side Hustle; the count\'s earnings do not see them; found row 80a)', { timeout: T }, () => {
+      const { s } = board();
+      expect(inCorp(s, () => {
+        const v = corpDecisionView(s);
+        decisionContext(v, 'corp');
+        return serverHold(v, 'rd', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds;
       })).toBe(false);
     });
   });
