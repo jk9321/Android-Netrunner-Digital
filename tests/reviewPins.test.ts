@@ -141,7 +141,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
       st.runner.grip = cards.slice(0, grip);
       st.runner.stack = cards.slice(grip, grip + stack);
     });
-  it.fails('Audrey v2, grip 0, 25 cards in the stack, 4 clicks: HQ does not hold (draw, then run)', { timeout: T }, () => {
+  it('Audrey v2, grip 0, 25 cards in the stack, 4 clicks: HQ does not hold (draw, then run)', { timeout: T }, () => {
     const s = audrey(0, 25);
     expect(turnTruth(s, 'hq', [])).toBe('getsIn');
     expect(nextTurn(s, 'hq').holds).toBe(false);

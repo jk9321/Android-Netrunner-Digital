@@ -612,9 +612,13 @@ function runBegins(state: GameState, start: WalkStart): RunBegin[] {
   });
 }
 
-/** breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). */
+/**
+ * breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). A plan's discards are bounded by
+ * the cards the Runner can come to hold this turn, the grip and the stack (PlanView): the walk draws before a run and
+ * checks the grip as it spends (Walk.usable).
+ */
 function planFor(board: GameState, start: WalkStart, card: CardInstance, z: number): WalkPlan[] {
-  return breakPlans(withIce(board, card), card, z).flatMap(({ plan: p, spends }) => {
+  return breakPlans(withIce(board, card), card, z, { gripCards: board.runner.grip.length + board.runner.stack.length }).flatMap(({ plan: p, spends }) => {
     const breaker = start.index.get(p.breaker.instanceId);
     if (breaker === undefined) return [];
     const c = spends.counters;
