@@ -5,6 +5,7 @@
  * (every board of the deal): read as "the walk's answer may be touched".
  *   OUT=marks.json npx vite-node scripts/runner-rework/get-in-deckmarks.ts
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dealState } from '../stage-a/harness';
 const rec = JSON.parse(readFileSync('scripts/stage-d/post-pick-deals.json', 'utf8'));
