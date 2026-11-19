@@ -524,7 +524,7 @@ describe('Anoetic Void paid with an agenda (found row 59)', () => {
     expect(s.runner.scoreArea.some(c => c.instanceId === AGENDA)).toBe(true);
   });
 
-  it.fails('the Corp sends no agenda from HQ to Archives here (known-failing: the answer is scored before its cost, rows 59 and 76)', { timeout: T }, () => {
+  it.fails('the Corp sends no agenda from HQ to Archives here (known-failing: the answer is scored before its cost, rows 59 and 81a)', { timeout: T }, () => {
     let s = pin().state;
     for (let k = 0; k < 4; k++) {
       const p = s.pendingPrompts[0] as unknown as { side: string; source?: { cardCode: string } } | undefined;
