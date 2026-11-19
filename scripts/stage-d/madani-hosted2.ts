@@ -32,6 +32,7 @@ import { makeTrees, readArms } from './runner-money-trees';
 import { Tree, askAction, askRez, isRezWindow, key, loadTree, serverKind } from './rez-follow-lib';
 import { oracleGetsIn } from './hold-oracle';
 import { oracleGetsIn as oracleGetsInX } from './madani-hosted-oracle';
+import { lineOut, lineStart, oracleGetsIn as lineOracle } from './madani-hosted2-oracle';
 import { memoryLimit } from '../../src/core/engine/cardEffects';
 import { breakerCodes, iceCodes } from './golden-prices';
 import { installIceForTest, installProgramForTest, newGame } from '../../tests/helpers';
@@ -541,6 +542,23 @@ function generated(k: number, trees: Record<string, Tree>) {
   try {
     b = ask(trees.beta, s);
     h = ask(trees[ARM], s);
+    if (process.env.ORACLE_LINE && h.holds) {
+      // the line the extended oracle gets in by, under the arm's own rez set (local traces, brief-count2 A)
+      const r = lineOracle(structuredClone(s), 'remote1', 'runnerTurn', (h as { rez?: string[] }).rez ?? [], s.corp.credits, ORACLE_CAP);
+      // the line's programs truly installed: its actions replayed up to its first run, then beta's walk asked there
+      let t: GameState = structuredClone(lineStart.state ?? s);
+      const acts = lineOut.filter(l => l.includes(': {')).map(l => JSON.parse(l.slice(l.indexOf(': {') + 2)) as GameAction);
+      let upto = 0;
+      for (const a of acts) {
+        if (a.type === 'INITIATE_RUN') break;
+        t = executeAction(t, a);
+        upto++;
+      }
+      const installed = upto ? ask(trees.beta, t) : null;
+      const rig = rigOf(t).map(c => cardDef(c).title);
+      const names = Object.fromEntries([...rigOf(s), ...rigOf(s).flatMap(c => c.hostedCards ?? []), ...(s.corp.servers.remote1?.ice ?? [])].map(c => [c.instanceId, cardDef(c).title]));
+      out({ kind: 'line', k, answer: r.answer, work: r.work, line: [...lineOut], names, installed: installed && { ...installed, rig, mem: t.runner.memoryUnitsUsed } });
+    }
     if (sv?.oracleX === 'holds' && !h.holds) {
       const v = structuredClone(s);
       lad = ladderOn(trees[ARM], v, 'remote1', { when: 'runnerTurn' });
