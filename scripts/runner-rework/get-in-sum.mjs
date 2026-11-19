@@ -19,6 +19,17 @@ const rows = process.argv
   })
   .filter(Boolean);
 const P = (...a) => console.log(...a);
+// Hold-inputs fix 6 marks (coordinator 18:42Z): DECKMARKS = get-in-deckmarks.ts output (self-play, deal level);
+// MARKS = get-in.ts output files of a run that wrote board marks (`fix6` per server), read by board
+const deckMarks = process.env.DECKMARKS ? JSON.parse(readFileSync(process.env.DECKMARKS, 'utf8')) : {};
+const boardMarks = new Map();
+for (const f of (process.env.MARKS ?? '').split(',').filter(Boolean))
+  for (const l of readFileSync(f, 'utf8').split('\n')) {
+    if (!l.includes('"kind":"v"')) continue;
+    const v = JSON.parse(l);
+    for (const sv of v.servers) if (sv.fix6?.length) boardMarks.set(`${v.src}|${v.T}|${v.where}|${(v.runs ?? []).length}|${sv.id}`, sv.fix6);
+  }
+const fix6Of = (v, sv) => sv.fix6 ?? boardMarks.get(`${v.src}|${v.T}|${v.where}|${(v.runs ?? []).length}|${sv.id}`) ?? (deckMarks[v.src] ?? []).filter(m => m !== 'knickknack' && m !== 'audrey').map(m => `${m}(deck)`);
 const mean = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
 const se = a => (a.length > 1 ? Math.sqrt(a.reduce((x, y) => x + (y - mean(a)) ** 2, 0) / (a.length - 1) / a.length) : NaN);
 const f2 = x => (Number.isFinite(x) ? x.toFixed(2) : '-');
@@ -159,8 +170,16 @@ for (const k of KINDS) {
         const r0 = mine.find(r => r.ok === false);
         add(`C  .. ${r0.rezzed.length ? 'ice rezzed in the run' : r0.unrez ? 'unrezzed ice left unrezzed' : 'no unrezzed ice (rezzed ice, upgrade, jack out)'}`);
       }
-      if (!out && sv.hold?.holds) add('D runner prices in, walk holds');
-      if (out && sv.hold && !sv.hold.holds) add('E runner prices out, walk does not hold');
+      if (!out && sv.hold?.holds) add(`D runner prices in, walk holds${gotIn ? ' (got in)' : ran ? ' (ran, did not get in)' : ' (not run)'}`);
+      if (out && sv.hold && !sv.hold.holds) add(`E runner prices out, walk does not hold: ${sv.worth !== null && sv.worth <= 0 ? 'nothing to take (worth <= 0)' : 'worth > 0, priced out on cost'}${gotIn ? ', got in' : ''}`);
+      // the walk's answers with and without the boards a known hold fault may touch (hold-inputs fixes 1, 2 and 6)
+      const f6 = fix6Of(v, sv);
+      const marked = (v.cls?.length ?? 0) > 0 || f6.length > 0;
+      if (sv.hold) {
+        add(`H walk ${sv.hold.holds ? 'holds' : 'does not hold'}${marked ? ' [marked board]' : ''}`);
+        if (marked) for (const m of [...(v.cls ?? []), ...f6]) add(`H  .. mark ${m}`);
+        if (sv.hold.holds && gotIn && !marked) add('B walk holds, got in [unmarked boards only]');
+      }
     }
   }
   P(`\n### ${k}: ${vk.length} boards`);
