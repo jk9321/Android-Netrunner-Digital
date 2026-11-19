@@ -16,7 +16,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-export const TREES = ['base', 'control', 'arm', 'instr', 'source'] as const;
+export const TREES = ['base', 'control', 'arm', 'instr', 'source', 'gm'] as const;
 export type TreeName = (typeof TREES)[number];
 
 // ------------------------------------------------------------------------------------------------ the timer hooks
@@ -152,7 +152,21 @@ export function solveLargest(q: TurnQuestion): TurnAnswer {
 `;
 
 const HOLD = 'ai/corp/hold.ts';
+/**
+ * The arm `gatherMemo` (brief B3: the gather before the cache key, which A's split shows costs more than the search):
+ * a turn question is gathered once per board object and ask (valueModel's memo: the board's fingerprint and the pricing
+ * context in its key, as turnIce and the walk's plans are already kept), and its key is worked out once per question
+ * object. Nothing else changes: the same question, so the same answer.
+ */
+const GATHER_MEMO: Patch[] = [
+  [
+    'function turnQuestion(state: GameState, server: string, corpCredits: number, from: TurnFrom, picked?: string[]): TurnQuestion {',
+    "function turnQuestion(state: GameState, server: string, corpCredits: number, from: TurnFrom, picked?: string[]): TurnQuestion {\n  return memo(state, `cbTurnQ:${server}|${corpCredits}|${from.rest ? 1 : 0}|${from.clicks}|${from.credits}|${picked ? picked.join(',') : '-'}`, () => turnQuestion0(state, server, corpCredits, from, picked));\n}\nconst cbKeys = new WeakMap<object, string>();\nconst cbKeyOf = (q: object): string => {\n  let k = cbKeys.get(q);\n  if (k === undefined) cbKeys.set(q, (k = questionKey(q)));\n  return k;\n};\nfunction turnQuestion0(state: GameState, server: string, corpCredits: number, from: TurnFrom, picked?: string[]): TurnQuestion {",
+  ],
+  ["  const key = cache ? questionKey(q) : '';\n", '  const key = cache ? cbKeyOf(q) : \'\';\n'],
+];
 const PATCHES: Record<string, Record<string, Patch[]>> = {
+  gm: { [HOLD]: GATHER_MEMO },
   arm: {
     [HOLD]: [SOLVE_MEMOS, ['    a = solveTurn(q);\n', '    a = solveLargest(q);\n']],
   },
@@ -160,6 +174,12 @@ const PATCHES: Record<string, Record<string, Patch[]>> = {
     [HOLD]: [
       SOLVE_MEMOS,
       wrap('function turnQuestion(state: GameState, server: string, corpCredits: number, from: TurnFrom, picked?: string[]): TurnQuestion {', 'turnQuestion', 'gather'),
+      // The gather's parts (exclusive time; runTarget and walkBoard serve the reach questions too)
+      wrap('export function runTarget(state: GameState, base: WalkIce[], server: string, set: Set<string>, clicks = state.runner.maxClicks): { target: WalkTarget; price: number } {', 'runTarget', 'g.runTarget', true),
+      wrap('export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarget[]): WalkBoard {', 'walkBoard', 'g.walkBoard', true),
+      wrap('export function walkStart(state: GameState, runnerTurn: boolean, fresh = runnerTurn, picked?: string[]): WalkStart {', 'walkStart', 'g.walkStart', true),
+      wrap('function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] {', 'turnIce', 'g.turnIce'),
+      wrap('export function turnEndDerezPicks(state: GameState, servers?: string[]): string[][] {', 'turnEndDerezPicks', 'g.picks', true),
       ['const walkMemos = (): WalkMemos => ({ one: new Map(), turn: new Map() });', 'const walkMemos = (): WalkMemos => (globalThis as any).__cb.memos({ one: new Map(), turn: new Map() });'],
       ['function turnNeed(input: TurnInput, targets: SearchTarget[], memo?: Map<string, number>, retries = false): number {\n', 'function turnNeed(input: TurnInput, targets: SearchTarget[], memo?: Map<string, number>, retries = false): number {\n  (globalThis as any).__cb.walk(retries);\n'],
       ['  const key = cache ? questionKey(q) : \'\';\n  let a = cache?.get(key);\n  if (!a) {\n    a = solveTurn(q);\n', "  const key = (globalThis as any).__cbT('key', () => questionKey(q));\n  (globalThis as any).__cb.question(q, key);\n  let a = cache?.get(key);\n  if (!a) {\n    a = (globalThis as any).__cb.solve(q, key, solveTurn);\n"],

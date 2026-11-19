@@ -37,9 +37,14 @@ const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const qid = (k: string) => createHash('md5').update(k).digest('hex').slice(0, 16);
 
 async function main() {
-  const dirs = makeTrees(join(process.env.TROOT ?? 'node_modules/.cache/cb-src', String(shard)));
+  // ARM: the timed arm's tree (`arm` largestFirst, default; `gm` gatherMemo, B3). Q=0: no instr ask, no question searches
+  const ARM = process.env.ARM ?? 'arm';
+  const NOQ = process.env.Q === '0';
+  const names = ['base', 'control', ARM, ...(NOQ ? [] : ['instr']), 'source'] as any[];
+  const dirs = makeTrees(join(process.env.TROOT ?? 'node_modules/.cache/cb-src', String(shard)), names);
   const trees: Record<string, Tree> = {};
-  for (const t of ['base', 'control', 'arm', 'instr', 'source']) trees[t] = await loadTree(t, dirs[t]);
+  for (const t of names) trees[t] = await loadTree(t, dirs[t]);
+  trees.arm = trees[ARM];
   const seen = new Set<string>();
   const TIMED = ['base', 'control', 'arm'];
 
@@ -85,6 +90,13 @@ async function main() {
         if (rep === 0) ans[t] = r.a;
         else if (ans[t] !== r.a) ans[t] = `${ans[t]} | rep ${rep}: ${r.a}`;
       }
+    }
+    if (NOQ) {
+      const row: Record<string, unknown> = { kind: 'd', src, i, T: s.turnNumber, fn: q.fn, arm: ARM, ms: Object.fromEntries(TIMED.map(t => [t, r1(median(ms[t]))])), all: Object.fromEntries(TIMED.map(t => [t, ms[t].map(r1)])) };
+      if (ans.arm !== ans.base) Object.assign(row, { changed: true, base: ans.base.slice(0, 220), arm: ans.arm.slice(0, 220) });
+      if (ans.control !== ans.base) Object.assign(row, { controlDiffers: true, control: ans.control.slice(0, 220) });
+      out(row);
+      return true;
     }
     const ins = askInstr(trees.instr, q);
     const row: Record<string, unknown> = {
