@@ -363,6 +363,7 @@ function GameScreen({
             concedingSide={concedingSide}
             onConcede={concede}
             onLeave={leaveGame}
+            onOpenZone={(z) => setZone(curr => (curr === z ? null : z))}
           />
 
           {/* Main Tabletop */}

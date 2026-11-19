@@ -226,6 +226,26 @@ describe('Vantage Point Runner events', () => {
     expect(card(s, id).tokens.credit ?? 0).toBe(0);
   });
 
+  // Rule 1.2.2: "If a rule or ability directs something to happen, but another effect states that it cannot happen,
+  // the 'cannot' ability takes precedence." Aircheck: "you cannot lose ... credits from your credit pool".
+  it.each([
+    ['Whitespace', '30074'],
+    ['Syailendra', '35076'],
+  ] as const)("Aircheck: %s's subroutine cannot take credits from the locked pool (rule 1.2.2)", (_title, code) => {
+    let s = newGame();
+    emptyHQ(s);
+    installIceForTest(s, code, 'hq');
+    [s] = playRunner(s, V.aircheck);
+    s.runner.credits = 8;
+    s = choose(s, 'hq');
+    for (let i = 0; i < 10 && s.activeRun && !s.activeRun.encounter; i++) s = cont(s);
+    expect(s.activeRun?.encounter).toBeTruthy();
+    for (let i = 0; i < 10 && s.activeRun?.encounter; i++) s = prompt(s) ? declineAll(s) : cont(s);
+    expect(s.runner.credits).toBe(8);
+    // Whitespace's second subroutine reads the pool (8), so the run goes on
+    expect(s.activeRun).toBeTruthy();
+  });
+
   it('Beta Build installs a program from the stack for free and puts it back on top when the run ends', () => {
     let s = newGame();
     emptyHQ(s);

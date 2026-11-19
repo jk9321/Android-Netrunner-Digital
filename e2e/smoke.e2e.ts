@@ -44,6 +44,14 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-label', 'Stops: none');
 
+  // Header score counters open and toggle the Corp / Runner score area viewers
+  await page.getByTestId('header-corp-score').click();
+  await expect(page.getByTestId('zone-viewer')).toContainText('CORP SCORE AREA');
+  await page.getByTestId('header-runner-score').click();
+  await expect(page.getByTestId('zone-viewer')).toContainText('RUNNER SCORE AREA');
+  await page.getByTestId('header-runner-score').click();
+  await expect(page.getByTestId('zone-viewer')).toHaveCount(0);
+
   expect(errors).toEqual([]);
 });
 
