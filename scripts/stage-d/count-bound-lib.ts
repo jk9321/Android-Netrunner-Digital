@@ -16,7 +16,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-export const TREES = ['base', 'control', 'arm', 'instr', 'source', 'gm'] as const;
+export const TREES = ['base', 'control', 'arm', 'instr', 'source', 'gm', 'cnt'] as const;
 export type TreeName = (typeof TREES)[number];
 
 // ------------------------------------------------------------------------------------------------ the timer hooks
@@ -165,7 +165,34 @@ const GATHER_MEMO: Patch[] = [
   ],
   ["  const key = cache ? questionKey(q) : '';\n", '  const key = cache ? cbKeyOf(q) : \'\';\n'],
 ];
+/**
+ * Step 2 (brief-2.md, Part E): the `cnt` tree counts the planner's work and the repeats within a decision by a board
+ * fingerprint (count-bound-prof.ts defines globalThis.__cp; every hook only counts and returns the original result).
+ */
+const G = '(globalThis as any).__cp';
+const CNT: Record<string, Patch[]> = {
+  'core/engine/gameEngine.ts': [
+    ['export function executeAction(prevState: GameState, action: GameAction): GameState {\n', `export function executeAction(prevState: GameState, action: GameAction): GameState {\n  return ${G}.exec(prevState, action, () => executeAction0(prevState, action));\n}\nfunction executeAction0(prevState: GameState, action: GameAction): GameState {\n`],
+    ['  const cached = known.get(key);\n  if (cached !== undefined) return cached;\n', `  const cached = known.get(key);\n  ${G}.isLegal(state, key, cached !== undefined);\n  if (cached !== undefined) return cached;\n`],
+  ],
+  'core/engine/legalActions.ts': [['  bySide[side] ??= candidateActions(state, side)', `  ${G}.legal(state, side, !!bySide[side]);\n  bySide[side] ??= candidateActions(state, side)`]],
+  'ai/turnPlanner.ts': [
+    ["  tally('planner', 'decisions');\n", `  tally('planner', 'decisions');\n  ${G}.plan(candidates.length);\n`],
+    ['export function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = \'rule\'): number {\n', `export function playout(start: GameState, side: SideCode, first: GameAction, ai: PlannerAI, line: Line = [], ends?: Ends, mode: LineMode = 'rule'): number {\n  ${G}.playout(start, first, mode);\n`],
+    ['  const step = (state: GameState, action: GameAction): GameState | null => {\n', `  const step = (state: GameState, action: GameAction): GameState | null => {\n    ${G}.pstep();\n`],
+    ['function leafValue(state: GameState, side: SideCode): number {\n  return ', `function leafValue(state: GameState, side: SideCode): number {\n  return ${G}.leaf(state, side, () => leafValue0(state, side));\n}\nfunction leafValue0(state: GameState, side: SideCode): number {\n  return `],
+  ],
+  'ai/runnerReply.ts': [
+    ['      const gr = new GameRunner(guessHidden(end, k), {', `      ${G}.reply(end, k);\n      const gr = new GameRunner(guessHidden(end, k), {`],
+    ['          if (!gr.step()) break;\n', `          ${G}.rstep();\n          if (!gr.step()) break;\n`],
+  ],
+  'ai/corpAI.ts': [
+    ["  rankMainActions(state: GameState, legal = getLegalActions(state, 'corp'), held: CorpMemory['heldLine'] = this.memory.heldLine): ScoredAction[] {\n", `  rankMainActions(state: GameState, legal = getLegalActions(state, 'corp'), held: CorpMemory['heldLine'] = this.memory.heldLine): ScoredAction[] {\n    return ${G}.rank(state, held, () => this.rankMainActions0(state, legal, held));\n  }\n  rankMainActions0(state: GameState, legal: GameAction[], held: CorpMemory['heldLine']): ScoredAction[] {\n`],
+  ],
+  'ai/runnerAI.ts': [['  chooseAction(state: GameState): GameAction {\n    return asSide(', `  chooseAction(state: GameState): GameAction {\n    return ${G}.runner(state, () => this.chooseAction0(state));\n  }\n  chooseAction0(state: GameState): GameAction {\n    return asSide(`]],
+};
 const PATCHES: Record<string, Record<string, Patch[]>> = {
+  cnt: CNT,
   gm: { [HOLD]: GATHER_MEMO },
   arm: {
     [HOLD]: [SOLVE_MEMOS, ['    a = solveTurn(q);\n', '    a = solveLargest(q);\n']],
