@@ -35,48 +35,35 @@
  *    depth 3 as settledStand; the run over; serverHold 'restOfTurn' with the Corp's and the Runner's credits there), or
  *    the Runner has no click left there.
  *  - both: the two together.
+ *  - stopLiteral (my narrower arm, from the first run's changed decisions): stopOverTurn with the brief's class as the
+ *    condition: the stop rez is passed only when the rez world does not hold and the pass world does (both by the
+ *    `holds` above: the run's own server held and the keep paid). spendsKept's condition (2) is vacuous when the run's
+ *    own server is unholdable in the rez world, so stopOverTurn passes a stop that lets the Runner in on this run
+ *    (human report-23 #79; door B); this arm does not.
  *  - outSettled (my narrower-than-a-new-term arm, from the door C trace): outOverTurn, and an "out" answer it charges is
  *    priced on its settled board (runPrice of the board the settle reached: Anoetic Void's 2 credits and 2 HQ cards
  *    paid) instead of the one-step board. Without it a charged "yes" and a charged "no" tie on the one-step price
  *    (found row 59's cause) and today's "yes" stands.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-  cpSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-export const ARMS = [
-  "beta",
-  "control",
-  "source",
-  "stopOverTurn",
-  "outOverTurn",
-  "both",
-  "outSettled",
-] as const;
+export const ARMS = ['beta', 'control', 'source', 'stopOverTurn', 'outOverTurn', 'both', 'outSettled'] as const;
 export type Arm = (typeof ARMS)[number];
-export const BAIT_ARMS: Arm[] = [
-  "stopOverTurn",
-  "outOverTurn",
-  "both",
-  "outSettled",
-];
+export const BAIT_ARMS: Arm[] = ['stopOverTurn', 'outOverTurn', 'both', 'outSettled'];
 
 type Patch = [file: string, at: string, to: string];
 
 function patches(arm: Arm): Patch[] {
-  const STOP = arm === "stopOverTurn" || arm === "both";
-  const OUT = arm === "outOverTurn" || arm === "both" || arm === "outSettled";
-  const SETTLED = arm === "outSettled";
+  const STOP = arm === 'stopOverTurn' || arm === 'both' || arm === 'stopLiteral';
+  const LITERAL = arm === 'stopLiteral';
+  const OUT = arm === 'outOverTurn' || arm === 'both' || arm === 'outSettled';
+  const SETTLED = arm === 'outSettled';
   return [
     // ---- answerPrompt: the top-level flag (as prompt-chain-trees.ts)
     [
-      "ai/prompts.ts",
+      'ai/prompts.ts',
       `export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {`,
       `export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
   const __G = globalThis as any;
@@ -95,7 +82,7 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
     ],
     // ---- the run term: record, and the arm outOverTurn
     [
-      "ai/prompts.ts",
+      'ai/prompts.ts',
       `  const priced = outs.map((o, k) => runPrice(state, prompt, o.action, o.after, memory, synergy) - (verdicts[k] === 'in' ? loss : 0));`,
       `  const __G = globalThis as any;
   const __top = !!__G.__brPTop && !!__G.__brArm;
@@ -110,7 +97,7 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
   }`,
     ],
     [
-      "ai/prompts.ts",
+      'ai/prompts.ts',
       `/** The expected loss of \`x\` cards of HQ at random`,
       `/**
  * BAIT-RUN (count step): the rest of the Runner's turn on an "out" answer's settled board (see bait-run-trees.ts). The
@@ -144,14 +131,14 @@ function __outOverTurn(after: GameState, server: string, synergy: boolean): { ho
 /** The expected loss of \`x\` cards of HQ at random`,
     ],
     [
-      "ai/prompts.ts",
+      'ai/prompts.ts',
       `import { SHRED_STEP } from '../core/engine/runEnd';`,
       `import { SHRED_STEP } from '../core/engine/runEnd';
 import { serverHold as __serverHold } from './corp/hold';`,
     ],
     // ---- the deciding Corp's own prompt answer and rez window
     [
-      "ai/corp/core.ts",
+      'ai/corp/core.ts',
       `  if (activePrompt(view)) return { action: answerPrompt(view, 'corp', undefined, ctx.synergy), note: false };`,
       `  if (activePrompt(view)) {
     if (ctx.counted) (globalThis as any).__brTopNext = true;
@@ -159,7 +146,7 @@ import { serverHold as __serverHold } from './corp/hold';`,
   }`,
     ],
     [
-      "ai/corpAI.ts",
+      'ai/corpAI.ts',
       `      const action = decideRez(view, cards, this.synergy);
       if (view === state || !action || isLegalAction(state, action)) return action;`,
       `      const __was = (globalThis as any).__brRTop;
@@ -174,7 +161,7 @@ import { serverHold as __serverHold } from './corp/hold';`,
     ],
     // ---- decideRez: the top flag reaches only its own countedRez calls (never modelRezGain's playouts)
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  const importance = serverImportance(state, server, synergy);
   let best: { card: CardInstance; score: number } | null = null;`,
       `  const importance = serverImportance(state, server, synergy);
@@ -184,7 +171,7 @@ import { serverHold as __serverHold } from './corp/hold';`,
   let best: { card: CardInstance; score: number } | null = null;`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `      const call = countedRez(state, card);`,
       `      __G.__brRTop = __top;
       const call = countedRez(state, card);
@@ -192,7 +179,7 @@ import { serverHold as __serverHold } from './corp/hold';`,
     ],
     // ---- countedRez: record the rule, and the arm stopOverTurn
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
   const run = state.activeRun;`,
       `export function countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | null {
@@ -221,7 +208,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   const run = state.activeRun;`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  if (atMatch) return atMatch;`,
       `  if (atMatch) {
     G.__brRule = atMatch === 'rez' ? 'MPrez' : 'MPpass';
@@ -229,7 +216,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   }`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  if (run.server === 'archives' && !archivesWantsIce(state)) return 'pass';`,
       `  if (run.server === 'archives' && !archivesWantsIce(state)) {
     G.__brRule = 'R5';
@@ -237,7 +224,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   }`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  if (server.root.some(isAgenda) && rezStops(state, ice, true)) return 'rez';`,
       `  if (server.root.some(isAgenda) && rezStops(state, ice, true)) {
     G.__brRule = 'R2';
@@ -245,7 +232,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   }`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  if (run.server === 'hq' && hqAgendas > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';`,
       `  if (run.server === 'hq' && hqAgendas > 0) {
     G.__brRule = stops ? 'R3s' : 'R3t';
@@ -254,7 +241,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   }`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) return stops || !spendsKept(state, ice) ? 'rez' : 'pass';`,
       `  if (run.server === 'rd' && hqAgendas === 0 && agendasUnseen(state) > 0) {
     G.__brRule = stops ? 'R4s' : 'R4t';
@@ -263,7 +250,7 @@ function __countedRez(state: GameState, ice: CardInstance): 'rez' | 'pass' | nul
   }`,
     ],
     [
-      "ai/corp/rez.ts",
+      'ai/corp/rez.ts',
       `/** The Runner wins with 7 or more agenda points in its score area (rules 1.7.2a). */`,
       `/** BAIT-RUN: a world of A1 (see bait-run-trees.ts): its board's Corp credits, keep, byServer and whether it holds. */
 interface __World {
@@ -314,7 +301,8 @@ function __stopKept(state: GameState, ice: CardInstance, rule: string): boolean 
   if (!${STOP} || state.runner.clicks <= 0) return false;
   const G = globalThis as any;
   const w = __worlds(state, ice);
-  const passes = !!w?.passes;
+  // stopLiteral: the brief's class itself (the rez world does not hold, the pass world does)
+  const passes = ${LITERAL} ? !!w && !w.rez.holds && w.pass.holds : !!w?.passes;
   G.__brArmed = passes;
   if (passes) G.__brFire = { ...(G.__brFire ?? {}), [rule]: (G.__brFire?.[rule] ?? 0) + 1 };
   return passes;
@@ -326,25 +314,18 @@ function __stopKept(state: GameState, ice: CardInstance, rule: string): boolean 
 }
 
 /** Copies this checkout's src into root/<arm>/src with the arm's patches; each patch must match exactly once. */
-export function makeTrees(
-  root: string,
-  arms: readonly Arm[],
-  from = "src",
-): Record<string, string> {
+export function makeTrees(root: string, arms: readonly Arm[], from = 'src'): Record<string, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
   const dirs: Record<string, string> = {};
   for (const arm of arms) {
     const dir = join(root, arm);
     mkdirSync(dir, { recursive: true });
-    cpSync(from, join(dir, "src"), { recursive: true });
+    cpSync(from, join(dir, 'src'), { recursive: true });
     for (const [f, at, to] of patches(arm)) {
-      const path = join(dir, "src", f);
-      const text = readFileSync(path, "utf8");
-      if (text.split(at).length !== 2)
-        throw new Error(
-          `tree ${arm}: a patch does not match once in ${f}: ${at.slice(0, 80)}`,
-        );
+      const path = join(dir, 'src', f);
+      const text = readFileSync(path, 'utf8');
+      if (text.split(at).length !== 2) throw new Error(`tree ${arm}: a patch does not match once in ${f}: ${at.slice(0, 80)}`);
       writeFileSync(
         path,
         text.replace(at, () => to),
@@ -367,20 +348,10 @@ export interface Tree {
 }
 
 export async function loadTree(name: string, dir: string): Promise<Tree> {
-  const m = (p: string) => import(/* @vite-ignore */ join(dir, "src", p));
+  const m = (p: string) => import(/* @vite-ignore */ join(dir, 'src', p));
   const mods: any[] = [];
   // One at a time: vite-node never settles concurrent imports of one circular graph
-  for (const p of [
-    "ai/index.ts",
-    "ai/playout.ts",
-    "core/index.ts",
-    "data/decks.ts",
-    "ai/handValues.ts",
-    "ai/effectValues.ts",
-    "ai/valueModel.ts",
-    "ai/iceValues.ts",
-    "ai/corp/rez.ts",
-  ])
+  for (const p of ['ai/index.ts', 'ai/playout.ts', 'core/index.ts', 'data/decks.ts', 'ai/handValues.ts', 'ai/effectValues.ts', 'ai/valueModel.ts', 'ai/iceValues.ts', 'ai/corp/rez.ts'])
     mods.push(await m(p));
   const [ai, po, core, decks, hv, ev, vm, iv, rez] = mods;
   return {
