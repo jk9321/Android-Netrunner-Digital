@@ -279,7 +279,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     return { s, pharos };
   };
   const thisRunWith = (s: GameState, rez: string) => inCorp(s, () => serverHold(s, 'hq', { when: 'thisRun', mustRez: [rez], further: false }));
-  it.fails('Saci with the pool locked (Aircheck): Pharos rezzed holds this run', { timeout: T }, () => {
+  it('Saci with the pool locked (Aircheck): Pharos rezzed holds this run', { timeout: T }, () => {
     const { s, pharos } = aircheck(true);
     expect(oracleGetsIn(s, 'hq', 'thisRun', [pharos]).answer).toBe('holds');
     expect(thisRunWith(s, pharos).holds).toBe(true);
@@ -305,7 +305,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
       st.corp.archives.faceUp = [];
       st.corp.archives.faceDown = [];
     });
-  it.fails('lender: Lycian (sentry, barrier) on HQ is derezzed by the Runner\'s turn: Mycoweb does not hold', { timeout: T }, () => {
+  it('lender: Lycian (sentry, barrier) on HQ is derezzed by the Runner\'s turn: Mycoweb does not hold', { timeout: T }, () => {
     const s = lender(C.LYCIAN);
     expect(turnTruth(s, 'remote1', [])).toBe('getsIn');
     expect(nextTurn(s, 'remote1').holds).toBe(false);

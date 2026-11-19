@@ -509,6 +509,8 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
   const encounter = start.runnerTurn ? undefined : state.activeRun?.encounter;
   // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
   const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
+  // The run under way locks the Runner's pool (Aircheck), for this run only
+  const locked = !start.runnerTurn && !!state.activeRun?.poolLocked;
   return ice.map(c => {
     const rezzed = c.isRezzed && !start.derezzed.has(c.instanceId);
     const choices = rezzed ? undefined : CARDS[c.cardCode]?.holdFacts?.rezChoosesSubtypes;
@@ -546,7 +548,9 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
-      rezPays: hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostRezPays).map(i => [i, CARDS[start.rig[i].cardCode].holdFacts!.hostRezPays!] as [number, number]),
+      // Saci's credits go to the pool, which a run that locks it cannot spend from (Aircheck: "you cannot lose or spend
+      // credits from your credit pool"; the "cannot" wins, 1.2.2): under the lock they pay nothing (AI-HOLD-MINOR-GAPS 1)
+      rezPays: locked ? [] : hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostRezPays).map(i => [i, CARDS[start.rig[i].cardCode].holdFacts!.hostRezPays!] as [number, number]),
       choices,
     };
   });
@@ -621,7 +625,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
       const keywords = cardDef(c).keywords ?? '';
       return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };
     }),
-    lenders: borrows ? lenders(state, targets) : [],
+    lenders: borrows ? lenders(state, targets, start.derezzed) : [],
     plans,
     types,
     bypass: !!plan().bypass,
@@ -1180,14 +1184,20 @@ interface Lender {
   facts: SubFacts[];
 }
 
-/** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it. */
-function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
+/** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it at the walk's start. */
+function lenders(state: GameState, targets: WalkTarget[], derezzed: Set<string>): Lender[] {
   const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
-  return lenderViews(state, walked).flatMap(v => (walked.has(v.id) ? [v.walked!] : v.unwalked ? [v.unwalked] : []));
+  return lenderViews(state, walked, derezzed).flatMap(v => (walked.has(v.id) ? [v.walked!] : v.unwalked ? [v.unwalked] : []));
 }
 
-/** Each ice of the board as a lender both ways, in board order: as met when `walked` holds it, and as the board has it (rezzed ice only). */
-function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: string; walked?: Lender; unwalked?: Lender }[] {
+/**
+ * Each ice of the board as a lender both ways, in board order: as met when `walked` holds it, and as the board has it at
+ * the walk's start (rezzed ice only, less the ice the start derezzes, WalkStart.derezzed: Lycian derezzes itself "when a
+ * turn ends", the Corp's (5.6.3d) or the Runner's (5.7.2d), and Tranquilizer's host; the review's AI-HOLD-MINOR-GAPS 3).
+ * Known gap: Lightning Laboratory's pick is read on the asked servers only (turnEndDerezPicks), so a lender on another
+ * server it derezzes still lends.
+ */
+function lenderViews(state: GameState, walked: Map<string, WalkIce>, derezzed: Set<string>): { id: string; walked?: Lender; unwalked?: Lender }[] {
   const facts = (c: CardInstance) => iceSubroutines(state, c).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
   const out: { id: string; walked?: Lender; unwalked?: Lender }[] = [];
   for (const sv of Object.values(state.corp.servers)) {
@@ -1196,7 +1206,7 @@ function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: stri
       out.push({
         id: c.instanceId,
         walked: w ? { id: c.instanceId, rezzed: w.rezzed, types: w.types, facts: facts(w.card) } : undefined,
-        unwalked: c.isRezzed ? { id: c.instanceId, rezzed: true, types: iceSubtypes(c, state), facts: facts(c) } : undefined,
+        unwalked: c.isRezzed && !derezzed.has(c.instanceId) ? { id: c.instanceId, rezzed: true, types: iceSubtypes(c, state), facts: facts(c) } : undefined,
       });
     }
   }
@@ -1556,7 +1566,7 @@ function reachPickQuestion(state: GameState, servers: string[], from: TurnFrom, 
     const serverOf = new Map(targets.flatMap(t => t.ice.map(x => [x.id, t.server] as const)));
     const borrows = Object.fromEntries(targets.map(t => [t.server, t.ice.some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')))]));
     // The lenders are read only by a borrow (setInput, walkBoard's rule)
-    const views = Object.values(borrows).some(Boolean) ? lenderViews(state, walked) : [];
+    const views = Object.values(borrows).some(Boolean) ? lenderViews(state, walked, start.derezzed) : [];
     // Nothing is rezzed on these runs (6.4.3: only a rez set's ice is rezzed as approached), so the Corp's credits are
     // read only by a subroutine's "more credits than the Runner", and HQ's size only by "more cards in HQ than in the
     // grip" and "trash 1 card from HQ to end the run": where no subroutine of these servers or of a lender says so, they
