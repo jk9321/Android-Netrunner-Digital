@@ -3,7 +3,7 @@ import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
 import { dealDamage, dealNetDamage, giveTags, registerDamageFollowUp, installedRunnerCards, trashInstalledRunnerCard } from '../engine/damage';
 import { endRun, endTheRun } from '../engine/runEnd';
-import { availableCredits, spendCredits } from '../engine/cardEffects';
+import { availableCredits, loseCredits, spendCredits } from '../engine/cardEffects';
 import { iceInsertedAt, runnerSawBeforeInstall } from '../engine/helpers';
 import { CardScript, Subroutine } from './types';
 import { installCorpChoice } from './effects';
@@ -71,7 +71,7 @@ const whitespace: CardScript = {
       {
         label: 'The Runner loses 3 credits.',
         resolve: ({ state }) => {
-          state.runner.credits = Math.max(0, state.runner.credits - 3);
+          loseCredits(state, 'runner', 3);
         },
       },
       {
