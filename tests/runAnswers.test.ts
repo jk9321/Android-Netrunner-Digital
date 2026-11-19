@@ -899,6 +899,33 @@ describe("the run term's correction: a program trash priced by the rig's movemen
     expect(stolenInRun(s)).toBe(0);
   });
 
+  // Builder point 1: a program that leaves the rig without being trashed by the answer is in `gone` as well. Lethe 36051
+  // "[subroutine] Add 1 installed Runner card to the grip." (a Corp choice, 1.14.5) returns a program to the grip.
+  // Here Lethe sits outside Palisade: Cleaver to the grip keeps the Runner out at Palisade, the resource lets it in.
+  it("Lethe outside Palisade, Cleaver and a resource: the Corp returns Cleaver to the grip, and that answer's board has Cleaver gone from the rig, so the correction reads it (both)", () => {
+    const s0 = pinBoard((s, mk, agenda) => {
+      s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [mk('30072'), mk('36051')], root: [agenda] } as never;
+      s.runner.credits = 8;
+      s.activeRun = { ...s.activeRun!, server: 'remote-1', icePosition: 1 };
+    });
+    clearCaches();
+    const g = new GameRunner(structuredClone(s0), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    const atGrip = (x: GameState) => {
+      const p = activePrompt(x);
+      return !!p && p.side === 'corp' && 'source' in p && p.source.cardCode === '36051' && p.source.step === 'grip';
+    };
+    for (let i = 0; i < 200 && g.state.activeRun && !atGrip(g.state); i++) if (!g.step()) break;
+    const s = g.state;
+    expect(atGrip(s)).toBe(true);
+    const cleaver = s.runner.rig.programs.find(c => c.cardCode === '30006')!;
+    expect(s.runner.rig.resources.length).toBeGreaterThan(0);
+    const a = corpMove(s);
+    expect(pick(a)).toEqual([cleaver.instanceId]);
+    const { after, gone } = boards(s, a);
+    expect(gone.map(c => c.instanceId)).toEqual([cleaver.instanceId]);
+    expect(after.runner.grip.some(c => c.instanceId === cleaver.instanceId)).toBe(true);
+  });
+
   it("the fallback is untouched: deal 1601 T22, Retribution (four programs): trashes Marjanah, beta's pick (decision #395)", () => {
     const s = fixture('deal-1601-t22-30065');
     expect(s.activeRun).toBeFalsy();
