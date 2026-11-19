@@ -16,7 +16,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-export const TREES = ['base', 'control', 'arm', 'instr', 'source', 'gm', 'cnt'] as const;
+export const TREES = ['base', 'control', 'arm', 'instr', 'source', 'gm', 'cnt', 'fq'] as const;
 export type TreeName = (typeof TREES)[number];
 
 // ------------------------------------------------------------------------------------------------ the timer hooks
@@ -222,9 +222,20 @@ const PATCHES: Record<string, Record<string, Patch[]>> = {
     ],
   },
 };
+// Step 2 (brief-2.md, Part F): the instr tree, with each gathered question's board and arguments recorded (count-bound-oracle.ts)
+PATCHES.fq = {
+  [HOLD]: [
+    ...PATCHES.instr[HOLD],
+    [
+      "  return (globalThis as any).__cbT('gather', () => turnQuestion0(state, server, corpCredits, from, picked));",
+      "  const q = (globalThis as any).__cbT('gather', () => turnQuestion0(state, server, corpCredits, from, picked));\n  (globalThis as any).__cbq?.(q, state, server, corpCredits, from, picked);\n  return q;",
+    ],
+  ],
+};
 /** Appended to hold.ts in both changed trees (the instr tree exports the pieces a question's searches use). */
 const APPEND: Record<string, string> = {
   arm: ARM_FN,
+  fq: `${ARM_FN}\nexport const __cbx = { solveTurn, solveLargest, setTarget, turnNeed, sequenceEntries, walkMemos, questionKey };\n`,
   instr: `${ARM_FN}\nexport const __cbx = { solveTurn, solveLargest, setTarget, turnNeed, sequenceEntries, walkMemos, questionKey };\n`,
 };
 
