@@ -758,8 +758,8 @@ export class Walk {
    * The run begins (6.9.1c; WalkBoard.runBegins): each Side Hustle places its credit and, at its payout, the Runner takes
    * all of them (1.10.4a), trashes it and draws; the first time this turn, Knickknack's trash as the bound (the largest
    * printed install cost among the other installed cards, the card kept) and a draw. The pool needed before a gain is the
-   * rest's need less the gain, at least 0 (a gain pays only what comes after it). A credit placed is progress a later
-   * run reads in the Runner's favour (`moved`).
+   * rest's need less the gain, at least 0 (a gain pays only what comes after it). A credit placed, and Knickknack's gain
+   * and draw, are progress a later run reads in the Runner's favour (`moved`).
    */
   private runBegins(ws: WalkState, then: (w: WalkState) => number): number {
     const list = this.board.runBegins;
@@ -782,7 +782,9 @@ export class Walk {
       }
       if (b.trashForCost && ws.runs === 0 && !b.trashForCost.used) {
         gain += b.trashForCost.costs.reduce((n, c, i) => (i === b.idx || w.gone.includes(i) ? n : Math.max(n, c)), 0);
-        w = draw(w, b.trashForCost.draw);
+        // Its gain and draw stay with the Runner after a run that fails, so a later run reads them (review
+        // AI-HOLD-KNICKKNACK-MOVED; the bound's card is kept, a known widening toward "does not hold")
+        w = { ...draw(w, b.trashForCost.draw), moved: true };
       }
     }
     return Math.max(0, then(w) - gain);
@@ -805,7 +807,7 @@ export class Walk {
    * something a later run reads in the Runner's favour. Everything of the brief's 2.2 a failed run leaves for the Runner
    * sets it, and a fact added to "what stays" must be added here: a rez (with it the Corp's credits spent, a lasting
    * choice such as Lycian's, a rez-time fact used up such as Ping's tag; set at any rez, one the Corp pays 0 for too),
-   * a Corp gain of credits, an ice that trashed itself. All else a run changes (a click, tags, damage, credits, counters
+   * a Corp gain of credits, an ice that trashed itself, a credit Side Hustle placed, Knickknack's gain. All else a run changes (a click, tags, damage, credits, counters
    * or cards spent) leaves the Runner no better off than at its start, where every way on was open already, so a retry
    * finds nothing new. The brute-force reference (tests/holdWalkReference.test.ts) keeps no cut.
    */

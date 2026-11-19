@@ -487,9 +487,12 @@ describe('AI code health (audit guards)', () => {
   // the free gate's countNeeds with its strict test and comments; hold.ts + 6, Saci's rezPays on the walk's ice and its
   // reader where the walk rezzes a set's ice) and + 7 elsewhere (the hostRezPays fact's type and Saci's entry):
   // corp/ 3,968, src/ai 15,977
-  it('keeps src/ai/corp at or under 3,968 lines and src/ai at or under 15,977 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set)', () => {
+  // Then + 2 in corp/ (ai-hold-inputs fix 1, the review's AI-HOLD-KNICKKNACK-MOVED: Knickknack's gain sets `moved` in
+  // Walk.runBegins, with its comment):
+  // corp/ 3,970, src/ai 15,979
+  it('keeps src/ai/corp at or under 3,970 lines and src/ai at or under 15,979 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3968);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15977);
+    expect(corp).toBeLessThanOrEqual(3970);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(15979);
   });
 });

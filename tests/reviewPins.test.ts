@@ -118,7 +118,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
   // Reproduced with a larger card to trash: Lobisomem (34090, printed 8, a code gate breaker that cannot touch
   // Lamplighter). Run 1: Knickknack trashes it for 8, tagged, ended. Click 2: clear the tag (8 -> 6). Click 3: run, pay 3,
   // untagged, in. No line without the retry exists (3 clicks: two credits and a tag clear leave no click to run).
-  it.fails('Knickknack with Lobisomem (printed 8), $0, 1 tag, 3 clicks: does not hold (the engine gets in)', { timeout: T }, () => {
+  it('Knickknack with Lobisomem (printed 8), $0, 1 tag, 3 clicks: does not hold (the engine gets in)', { timeout: T }, () => {
     const s = knick(C.LOBISOMEM);
     expect(turnTruth(s, 'remote1', [])).toBe('getsIn');
     expect(nextTurn(s, 'remote1').holds).toBe(false);
