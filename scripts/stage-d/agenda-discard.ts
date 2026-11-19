@@ -336,7 +336,7 @@ function report(trees: Record<string, Tree>, seen: Seen) {
   // non-agenda above an agenda, a class case whenever the count reaches that agenda); reach: the lowest agenda keep
   // less the keep of the count-th lowest card (at or below 0: an agenda is among the discards)
   if (row.mixed && p.terms.length) {
-    row.ks = p.terms.map(c => [letter(c.id), c.keep, c.played, c.loss, c.bonus, c.floored ? 1 : 0]);
+    row.ks = p.terms.map(c => [letter(c.id), c.keep, c.played, c.loss, c.bonus, c.floored ? 1 : 0, c.title]);
     const num = (x: number | string) => (typeof x === 'number' ? x : NaN);
     const ag = p.terms.filter(c => c.type === 'agenda').map(c => num(c.keep));
     const non = p.terms.filter(c => c.type !== 'agenda').map(c => num(c.keep));
