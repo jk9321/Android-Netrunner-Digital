@@ -35,17 +35,22 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const ARMS = ['beta', 'control', 'source', 'shortOnce', 'coverAtPlace', 'redirectRemoteOnly', 'freeKey', 'shortCover'] as const;
+export const ARMS = ['beta', 'control', 'source', 'shortOnce', 'coverAtPlace', 'redirectRemoteOnly', 'freeKey', 'shortCover', 'coverWaiting', 'reservedOnce', 'shortReserved', 'shortCoverWaiting'] as const;
 export type Arm = (typeof ARMS)[number];
 export const PW_ARMS: Arm[] = ['shortOnce', 'coverAtPlace', 'redirectRemoteOnly', 'freeKey', 'shortCover'];
+/** Addendum 1 (after the red team): the narrower arms. shortOnce is asked beside them as the reference for shortReserved. */
+export const PW_ARMS_1: Arm[] = ['shortOnce', 'coverWaiting', 'reservedOnce', 'shortReserved', 'shortCoverWaiting'];
 
 type Patch = [file: string, at: string, to: string];
 
 function patches(arm: Arm): Patch[] {
-  const SHORT = arm === 'shortOnce' || arm === 'shortCover';
+  const SHORT = arm === 'shortOnce' || arm === 'shortCover' || arm === 'shortReserved' || arm === 'shortCoverWaiting';
   const COVER = arm === 'coverAtPlace' || arm === 'shortCover';
+  // coverWaiting: the waiting form only (no pairWith); the pair form, play's value, core.ts and turnPlanner.ts as beta
+  const WAIT = arm === 'coverWaiting' || arm === 'shortCoverWaiting';
+  const RESV = arm === 'reservedOnce' || arm === 'shortReserved';
   const REDIR = arm === 'redirectRemoteOnly';
-  const FREE = arm === 'freeKey';
+  const FREE = arm === 'freeKey' || arm === 'shortCoverWaiting';
   return [
     // ---------------------------------------------------------------- rezMoney: `except` without restOfTurn (all trees)
     [
@@ -79,11 +84,28 @@ export function lineKeep(state: GameState, agendas: CardInstance[]): number {`,
     ],
     [
       'ai/corp/placement.ts',
+      `export function scoringShort(state: GameState): ServerLike | null {`,
+      `export function scoringShort(state: GameState, __once: boolean = ${SHORT}): ServerLike | null {`,
+    ],
+    [
+      'ai/corp/placement.ts',
+      `function reservedForAgenda(state: GameState): ServerLike | null {`,
+      `function reservedForAgenda(state: GameState, __once: boolean = ${RESV}): ServerLike | null {`,
+    ],
+    [
+      'ai/corp/placement.ts',
+      `  const floor = lineKeep(state, agendas);
+  // The line's money on its next turn`,
+      `  const floor = __once ? __lineKeepExcept(state, agendas, scoring.id) : lineKeep(state, agendas);
+  // The line's money on its next turn`,
+    ],
+    [
+      'ai/corp/placement.ts',
       `  const floor = lineKeep(state, agendas);
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floor }).holds ? null : scoring;
 }`,
-      `  const floor = ${SHORT} ? __lineKeepExcept(state, agendas, scoring.id) : lineKeep(state, agendas);
+      `  const floor = __once ? __lineKeepExcept(state, agendas, scoring.id) : lineKeep(state, agendas);
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floor }).holds ? null : scoring;
 }
@@ -100,6 +122,29 @@ export function __scoringShortBoth(state: GameState) {
   const once = floorOnce === floor ? today : serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floorOnce });
   const own = rezMoney(state).byServer[scoring.id] ?? null;
   return { id: scoring.id, ice: scoring.ice.length, rootAgenda: scoring.root.some(isAgenda), agendaIds: scoring.root.filter(isAgenda).map(c => c.instanceId), end, floor, floorOnce, own, shortToday: !today.holds, shortOnce: !once.holds, rezCost: today.rezCost ?? null };
+}
+
+/**
+ * PLACEMENT-WIRING (measure, addendum 1): assetCover's reservation and its gate (\`reserved && scoringShort(state)\`)
+ * four ways (reservedForAgenda today/once x scoringShort today/once), on a board where an econ asset waits in HQ.
+ * reached: the waiting branch does not return first for the cheapest such asset.
+ */
+export function __coverGates(state: GameState) {
+  const econ = state.corp.hq.filter(c => {
+    const p = typeOf(c) === 'asset' ? profileOf(c.cardCode) : undefined;
+    return !!p && p.pay > 0 && p.load > (cardDef(c).cost ?? 0);
+  });
+  // every board: reservedForAgenda also feeds assetPartner; reached and gate read only where an econ asset waits
+  const rezCost = econ.length ? Math.min(...econ.map(c => cardDef(c).cost ?? 0)) : 0;
+  const income = knownIncome(state);
+  const out: any = { econ: econ.length };
+  for (const [k, r, s] of [['tt', false, false], ['ot', true, false], ['to', false, true], ['oo', true, true]] as const) {
+    const reserved = reservedForAgenda(state, r);
+    const waiting = remotes(state).find(v => v.ice.length > 0 && !v.root.some(c => isAgenda(c) || typeOf(c) === 'asset') && v.id !== reserved?.id);
+    const takes = !!waiting && state.corp.credits + (state.corp.clicks - 1) + income >= rezCost;
+    out[k] = { reserved: reserved?.id ?? null, waiting: waiting?.id ?? null, reached: !takes, gate: !!(reserved && scoringShort(state, s)) };
+  }
+  return out;
 }`,
     ],
     // ---------------------------------------------------------------- the playout's first step (coverAtPlace)
@@ -175,8 +220,8 @@ export function __scoringShortBoth(state: GameState) {
       'ai/corp/candidates.ts',
       `import { plan } from '../pricing';`,
       `import { plan, pricingKey as __pricingKey } from '../pricing';
-import { executeAction as __exec } from '../../core';
-import { __scoringShortBoth, scoringShort as __scoringShort } from './placement';
+import { executeAction as __exec, isLegalAction as __legal } from '../../core';
+import { __coverGates, __scoringShortBoth, scoringShort as __scoringShort } from './placement';
 import { scoringRemote as __scoringRemote } from './lines';
 import { stake as __stake } from './pools';`,
     ],
@@ -204,7 +249,13 @@ function __placedInstalls(state: GameState, card: CardInstance, installs: Instal
     // coverAtPlace: one install (the waiting remote) is the candidate itself; the ice pair keeps the asset's own install,
     // valued and played out by its first step (the ice from HQ at the placement's server)
     const __cover = ${COVER} && placement.reason === 'assetCover';
-    const clean = placement.reason === 'assetCover' && (!__cover || placement.pairWith) ? from : placedInstall(from, placement);
+    const __wait = ${WAIT} && placement.reason === 'assetCover' && !placement.pairWith;
+    const clean = placement.reason === 'assetCover' && !((__cover || __wait) && !placement.pairWith) ? from : placedInstall(from, placement);
+    if (__wait && !__legal(state, clean)) {
+      // red team M4 (record only): a waiting-form candidate the engine would refuse
+      const G = globalThis as any;
+      G.__pwFire = { ...(G.__pwFire ?? {}), waitIllegal: (G.__pwFire?.waitIllegal ?? 0) + 1 };
+    }
     const __first: GameAction | undefined =
       __cover && placement.pairWith
         ? ({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: placement.pairWith, ...(placement.server === 'new' ? { asNewRemote: true } : { targetServerId: placement.server }) } as GameAction)
@@ -293,6 +344,8 @@ function __measure(state: GameState, legal: GameAction[], rec: any[], value: (a:
   // S
   out.s = __scoringShortBoth(state);
   if (out.s) out.s.placementsShort = !!__scoringShort(state);
+  // G (addendum 1): assetCover's gate four ways
+  out.g = __coverGates(state);
   // D: for each card with a counted destination, the centrals' state (the hold owner) and the dropped destinations by kind
   const kind = (d: string) => {
     if (d === 'hq' || d === 'rd' || d === 'archives' || d === 'new') return d;

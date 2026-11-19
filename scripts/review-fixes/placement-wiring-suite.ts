@@ -9,7 +9,7 @@ import { cpSync, existsSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Arm, makeTrees } from './placement-wiring-trees';
 
-const all = (process.env.ARMS ?? 'beta,shortOnce,coverAtPlace,redirectRemoteOnly,freeKey,shortCover').split(',') as Arm[];
+const all = (process.env.ARMS ?? 'beta,coverWaiting,reservedOnce,shortReserved,shortCoverWaiting').split(',') as Arm[];
 // On the ai-script workflow (SHARD=k/64): process 4i runs arm i, one arm per runner so suites never share a runner (time-limited tests); the others exit. The JSON goes to OUT_DIR
 const [k, n] = (process.env.SHARD ?? '').split('/').map(Number);
 const arms = Number.isFinite(n) ? all.filter((_, i) => 4 * i === k) : all;
