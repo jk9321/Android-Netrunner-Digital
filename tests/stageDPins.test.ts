@@ -7,6 +7,7 @@ import { giveCard, installCorpForTest, installIceForTest, installProgramForTest,
 import { serverHold } from '../src/ai/corp/hold';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
+import { corpDecisionView } from '../src/ai/turnPlanner';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 
 /**
@@ -344,6 +345,48 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     it.fails('game 54 turn 7: the hold count says remote-2 holds (known-failing: the bound keeps Principia and gains its 4)', { timeout: T }, () => {
       const f = knickknack();
       expect(inCorp(f.state, () => serverHold(f.state, f.server, { when: 'runnerTurn', corpCredits: f.opts.corpCredits }).holds)).toBe(true);
+    });
+  });
+
+  // Madani's hosted programs (Stage D, Madani counts 1 and 2: netrunner-ai/stage-d/madani-hosted/, rulings ruling.md and
+  // ruling-count2.md; found rows 61, 70a, 77). Madani: "click: Host any number of programs from your grip faceup on this
+  // hardware. (They are not installed.) Once per turn -> 0 credits: Install 1 hosted program (paying its install cost)."
+  // Chromatophores: "Install only on a piece of ice. Host ice gains barrier, code gate, and sentry." Human game report-40,
+  // move 67 (turn 5, the Corp on $4 and 3 clicks about to install Luminal Transubstantiation in remote-2; the Runner on $5;
+  // Madani hosts two Chromatophores; remote-2 has Flyswatter unrezzed). In the game the Runner installed a hosted
+  // Chromatophores on Flyswatter during the run, broke it with Principia and got in (trace count2-trace-report40-T5.txt).
+  // Hosted cards are faceup and public (Madani's text; rule 8.5.2's hidden information does not apply), so the Corp may
+  // read them, but the hold count reads only the installed rig: it says remote-2 holds (rez Flyswatter, need Infinity,
+  // budget 10). The oracle (engine, the Runner's whole turn, retries on) gets in with and without Flyswatter rezzed. The
+  // count is asked on the Corp's own view (corpDecisionView), so it reads no hidden card; the oracle reads the real board,
+  // by design ("measuring only"). Both readers counted failed their marks, so Madani is parked until the Runner rework:
+  // known-failing until then.
+  describe("Madani's hosted programs (parked until the Runner rework, found row 70a)", () => {
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const board = () => {
+      const { s, recorded } = at(40, 67);
+      expect(recorded).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'remote-2' });
+      expect(cardDef(findCardAnywhere(s, (recorded as Install).cardInstanceId!)!).title).toBe('Luminal Transubstantiation');
+      expect([s.turnNumber, s.activePlayer, s.corp.credits, s.corp.clicks, s.runner.credits]).toEqual([5, 'corp', 4, 3, 5]);
+      const madani = s.runner.rig.hardware.find(c => c.cardCode === '35028')!;
+      expect((madani.hostedCards ?? []).map(c => cardDef(c).title)).toEqual(['Chromatophores', 'Chromatophores']);
+      const ice = s.corp.servers['remote-2'].ice;
+      expect(ice.map(c => [cardDef(c).title, c.isRezzed])).toEqual([['Flyswatter', false]]);
+      return { s, flyswatter: ice[0].instanceId };
+    };
+
+    it("report-40 turn 5, the board's truth: the oracle gets in on remote-2 over the Runner's whole turn, Flyswatter rezzed or not", { timeout: T }, () => {
+      const { s, flyswatter } = board();
+      expect(oracleGetsIn(s, 'remote-2', 'runnerTurn', [], undefined, 200_000, true).answer).toBe('getsIn');
+      expect(oracleGetsIn(s, 'remote-2', 'runnerTurn', [flyswatter], undefined, 200_000, true).answer).toBe('getsIn');
+    });
+    it.fails("report-40 turn 5: the hold count does not say remote-2 holds (known-failing: Madani's hosted Chromatophores are not read; parked until the Runner rework, found row 70a)", { timeout: T }, () => {
+      const { s } = board();
+      expect(inCorp(s, () => {
+        const v = corpDecisionView(s);
+        decisionContext(v, 'corp');
+        return serverHold(v, 'remote-2', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds;
+      })).toBe(false);
     });
   });
 });
