@@ -87,6 +87,11 @@ describe('win-now sees a kill by damage (row 24; rules 1.7.2b, 10.4.4)', () => {
     const s = corpTurn(56, 12);
     expect(s.corp.clicks).toBe(3);
     expect(s.runner.grip.length).toBe(2);
+    // In Jeff's game the Runner's second Aircheck run (remote-1, move 127) met Whitespace, and the engine then took 3
+    // credits from a pool Aircheck locks; rule 1.2.2 ("cannot" wins) keeps them, so the replay now reaches turn 12 with
+    // 9 credits, enough to pay 8 for Measured Response. This test pins win-now on the board Jeff saw: 6 credits.
+    expect(s.runner.credits).toBe(9);
+    s.runner.credits = 6;
     const pick = winNow(s);
     expect(pick?.type).toBe('PLAY_OPERATION_OR_EVENT');
     expect(playedCode(s, pick)).toBe(MEASURED_RESPONSE);

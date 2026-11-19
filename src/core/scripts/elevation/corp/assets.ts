@@ -14,6 +14,7 @@ import {
   forfeitable,
   forfeitAgenda,
   loadCredits,
+  loseCredits,
   removeCounters,
   spendCredits,
   takeHostedCredits,
@@ -123,7 +124,7 @@ const idiosyncresisFlow = prompts({
     const n = card.advancementCounters;
     trashInstalledCard(state, card);
     gainCredits(state, 'corp', 3 * n);
-    state.runner.credits = Math.max(0, state.runner.credits - 2 * n);
+    loseCredits(state, 'runner', 2 * n);
     addLog(state, 'corp', `Corp trashed Idiosyncresis: gained ${3 * n} [credit], the Runner lost ${2 * n} [credit].`);
   }),
 });

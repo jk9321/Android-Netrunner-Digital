@@ -12,6 +12,7 @@ import {
   forfeitable,
   forfeitAgenda,
   installedIce,
+  loseCredits,
   purgeVirusCounters,
   rezCost,
   spendCredits,
@@ -379,7 +380,7 @@ export const syailendra: CardScript = {
       {
         label: 'The Runner loses 2 credits.',
         resolve: ({ state }) => {
-          state.runner.credits = Math.max(0, state.runner.credits - 2);
+          loseCredits(state, 'runner', 2);
         },
       },
       netDamageSub(1),
