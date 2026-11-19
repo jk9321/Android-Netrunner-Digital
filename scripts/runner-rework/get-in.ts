@@ -179,6 +179,28 @@ const planLabel = (t: Tree, s: GameState, p: GameAction[] | null) => (p ? p.map(
 // ------------------------------------------------------------------------------------------------ G: the three voices
 const KNICKKNACK = '35033'; // "Knickknack" O'Brian (src/ai/cards/elevation.ts)
 const AUDREY = '34004'; // Audrey v2 (runs.ts AUDREY)
+const SACI = '34017'; // Saci (Runner program; hold-inputs fix 6: its payout with the pool locked)
+const LIONSMANE = '36041'; // Lionsmane (Corp ice; fix 6: its jack-out)
+/**
+ * Hold-inputs fix 6 marks (coordinator 18:42Z), per asked server: Saci in the rig, Lionsmane rezzed on the server's ice,
+ * a borrowing ice on the server (a subroutine whose facts borrow: Mycoweb; the derezzed lender gap).
+ */
+function fix6Marks(t: Tree, s: GameState, id: string): string[] {
+  const out: string[] = [];
+  const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => c.cardCode);
+  if (rig.includes(SACI)) out.push('saci');
+  const ice = s.corp.servers[id]?.ice ?? [];
+  if (ice.some(c => c.isRezzed && c.cardCode === LIONSMANE)) out.push('lionsmane');
+  const borrows = ice.some(c => {
+    try {
+      return t.core.iceSubroutines(s, c).some((x: any) => t.runs.subroutineFacts(x.label).does?.some((e: any) => e.kind === 'borrow'));
+    } catch {
+      return false;
+    }
+  });
+  if (borrows) out.push('borrow');
+  return out;
+}
 function holdClasses(s: GameState): string[] {
   const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources].map(c => c.cardCode);
   const out: string[] = [];
@@ -235,6 +257,7 @@ function voices(t: Tree, s: GameState, memory: Map<string, string>, where: strin
       adv: v.root.reduce((n, c) => n + (c.advancementCounters ?? 0), 0),
       ...runner[i],
       hold: corp[i],
+      fix6: fix6Marks(t, s, id),
     };
   });
   const tr = where === 'start' ? null : trace(t, s, memory, played);
