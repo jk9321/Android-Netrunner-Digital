@@ -331,6 +331,18 @@ function report(trees: Record<string, Tree>, seen: Seen) {
     synergy: p.synergy,
   };
   if (p.error) row.error = p.error;
+  // Every mixed HQ: each card's keep and terms, compact ([type letter, keep, playedWorth, archivedAgendaLoss, keepBonus,
+  // floored]), and the gap: the lowest agenda keep less the highest non-agenda keep (below 0: the sort puts a
+  // non-agenda above an agenda, a class case whenever the count reaches that agenda); reach: the lowest agenda keep
+  // less the keep of the count-th lowest card (at or below 0: an agenda is among the discards)
+  if (row.mixed && p.terms.length) {
+    row.ks = p.terms.map(c => [letter(c.id), c.keep, c.played, c.loss, c.bonus, c.floored ? 1 : 0]);
+    const num = (x: number | string) => (typeof x === 'number' ? x : NaN);
+    const ag = p.terms.filter(c => c.type === 'agenda').map(c => num(c.keep));
+    const non = p.terms.filter(c => c.type !== 'agenda').map(c => num(c.keep));
+    row.gap = r2(Math.min(...ag) - Math.max(...non));
+    row.reach = r2(Math.min(...ag) - [...p.terms.map(c => num(c.keep))].sort((a, b) => a - b)[Math.max(0, (prompt?.count ?? 1) - 1)]);
+  }
   const wantDetail = !!recClass || !!todayClass || (row.mixed && seen.kind !== 'self');
   if (wantDetail) {
     row.terms = p.terms;
@@ -377,7 +389,10 @@ function q4(t: Tree, src: string, who: string, before: GameState, b: HqSnap, aft
   if (!lost.length) return;
   const stayedNon = after.corp.hq.filter(c => t.core.cardDef(c).type_code !== 'agenda').length;
   const via = prompt ? `prompt ${prompt.kind} ${prompt.source?.cardCode ? t.core.cardDef({ cardCode: prompt.source.cardCode }).title : '?'}/${prompt.source?.step ?? ''}` : `${action.type}${own ? ` ${t.core.cardDef(before.corp.hq.find(c => c.instanceId === own) ?? { cardCode: '' })?.title ?? ''}` : ''}`;
-  out({ kind: 'q4', src, who, T: before.turnNumber, via, lost: lost.map(x => `${x.type}->${x.to}`), agendaLost: lost.some(x => x.type === 'agenda'), stayedNon, cls: lost.some(x => x.type === 'agenda') && stayedNon > 0 });
+  const cls = lost.some(x => x.type === 'agenda') && stayedNon > 0;
+  // A class case: the HQ before and the run under way ([HIDDEN-READ]: HQ)
+  const detail = cls ? { hqBefore: before.corp.hq.map(c => `${t.core.cardDef(c).type_code}:${t.core.cardDef(c).title}`), lostTitles: lost.map(x => t.core.cardDef(before.corp.hq.find(c => c.instanceId === x.id)!).title), run: before.activeRun ? `${before.activeRun.server} ${before.activeRun.phase}` : null } : {};
+  out({ kind: 'q4', src, who, T: before.turnNumber, via, ...detail, lost: lost.map(x => `${x.type}->${x.to}`), agendaLost: lost.some(x => x.type === 'agenda'), stayedNon, cls: lost.some(x => x.type === 'agenda') && stayedNon > 0 });
 }
 
 // ------------------------------------------------------------------------------------------------ main
