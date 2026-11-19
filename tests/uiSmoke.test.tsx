@@ -98,7 +98,7 @@ describe('UI component smoke renders', () => {
         onLeave={() => {}}
       />,
     );
-    for (const id of ['home-logo', 'stops-toggle', 'card-size', 'auto-fit', 'view-mode', 'settings-button', 'forfeit', 'mobile-menu-button']) {
+    for (const id of ['home-logo', 'stops-toggle', 'header-corp-score', 'header-runner-score', 'card-size', 'auto-fit', 'view-mode', 'settings-button', 'forfeit', 'mobile-menu-button']) {
       expect(localHtml.match(new RegExp(`data-testid="${id}"`, 'g'))?.length, id).toBe(1);
     }
     expect(localHtml).toContain('SEED 98765');
