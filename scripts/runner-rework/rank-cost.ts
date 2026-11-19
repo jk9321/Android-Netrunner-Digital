@@ -112,9 +112,9 @@ function freshRi() {
       if (this.depth === 0) {
         this.ctx = ctx;
         this.kind = 'setup';
-        this.c('rank');
       }
       this.depth++;
+      if (this.depth === 1) this.c('rank');
       this.stack.push({ name: 'rank', t0: performance.now(), inner: 0 });
     },
     leave() {
