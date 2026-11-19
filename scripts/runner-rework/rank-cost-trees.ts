@@ -151,8 +151,9 @@ function patches(arm: string): Patch[] {
       "      let runnerTurn = false;\n      const __seq: string[] | null = __rc?.on ? __rc.sample(`${k}|${end.turnNumber}|${end.activePlayer}|${end.corp.credits}|${end.corp.clicks}|${end.runner.credits}|${end.corp.hq.length}|${end.log.length}|${Object.values(end.corp.servers).map(v => v.ice.length + '/' + v.root.length).join(',')}`) : null;\n",
     ],
     ['ai/runnerReply.ts', '          if (!gr.step()) break;\n', '          if (!gr.step()) break;\n          if (__seq) __seq.push(JSON.stringify(gr.last));\n'],
-    [R, '/**\n * Worth of a trojan on this rezzed ice:', `${HELPERS}\n/**\n * Worth of a trojan on this rezzed ice:`],
   );
+  // The arm helpers only where an arm calls them: __plainScore copies scoreMain's bonus lines, which the D patches must find once
+  if (f.has('OWNER') || f.has('PLAIN')) P.push([R, '/**\n * Worth of a trojan on this rezzed ice:', `${HELPERS}\n/**\n * Worth of a trojan on this rezzed ice:`]);
   // ------------------------------------------------------------------------------------------ arms
   if (f.has('OPEN')) P.push([R, '    for (let i = 0; i < 3; i++) {\n      const side = activePrompt(resolved)?.side;', '    for (let i = 0; i < 0; i++) {\n      const side = activePrompt(resolved)?.side;']);
   if (f.has('OWNER')) P.push([R, "    let score = evaluate(resolved, 'runner') - before;", "    let score = __ownerScore(view, action, after, this.synergy) ?? evaluate(resolved, 'runner') - before;"]);
