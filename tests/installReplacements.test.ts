@@ -64,6 +64,33 @@ describe('Install replacement confirm', () => {
     expect(message).toContain('Installing Carnivore will trash this installed card:\n• Pennyshaver');
   });
 
+  it('does not warn when spending Open Market empties and trashes it during an install', () => {
+    let state = newGame();
+    startRunnerTurn(state);
+    state.runner.credits = 99;
+    const hustle1 = giveCard(state, 'runner', '35034'); // Side Hustle
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: hustle1 });
+    const marketId = giveCard(state, 'runner', '35022'); // Open Market
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: marketId });
+    state.runner.rig.resources.find(c => c.instanceId === marketId)!.tokens.credit = 2;
+    const hustle2 = giveCard(state, 'runner', '35034');
+    expect(confirmFor(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: hustle2 })).toBeNull();
+  });
+
+  it('still warns about a unique card replaced even when Open Market also empties during the install', () => {
+    let state = newGame();
+    startRunnerTurn(state);
+    state.runner.credits = 99;
+    const fransofia1 = giveCard(state, 'runner', '35021'); // Fransofia Ward (unique Connection)
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: fransofia1 });
+    const marketId = giveCard(state, 'runner', '35022'); // Open Market
+    state = executeAction(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: marketId });
+    state.runner.rig.resources.find(c => c.instanceId === marketId)!.tokens.credit = 2;
+    const fransofia2 = giveCard(state, 'runner', '35021');
+    const message = confirmFor(state, { type: 'INSTALL_CARD', player: 'runner', cardInstanceId: fransofia2 });
+    expect(message).toBe('Installing Fransofia Ward will trash this installed card:\n• Fransofia Ward');
+  });
+
   it('only checks installs', () => {
     expect(isInstallAction(newGame(), { type: 'GAIN_CREDIT', player: 'corp' })).toBe(false);
   });
