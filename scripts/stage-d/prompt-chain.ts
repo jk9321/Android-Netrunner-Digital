@@ -195,8 +195,11 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
   const server = s0.activeRun?.server ?? null;
   const roots0 = new Map((server && s0.corp.servers[server] ? s0.corp.servers[server].root : []).map(c => [c.instanceId, t.core.cardDef(c).title]));
   const hq0 = s0.corp.hq.map(c => c.instanceId);
+  const T0 = s0.turnNumber;
+  const P0 = s0.activePlayer;
   let run: Cont['run'] = null;
-  let breach = !!s0.activeRun?.breached;
+  // The answer itself can carry the run into the breach (Anoetic Void "no": the approach passes, the run succeeds)
+  let breach = !!s0.activeRun?.breached || !!s.activeRun?.breached || s.activeRun?.phase === 'access';
   let turnEnd: Cont['turnEnd'] = null;
   const fin = (x: GameState, why: string) => {
     const gone = hq0.filter(id => !x.corp.hq.some(c => c.instanceId === id));
@@ -206,8 +209,9 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
       return c ? t.core.cardDef(c).type_code : '?';
     });
     const sv = server ? x.corp.servers[server] : null;
+    const last = x.turnNumber === T0 ? x.runsThisTurn?.[x.runsThisTurn.length - 1] : undefined;
     return {
-      breach,
+      breach: breach || !!(last && last.server === server && last.successful),
       stolen: x.runner.score - s0.runner.score,
       rootTrashed: [...roots0].filter(([id]) => !sv?.root.some(c => c.instanceId === id)).map(([, n]) => n),
       rcr: x.runner.credits - s0.runner.credits,
@@ -217,8 +221,6 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
       ended: why,
     };
   };
-  const T0 = s0.turnNumber;
-  const P0 = s0.activePlayer;
   try {
     let prev: GameState = g.state;
     if (runOn && !g.state.activeRun) run = fin(g.state, 'first');
