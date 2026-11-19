@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { CardInstance, GameState, PromptChoice, SideCode, activePrompt, availableCredits, cardDef, findCardAnywhere, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
+import { CardInstance, GameState, Prompt, PromptChoice, SideCode, activePrompt, availableCredits, cardDef, findCardAnywhere, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
 import { useSeat } from '../seat';
 import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
 import { CardView } from './CardView';
-import { Check, RefreshCw, Trash2, X } from 'lucide-react';
+import { Check, ExternalLink, PanelRight, RefreshCw, Trash2, X } from 'lucide-react';
 import { CardNameText } from './CardNameText';
 import { Credits, MuIcon } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
@@ -16,7 +16,24 @@ function isFacedownCorpCard(state: GameState, card: CardInstance): boolean {
   return Object.values(state.corp.servers).some(s => s.ice.includes(card) || s.root.includes(card));
 }
 
-interface PromptPanelProps {
+/**
+ * Whether a pending prompt targets the tabletop board or an active run decision
+ * (belongs docked in the desktop sidebar) vs. card piles or hands (pops out).
+ */
+export function isPromptDockable(state: GameState, prompt: Prompt | undefined): boolean {
+  if (!prompt) return false;
+  if (prompt.kind === 'mulligan' || prompt.kind === 'discard') return false;
+  if (prompt.kind === 'effect_cards') {
+    if (prompt.candidateIds.length === 0) return false;
+    return prompt.candidateIds.every(id => {
+      const card = findCardAnywhere(state, id);
+      return !!card && isInstalledCard(state, card);
+    });
+  }
+  return true;
+}
+
+export interface PromptPanelProps {
   state: GameState;
   onAnswer: (choice: PromptChoice) => void;
   onInspectCard?: (card: CardInstance) => void;
@@ -32,14 +49,30 @@ interface PromptPanelProps {
    * opponent's prompt is not in the viewer's view): shows the waiting note.
    */
   waitingFor?: SideCode | null;
+  /** When true, render docked inside the desktop right sidebar instead of floating over the board. */
+  docked?: boolean;
+  /** Toggle between docked sidebar mode and floating window mode (only passed for dockable prompts on desktop). */
+  onToggleDock?: () => void;
+  /** Active run metadata shown as a slim context banner when a prompt docks over an active run. */
+  runContext?: { serverName: string; phase: string };
 }
 
 /**
  * Shows the decision the game is waiting on, to the side it belongs to.
- * It floats over the board without dimming it: drag it by its header or
- * minimize it to a bar to look at the board while deciding.
+ * Board and run prompts dock in the desktop sidebar with a Pop-out toggle;
+ * hand/pile prompts float over the board without dimming it.
  */
-export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onInspectCard, canAnswer = true, onCancel, waitingFor = null }) => {
+export const PromptPanel: React.FC<PromptPanelProps> = ({
+  state,
+  onAnswer,
+  onInspectCard,
+  canAnswer = true,
+  onCancel,
+  waitingFor = null,
+  docked = false,
+  onToggleDock,
+  runContext,
+}) => {
   const prompt = activePrompt(state);
   const seat = useSeat();
   const [selected, setSelected] = useState<string[]>([]);
@@ -47,9 +80,14 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
   const [trashingFor, setTrashingFor] = useState<{ promptId: string; optionId: string } | null>(null);
   // Mark the picked cards on the table too, and drop every mark once the prompt closes
   useEffect(() => selectPromptTargets(selected), [selected]);
-  useEffect(() => () => {
-    hoverPromptTarget(null);
-    selectPromptTargets([]);
+  useEffect(() => {
+    setSelected([]);
+    setTrashingFor(null);
+    return () => {
+      hoverPromptTarget(null);
+      hoverPromptServer(null);
+      selectPromptTargets([]);
+    };
   }, [prompt?.id]);
   if (!prompt && !waitingFor) return null;
   if (!prompt || !canAnswer) {
@@ -101,7 +139,452 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
     onAnswer(choice);
   };
 
-  const button = 'px-4 py-2 text-xs font-bold rounded-[2px] border border-b-2 flex items-center gap-1.5 transition-all disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px]';
+  const button = `${docked ? 'px-3 py-1.5' : 'px-4 py-2'} text-xs font-bold rounded-[2px] border border-b-2 flex items-center gap-1.5 transition-all disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px]`;
+
+  const titleLabel = (
+    <div className={`text-xs font-bold uppercase tracking-wider ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`}>
+      {isCorp ? 'Corp' : 'Runner'} decision
+    </div>
+  );
+
+  const effectCardsFooter = prompt.kind === 'effect_cards' && !trashing ? (() => {
+    const inRange = selected.length >= prompt.min && selected.length <= prompt.max;
+    const canNormal =
+      inRange &&
+      seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_cards', cardInstanceIds: selected } });
+    const hasTrashable = selected.length === 1 && trashOptions.includes(selected[0]);
+    const canWithTrash =
+      hasTrashable &&
+      seat.can({
+        type: 'RESOLVE_PROMPT',
+        player: prompt.side,
+        promptId: prompt.id,
+        choice: trashingChoice(selected[0], trashableFor(selected[0]).map(c => c.instanceId)),
+      });
+    const autoTrash = !canNormal && canWithTrash;
+    const canTrashSplit = canNormal && hasTrashable;
+    const confirmBtn = (
+      <button
+        className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white ${canTrashSplit ? 'rounded-r-none' : ''}`}
+        disabled={!inRange && !autoTrash}
+        onClick={() => {
+          if (autoTrash) {
+            setTrashingFor({ promptId: prompt.id, optionId: selected[0] });
+            return;
+          }
+          answer({ kind: 'effect_cards', cardInstanceIds: selected });
+        }}
+      >
+        <Check className="w-3.5 h-3.5" /> Confirm{autoTrash ? (isCorp ? ' — trash first…' : ' — free MU…') : ''}
+      </button>
+    );
+    return {
+      status: (
+        <span className="text-xs text-slate-400">
+          Selected {selected.length} ({prompt.min === prompt.max ? prompt.min : `${prompt.min}-${prompt.max}`})
+          {isFull && <span className="text-amber-300"> · limit reached, deselect a card to change</span>}
+        </span>
+      ),
+      confirm: !canTrashSplit ? confirmBtn : (
+        <div className="inline-flex items-stretch">
+          {confirmBtn}
+          <TrashSplitSegment
+            title="Trash installed programs first, to free memory for this one"
+            onClick={() => setTrashingFor({ promptId: prompt.id, optionId: selected[0] })}
+            testId={`prompt-trash-first-${selected[0]}`}
+            className="border-emerald-500"
+          />
+        </div>
+      ),
+    };
+  })() : null;
+
+  const accessTrashData = prompt.kind === 'access_trash' ? (() => {
+    const card = locateCorpCard(state, prompt.cardInstanceId)?.card;
+    const canPay = card ? availableCredits(state, 'runner', { kind: 'trash', card }) : state.runner.credits;
+    const canTrash = seat.can({
+      type: 'RESOLVE_PROMPT',
+      player: 'runner',
+      promptId: prompt.id,
+      choice: { kind: 'access_trash', trash: true },
+    });
+    const justLooking = prompt.trashCost === null && (prompt.alternatives ?? []).length === 0;
+    const actions = justLooking ? (
+      <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
+        Continue
+      </button>
+    ) : (
+      <>
+        <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
+          <X className="w-3.5 h-3.5" /> {card && cardDef(card).type_code === 'agenda' ? 'Steal it' : 'Leave it'}
+        </button>
+        {(prompt.alternatives ?? []).map(alt => (
+          <button
+            key={alt.id}
+            className={`${button} bg-purple-800 hover:bg-purple-700 border-purple-500 text-white`}
+            onClick={() => answer({ kind: 'access_trash', trash: false, alternativeId: alt.id })}
+          >
+            <Trash2 className="w-3.5 h-3.5" /> {alt.label}
+          </button>
+        ))}
+        {prompt.trashCost !== null && (
+          <button
+            className={`${button} bg-red-700 hover:bg-red-600 border-red-500 text-white`}
+            disabled={!canTrash}
+            title={canTrash ? undefined : 'Not enough credits to pay the trash cost'}
+            onClick={() => {
+              hoverPromptTarget(null);
+              answer({ kind: 'access_trash', trash: true });
+            }}
+            onMouseEnter={() => card && hoverPromptTarget({ id: card.instanceId, label: null })}
+            onMouseLeave={() => hoverPromptTarget(null)}
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Trash (<Credits amount={prompt.trashCost ?? 0} />)
+          </button>
+        )}
+      </>
+    );
+    return { card, trashCost: prompt.trashCost, canPay, justLooking, actions };
+  })() : null;
+
+  const cancelButton = onCancel && !trashing ? (
+    <button
+      data-testid="prompt-cancel"
+      title="Back out: the action is not used and nothing is spent"
+      className={`${button} bg-slate-900 hover:bg-slate-800 border-slate-600 text-slate-300`}
+      onClick={() => {
+        setSelected([]);
+        onCancel();
+      }}
+    >
+      <X className="w-3.5 h-3.5" /> Cancel
+    </button>
+  ) : null;
+
+  const promptContent = (
+    <>
+      <h3 className={docked ? 'text-sm text-slate-100 font-bold leading-snug' : 'text-sm text-slate-100 font-bold mb-4'}>
+        <CardNameText text={prompt.message} />
+      </h3>
+
+      {prompt.kind === 'mulligan' && (
+        <>
+          <div className="flex gap-2 overflow-x-auto py-2 mb-4">
+            {hand.map(card => (
+              <CardView key={card.instanceId} card={card} size="sm" notInstalled typeIcons onInspect={onInspectCard} />
+            ))}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'mulligan', mulligan: true })}>
+              <RefreshCw className="w-3.5 h-3.5" /> Mulligan
+            </button>
+            <button className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white`} onClick={() => answer({ kind: 'mulligan', mulligan: false })}>
+              <Check className="w-3.5 h-3.5" /> Keep hand
+            </button>
+          </div>
+        </>
+      )}
+
+      {prompt.kind === 'discard' && (
+        <>
+          <div className="flex gap-2 overflow-x-auto py-2 mb-4">
+            {hand.map(card => (
+              <CardView
+                key={card.instanceId}
+                card={card}
+                size="sm"
+                notInstalled
+                typeIcons
+                isSelectable={!isFull || selected.includes(card.instanceId)}
+                isSelected={selected.includes(card.instanceId)}
+                onClick={() => toggle(card.instanceId)}
+                onInspect={onInspectCard}
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">
+              Selected {selected.length} / {prompt.count}
+              {isFull && <span className="text-amber-300"> · limit reached, deselect a card to change</span>}
+            </span>
+            <button
+              className={`${button} bg-red-700 hover:bg-red-600 border-red-500 text-white`}
+              disabled={selected.length !== prompt.count}
+              onClick={() => answer({ kind: 'discard', cardInstanceIds: selected })}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Discard selected
+            </button>
+          </div>
+        </>
+      )}
+
+      {prompt.kind === 'access_order' && (
+        <div className={`flex gap-2 flex-wrap ${docked ? 'justify-start' : 'justify-end'}`}>
+          {prompt.options.map(option => (
+            <button
+              key={option.id}
+              className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100 max-w-full text-left`}
+              onClick={() => answer({ kind: 'access_order', optionId: option.id })}
+            >
+              <CardNameText text={option.label} focusable={false} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {trashing && (() => {
+        const card = installCardFor(trashing)!;
+        const where = isCorp ? ` in ${state.corp.servers[trashing]?.name ?? ''}` : '';
+        const isCorpIce = isCorp && cardDef(card).type_code === 'ice';
+        const rawCards = trashableFor(trashing);
+        const cards = isCorpIce ? [...rawCards].reverse() : rawCards;
+        const neededMu = !isCorp ? (cardDef(card).memory_cost ?? 0) : 0;
+        const freeMu = !isCorp ? Math.max(0, state.runner.memoryUnitsTotal - state.runner.memoryUnitsUsed) : 0;
+        return (
+          <TrashFirstPicker
+            key={trashing}
+            serverId={isCorp ? trashing : undefined}
+            iceSlots={isCorpIce}
+            heading={`Install ${cardDef(card).title}${where}, trashing first:`}
+            cards={cards}
+            statusText={
+              neededMu > 0
+                ? trash => {
+                    const freed = trash.reduce((sum, id) => {
+                      const p = findCardAnywhere(state, id);
+                      return sum + (p ? (cardDef(p).memory_cost ?? 0) : 0);
+                    }, 0);
+                    const total = freeMu + freed;
+                    return total >= neededMu
+                      ? <span className="text-emerald-400 inline-flex items-center gap-1"><MuIcon className="w-3.5 h-3.5 shrink-0" /> {total}/{neededMu} MU available</span>
+                      : `Need ${neededMu - total} more MU`;
+                  }
+                : undefined
+            }
+            confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
+            canConfirm={trash =>
+              trash.length > 0 &&
+              seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
+            }
+            onConfirm={trash => {
+              setTrashingFor(null);
+              answer(trashingChoice(trashing, trash));
+            }}
+            onCancel={() => setTrashingFor(null)}
+          />
+        );
+      })()}
+
+      {prompt.kind === 'effect_choice' && !trashing && (
+        <div className={`flex gap-2 flex-wrap ${docked ? 'justify-start' : 'justify-end'}`}>
+          {prompt.options.map(option => {
+            // Options that name a card or server on the table light it up like a pick
+            const card = findCardAnywhere(state, option.id);
+            const server = state.corp.servers[option.id];
+            const position = card ? cardPositionLabel(state, card) : null;
+            const hasTrashable = trashOptions.includes(option.id);
+            const canNormal = seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_choice', optionId: option.id } });
+            const canWithTrash =
+              hasTrashable &&
+              seat.can({
+                type: 'RESOLVE_PROMPT',
+                player: prompt.side,
+                promptId: prompt.id,
+                choice: trashingChoice(option.id, trashableFor(option.id).map(c => c.instanceId)),
+              });
+            const autoTrash = !canNormal && canWithTrash;
+            const canTrashSplit = canNormal && hasTrashable;
+            const btn = (
+              <button
+                key={option.id}
+                className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100 max-w-full text-left ${canTrashSplit ? 'rounded-r-none' : ''}`}
+                onClick={() => {
+                  hoverPromptTarget(null);
+                  hoverPromptServer(null);
+                  if (autoTrash) {
+                    setTrashingFor({ promptId: prompt.id, optionId: option.id });
+                    return;
+                  }
+                  answer({ kind: 'effect_choice', optionId: option.id });
+                }}
+                onMouseEnter={() => {
+                  if (card) hoverPromptTarget({ id: option.id, label: position });
+                  else if (server) hoverPromptServer(server.id);
+                }}
+                onMouseLeave={() => {
+                  if (card) hoverPromptTarget(null);
+                  else if (server) hoverPromptServer(null);
+                }}
+              >
+                <CardNameText text={option.label} focusable={false} />
+                {autoTrash && <span className="text-slate-300 font-normal">{isCorp ? '— trash first…' : '— free MU…'}</span>}
+              </button>
+            );
+            if (!canTrashSplit) return btn;
+            return (
+              <div key={option.id} className="inline-flex items-stretch">
+                {btn}
+                <TrashSplitSegment
+                  title={isCorp ? "Trash cards already there as part of this install; trashed ice doesn't count toward the install cost" : 'Trash installed programs first, to free memory for this one'}
+                  onClick={() => {
+                    hoverPromptTarget(null);
+                    hoverPromptServer(null);
+                    setTrashingFor({ promptId: prompt.id, optionId: option.id });
+                  }}
+                  onMouseEnter={() => {
+                    if (server) hoverPromptServer(server.id);
+                  }}
+                  onMouseLeave={() => {
+                    if (server) hoverPromptServer(null);
+                  }}
+                  testId={`prompt-trash-first-${option.id}`}
+                  className="border-slate-600"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {prompt.kind === 'effect_cards' && !trashing && (
+        <>
+          <div className={docked ? 'flex flex-wrap justify-center gap-2.5 py-1' : 'flex gap-2 overflow-x-auto py-2 mb-4'}>
+            {prompt.candidateIds.map(id => {
+              const card = findCardAnywhere(state, id);
+              // The Runner never sees the face of an unrezzed Corp card it is choosing (Tāo Salonga)
+              const secret = !!card && !isCorp && isFacedownCorpCard(state, card);
+              const position = card ? cardPositionLabel(state, card) : null;
+              return card ? (
+                <div
+                  key={id}
+                  className="flex flex-col items-center gap-1 shrink-0"
+                  onMouseEnter={() => hoverPromptTarget({ id, label: position })}
+                  onMouseLeave={() => hoverPromptTarget(null)}
+                >
+                  <CardView
+                    card={card}
+                    size="sm"
+                    notInstalled={!isInstalledCard(state, card)}
+                    isFaceDown={secret}
+                    canPeek={!secret}
+                    typeIcons
+                    isSelectable={!isFull || selected.includes(id)}
+                    isSelected={selected.includes(id)}
+                    onClick={() => toggle(id)}
+                    onInspect={secret ? undefined : onInspectCard}
+                  />
+                  {position && (
+                    <span data-testid="prompt-card-position" className="w-28 text-center text-[11px] leading-tight font-mono text-slate-400">
+                      {position}
+                    </span>
+                  )}
+                </div>
+              ) : null;
+            })}
+          </div>
+          {!docked && effectCardsFooter && (
+            <div className="flex items-center justify-between">
+              {effectCardsFooter.status}
+              {effectCardsFooter.confirm}
+            </div>
+          )}
+        </>
+      )}
+
+      {accessTrashData && (
+        <>
+          <div className={`flex ${docked ? 'items-start gap-3' : 'items-center gap-4 mb-4'}`}>
+            {accessTrashData.card && (
+              <CardView card={accessTrashData.card} size={docked ? 'sm' : 'md'} typeIcons onInspect={onInspectCard} />
+            )}
+            {accessTrashData.justLooking ? (
+              accessTrashData.card && <div className="text-xs font-bold text-slate-100">{cardDef(accessTrashData.card).title}</div>
+            ) : (
+              <div className="text-xs text-slate-300 leading-relaxed min-w-0">
+                {accessTrashData.card && <div className="font-bold text-slate-100 mb-1">{cardDef(accessTrashData.card).title}</div>}
+                {accessTrashData.trashCost !== null && (
+                  <>
+                    Trash cost: <span className="text-red-300 font-bold"><Credits amount={accessTrashData.trashCost} /></span> ·{' '}
+                  </>
+                )}
+                You have <span className="text-amber-300 font-bold"><Credits amount={accessTrashData.canPay} /></span>
+                {accessTrashData.canPay !== state.runner.credits && (
+                  <span className="text-slate-400"> ({state.runner.credits} in your pool, the rest from run or hosted credits)</span>
+                )}
+              </div>
+            )}
+          </div>
+          {!docked && (
+            <div className="flex gap-2 justify-end flex-wrap">
+              {accessTrashData.actions}
+            </div>
+          )}
+        </>
+      )}
+
+      {!docked && cancelButton && (
+        <div className="flex justify-end mt-3 pt-3 border-t border-slate-800">
+          {cancelButton}
+        </div>
+      )}
+    </>
+  );
+
+  if (docked) {
+    const hasFooter = !!(effectCardsFooter || accessTrashData || cancelButton);
+    return (
+      <div
+        data-testid="prompt-panel"
+        className={`shrink min-h-[min(56vh,calc(100%-7.5rem))] flex flex-col bg-[#090d15] border-2 ${accent} rounded-[2px] shadow-2xl font-mono overflow-hidden`}
+      >
+        {runContext && (
+          <div className="px-3 py-1 bg-[#140a16] border-b border-pink-900/50 flex items-center justify-between gap-2 text-[11px] font-mono shrink-0">
+            <span className="font-cyber font-bold text-cyber-neonPink tracking-wider truncate">
+              RUN // {runContext.serverName.toUpperCase()}
+            </span>
+            <span className="text-slate-400 uppercase tracking-wider shrink-0">
+              {runContext.phase.replace(/_/g, ' ')}
+            </span>
+          </div>
+        )}
+        <div className="px-3 py-2 border-b border-slate-800 bg-[#0c121d] flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${isCorp ? 'bg-cyan-400' : 'bg-pink-400'}`} />
+            {titleLabel}
+          </div>
+          {onToggleDock && (
+            <button
+              type="button"
+              onClick={onToggleDock}
+              data-testid="prompt-panel-popout"
+              title="Pop out into floating window"
+              aria-label="Pop out decision panel"
+              className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-[2px] text-[11px] font-mono text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700"
+            >
+              <ExternalLink className="w-3 h-3" /> Pop out
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
+          {promptContent}
+        </div>
+
+        {hasFooter && (
+          <div className="p-2 border-t border-slate-800 bg-[#070a11] flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {effectCardsFooter?.status}
+              {cancelButton}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
+              {effectCardsFooter?.confirm}
+              {accessTrashData?.actions}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <FloatingPanel
@@ -113,374 +596,24 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({ state, onAnswer, onIns
       minimizedPlacement="left-1/2 top-20 -translate-x-1/2"
       widthClass="w-[56rem]"
       minimizedLabel={`Decision waiting: ${prompt.message}`}
-      title={
-        <div className={`text-xs font-bold uppercase tracking-wider ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`}>
-          {isCorp ? 'Corp' : 'Runner'} decision
-        </div>
+      headerActions={
+        onToggleDock ? (
+          <button
+            type="button"
+            onClick={onToggleDock}
+            data-testid="prompt-panel-dock"
+            title="Dock decision panel back into sidebar"
+            aria-label="Dock decision panel"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-[2px] text-[11px] font-mono text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 shrink-0"
+          >
+            <PanelRight className="w-3.5 h-3.5" /> Dock
+          </button>
+        ) : undefined
       }
+      title={titleLabel}
     >
-        <h3 className="text-sm text-slate-100 font-bold mb-4"><CardNameText text={prompt.message} /></h3>
-
-        {prompt.kind === 'mulligan' && (
-          <>
-            <div className="flex gap-2 overflow-x-auto py-2 mb-4">
-              {hand.map(card => (
-                <CardView key={card.instanceId} card={card} size="sm" notInstalled typeIcons onInspect={onInspectCard} />
-              ))}
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'mulligan', mulligan: true })}>
-                <RefreshCw className="w-3.5 h-3.5" /> Mulligan
-              </button>
-              <button className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white`} onClick={() => answer({ kind: 'mulligan', mulligan: false })}>
-                <Check className="w-3.5 h-3.5" /> Keep hand
-              </button>
-            </div>
-          </>
-        )}
-
-        {prompt.kind === 'discard' && (
-          <>
-            <div className="flex gap-2 overflow-x-auto py-2 mb-4">
-              {hand.map(card => (
-                <CardView
-                  key={card.instanceId}
-                  card={card}
-                  size="sm"
-                  notInstalled
-                  typeIcons
-                  isSelectable={!isFull || selected.includes(card.instanceId)}
-                  isSelected={selected.includes(card.instanceId)}
-                  onClick={() => toggle(card.instanceId)}
-                  onInspect={onInspectCard}
-                />
-              ))}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Selected {selected.length} / {prompt.count}
-                {isFull && <span className="text-amber-300"> · limit reached, deselect a card to change</span>}
-              </span>
-              <button
-                className={`${button} bg-red-700 hover:bg-red-600 border-red-500 text-white`}
-                disabled={selected.length !== prompt.count}
-                onClick={() => answer({ kind: 'discard', cardInstanceIds: selected })}
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Discard selected
-              </button>
-            </div>
-          </>
-        )}
-
-        {prompt.kind === 'access_order' && (
-          <div className="flex gap-2 justify-end flex-wrap">
-            {prompt.options.map(option => (
-              <button
-                key={option.id}
-                className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100`}
-                onClick={() => answer({ kind: 'access_order', optionId: option.id })}
-              >
-                <CardNameText text={option.label} focusable={false} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {trashing && (() => {
-          const card = installCardFor(trashing)!;
-          const where = isCorp ? ` in ${state.corp.servers[trashing]?.name ?? ''}` : '';
-          const isCorpIce = isCorp && cardDef(card).type_code === 'ice';
-          const rawCards = trashableFor(trashing);
-          const cards = isCorpIce ? [...rawCards].reverse() : rawCards;
-          const neededMu = !isCorp ? (cardDef(card).memory_cost ?? 0) : 0;
-          const freeMu = !isCorp ? Math.max(0, state.runner.memoryUnitsTotal - state.runner.memoryUnitsUsed) : 0;
-          return (
-            <TrashFirstPicker
-              key={trashing}
-              serverId={isCorp ? trashing : undefined}
-              iceSlots={isCorpIce}
-              heading={`Install ${cardDef(card).title}${where}, trashing first:`}
-              cards={cards}
-              statusText={
-                neededMu > 0
-                  ? trash => {
-                      const freed = trash.reduce((sum, id) => {
-                        const p = findCardAnywhere(state, id);
-                        return sum + (p ? (cardDef(p).memory_cost ?? 0) : 0);
-                      }, 0);
-                      const total = freeMu + freed;
-                      return total >= neededMu
-                        ? <span className="text-emerald-400 inline-flex items-center gap-1"><MuIcon className="w-3.5 h-3.5 shrink-0" /> {total}/{neededMu} MU available</span>
-                        : `Need ${neededMu - total} more MU`;
-                    }
-                  : undefined
-              }
-              confirmLabel={trash => `Install${trash.length > 0 ? `, trash ${trash.length}` : ''}`}
-              canConfirm={trash =>
-                trash.length > 0 &&
-                seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: trashingChoice(trashing, trash) })
-              }
-              onConfirm={trash => {
-                setTrashingFor(null);
-                answer(trashingChoice(trashing, trash));
-              }}
-              onCancel={() => setTrashingFor(null)}
-            />
-          );
-        })()}
-
-        {prompt.kind === 'effect_choice' && !trashing && (
-          <div className="flex gap-2 justify-end flex-wrap">
-            {prompt.options.map(option => {
-              // Options that name a card or server on the table light it up like a pick
-              const card = findCardAnywhere(state, option.id);
-              const server = state.corp.servers[option.id];
-              const position = card ? cardPositionLabel(state, card) : null;
-              const hasTrashable = trashOptions.includes(option.id);
-              const canNormal = seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_choice', optionId: option.id } });
-              const canWithTrash =
-                hasTrashable &&
-                seat.can({
-                  type: 'RESOLVE_PROMPT',
-                  player: prompt.side,
-                  promptId: prompt.id,
-                  choice: trashingChoice(option.id, trashableFor(option.id).map(c => c.instanceId)),
-                });
-              const autoTrash = !canNormal && canWithTrash;
-              const canTrashSplit = canNormal && hasTrashable;
-              const btn = (
-                <button
-                  key={option.id}
-                  className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100 ${canTrashSplit ? 'rounded-r-none' : ''}`}
-                  onClick={() => {
-                    hoverPromptTarget(null);
-                    hoverPromptServer(null);
-                    if (autoTrash) {
-                      setTrashingFor({ promptId: prompt.id, optionId: option.id });
-                      return;
-                    }
-                    answer({ kind: 'effect_choice', optionId: option.id });
-                  }}
-                  onMouseEnter={() => {
-                    if (card) hoverPromptTarget({ id: option.id, label: position });
-                    else if (server) hoverPromptServer(server.id);
-                  }}
-                  onMouseLeave={() => {
-                    if (card) hoverPromptTarget(null);
-                    else if (server) hoverPromptServer(null);
-                  }}
-                >
-                  <CardNameText text={option.label} focusable={false} />
-                  {autoTrash && <span className="text-slate-300 font-normal">{isCorp ? '— trash first…' : '— free MU…'}</span>}
-                </button>
-              );
-              if (!canTrashSplit) return btn;
-              return (
-                <div key={option.id} className="inline-flex items-stretch">
-                  {btn}
-                  <TrashSplitSegment
-                    title={isCorp ? "Trash cards already there as part of this install; trashed ice doesn't count toward the install cost" : 'Trash installed programs first, to free memory for this one'}
-                    onClick={() => {
-                      hoverPromptTarget(null);
-                      hoverPromptServer(null);
-                      setTrashingFor({ promptId: prompt.id, optionId: option.id });
-                    }}
-                    onMouseEnter={() => {
-                      if (server) hoverPromptServer(server.id);
-                    }}
-                    onMouseLeave={() => {
-                      if (server) hoverPromptServer(null);
-                    }}
-                    testId={`prompt-trash-first-${option.id}`}
-                    className="border-slate-600"
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {prompt.kind === 'effect_cards' && !trashing && (
-          <>
-            <div className="flex gap-2 overflow-x-auto py-2 mb-4">
-              {prompt.candidateIds.map(id => {
-                const card = findCardAnywhere(state, id);
-                // The Runner never sees the face of an unrezzed Corp card it is choosing (Tāo Salonga)
-                const secret = !!card && !isCorp && isFacedownCorpCard(state, card);
-                const position = card ? cardPositionLabel(state, card) : null;
-                return card ? (
-                  <div
-                    key={id}
-                    className="flex flex-col items-center gap-1 shrink-0"
-                    onMouseEnter={() => hoverPromptTarget({ id, label: position })}
-                    onMouseLeave={() => hoverPromptTarget(null)}
-                  >
-                    <CardView
-                      card={card}
-                      size="sm"
-                      notInstalled={!isInstalledCard(state, card)}
-                      isFaceDown={secret}
-                      canPeek={!secret}
-                      typeIcons
-                      isSelectable={!isFull || selected.includes(id)}
-                      isSelected={selected.includes(id)}
-                      onClick={() => toggle(id)}
-                      onInspect={secret ? undefined : onInspectCard}
-                    />
-                    {position && (
-                      <span data-testid="prompt-card-position" className="w-28 text-center text-[11px] leading-tight font-mono text-slate-400">
-                        {position}
-                      </span>
-                    )}
-                  </div>
-                ) : null;
-              })}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Selected {selected.length} ({prompt.min === prompt.max ? prompt.min : `${prompt.min}-${prompt.max}`})
-                {isFull && <span className="text-amber-300"> · limit reached, deselect a card to change</span>}
-              </span>
-              {(() => {
-                const inRange = selected.length >= prompt.min && selected.length <= prompt.max;
-                const canNormal =
-                  inRange &&
-                  seat.can({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice: { kind: 'effect_cards', cardInstanceIds: selected } });
-                const hasTrashable = selected.length === 1 && trashOptions.includes(selected[0]);
-                const canWithTrash =
-                  hasTrashable &&
-                  seat.can({
-                    type: 'RESOLVE_PROMPT',
-                    player: prompt.side,
-                    promptId: prompt.id,
-                    choice: trashingChoice(selected[0], trashableFor(selected[0]).map(c => c.instanceId)),
-                  });
-                const autoTrash = !canNormal && canWithTrash;
-                const canTrashSplit = canNormal && hasTrashable;
-                const confirmBtn = (
-                  <button
-                    className={`${button} bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white ${canTrashSplit ? 'rounded-r-none' : ''}`}
-                    disabled={!inRange && !autoTrash}
-                    onClick={() => {
-                      if (autoTrash) {
-                        setTrashingFor({ promptId: prompt.id, optionId: selected[0] });
-                        return;
-                      }
-                      answer({ kind: 'effect_cards', cardInstanceIds: selected });
-                    }}
-                  >
-                    <Check className="w-3.5 h-3.5" /> Confirm{autoTrash ? (isCorp ? ' — trash first…' : ' — free MU…') : ''}
-                  </button>
-                );
-                if (!canTrashSplit) return confirmBtn;
-                return (
-                  <div className="inline-flex items-stretch">
-                    {confirmBtn}
-                    <TrashSplitSegment
-                      title="Trash installed programs first, to free memory for this one"
-                      onClick={() => setTrashingFor({ promptId: prompt.id, optionId: selected[0] })}
-                      testId={`prompt-trash-first-${selected[0]}`}
-                      className="border-emerald-500"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-          </>
-        )}
-
-        {onCancel && !trashing && (
-          <div className="flex justify-end mt-3 pt-3 border-t border-slate-800">
-            <button
-              data-testid="prompt-cancel"
-              title="Back out: the action is not used and nothing is spent"
-              className={`${button} bg-slate-900 hover:bg-slate-800 border-slate-600 text-slate-300`}
-              onClick={() => {
-                setSelected([]);
-                onCancel();
-              }}
-            >
-              <X className="w-3.5 h-3.5" /> Cancel
-            </button>
-          </div>
-        )}
-
-        {prompt.kind === 'access_trash' && (() => {
-          const card = locateCorpCard(state, prompt.cardInstanceId)?.card;
-          // Count every credit the Runner could pay the trash cost with, and only offer it when affordable
-          const canPay = card ? availableCredits(state, 'runner', { kind: 'trash', card }) : state.runner.credits;
-          const canTrash = seat.can({
-            type: 'RESOLVE_PROMPT',
-            player: 'runner',
-            promptId: prompt.id,
-            choice: { kind: 'access_trash', trash: true },
-          });
-          // Nothing to decide (with stops on ALL every R&D access stops here, rules 4.2.2, 7.1.2): the card and Continue
-          const justLooking = prompt.trashCost === null && (prompt.alternatives ?? []).length === 0;
-          if (justLooking) {
-            return (
-              <>
-                <div className="flex items-center gap-4 mb-4">
-                  {card && <CardView card={card} size="md" typeIcons onInspect={onInspectCard} />}
-                  {card && <div className="text-xs font-bold text-slate-100">{cardDef(card).title}</div>}
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
-                    Continue
-                  </button>
-                </div>
-              </>
-            );
-          }
-          return (
-            <>
-              <div className="flex items-center gap-4 mb-4">
-                {card && <CardView card={card} size="md" typeIcons onInspect={onInspectCard} />}
-                <div className="text-xs text-slate-300">
-                  {card && <div className="font-bold text-slate-100 mb-1">{cardDef(card).title}</div>}
-                  {prompt.trashCost !== null && (
-                    <>
-                      Trash cost: <span className="text-red-300 font-bold"><Credits amount={prompt.trashCost} /></span> ·{' '}
-                    </>
-                  )}
-                  You have <span className="text-amber-300 font-bold"><Credits amount={canPay} /></span>
-                  {canPay !== state.runner.credits && (
-                    <span className="text-slate-400"> ({state.runner.credits} in your pool, the rest from run or hosted credits)</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end flex-wrap">
-                <button className={`${button} bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200`} onClick={() => answer({ kind: 'access_trash', trash: false })}>
-                  <X className="w-3.5 h-3.5" /> {card && cardDef(card).type_code === 'agenda' ? 'Steal it' : 'Leave it'}
-                </button>
-                {(prompt.alternatives ?? []).map(alt => (
-                  <button
-                    key={alt.id}
-                    className={`${button} bg-purple-800 hover:bg-purple-700 border-purple-500 text-white`}
-                    onClick={() => answer({ kind: 'access_trash', trash: false, alternativeId: alt.id })}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> {alt.label}
-                  </button>
-                ))}
-                {prompt.trashCost !== null && (
-                  <button
-                    className={`${button} bg-red-700 hover:bg-red-600 border-red-500 text-white`}
-                    disabled={!canTrash}
-                    title={canTrash ? undefined : 'Not enough credits to pay the trash cost'}
-                    onClick={() => {
-                      hoverPromptTarget(null);
-                      answer({ kind: 'access_trash', trash: true });
-                    }}
-                    onMouseEnter={() => card && hoverPromptTarget({ id: card.instanceId, label: null })}
-                    onMouseLeave={() => hoverPromptTarget(null)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Trash (<Credits amount={prompt.trashCost ?? 0} />)
-                  </button>
-                )}
-              </div>
-            </>
-          );
-        })()}
+      {promptContent}
     </FloatingPanel>
   );
 };
+

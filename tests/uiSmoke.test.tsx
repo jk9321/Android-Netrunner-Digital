@@ -11,6 +11,7 @@ import { GameHeader } from '../src/ui/components/GameHeader';
 import { DeckPicker } from '../src/ui/components/DeckPicker';
 import { DeckBuilder, DeckViewer } from '../src/ui/components/DeckBuilder';
 import { RunOverlay } from '../src/ui/components/RunOverlay';
+import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel';
 import { SeatContext } from '../src/ui/seat';
 import { executeAction } from '../src/core';
 import { newGame, startRunnerTurn } from './helpers';
@@ -197,5 +198,114 @@ describe('UI component smoke renders', () => {
     expect(floatingHtml).toContain('data-testid="run-overlay"');
     expect(floatingHtml).toContain('data-testid="run-overlay-handle"');
     expect(floatingHtml).toContain('data-testid="run-overlay-dock"');
+  });
+
+  it('classifies board/run prompts as dockable and hand/pile prompts as floating, and renders PromptPanel in both modes', () => {
+    const state = newGame();
+    const installedIce = state.corp.hq.pop()!;
+    state.corp.servers.hq.ice.push(installedIce);
+    const handCard = state.corp.hq[0];
+
+    expect(isPromptDockable(state, { id: 'p1', side: 'corp', kind: 'mulligan', message: 'Keep?' })).toBe(false);
+    expect(isPromptDockable(state, { id: 'p2', side: 'runner', kind: 'discard', count: 1, message: 'Discard 1.' })).toBe(false);
+    expect(
+      isPromptDockable(state, {
+        id: 'p3',
+        side: 'corp',
+        kind: 'effect_cards',
+        candidateIds: [handCard.instanceId],
+        min: 1,
+        max: 1,
+        message: 'Pick from HQ.',
+        source: { cardCode: '30001', instanceId: 'x', step: 's' },
+      }),
+    ).toBe(false);
+    expect(
+      isPromptDockable(state, {
+        id: 'p4',
+        side: 'runner',
+        kind: 'effect_cards',
+        candidateIds: [installedIce.instanceId],
+        min: 1,
+        max: 1,
+        message: 'Pick installed ice.',
+        source: { cardCode: '30001', instanceId: 'x', step: 's' },
+      }),
+    ).toBe(true);
+    expect(
+      isPromptDockable(state, {
+        id: 'p5',
+        side: 'runner',
+        kind: 'effect_choice',
+        options: [{ id: 'archives', label: 'Archives' }],
+        message: 'Run which server?',
+        source: { cardCode: '30018', instanceId: 'x', step: 's' },
+      }),
+    ).toBe(true);
+    expect(
+      isPromptDockable(state, {
+        id: 'p6',
+        side: 'runner',
+        kind: 'access_trash',
+        cardInstanceId: installedIce.instanceId,
+        trashCost: 2,
+        message: 'Access card.',
+      }),
+    ).toBe(true);
+
+    const seat = { can: () => true, legal: [], waitingOn: 'runner' } as unknown as React.ContextType<typeof SeatContext>;
+    const promptState = {
+      ...state,
+      pendingPrompts: [
+        {
+          id: 'p-choice',
+          side: 'runner' as const,
+          kind: 'effect_choice' as const,
+          message: 'Red Team: run which central server?',
+          options: [{ id: 'archives', label: 'Archives' }],
+          source: { cardCode: '30018', instanceId: 'x', step: 'run' },
+        },
+      ],
+    };
+
+    const dockedChoiceHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <PromptPanel
+          state={promptState}
+          onAnswer={() => {}}
+          onCancel={() => {}}
+          docked
+          onToggleDock={() => {}}
+          runContext={{ serverName: 'R&D', phase: 'access' }}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(dockedChoiceHtml).toContain('data-testid="prompt-panel"');
+    expect(dockedChoiceHtml).toContain('data-testid="prompt-panel-popout"');
+    expect(dockedChoiceHtml).toContain('data-testid="prompt-cancel"');
+    expect(dockedChoiceHtml).toContain('RUN // R&amp;D');
+    expect(dockedChoiceHtml).not.toContain('data-testid="prompt-panel-handle"');
+
+    const floatingChoiceHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <PromptPanel state={promptState} onAnswer={() => {}} onToggleDock={() => {}} />
+      </SeatContext.Provider>,
+    );
+    expect(floatingChoiceHtml).toContain('data-testid="prompt-panel-handle"');
+    expect(floatingChoiceHtml).toContain('data-testid="prompt-panel-dock"');
+
+    const mulliganState = {
+      ...state,
+      pendingPrompts: [
+        { id: 'p-mulligan', side: 'corp' as const, kind: 'mulligan' as const, message: 'Corp: keep your opening hand or mulligan?' },
+      ],
+    };
+    const mulliganHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <PromptPanel state={mulliganState} onAnswer={() => {}} />
+      </SeatContext.Provider>,
+    );
+    expect(mulliganHtml).toContain('data-testid="prompt-panel-handle"');
+    expect(mulliganHtml).not.toContain('data-testid="prompt-panel-dock"');
   });
 });

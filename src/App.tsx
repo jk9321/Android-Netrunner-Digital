@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CardInstance, SideCode } from './core';
+import { CardInstance, SideCode, activePrompt } from './core';
 import { SeatContext } from './ui/seat';
 import { DEFAULT_CORP_DECK, DEFAULT_RUNNER_DECK } from './data/decks';
 import { GameConfig, SavedGame, clearSavedGame } from './ui/savedGame';
@@ -19,7 +19,8 @@ import { GameHeader } from './ui/components/GameHeader';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { CorpBoard } from './ui/components/CorpBoard';
 import { RunnerBoard } from './ui/components/RunnerBoard';
-import { GameOverlays, runOverlayPropsFromController } from './ui/components/GameOverlays';
+import { GameOverlays, canAnswerActivePrompt, promptPanelPropsFromController, runOverlayPropsFromController } from './ui/components/GameOverlays';
+import { PromptPanel, isPromptDockable } from './ui/components/PromptPanel';
 import { RunOverlay } from './ui/components/RunOverlay';
 import { showAlert, showConfirm } from './ui/components/Dialog';
 import { MotionConfig } from 'framer-motion';
@@ -228,6 +229,7 @@ function GameScreen({
   const isDesktop = useIsDesktop();
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [runPoppedOut, setRunPoppedOut] = useState(false);
+  const [promptPoppedOutId, setPromptPoppedOutId] = useState<string | null>(null);
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
@@ -308,11 +310,18 @@ function GameScreen({
   const winReason = online?.over?.reason ?? gameState.winReason;
   const hasActiveRun = !ended && !!gameState.activeRun;
   const runDocked = isDesktop && hasActiveRun && !runPoppedOut;
+  const pendingPrompt = !ended ? activePrompt(gameState) : undefined;
+  const promptDockable = isDesktop && !!pendingPrompt && canAnswerActivePrompt(ctl) && isPromptDockable(gameState, pendingPrompt);
+  const promptDocked = promptDockable && promptPoppedOutId !== pendingPrompt.id;
+  const sidebarDocked = promptDocked || runDocked;
 
-  // Reset dock state when a run ends so the next run opens cleanly docked.
+  // Reset dock state when a run or prompt ends so the next one opens cleanly docked.
   useEffect(() => {
     if (!hasActiveRun) setRunPoppedOut(false);
   }, [hasActiveRun]);
+  useEffect(() => {
+    if (!pendingPrompt) setPromptPoppedOutId(null);
+  }, [pendingPrompt]);
 
   const [shiftSide, setShiftSide] = useState<SideCode | null>(null);
   const prevActivePlayer = useRef(activePlayer);
@@ -416,11 +425,25 @@ function GameScreen({
               </main>
             </ZoomContext.Provider>
 
-            {/* Side bar: during desktop runs, RunOverlay replaces ZoomPanel + turn actions while LogFeed stays visible below */}
+            {/* Side bar: during desktop runs or board/run prompts, the active panel replaces ZoomPanel + turn actions while LogFeed stays visible below */}
             <aside
-              className={`contents lg:flex ${runDocked ? 'lg:w-96 2xl:w-[26rem]' : 'lg:w-80 2xl:w-96'} shrink-0 flex-col gap-2 min-h-0`}
+              className={`contents lg:flex ${sidebarDocked ? 'lg:w-96 2xl:w-[26rem]' : 'lg:w-80 2xl:w-96'} shrink-0 flex-col gap-2 min-h-0`}
             >
-              {runDocked ? (
+              {promptDocked ? (
+                <PromptPanel
+                  {...promptPanelPropsFromController(ctl, setInspectedCard)}
+                  docked
+                  onToggleDock={() => setPromptPoppedOutId(pendingPrompt!.id)}
+                  runContext={
+                    gameState.activeRun
+                      ? {
+                          serverName: gameState.corp.servers[gameState.activeRun.server]?.name ?? gameState.activeRun.server,
+                          phase: gameState.activeRun.phase,
+                        }
+                      : undefined
+                  }
+                />
+              ) : runDocked ? (
                 <>
                   <RunOverlay
                     {...runOverlayPropsFromController(ctl, setInspectedCard)}
@@ -452,7 +475,7 @@ function GameScreen({
               <LogFeed
                 logs={gameState.log}
                 viewer={viewer}
-                className={runDocked ? 'flex-1 min-h-[7rem]' : 'h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]'}
+                className={sidebarDocked ? 'flex-1 min-h-[7rem]' : 'h-56 lg:h-auto lg:flex-1 lg:min-h-[6rem]'}
               />
             </aside>
           </div>
@@ -470,8 +493,10 @@ function GameScreen({
             onGameOverHiddenChange={setGameOverHidden}
             onNewGame={onNewGame}
             onRematch={onRematch}
-            hideRunOverlay={runDocked}
+            hideRunOverlay={runDocked || promptDocked}
             onToggleRunDock={isDesktop ? () => setRunPoppedOut(false) : undefined}
+            hidePromptPanel={promptDocked}
+            onTogglePromptDock={promptDockable ? () => setPromptPoppedOutId(null) : undefined}
           />
         </div>
       </SeatContext.Provider>

@@ -6,7 +6,7 @@ import { CardFates } from './CardFates';
 import { CardZoomModal } from './CardZoomModal';
 import { GameOverModal } from './GameOverModal';
 import { HandoffScreen } from './HandoffScreen';
-import { PromptPanel } from './PromptPanel';
+import { PromptPanel, type PromptPanelProps } from './PromptPanel';
 import { RunOverlay, type RunOverlayProps } from './RunOverlay';
 import { TurnBanner } from './TurnBanner';
 import { ZoneId, ZoneViewer, zoneContents } from './ZoneViewer';
@@ -24,10 +24,27 @@ interface GameOverlaysProps {
   onGameOverHiddenChange: (hidden: boolean) => void;
   onNewGame: () => void;
   onRematch?: () => void;
-  /** True while RunOverlay is rendered docked inside the desktop sidebar. */
+  /** True while RunOverlay is rendered docked inside the desktop sidebar (or paused behind a docked prompt). */
   hideRunOverlay?: boolean;
   /** Re-dock a popped-out RunOverlay back into the desktop sidebar. */
   onToggleRunDock?: () => void;
+  /** True while PromptPanel is rendered docked inside the desktop sidebar. */
+  hidePromptPanel?: boolean;
+  /** Re-dock a popped-out dockable PromptPanel back into the desktop sidebar. */
+  onTogglePromptDock?: () => void;
+}
+
+/** Whether the viewer at this screen can answer the active prompt right now. */
+export function canAnswerActivePrompt(ctl: GameController): boolean {
+  const { seat, gameState, aiSide, viewer } = ctl;
+  const prompt = gameState.pendingPrompts[0];
+  return (
+    !prompt ||
+    (canActAs(viewer, prompt.side) &&
+      prompt.side !== aiSide &&
+      // The viewer's own prompt may wait behind the other side's, which this screen doesn't see
+      seat.waitingOn === prompt.side)
+  );
 }
 
 /** Builds RunOverlay action/state props from the shared game controller so sidebar and floating modes stay identical. */
@@ -53,6 +70,25 @@ export function runOverlayPropsFromController(
   };
 }
 
+/** Builds PromptPanel action/state props from the shared game controller so sidebar and floating modes stay identical. */
+export function promptPanelPropsFromController(
+  ctl: GameController,
+  onInspectCard: (card: CardInstance | null) => void,
+): Omit<PromptPanelProps, 'docked' | 'onToggleDock' | 'runContext'> {
+  const { seat, gameState, handleAction, cancelChoice } = ctl;
+  return {
+    state: gameState,
+    onAnswer: (choice) => {
+      const prompt = gameState.pendingPrompts[0];
+      if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
+    },
+    onInspectCard: (card) => onInspectCard(card),
+    onCancel: cancelChoice,
+    waitingFor: seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null,
+    canAnswer: canAnswerActivePrompt(ctl),
+  };
+}
+
 /** Floating overlays and modals over the tabletop: runs, prompts, turn banners, accessed/zone viewers, handoff, game over, and card zoom. */
 export function GameOverlays({
   ctl,
@@ -69,21 +105,19 @@ export function GameOverlays({
   onRematch,
   hideRunOverlay = false,
   onToggleRunDock,
+  hidePromptPanel = false,
+  onTogglePromptDock,
 }: GameOverlaysProps) {
   const {
-    seat,
     gameState,
-    handleAction,
     setHotseatSide,
     accessed,
     clearAccessed,
     fates,
-    aiSide,
     humanSide,
     rezWindowOpen,
     viewer,
     handoffTo,
-    cancelChoice,
     online,
   } = ctl;
 
@@ -96,24 +130,11 @@ export function GameOverlays({
         <RunOverlay {...runOverlayPropsFromController(ctl, onInspectCard)} onToggleDock={onToggleRunDock} />
       )}
 
-      {/* Pending player decision (mulligan, discard, trash on access) */}
-      {!ended && (
+      {/* Pending player decision (mulligan, discard, board/pile effects, access) */}
+      {!ended && !hidePromptPanel && (
         <PromptPanel
-          state={gameState}
-          onAnswer={(choice) => {
-            const prompt = gameState.pendingPrompts[0];
-            if (prompt) handleAction({ type: 'RESOLVE_PROMPT', player: prompt.side, promptId: prompt.id, choice });
-          }}
-          onInspectCard={onInspectCard}
-          onCancel={cancelChoice}
-          waitingFor={seat.waitingOn && seat.waitingOn !== actingSide(gameState) ? seat.waitingOn : null}
-          canAnswer={
-            !gameState.pendingPrompts[0] ||
-            (canActAs(viewer, gameState.pendingPrompts[0].side) &&
-              gameState.pendingPrompts[0].side !== aiSide &&
-              // The viewer's own prompt may wait behind the other side's, which this screen doesn't see
-              seat.waitingOn === gameState.pendingPrompts[0].side)
-          }
+          {...promptPanelPropsFromController(ctl, onInspectCard)}
+          onToggleDock={onTogglePromptDock}
         />
       )}
 

@@ -30,8 +30,16 @@ test('cancel an ability whose first step is choosing', async ({ page }) => {
   const useRedTeam = async () => {
     await page.getByTestId('ability-bar-runner').getByRole('button', { name: /Red Team/ }).click();
     await expect(page.getByTestId('prompt-panel')).toContainText('Red Team: run which central server?');
+    await expect(page.getByTestId('prompt-panel-popout')).toBeVisible();
+    await expect(page.getByText('SYS.TRACE // STACKHEAP')).toBeVisible();
   };
   await useRedTeam();
+  // Board prompts can pop out to float and re-dock back into the sidebar
+  await page.getByTestId('prompt-panel-popout').click();
+  await expect(page.getByTestId('prompt-panel-dock')).toBeVisible();
+  await page.getByTestId('prompt-panel-dock').click();
+  await expect(page.getByTestId('prompt-panel-popout')).toBeVisible();
+
   await page.getByTestId('prompt-cancel').click();
   await expect(page.getByTestId('prompt-panel')).toHaveCount(0);
   await expect(page.getByText('Runner Actions (4 Clicks):')).toBeVisible();

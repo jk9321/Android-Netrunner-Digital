@@ -84,7 +84,7 @@ test('the run panel docks by default, toggles log, and reopens centred when popp
         // while that is pending opens an "Action blocked" dialog: close it and take the first answer (not a trash)
         const blocked = page.getByRole('alertdialog').getByRole('button', { name: 'OK' });
         if (await blocked.count()) await blocked.first().click({ timeout: 2_000 }).catch(() => {});
-        const answer = page.getByTestId('prompt-panel').getByRole('button', { name: /^(?!Minimize|Inspect|Trash)/ });
+        const answer = page.getByTestId('prompt-panel').getByRole('button', { name: /^(?!Minimize|Inspect|Trash|Pop out|Dock)/ });
         if (await answer.count()) await answer.first().dispatchEvent('click', undefined, { timeout: 2_000 }).catch(() => {});
         // The button is off screen with the panel, so click it without scrolling
         if (await step.count()) await step.first().dispatchEvent('click', undefined, { timeout: 2_000 }).catch(() => {});
