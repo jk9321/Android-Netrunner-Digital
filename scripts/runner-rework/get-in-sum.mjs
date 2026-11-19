@@ -218,12 +218,16 @@ for (const k of KINDS) {
     const changed = qk.filter(q => q.res[a] && q.res[a].a !== q.res.control.a);
     const g = new Set(qk.map(q => gameOf(q.src))).size;
     const fr = flipRate(qk, a);
+    const base = a === 'runsPlayed8' ? flipRate(qk, 'control', new Set(qk.filter(q => q.res.runsPlayed8?.seeds).sort((x, y) => x.h - y.h).slice(0, 50).map(q => `${q.src}#${q.i}`))) : flipBase;
     const errs = qk.filter(q => q.res[a]?.err).length;
-    P(`- ${a}: ms mean ${f2(mean(ms))} (${f2(mean(ms) / mean(ctlMs))}x), p95 ${q95(ms)} (${f2(q95(ms) / q95(ctlMs))}x); picks changed ${changed.length} (${f2(changed.length / g)} a game); flip ${fr.txt} (vs control ${f2(100 * (fr.rate - flipBase.rate))} points); errors ${errs}`);
+    P(`- ${a}: ms mean ${f2(mean(ms))} (${f2(mean(ms) / mean(ctlMs))}x), p95 ${q95(ms)} (${f2(q95(ms) / q95(ctlMs))}x); picks changed ${changed.length} (${f2(changed.length / g)} a game); flip ${fr.txt} (vs control ${f2(100 * (fr.rate - base.rate))} points on the same decisions); errors ${errs}`);
   }
 }
-function flipRate(qk, a) {
-  const f = qk.filter(q => q.flip && q.res[a]?.seeds && q.res[a].planned);
+function flipRate(qk, a, only) {
+  let f = qk.filter(q => q.flip && q.res[a]?.seeds && q.res[a].planned);
+  // (c, 8 deals): the fixed seeded sample, the first 50 by hash (step 0 ruling 1); control read on the same decisions
+  if (a === 'runsPlayed8') f = f.sort((x, y) => x.h - y.h).slice(0, 50);
+  if (only) f = f.filter(q => only.has(`${q.src}#${q.i}`));
   let diff = 0;
   let n = 0;
   let any = 0;

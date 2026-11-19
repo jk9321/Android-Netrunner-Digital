@@ -54,8 +54,18 @@ const TURNS = Number(process.env.TURNS ?? Infinity);
 /** The first Runner turn measured (1 = the first). */
 const FROM = Number(process.env.FROM ?? 1);
 const inWindow = (n: number) => n >= FROM && n < FROM + TURNS;
-/** Share of Q decisions (seeded by source and index) asked at 8 seeds. */
-const FLIP = Number(process.env.FLIP ?? 0.25);
+/** Share of Q decisions (seeded by source and index) asked at 8 seeds: one number, or by source kind ("self:0.1,humanRunner:0.25"). */
+const shareBy = (v: string | undefined, dflt: number) => (sk: string) => {
+  if (!v) return dflt;
+  if (!v.includes(':')) return Number(v);
+  const m = Object.fromEntries(v.split(',').map(x => x.split(':')));
+  return Number(m[sk] ?? dflt);
+};
+const FLIP = shareBy(process.env.FLIP, 0.25);
+/** (c, 8 deals) only: its own seeded flip sample (step 0 ruling 1: about 50 decisions a source kind, the first 50 by hash kept in the sums). */
+const C8FLIP = shareBy(process.env.C8FLIP, 0);
+/** Continuation pairs a source and arm: one number or by arm ("repeatRepaired:2,runsPlayed:1"; step 0 ruling 2). */
+const capOf = (arm: string) => shareBy(process.env.CAPS, CAP)(arm);
 const PARTS = new Set((process.env.PARTS ?? 'G,L,Q,A,C').split(','));
 const ASK_ARMS: Arm[] = process.env.ARMS_ASK ? (process.env.ARMS_ASK.split(',') as Arm[]) : GETIN_ARMS;
 const ASKED: Arm[] = ['control', ...ASK_ARMS];
@@ -390,7 +400,9 @@ function hash(x: string): number {
 }
 function decide(d: Dec, timing: Record<string, number>) {
   const res: Record<string, any> = {};
-  const flip = hash(`${d.src}#${d.i}`) < FLIP;
+  const h = hash(`${d.src}#${d.i}`);
+  const flip = h < FLIP(d.sk);
+  const c8flip = h < C8FLIP(d.sk);
   // the order of the trees rotated per decision (time)
   const order = ASKED.map((_, k) => ASKED[(k + d.i) % ASKED.length]);
   for (const arm of order) {
@@ -399,8 +411,9 @@ function decide(d: Dec, timing: Record<string, number>) {
     timing[`Q:${arm}`] = (timing[`Q:${arm}`] ?? 0) + x.ms;
     res[arm] = { a: label(t, d.s, x.a), ms: Math.round(x.ms), planned: x.planned, plan: planLabel(t, d.s, x.plan), runs: x.runs, played: x.played, err: x.err };
   }
-  if (flip) {
+  if (flip || c8flip) {
     for (const arm of order) {
+      if (arm === 'runsPlayed8' ? !c8flip : !flip) continue;
       const t = trees[arm];
       const picks: string[] = [res[arm].a];
       const plans: (string[] | null)[] = [res[arm].plan];
@@ -442,7 +455,7 @@ function decide(d: Dec, timing: Record<string, number>) {
   }
   const ctl = res.control.a;
   const changed = ASK_ARMS.filter(a => res[a].a !== ctl);
-  out({ kind: 'q', src: d.src, sk: d.sk, who: d.who, i: d.i, T: d.s.turnNumber, rk: d.s.runner.clicks, rc: d.s.runner.credits, played: d.played ? label(trees.control, d.s, d.played) : null, flip, res, aMs: aMs === null ? null : Math.round(aMs), changed });
+  out({ kind: 'q', src: d.src, sk: d.sk, who: d.who, i: d.i, T: d.s.turnNumber, rk: d.s.runner.clicks, rc: d.s.runner.credits, played: d.played ? label(trees.control, d.s, d.played) : null, flip, c8flip, h: Math.round(h * 1e6), res, aMs: aMs === null ? null : Math.round(aMs), changed });
   return { res, changed };
 }
 
@@ -465,7 +478,7 @@ function continuations(d: Dec, q: { res: Record<string, any>; changed: Arm[] }, 
   if (!PARTS.has('C') || d.sk !== 'self') return;
   const done = new Map<string, any>();
   for (const arm of q.changed) {
-    if ((perSrc[arm] ?? 0) >= CAP) continue;
+    if ((perSrc[arm] ?? 0) >= capOf(arm)) continue;
     perSrc[arm] = (perSrc[arm] ?? 0) + 1;
     const t = trees.beta;
     // the picks again, as actions (asked on the arm and control trees: a label is not an action)
