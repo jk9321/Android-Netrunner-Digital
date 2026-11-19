@@ -74,6 +74,12 @@ function check(s: GameState, name: string, tally: Tally) {
   } else if (agendaThrown.length && nonKept.length) tally.failures.push(`${name} T${s.turnNumber}: discards ${agendaThrown.map(c => cardDef(c).title).join(', ')}, keeps ${nonKept.map(c => cardDef(c).title).join(', ')}`);
 }
 
+/**
+ * The human games present when the count was made (2026-11-19), named so a playtest game added later to
+ * tests/fixtures/human-games does not change this test's counts (the exact counts catch a replay that stops early).
+ */
+const HUMAN_FILES = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 36, 37, 38, 39, 40, '40b', '40c', 41, 42, 43, 44, 45, 47, 48, 49, 50, 51, 52, 53, 54, 56].map(n => `report-${n}.json`);
+
 const corpDiscard = (s: GameState) => {
   const p = activePrompt(s);
   return p?.kind === 'discard' && p.side === 'corp';
@@ -83,7 +89,7 @@ describe('Stage D item 7: no agenda discarded while a non-agenda is kept', () =>
   it('the human games: every mixed Corp discard board', { timeout: T }, () => {
     const dir = new URL('./fixtures/human-games/', import.meta.url);
     const tally: Tally = { boards: 0, exempt: 0, failures: [] };
-    for (const f of readdirSync(dir).filter(x => x.endsWith('.json')).sort()) {
+    for (const f of HUMAN_FILES) {
       const r = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
       if (!r.moves?.length) continue;
       let s: GameState = r.startsAt === 'state' ? structuredClone(r.state) : createInitialGameState(deckGameSetup(r.config.seed, r.config.corpDeck, r.config.runnerDeck));
