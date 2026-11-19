@@ -49,9 +49,9 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const ARMS = ['beta', 'control', 'source', 'stopOverTurn', 'outOverTurn', 'both', 'outSettled'] as const;
+export const ARMS = ['beta', 'control', 'source', 'stopOverTurn', 'outOverTurn', 'both', 'outSettled', 'stopLiteral'] as const;
 export type Arm = (typeof ARMS)[number];
-export const BAIT_ARMS: Arm[] = ['stopOverTurn', 'outOverTurn', 'both', 'outSettled'];
+export const BAIT_ARMS: Arm[] = ['stopOverTurn', 'outOverTurn', 'both', 'outSettled', 'stopLiteral'];
 
 type Patch = [file: string, at: string, to: string];
 

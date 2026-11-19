@@ -47,7 +47,8 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve(process.env.TROOT ?? 'node_modules/.cache/bait-run', String(shard));
 const CAP = Number(process.env.CAP ?? 8);
-const ASKED: Arm[] = ['beta', 'control', ...BAIT_ARMS];
+const ASKED: Arm[] = ['beta', 'control', ...(process.env.ARMS_ASK ? (process.env.ARMS_ASK.split(',') as Arm[]) : BAIT_ARMS)];
+const ASKED_ARMS = ASKED.slice(2);
 const STOP_RULES = ['R2', 'R3s', 'R4s', 'MPrez'];
 const G = globalThis as any;
 const key = (a: unknown) => (a ? JSON.stringify(a) : 'null');
@@ -339,7 +340,7 @@ function decide(d: Dec, perSrc: Record<string, number>) {
   const asks: Record<string, Ask> = {};
   for (const arm of order) asks[arm] = ask(trees[arm], d.s, d.snaps);
   const b = asks.beta;
-  const changed = BAIT_ARMS.filter(a => asks[a].k !== b.k);
+  const changed = ASKED_ARMS.filter(a => asks[a].k !== b.k);
   const row: Record<string, unknown> = {
     kind: 'd',
     src: d.src,

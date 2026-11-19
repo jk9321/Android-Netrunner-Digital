@@ -3,8 +3,8 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ASKED = ['beta', 'control', 'stopOverTurn', 'outOverTurn', 'both', 'outSettled'];
-const ARMS = ASKED.slice(2);
+let ASKED = ['beta', 'control', 'stopOverTurn', 'outOverTurn', 'both', 'outSettled'];
+let ARMS = ASKED.slice(2);
 const STOP = ['R2', 'R3s', 'R4s', 'MPrez'];
 const KINDS = ['self', 'humanRunner', 'humanCorp'];
 
@@ -24,6 +24,11 @@ for (const f of files)
       /* a cut line */
     }
   }
+const meta = rows.find(r => r.kind === 'meta');
+if (meta) {
+  ASKED = meta.asked;
+  ARMS = ASKED.slice(2);
+}
 const D = rows.filter(r => r.kind === 'd');
 const C = rows.filter(r => r.kind === 'c');
 const games = rows.filter(r => r.kind === 'g');
