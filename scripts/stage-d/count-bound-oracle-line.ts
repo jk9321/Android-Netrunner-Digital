@@ -35,10 +35,11 @@ async function main() {
     const b = JSON.parse(l);
     if (b.kind !== 'fb') continue;
     o.picks.clear();
-    const ask = { when: 'runnerTurn', targets: [b.server], rez: new Set<string>(b.rez), corpCredits: b.credits, cap: Number(process.env.CAP ?? 400000), retries: true, jackOut: !!b.jackOut };
+    const ask = { when: 'runnerTurn', targets: [b.server], rez: new Set<string>(b.rez), corpCredits: b.credits ?? undefined, cap: Number(process.env.CAP ?? 400000), retries: true, jackOut: !!b.jackOut };
     const ans = o.oracle(b.state, ask);
     const start = o.oracleStart(b.state, ask);
     const line: string[] = [];
+    const actions: unknown[] = [];
     if (ans.reached && 'state' in start) {
       let s = start.state;
       for (let j = 0; j < 400; j++) {
@@ -48,6 +49,7 @@ async function main() {
         const card = 'cardInstanceId' in a ? ` ${name(s, a.cardInstanceId)}` : '';
         const extra = a.type === 'INITIATE_RUN' ? ` ${a.targetServerId}` : a.type === 'RESOLVE_PROMPT' ? ` ${JSON.stringify(a.answer ?? a).slice(0, 60)}` : a.type === 'BREAK_SUBROUTINE' ? ` sub ${a.subroutineIndex}` : '';
         if (a.type !== 'PASS' || who === 'runner') line.push(`${who}: ${a.type}${card}${extra} [R ${s.runner.credits}c ${s.runner.clicks}k]`);
+        actions.push(a);
         s = core.executeAction(s, a);
         if (s.activeRun && (s.activeRun.phase === 'access' || s.activeRun.breached)) {
           line.push(`breach of ${s.activeRun.server} [R ${s.runner.credits}c]`);
@@ -55,7 +57,7 @@ async function main() {
         }
       }
     }
-    console.log(JSON.stringify({ kind: 'line', src: b.src, i: b.i, qid: b.qid, mask: b.mask, jackOut: !!b.jackOut, reached: ans.reached, work: ans.work, line }));
+    console.log(JSON.stringify({ kind: 'line', src: b.src, i: b.i, qid: b.qid, mask: b.mask, jackOut: !!b.jackOut, reached: ans.reached, work: ans.work, line, actions }));
   }
 }
 
