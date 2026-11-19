@@ -174,7 +174,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     expect(s.activeRun!.encounter!.boosts).toEqual({ [cleaver]: 1 });
     return s;
   };
-  it.fails('boost leak: mid-encounter on the outer Palisade, boosted, $1 left: the run stands "out"', { timeout: T }, () => {
+  it('boost leak: mid-encounter on the outer Palisade, boosted, $1 left: the run stands "out"', { timeout: T }, () => {
     const s = boosted();
     expect(oracleGetsIn(s, 'remote1', 'thisRun', []).answer).toBe('holds');
     expect(verdict(s, 'remote1')).toBe('out');

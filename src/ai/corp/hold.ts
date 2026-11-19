@@ -539,6 +539,9 @@ function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] 
 /** A start's kind in a memo key: 0 the run under way, 1 the next turn, 2 the rest of this turn. */
 const startKind = (start: WalkStart): number => (!start.runnerTurn ? 0 : start.fresh ? 1 : 2);
 
+/** The board with the encounter under way left out (its boosts and broken subroutines; the run's own kept), for reads of other ice. */
+const outsideEncounter = (state: GameState): GameState => (state.activeRun?.encounter ? { ...state, activeRun: { ...state.activeRun, encounter: null } } : state);
+
 /** The board with the hosted subtype-giving cards at rig indexes `off` taken off (for the ice's subtypes and plans). */
 function without(state: GameState, start: WalkStart, off: number[]): GameState {
   if (!off.length) return state;
@@ -555,11 +558,16 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
   const plans: Record<string, WalkPlan[]> = {};
   const types: Record<string, string[]> = {};
   const ices = new Map(targets.flatMap(t => t.ice.map(i => [i.id, i] as const)));
+  // The encounter's boosts last that encounter (3.9.5b): an ice other than the encountered one is met in an encounter of
+  // its own, so its plans are worked out without this one (as iceCreditsAhead), the run's own boosts kept (runBoosts).
+  // The encountered ice is a fact of the state and of the start's kind, which the memo key names
+  const encountered = start.runnerTurn ? undefined : state.activeRun?.encounter?.iceId;
+  const outside = outsideEncounter(state);
   for (const ice of ices.values()) {
     const n = ice.subs.length + (ice.rezGains ? 1 : 0);
     for (let mask = 0; mask < 1 << ice.granters.length; mask++) {
       const off = ice.granters.filter((_, k) => mask & (1 << k));
-      const board = without(state, start, off);
+      const board = without(ice.id === encountered ? state : outside, start, off);
       for (const k of ['', ...(ice.choices ?? []).map((_, i) => String(i))]) {
         const card = k === '' ? ice.card : { ...ice.card, chosenSubtypes: ice.choices![Number(k)] };
         if (off.length || k !== '') types[`${ice.id}|${off}|${k}`] = iceSubtypes(card, board);
@@ -1694,7 +1702,10 @@ function runQuestion(state: GameState, server: string, opts: HoldOptions): RunQu
     const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
     if (cost - base > spare) continue;
     const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
-    const view = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
+    // Ranked without the encounter under way (runBypasses prices each ice by iceCost, which reads its boosts; 3.9.5b):
+    // the ice further in is met in encounters of its own, and the encountered ice's bypass is offered as its encounter
+    // begins (6.9.3a), before any boost. The encounters so far are the run's (runFlags), not touched
+    const view = outsideEncounter(withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c))));
     const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
     sets.push({ cost, up: [...up], skipped: [...skipped] });
   }
