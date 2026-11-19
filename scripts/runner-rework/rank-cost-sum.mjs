@@ -50,7 +50,7 @@ const ASKED = (() => {
 })();
 const ARMS = ASKED.filter(a => a !== 'beta' && a !== 'control');
 const idx = Object.fromEntries(ASKED.map((a, i) => [a, i]));
-const ctl = part === 'C' ? 'control' : 'beta';
+const ctl = ASKED.includes('control') ? 'control' : 'beta';
 
 p(`# R0 count 2, PART ${part}: sums\n`);
 p(`Shard outputs read: ${files.length}. Corp decisions ${corp.length} (self ${corp.filter(r => r.sk === 'self').length}, human ${corp.filter(isHuman).length}); Runner decisions ${runner.length} (self ${runner.filter(r => r.sk === 'self').length}, human ${runner.filter(isHuman).length}).`);
@@ -182,7 +182,7 @@ const repOf = (rs, a) => {
   return `${f2((1000 * r) / st)} (${f2((1000 * c) / st)}) [${r}/${st}]`;
 };
 const armRows = {};
-for (const a of [...(part === 'C' ? ['control'] : []), ...ARMS]) {
+for (const a of [...(ASKED.includes('control') ? ['control'] : []), ...ARMS]) {
   const ch = r => r.ch && r.ch[a] !== undefined;
   const cs = corp.filter(r => r.sk === 'self' && ch(r)).length;
   const chh = humanCorp.filter(ch).length;

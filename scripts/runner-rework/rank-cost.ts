@@ -56,7 +56,8 @@ const CHUNK = Number(process.env.CHUNK ?? 12);
 const AUDIT_EVERY = Number(process.env.AUDIT_EVERY ?? 4);
 const AUDIT_SAMPLE = Number(process.env.AUDIT_SAMPLE ?? 1);
 const ARMS: string[] = process.env.ARMS ? process.env.ARMS.split(',') : PART === 'D' ? [...D_ARMS] : [...C_ARMS];
-const ASKED = PART === 'C' ? ['beta', 'control', ...ARMS] : ['beta', ...ARMS];
+/** PART C and X carry the control arm (time is read against it); PART D reads picks only. */
+const ASKED = PART === 'D' ? ['beta', ...ARMS] : ['beta', 'control', ...ARMS.filter(a => a !== 'control')];
 const EXTRA = process.env.EXTRA !== undefined ? process.env.EXTRA.split(',').filter(Boolean) : PART === 'C' ? ['instr', 'deckRootA'] : [];
 const ORDER = (process.env.O ?? (PART === 'C' ? '1' : '0')) === '1';
 /** Each deal is split into DPARTS units (decision i belongs to part i % DPARTS; the source game is played again per part). */
