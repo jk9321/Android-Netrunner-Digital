@@ -120,17 +120,15 @@ async function main() {
       // the planner's values and reply samples, and the decision
       const cands: any[] = [];
       const samples: number[][] = [];
-      const diag = t.pricing.diagnostics?.() ?? null;
-      void diag;
       const dmod = await import(/* @vite-ignore */ resolve(dirs[arm], 'src/ai/diagnostics.ts'));
-      const d = dmod.newDiagnostics();
-      d.onCandidates = (side: string, values: number[], actions: GameAction[]) => {
-        if (side === 'corp' && !cands.length) cands.push(...actions.map((a, i) => `${label(a)} = ${r2(values[i])}`));
-      };
-      d.onReplySamples = (v: number[]) => samples.push(v.map(r2));
       t.clear();
-      const decided = dmod.withDiagnostics ? dmod.withDiagnostics(d, () => t.createAgent('corp', 'normal').chooseAction(structuredClone(s))) : (dmod.setDiagnostics?.(d), t.createAgent('corp', 'normal').chooseAction(structuredClone(s)));
-      dmod.setDiagnostics?.(null);
+      const decided = dmod.withDiagnostics((d: any) => {
+        d.onCandidates = (side: string, values: number[], actions: GameAction[]) => {
+          if (side === 'corp' && !cands.length) cands.push(...actions.map((a, i) => `${label(a)} = ${r2(values[i])}`));
+        };
+        d.onReplySamples = (v: number[]) => samples.push(v.map(r2));
+        return t.createAgent('corp', 'normal').chooseAction(structuredClone(s));
+      });
       console.log(JSON.stringify({ arm, board: name, T: s.turnNumber, cr: s.corp.credits, rcr: s.runner.credits, hq: s.corp.hq.map((c: any) => core.cardDef(c).title), decision: label(decided), order, picks, rule, value, planner: cands, replySamples: samples.slice(0, 12) }, null, 1));
     }
   }
