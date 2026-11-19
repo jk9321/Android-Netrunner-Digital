@@ -6,7 +6,7 @@ import { addLog } from '../../../engine/log';
 import { drawCards, forgetInHand, removeCard, revealInHand } from '../../../engine/helpers';
 import { playCardFrom } from '../../../engine/actions/play';
 import { dealMeatDamage, giveTags } from '../../../engine/damage';
-import { agendaPoints, drawForEffect, gainFromCard, removeTags, threatLevel, turnFlag, TurnFlag } from '../../../engine/cardEffects';
+import { agendaPoints, drawForEffect, gainFromCard, loseCredits, removeTags, threatLevel, turnFlag, TurnFlag } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
 import { advanceableInstalled, installCorpChoice } from '../../effects';
 import { cards, cardsQuestion, choice, choiceQuestion, InstallData, prompts } from '../../steps';
@@ -69,8 +69,7 @@ const biggerPictureFlow = prompts({
   choose: choice(({ state, card }, a) => {
     if (a.optionId === 'tag') return giveTags(state, 1);
     const removed = removeTags(state, Number(a.optionId));
-    const lost = Math.min(state.runner.credits, 5 * removed);
-    state.runner.credits -= lost;
+    const lost = loseCredits(state, 'runner', 5 * removed);
     addLog(state, 'corp', `Corp removed ${removed} tag(s); the Runner lost ${lost} [credit] (Bigger Picture).`);
     gainFromCard(state, 'corp', lost, card);
   }),
