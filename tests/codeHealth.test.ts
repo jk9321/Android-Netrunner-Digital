@@ -503,9 +503,12 @@ describe('AI code health (audit guards)', () => {
   // reads afterRun, with its comment; rezMoney.ts + 6, rezMoney, holdingRezIds and lineFloor start from afterRun, with
   // rezMoney's comment):
   // corp/ 4,006, src/ai 16,026
-  it('keeps src/ai/corp at or under 4,006 lines and src/ai at or under 16,026 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs)', () => {
+  // Then + 21 in corp/ (ai-hold-inputs fix 5b, red team M5: hold.ts + 20, nextTurnBoard with its comment, the
+  // Runner cards' once-per-turn flags by the engine's naming; rezMoney.ts + 1, its next-turn forms read it):
+  // corp/ 4,027, src/ai 16,047
+  it('keeps src/ai/corp at or under 4,027 lines and src/ai at or under 16,047 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(4006);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16026);
+    expect(corp).toBeLessThanOrEqual(4027);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16047);
   });
 });

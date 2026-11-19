@@ -170,9 +170,28 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
     const board = afterRun(state);
     return counted(() => walkRunnerTurn(board, server, opts.corpCredits ?? state.corp.credits, restOfTurn(board, opts.runnerCredits)));
   }
-  // The Runner's next turn has no run of this turn in it: its rez cost increase, boosts, flags and gained subroutines end
-  // with it (6.8.5, 6.9.6d; the review's AI-HOLD-RUNNER-TURN-ACTIVERUN), as for 'restOfTurn'
-  return counted(() => walkRunnerTurn(afterRun(state), server, opts.corpCredits ?? state.corp.credits));
+  return counted(() => walkRunnerTurn(nextTurnBoard(state), server, opts.corpCredits ?? state.corp.credits));
+}
+
+/**
+ * The board of the Runner's next turn (a turn that has not begun): the run under way over (afterRun: its rez cost
+ * increase, boosts, flags and gained subroutines end with it, 6.8.5, 6.9.6d; the review's AI-HOLD-RUNNER-TURN-ACTIVERUN)
+ * and the Runner cards' "once per turn" uses unused (red team M5): the turn's flags reset as a turn passes, and the
+ * engine names a card's once-per-turn use `once:<instance id>` or `once:<instance id>:<n>`, so the flags of that name on
+ * the Runner's installed cards and identity are left out. The other flags stay: the Corp's that this turn's end reads
+ * (Lightning Laboratory's, turnEndDerezPicks) and the rest. Once per board, on valueModel's memo.
+ */
+export function nextTurnBoard(state: GameState): GameState {
+  const board = afterRun(state);
+  return memo(board, 'nextTurnBoard', () => {
+    const r = board.runner;
+    const mine = new Set([...r.rig.programs, ...r.rig.hardware, ...r.rig.resources, ...(r.identity ? [r.identity] : [])].map(c => c.instanceId));
+    const used = Object.keys(board.turnFlags).filter(k => mine.has(/^once:(.+?)(?::\d+)?$/.exec(k)?.[1] ?? ''));
+    if (!used.length) return board;
+    const turnFlags = { ...board.turnFlags };
+    for (const k of used) delete turnFlags[k];
+    return { ...board, turnFlags };
+  });
 }
 
 /**

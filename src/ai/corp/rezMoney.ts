@@ -1,6 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { TurnFrom, afterRun, nextTurn, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
+import { TurnFrom, afterRun, nextTurn, nextTurnBoard, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
 import { memo } from '../valueModel';
 
 /**
@@ -49,16 +49,18 @@ export function stakedServers(state: GameState, without: string[] = []): string[
 }
 
 /**
- * Rez money (see the file comment). Every form reads the board with the run under way over (afterRun): the next turn and
- * the rest of this one have no run of this turn in them (6.8.5, 6.9.6d), and keepFor's reach (reachQuestion, which does
- * not go through serverHold) reads the same board as byServer (the review's AI-HOLD-RUNNER-TURN-ACTIVERUN, red team S3).
+ * Rez money (see the file comment). Every form reads the board with the run under way over: the next turn and the rest of
+ * this one have no run of this turn in them (6.8.5, 6.9.6d), and keepFor's reach (reachQuestion, which does not go through
+ * serverHold) reads the same board as byServer (the review's AI-HOLD-RUNNER-TURN-ACTIVERUN, red team S3). The next turn's
+ * board is nextTurnBoard's (the Runner's once-per-turn uses unused too); the rest of this turn keeps this turn's flags.
  */
 export function rezMoney(state: GameState, opts: { without?: string[]; restOfTurn?: { runnerCredits: number }; except?: string } = {}): RezMoney {
-  state = afterRun(state);
   if (opts.restOfTurn) {
+    state = afterRun(state);
     const from = restOfTurn(state, opts.restOfTurn.runnerCredits);
     return countRezMoney(state, holdingRez(state, opts.without, from, opts.except), from);
   }
+  state = nextTurnBoard(state);
   // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
   // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
   if (!opts.without?.length) {
@@ -78,7 +80,7 @@ function audit<T>(memoised: T, fresh: T) {
 
 /** The ice of each staked server's holding rez (rezMoney's rezIds, without keep's count): rezBudget's order reads it. */
 export function holdingRezIds(state: GameState): Record<string, string[]> {
-  state = afterRun(state);
+  state = nextTurnBoard(state);
   const ids = holding(state).rezIds;
   if (rezMoneyAudit.on) audit(ids, holdingRez(state).rezIds);
   return ids;
@@ -155,7 +157,7 @@ const bits = (mask: number): number => (mask ? (mask & 1) + bits(mask >>> 1) : 0
  * 10 games +0.2 ± 0.4 (run 42940051464 vs 42940033908).
  */
 export function lineFloor(state: GameState, agendaId: string): number {
-  state = afterRun(state);
+  state = nextTurnBoard(state);
   const money = holdingRez(state, [agendaId]);
   for (let i = 0; i < money.unholdable.length; i++) tally('scoreInTwo', 'unholdable');
   const sum = Object.values(money.byServer).reduce((a, b) => a + b, 0);
