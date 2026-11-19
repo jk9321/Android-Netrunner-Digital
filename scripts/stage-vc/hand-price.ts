@@ -535,7 +535,7 @@ function partG1(src: Source) {
     const clicksCD = list.filter(d => d.played?.type === 'GAIN_CREDIT' || d.played?.type === 'DRAW_CARD');
     for (const id of held) {
       const at = legalAt.get(id)!;
-      let order: any = null;
+      let order: any;
       try {
         order = g1Order(t, at.s, at.snaps, [id]);
       } catch (e) {
@@ -654,7 +654,6 @@ function cont(s0: GameState, firsts: GameAction[], snaps: Snaps | undefined, hq:
   if (hq) ag.runner = hqRunner(t, ag.runner, T0);
   const g = new t.GameRunner(s, ag);
   let two: { cs: number; rs: number } | null = null;
-  let hqIn = 0;
   let lastRuns = 0;
   try {
     for (let n = 0; n < 6000; n++) {
@@ -665,8 +664,7 @@ function cont(s0: GameState, firsts: GameAction[], snaps: Snaps | undefined, hq:
   } catch (e) {
     return { cs2: two?.cs ?? g.state.corp.score, rs2: two?.rs ?? g.state.runner.score, cs: g.state.corp.score, rs: g.state.runner.score, winner: g.state.winner ?? null, T: g.state.turnNumber, hqIn: lastRuns, err: (e as Error).message.slice(0, 100) };
   }
-  hqIn = lastRuns;
-  return { cs2: two?.cs ?? g.state.corp.score, rs2: two?.rs ?? g.state.runner.score, cs: g.state.corp.score, rs: g.state.runner.score, winner: g.state.winner ?? null, T: g.state.turnNumber, hqIn };
+  return { cs2: two?.cs ?? g.state.corp.score, rs2: two?.rs ?? g.state.runner.score, cs: g.state.corp.score, rs: g.state.runner.score, winner: g.state.winner ?? null, T: g.state.turnNumber, hqIn: lastRuns };
 }
 
 async function partCont() {
