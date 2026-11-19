@@ -485,3 +485,52 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
     });
   });
 });
+
+// Found row 59 (Stage D, count run 44530910615; count-note.md and ruling.md in netrunner-ai/stage-d/prompt-chain/): parked
+// as known debt. Anoetic Void (30050): "Whenever the Runner approaches this server, you may pay 2[credit] and trash 2
+// cards from HQ. If you do, end the run." The prompt fallback scores each answer on the board one step later, before the
+// cost paid in the card's follow-up prompt (followChain follows identities only), so "yes" ties "no" and the first option
+// wins: the Corp pays on remotes that hold no agenda. In the count, beta's "yes" sent an agenda from HQ to Archives on 25
+// of 62 such boards; none of the 25 held two non-agenda cards in HQ (beta's trash step took the non-agenda card first on
+// every board that had one), and on 5 of them a trashed agenda was later stolen from Archives.
+// The board: deal 2141 (g1 base 44381468776, Normal v Normal), the source game's decision 250, turn 15: the Runner
+// approaches remote-3 (root Regolith Mining License and Anoetic Void, no agenda); HQ holds Send a Message and a Regolith
+// Mining License; the Corp has 11 credits. Saved by scripts/stage-d/prompt-chain-pin-boards.ts (BOARDS=2141:250 DUMP=...)
+// with beta's two answers and the 11 recorded moves from the board to the steal (turn 16). The replayed line names prompt
+// ids, so an engine change in how prompts are numbered breaks the passing half, not the AI (as the report-33 pin).
+describe('Anoetic Void paid with an agenda (found row 59)', () => {
+  const pin = () =>
+    JSON.parse(readFileSync(new URL('./fixtures/anoetic-void-2141-t15.json', import.meta.url), 'utf8')) as { state: GameState; answers: GameAction[]; line: GameAction[] };
+  const AGENDA = 'inst-7';
+  const inArchives = (s: GameState, id: string) => [...s.corp.archives.faceUp, ...s.corp.archives.faceDown].some(c => c.instanceId === id);
+
+  it("the board: beta's answers send Send a Message to Archives from a run that steals nothing, and the Runner steals it there next turn", () => {
+    const { state: s0, answers, line } = pin();
+    expect(s0.turnNumber).toBe(15);
+    expect(s0.corp.credits).toBe(11);
+    expect(s0.corp.hq.map(c => `${cardDef(c).type_code}:${cardDef(c).title}`)).toEqual(['agenda:Send a Message', 'asset:Regolith Mining License']);
+    expect(s0.activeRun?.server).toBe('remote-3');
+    const root = s0.corp.servers['remote-3'].root.map(c => cardDef(c));
+    expect(root.map(d => d.title).sort()).toEqual(['Anoetic Void', 'Regolith Mining License']);
+    expect(root.some(d => d.type_code === 'agenda')).toBe(false);
+    const p = s0.pendingPrompts[0] as unknown as { side: string; source: { cardCode: string; step: string } };
+    expect([p.side, p.source.cardCode, p.source.step]).toEqual(['corp', '30050', 'approach']);
+    let s = s0;
+    for (const a of answers) s = executeAction(s, a);
+    expect(s.corp.credits).toBe(9);
+    expect(inArchives(s, AGENDA)).toBe(true);
+    expect(s.activeRun).toBeNull();
+    for (const a of line) s = executeAction(s, a);
+    expect(s.runner.scoreArea.some(c => c.instanceId === AGENDA)).toBe(true);
+  });
+
+  it.fails('the Corp sends no agenda from HQ to Archives here (known-failing: the answer is scored before its cost, rows 59 and 76)', { timeout: T }, () => {
+    let s = pin().state;
+    for (let k = 0; k < 4; k++) {
+      const p = s.pendingPrompts[0] as unknown as { side: string; source?: { cardCode: string } } | undefined;
+      if (!p || p.side !== 'corp' || p.source?.cardCode !== '30050' || actingSide(s) !== 'corp') break;
+      s = executeAction(s, decide(s));
+    }
+    expect(inArchives(s, AGENDA)).toBe(false);
+  });
+});
