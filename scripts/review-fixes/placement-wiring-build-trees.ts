@@ -165,10 +165,19 @@ function git(cmd: string): string {
 }
 /** The commit's src/ written to `dir`/src (fetched first when the shallow checkout lacks it). */
 function srcOf(sha: string, dir: string) {
-  try {
-    git(`cat-file -e ${sha}^{commit}`);
-  } catch {
-    git(`fetch -q --depth=1 origin ${sha}`);
+  // The 4 processes of a runner share one checkout: a fetch can meet another's shallow.lock, so wait and look again.
+  for (let tries = 0; ; tries++) {
+    try {
+      git(`cat-file -e ${sha}^{commit}`);
+      break;
+    } catch {
+      try {
+        git(`fetch -q --depth=1 origin ${sha}`);
+      } catch (e) {
+        if (tries >= 20) throw e;
+        execSync(`sleep ${1 + (tries % 5)}`);
+      }
+    }
   }
   mkdirSync(dir, { recursive: true });
   execSync(`git archive ${sha} src | tar -x -C ${JSON.stringify(dir)}`);
