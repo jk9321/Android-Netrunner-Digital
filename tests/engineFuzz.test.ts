@@ -69,6 +69,18 @@ const DEEP_SEEDS_1120: [number, string, string, number][] = [
   [1120169013, 'core-gimbatul', 'lib-bright-eyes', 85],
   [1120113068, 'nrdb-big-hands', 'nrdb-tadpole-of-wealth', 245],
   [1120075505, 'lib-response-rush-nuvem', 'lib-tao-s-angels', 185],
+  // The other eleven failing games of that run, each to its failing step + 8
+  [1120063798, 'nrdb-startup-regards', 'lib-bright-eyes', 131],
+  [1120084984, 'lib-built-to-launch', 'lib-bright-eyes', 114],
+  [1120097790, 'nrdb-advanced-yomi', 'nrdb-tadpole-of-wealth', 102],
+  [1120017805, 'core-brutal-efficiency', 'nrdb-rising-tide', 231],
+  [1120019771, 'core-fine-print', 'core-enthusiasm', 565],
+  [1120038235, 'nrdb-big-brain-thinking', 'nrdb-rising-tide', 268],
+  [1120054178, 'vp-totes-undefeated-leo', 'nrdb-rising-tide', 853],
+  [1120060455, 'core-pork-chops', 'nrdb-rising-tide', 327],
+  [1120077915, 'nrdb-big-brain-thinking', 'nrdb-rising-tide', 315],
+  [1120092619, 'vp-de-profundis', 'nrdb-rising-tide', 368],
+  [1120092432, 'nrdb-wage-working', 'lib-tao-s-angels', 492],
   // Found by a local fuzz of the fix itself: make-room answers listed at full price, none left for Topan's discount
   [1120003674, 'nrdb-warpdrive-nebula', 'vp-they-are-huge-with-it', 90],
 ];
