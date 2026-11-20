@@ -329,7 +329,7 @@ function scripted(script: (s: GameState) => GameAction | null): Agent {
   }) as Agent;
 }
 
-describe('bundle R: rez and rez money (known-failing until the bundle R fix)', () => {
+describe('bundle R: rez and rez money (LEO and the empty R&D pass since ai-rez-fixes; the two Whitespace pins stay known-failing by Jeff\'s card of 2026-11-20 03:51Z)', () => {
   // AI-SPENDS-KEPT-FLOOR-NEED. spendsKept (corp/rez.ts) hands rezMoney the Runner's credits after the toll as
   // credits - toll.need, and toll.need is the least pool that gets through, not what the toll takes. Whitespace (30074):
   // "The Runner loses 3. / If the Runner has 6 or less, end the run." F1's board (tests/fixtures/adversarial/
