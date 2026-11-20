@@ -777,6 +777,53 @@ describe('hold walk: stealth credits counted once (found-list row 31)', () => {
     expect(h).toMatchObject({ holds: true, budget: 0 });
     expect(o).toBe('holds');
   });
+
+  // A credit floor under the lock (found row 88 f, the red team of bundle H; provable since the engine fix of 2026-11-19:
+  // Whitespace's loss goes through loseCredits, so a locked pool loses nothing, rule 1.2.2). Whitespace 30074: "The Runner
+  // loses 3 credits." / "If the Runner has 6 credits or less, end the run." Unbroken on HQ (Cleaver breaks no code gate),
+  // Aircheck's run with nothing left on the event, pool 7 locked: the engine takes nothing and 7 stands above the floor,
+  // so the run gets in. The walk reads need 10 (7 after a loss of 3) against a budget of 0 (the locked pool pays no
+  // cost): a false "holds". The floor reads the pool as it stands and the loss cannot happen; the budget is the wrong
+  // quantity for both under the lock. Known-failing; the fix goes with the cards the count cannot read (the Runner
+  // rework's shared card facts, found row 61): one Runner deck in the batch plays Aircheck.
+  const lockedFloor = (pool: number, locked: boolean) => {
+    const s0 = board(st => {
+      st.corp.servers.hq.ice = [];
+      installIceForTest(st, C.WHITESPACE, 'hq', true);
+      installProgramForTest(st, C.CLEAVER);
+      const a = createCardInstance(st, '36018');
+      a.tokens = { credit: 0 };
+      st.runner.heap.push(a);
+    });
+    startRunnerTurn(s0);
+    const s = structuredClone(executeAction(s0, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' }));
+    s.runner.credits = pool;
+    s.activeRun = { ...s.activeRun!, creditHosts: [s.runner.heap.at(-1)!.instanceId], poolLocked: locked };
+    return { h: inCorp(s, () => serverHold(s, 'hq', { when: 'thisRun', further: false })), o: oracleGetsIn(s, 'hq', 'thisRun', []).answer };
+  };
+
+  it('engine: Whitespace unbroken, Aircheck holding 0, pool 7 locked: the run gets in (nothing is lost, 7 is over the floor)', () => {
+    expect(lockedFloor(7, true).o).toBe('getsIn');
+  });
+
+  it.fails('Whitespace unbroken, pool 7 locked (Aircheck): does not hold (today: holds, need 10, budget 0)', () => {
+    expect(lockedFloor(7, true).h.holds).toBe(false);
+  });
+
+  it('twin: pool 6 locked: holds (the floor ends the run)', () => {
+    const { h, o } = lockedFloor(6, true);
+    expect(h.holds).toBe(true);
+    expect(o).toBe('holds');
+  });
+
+  it('twin: pool 7 not locked: holds (the loss takes it to 4); pool 10 not locked: it gets in', () => {
+    const open = lockedFloor(7, false);
+    expect(open.h).toMatchObject({ holds: true, need: 10, budget: 7 });
+    expect(open.o).toBe('holds');
+    const rich = lockedFloor(10, false);
+    expect(rich.h).toMatchObject({ holds: false, need: 10, budget: 10 });
+    expect(rich.o).toBe('getsIn');
+  });
 });
 
 describe('hold walk: break plans kept with the board they were worked out on (review R3)', () => {

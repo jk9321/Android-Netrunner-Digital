@@ -447,23 +447,13 @@ describe('draws and money', () => {
     expect(take).toBeGreaterThan(click + 1);
   });
 
-  // Known-failing under the order (Step 4 Stage C7): the Corp clicks for a credit, installs Anoetic Void and clicks again;
-  // Hedge Fund (line 4) is not reached. The ranking's planner played it (moneyPlan's credit toward a money operation)
-  it.fails('clicks for credits toward a Hedge Fund it can almost afford', () => {
-    const s = structuredClone(newGame());
-    s.corp.hq = [createCardInstance(s, '30075'), ...s.corp.hq.slice(0, 2)];
-    s.corp.credits = 3;
-    // The planned turn clicks for the two credits and plays Hedge Fund (5 to play, +9) with its last click, ahead of a
-    // draw for ice (digValue); plan.saveForOps (folded in item 6) was the old ranking's nudge toward it
-    let t = s;
-    const ai = new HeuristicCorpAI();
-    for (let i = 0; i < 8 && t.activePlayer === 'corp'; i++) {
-      const action = ai.chooseAction(t);
-      t = executeAction(t, action);
-      if (action.type === 'END_TURN') break;
-    }
-    expect(t.corp.archives.faceUp.map(c => c.cardCode)).toContain('30075');
-  });
+  // RETIRED at the V-C checkpoint's pin pass (2026-11-20): the known-failing pin "clicks for credits toward a Hedge Fund
+  // it can almost afford" (HQ = Hedge Fund and two cards, 3 credits: the Corp clicks for a credit, installs Anoetic Void
+  // and clicks again; Hedge Fund is not reached). V-C item 3 counted the class (504 paired games, netrunner-ai/stage-vc/
+  // item3-held-operation/ruling.md, found row 97): the save-up line banks 2.5 credits and loses points and wins
+  // (win-adjusted -0.30 +/- 0.11), so beta's line is right on the record and the pin asserted the opposite. It is not a
+  // known fault, so it leaves the known-failing list. Its board is rebuilt by scripts/stage-vc/held-op.ts (PART pin).
+  // The behaviour for its own sake is the `saveUpMoney` arm of that count (not built; Jeff's call).
 });
 
 describe('digging for answers', () => {

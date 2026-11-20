@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState, cardDef, createCardInstance, executeAction, getCardScript, getLegalActions } from '../src/core';
 import { CARDS } from '../src/ai/cards';
-import { runnerEarnings, serverHold } from '../src/ai/corp/hold';
+import { restOfTurn, runnerEarnings, serverHold } from '../src/ai/corp/hold';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { READ_OR_IRRELEVANT } from '../scripts/stage-d/runner-money-inventory';
@@ -127,6 +127,38 @@ describe('click money facts: every entry pays what the engine pays', () => {
   it('the stated numbers: Friend of a Friend 9, Rent Rioters 9, Telework 3 then 2, Pennyshaver 3 then 1, Fermenter 6 then 2', () => {
     const got = CASES.flatMap(([code, setups]) => setups.map(t => runnerEarnings(rigWith(code, t).s)[CARDS[code]!.clickMoney!.clicks]));
     expect(got).toEqual([9, 9, 3, 2, 3, 1, 6, 2]);
+  });
+});
+
+describe('click money facts: the rest of a turn after a once-per-turn use', () => {
+  // Audit 2026-11-20 AI-HOLD-ONCE-FLAG-NAMES (found row 99 a), read in the code there and reproduced here. Telework
+  // Contract 30027: "Once per turn -> [click]: Take 3 credits from this resource." After its use this turn the engine
+  // offers the ability no more (the use is recorded under `ability:<id>:<n>`), but runnerEarnings from the rest of the
+  // turn reads no use flag: one more earning click reads 3 where the engine pays 1 (5.2.7a). It overstates the Runner's
+  // money, which leans to "does not hold". Known-failing; the fix goes with the Runner rework's shared card facts.
+  const used = () => {
+    const { s, card } = rigWith('30027', { credit: 9 });
+    const turn = passTurn(structuredClone(s));
+    const mine = (st: GameState) => getLegalActions(st, 'runner').filter(a => a.type === 'USE_ABILITY' && a.cardInstanceId === card.instanceId);
+    const after = executeAction(structuredClone(turn), mine(turn)[0]);
+    return { turn, after, mine };
+  };
+
+  it('twin: before the use, one more earning click reads 3 and the engine pays 3', () => {
+    const { turn, after } = used();
+    expect(runnerEarnings(turn, restOfTurn(turn))[1]).toBe(3);
+    expect(after.runner.credits - turn.runner.credits).toBe(3);
+  });
+
+  it('engine: after the use the ability is not offered again this turn', () => {
+    const { after, mine } = used();
+    expect(after.runner.clicks).toBeGreaterThan(0);
+    expect(mine(after)).toEqual([]);
+  });
+
+  it.fails('after the use, one more earning click reads 1 (today: 3 again)', () => {
+    const { after } = used();
+    expect(runnerEarnings(after, restOfTurn(after))[1]).toBe(1);
   });
 });
 
