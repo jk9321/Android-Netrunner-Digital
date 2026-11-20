@@ -28,6 +28,7 @@ export type GameActionType =
   | 'PASS'
   // Either player, at any time
   | 'SET_STOPS'
+  | 'SET_CREDIT_HOLD'
   | 'CONCEDE';
 
 export interface BaseAction {
@@ -167,6 +168,18 @@ export interface SetStopsAction extends BaseAction {
   level: import('./state').StopLevel;
 }
 
+/**
+ * A player keeps (or stops keeping) the credits hosted on one of their cards for last: payments
+ * then take the pool first and these credits only when needed (rules 1.10.3c: the player divides
+ * a payment among the allowed locations). Any time; not a game action, and never a legal action
+ * listed for the AIs, so their payments keep the default order.
+ */
+export interface SetCreditHoldAction extends BaseAction {
+  type: 'SET_CREDIT_HOLD';
+  cardInstanceId: string;
+  hold: boolean;
+}
+
 /** A player concedes: the game ends at once and the other side wins. */
 export interface ConcedeAction extends BaseAction {
   type: 'CONCEDE';
@@ -195,4 +208,5 @@ export type GameAction =
   | EndTurnAction
   | PassAction
   | SetStopsAction
+  | SetCreditHoldAction
   | ConcedeAction;

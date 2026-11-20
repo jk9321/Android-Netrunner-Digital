@@ -93,4 +93,6 @@ export interface CardInstance {
   chosenSubtypes?: string[];
   /** Turn key (see turnKey()) of a turn in which the Corp cannot score this card (A Teia, Warm Reception). */
   cannotScoreTurn?: string;
+  /** Its controller keeps its hosted credits for last: payments take the pool first (rules 1.10.3c; SET_CREDIT_HOLD). */
+  holdCredits?: boolean;
 }
