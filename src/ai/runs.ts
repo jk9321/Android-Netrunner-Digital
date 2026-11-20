@@ -495,12 +495,23 @@ export function bestBreakPlan(state: GameState, ice: CardInstance, subCount: num
 }
 
 /**
+ * The asker's view for breakPlans (one owner, two views: the Runner's prices and the hold count read the same plans).
+ * `gripCards`: the cards the asker assumes the Runner can come to hold this turn, which bounds a plan's discards
+ * (Audrey v2); left out, the grip now. The hold count's walk passes the grip's and the stack's sizes (two public counts,
+ * rule 10.2.2a: no card of either is read) and checks the grip itself as it spends (Walk.usable), so a draw before the
+ * run (5.2.7c) can pay for the discard (the review's AI-HOLD-AUDREY-EMPTY-GRIP).
+ */
+export interface PlanView {
+  gripCards?: number;
+}
+
+/**
  * Every installed icebreaker's plan for breaking `subCount` subroutines of this ice (one per breaker, two for Pressure
  * Spike at threat 4: its +9 and its plain boosts), in rig order, each with what it spends besides credits. The owner of
  * "cost to get past one ice" by breaker; bestBreakPlan reads it (Stage D item 1, brief 4.3, red team F1: the walk picks
  * among the plans, as one plan per ice can spend a counter the ice further in needs).
  */
-export function breakPlans(state: GameState, ice: CardInstance, subCount: number): { plan: BreakPlan; spends: PlanSpends }[] {
+export function breakPlans(state: GameState, ice: CardInstance, subCount: number, view: PlanView = {}): { plan: BreakPlan; spends: PlanSpends }[] {
   if (subCount === 0) return [];
   const types = iceSubtypes(ice, state);
   const iceStr = iceStrength(state, ice);
@@ -534,7 +545,7 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
       // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
       const uses = Math.ceil(subCount / script.breakMax);
       const boosts = Math.max(0, Math.ceil((iceStr - strength) / 3));
-      if (uses > counters(breaker, 'virus') || boosts > state.runner.grip.length) continue;
+      if (uses > counters(breaker, 'virus') || boosts > (view.gripCards ?? state.runner.grip.length)) continue;
       // Counters and discards, no credits
       const value = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
       plans.push({ plan: { breaker, credits: 0, value, boostsNeeded: boosts }, spends: { counters: { cardId: breaker.instanceId, kind: 'virus', n: uses }, gripCards: boosts } });

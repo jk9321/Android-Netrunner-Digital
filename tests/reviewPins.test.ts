@@ -118,7 +118,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
   // Reproduced with a larger card to trash: Lobisomem (34090, printed 8, a code gate breaker that cannot touch
   // Lamplighter). Run 1: Knickknack trashes it for 8, tagged, ended. Click 2: clear the tag (8 -> 6). Click 3: run, pay 3,
   // untagged, in. No line without the retry exists (3 clicks: two credits and a tag clear leave no click to run).
-  it.fails('Knickknack with Lobisomem (printed 8), $0, 1 tag, 3 clicks: does not hold (the engine gets in)', { timeout: T }, () => {
+  it('Knickknack with Lobisomem (printed 8), $0, 1 tag, 3 clicks: does not hold (the engine gets in)', { timeout: T }, () => {
     const s = knick(C.LOBISOMEM);
     expect(turnTruth(s, 'remote1', [])).toBe('getsIn');
     expect(nextTurn(s, 'remote1').holds).toBe(false);
@@ -141,7 +141,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
       st.runner.grip = cards.slice(0, grip);
       st.runner.stack = cards.slice(grip, grip + stack);
     });
-  it.fails('Audrey v2, grip 0, 25 cards in the stack, 4 clicks: HQ does not hold (draw, then run)', { timeout: T }, () => {
+  it('Audrey v2, grip 0, 25 cards in the stack, 4 clicks: HQ does not hold (draw, then run)', { timeout: T }, () => {
     const s = audrey(0, 25);
     expect(turnTruth(s, 'hq', [])).toBe('getsIn');
     expect(nextTurn(s, 'hq').holds).toBe(false);
@@ -174,7 +174,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     expect(s.activeRun!.encounter!.boosts).toEqual({ [cleaver]: 1 });
     return s;
   };
-  it.fails('boost leak: mid-encounter on the outer Palisade, boosted, $1 left: the run stands "out"', { timeout: T }, () => {
+  it('boost leak: mid-encounter on the outer Palisade, boosted, $1 left: the run stands "out"', { timeout: T }, () => {
     const s = boosted();
     expect(oracleGetsIn(s, 'remote1', 'thisRun', []).answer).toBe('holds');
     expect(verdict(s, 'remote1')).toBe('out');
@@ -208,14 +208,14 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     expect([s.activeRun?.phase, s.activeRun?.encounter?.resolvingIndex, activePrompt(s)]).toEqual(['encounter_ice', null, undefined]);
     return s;
   };
-  it.fails('resolving bypass: Malandragem declined, Palisade encountered and unbroken: the run stands "out"', { timeout: T }, () => {
+  it('resolving bypass: Malandragem declined, Palisade encountered and unbroken: the run stands "out"', { timeout: T }, () => {
     const s = declined();
     expect(oracleGetsIn(s, 'hq', 'thisRun', []).answer).toBe('holds');
     expect(verdict(s, 'hq')).toBe('out');
   });
   // The report's own state: the same, with the subroutine resolving (resolvingIndex 0, set by hand: Palisade's one
   // subroutine resolves at once in the engine, so the window is never open there)
-  it.fails("resolving bypass, the report's state (Palisade's subroutine resolving): \"out\"", { timeout: T }, () => {
+  it("resolving bypass, the report's state (Palisade's subroutine resolving): \"out\"", { timeout: T }, () => {
     const s = structuredClone(declined());
     s.activeRun!.encounter!.resolvingIndex = 0;
     expect(verdict(s, 'hq')).toBe('out');
@@ -240,7 +240,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     return choose(executeAction(s0, { type: 'PLAY_OPERATION_OR_EVENT', player: 'runner', cardInstanceId: id }), 'hq');
   };
   const nextTurnCosts = (s: GameState) => inCorp(s, () => [serverHold(s, 'rd', { when: 'runnerTurn', corpCredits: Infinity }).rezCost, rezMoney(s).keep]);
-  it.fails("run-turn rez cost: during Tread Lightly's run, next turn's R&D rez cost and keep are the board's after the run (3, 3)", { timeout: T }, () => {
+  it("run-turn rez cost: during Tread Lightly's run, next turn's R&D rez cost and keep are the board's after the run (3, 3)", { timeout: T }, () => {
     const s = treadRun(true);
     expect(s.activeRun?.iceRezCostIncrease).toBe(3);
     expect(nextTurnCosts({ ...s, activeRun: null })).toEqual([3, 3]);
@@ -279,7 +279,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
     return { s, pharos };
   };
   const thisRunWith = (s: GameState, rez: string) => inCorp(s, () => serverHold(s, 'hq', { when: 'thisRun', mustRez: [rez], further: false }));
-  it.fails('Saci with the pool locked (Aircheck): Pharos rezzed holds this run', { timeout: T }, () => {
+  it('Saci with the pool locked (Aircheck): Pharos rezzed holds this run', { timeout: T }, () => {
     const { s, pharos } = aircheck(true);
     expect(oracleGetsIn(s, 'hq', 'thisRun', [pharos]).answer).toBe('holds');
     expect(thisRunWith(s, pharos).holds).toBe(true);
@@ -305,7 +305,7 @@ describe('bundle H: the hold count\'s inputs (known-failing until the bundle H f
       st.corp.archives.faceUp = [];
       st.corp.archives.faceDown = [];
     });
-  it.fails('lender: Lycian (sentry, barrier) on HQ is derezzed by the Runner\'s turn: Mycoweb does not hold', { timeout: T }, () => {
+  it('lender: Lycian (sentry, barrier) on HQ is derezzed by the Runner\'s turn: Mycoweb does not hold', { timeout: T }, () => {
     const s = lender(C.LYCIAN);
     expect(turnTruth(s, 'remote1', [])).toBe('getsIn');
     expect(nextTurn(s, 'remote1').holds).toBe(false);

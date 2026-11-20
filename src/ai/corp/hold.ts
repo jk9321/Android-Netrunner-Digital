@@ -170,7 +170,28 @@ export function serverHold(state: GameState, server: string, opts: HoldOptions):
     const board = afterRun(state);
     return counted(() => walkRunnerTurn(board, server, opts.corpCredits ?? state.corp.credits, restOfTurn(board, opts.runnerCredits)));
   }
-  return counted(() => walkRunnerTurn(state, server, opts.corpCredits ?? state.corp.credits));
+  return counted(() => walkRunnerTurn(nextTurnBoard(state), server, opts.corpCredits ?? state.corp.credits));
+}
+
+/**
+ * The board of the Runner's next turn (a turn that has not begun): the run under way over (afterRun: its rez cost
+ * increase, boosts, flags and gained subroutines end with it, 6.8.5, 6.9.6d; the review's AI-HOLD-RUNNER-TURN-ACTIVERUN)
+ * and the Runner cards' "once per turn" uses unused (red team M5): the turn's flags reset as a turn passes, and the
+ * engine names a card's once-per-turn use `once:<instance id>` or `once:<instance id>:<n>`, so the flags of that name on
+ * the Runner's installed cards and identity are left out. The other flags stay: the Corp's that this turn's end reads
+ * (Lightning Laboratory's, turnEndDerezPicks) and the rest. Once per board, on valueModel's memo.
+ */
+export function nextTurnBoard(state: GameState): GameState {
+  const board = afterRun(state);
+  return memo(board, 'nextTurnBoard', () => {
+    const r = board.runner;
+    const mine = new Set([...r.rig.programs, ...r.rig.hardware, ...r.rig.resources, ...(r.identity ? [r.identity] : [])].map(c => c.instanceId));
+    const used = Object.keys(board.turnFlags).filter(k => mine.has(/^once:(.+?)(?::\d+)?$/.exec(k)?.[1] ?? ''));
+    if (!used.length) return board;
+    const turnFlags = { ...board.turnFlags };
+    for (const k of used) delete turnFlags[k];
+    return { ...board, turnFlags };
+  });
 }
 
 /**
@@ -270,8 +291,16 @@ export interface WalkIce {
   granters: number[];
   /** 'thisRun': the encounter with it is under way; the subroutines already broken. */
   broken?: boolean[];
-  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more and meets no toll or bypass again. */
+  /** 'thisRun': its unbroken subroutines are resolving (6.9.3c): the Runner breaks no more. */
   resolving?: boolean;
+  /**
+   * 'thisRun': the encounter with it is past its beginning (6.9.3a), so what happens as an encounter begins is over: no
+   * bypass offered then (6.5.8b; every bypass the walk models is one, Physarum's and runBypasses' alike) and no toll
+   * again. The engine's marker: the Runner's encounter triggers and the ice's own "when encountered" are done
+   * (beginEncounter, resumeOnEncounter: `onEncounterPending` cleared, as priority.ts reads it), or its subroutines
+   * resolve. Not an encounter alone: while a bypass offer is open (or stripped by settledStand) the bypass is still there.
+   */
+  begun?: boolean;
   /** The subroutine it gains after its others when the Corp rezzes it during a run (Thunderbolt Armaments, 9.8.3e; its +1 strength is not modelled, the todo in tests/holdWalk.test.ts). */
   rezGains?: SubFacts;
   /** Its rez costs the Corp 1 bad publicity or the Runner 1 tag, the Corp's choice (holdFacts.rezBadPublicityOrTag). */
@@ -480,6 +509,8 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
   const encounter = start.runnerTurn ? undefined : state.activeRun?.encounter;
   // The Corp's identity: what ice of some subtypes gains when it is rezzed during a run (Thunderbolt Armaments)
   const anyIce = CARDS[state.corp.identity?.cardCode]?.holdFacts?.rezDuringRun?.anyIce;
+  // The run under way locks the Runner's pool (Aircheck), for this run only
+  const locked = !start.runnerTurn && !!state.activeRun?.poolLocked;
   return ice.map(c => {
     const rezzed = c.isRezzed && !start.derezzed.has(c.instanceId);
     const choices = rezzed ? undefined : CARDS[c.cardCode]?.holdFacts?.rezChoosesSubtypes;
@@ -513,10 +544,13 @@ export function walkIce(state: GameState, start: WalkStart, ice: CardInstance[])
       granters: hostedHere(r => !!getCardScript(r.cardCode)?.grantsIceSubtypes?.length),
       broken: encounter?.iceId === c.instanceId ? [...encounter.broken] : undefined,
       resolving: encounter?.iceId === c.instanceId && encounter.resolvingIndex !== null ? true : undefined,
+      begun: encounter?.iceId === c.instanceId && (!encounter.onEncounterPending || encounter.resolvingIndex !== null) ? true : undefined,
       // AP and destroyer are printed subtypes only (iceSubtypes reads barrier, code gate and sentry, the ones a card grants)
       rezGains: anyIce && (cardDef(c).keywords ?? '').toLowerCase().split(/\s*-\s*/).some(k => anyIce.subtypes.includes(k)) ? subroutineFacts(anyIce.gains) : undefined,
       liability: !!CARDS[c.cardCode]?.holdFacts?.rezBadPublicityOrTag,
-      rezPays: hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostRezPays).map(i => [i, CARDS[start.rig[i].cardCode].holdFacts!.hostRezPays!] as [number, number]),
+      // Saci's credits go to the pool, which a run that locks it cannot spend from (Aircheck: "you cannot lose or spend
+      // credits from your credit pool"; the "cannot" wins, 1.2.2): under the lock they pay nothing (AI-HOLD-MINOR-GAPS 1)
+      rezPays: locked ? [] : hostedHere(r => !!CARDS[r.cardCode]?.holdFacts?.hostRezPays).map(i => [i, CARDS[start.rig[i].cardCode].holdFacts!.hostRezPays!] as [number, number]),
       choices,
     };
   });
@@ -539,6 +573,9 @@ function turnIce(state: GameState, start: WalkStart, server: string): WalkIce[] 
 /** A start's kind in a memo key: 0 the run under way, 1 the next turn, 2 the rest of this turn. */
 const startKind = (start: WalkStart): number => (!start.runnerTurn ? 0 : start.fresh ? 1 : 2);
 
+/** The board with the encounter under way left out (its boosts and broken subroutines; the run's own kept), for reads of other ice. */
+const outsideEncounter = (state: GameState): GameState => (state.activeRun?.encounter ? { ...state, activeRun: { ...state.activeRun, encounter: null } } : state);
+
 /** The board with the hosted subtype-giving cards at rig indexes `off` taken off (for the ice's subtypes and plans). */
 function without(state: GameState, start: WalkStart, off: number[]): GameState {
   if (!off.length) return state;
@@ -555,11 +592,16 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
   const plans: Record<string, WalkPlan[]> = {};
   const types: Record<string, string[]> = {};
   const ices = new Map(targets.flatMap(t => t.ice.map(i => [i.id, i] as const)));
+  // The encounter's boosts last that encounter (3.9.5b): an ice other than the encountered one is met in an encounter of
+  // its own, so its plans are worked out without this one (as iceCreditsAhead), the run's own boosts kept (runBoosts).
+  // The encountered ice is a fact of the state and of the start's kind, which the memo key names
+  const encountered = start.runnerTurn ? undefined : state.activeRun?.encounter?.iceId;
+  const outside = outsideEncounter(state);
   for (const ice of ices.values()) {
     const n = ice.subs.length + (ice.rezGains ? 1 : 0);
     for (let mask = 0; mask < 1 << ice.granters.length; mask++) {
       const off = ice.granters.filter((_, k) => mask & (1 << k));
-      const board = without(state, start, off);
+      const board = without(ice.id === encountered ? state : outside, start, off);
       for (const k of ['', ...(ice.choices ?? []).map((_, i) => String(i))]) {
         const card = k === '' ? ice.card : { ...ice.card, chosenSubtypes: ice.choices![Number(k)] };
         if (off.length || k !== '') types[`${ice.id}|${off}|${k}`] = iceSubtypes(card, board);
@@ -583,7 +625,7 @@ export function walkBoard(state: GameState, start: WalkStart, targets: WalkTarge
       const keywords = cardDef(c).keywords ?? '';
       return { trojan: /\btrojan\b/i.test(keywords), purgeTrash: !!CARDS[c.cardCode]?.holdFacts?.trashedOnPurge, counted: !!CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine || /icebreaker/i.test(keywords) };
     }),
-    lenders: borrows ? lenders(state, targets) : [],
+    lenders: borrows ? lenders(state, targets, start.derezzed) : [],
     plans,
     types,
     bypass: !!plan().bypass,
@@ -612,9 +654,13 @@ function runBegins(state: GameState, start: WalkStart): RunBegin[] {
   });
 }
 
-/** breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). */
+/**
+ * breakPlans for `z` of the ice's subroutines, as the walk spends them (rig indexes). A plan's discards are bounded by
+ * the cards the Runner can come to hold this turn, the grip and the stack (PlanView): the walk draws before a run and
+ * checks the grip as it spends (Walk.usable).
+ */
 function planFor(board: GameState, start: WalkStart, card: CardInstance, z: number): WalkPlan[] {
-  return breakPlans(withIce(board, card), card, z).flatMap(({ plan: p, spends }) => {
+  return breakPlans(withIce(board, card), card, z, { gripCards: board.runner.grip.length + board.runner.stack.length }).flatMap(({ plan: p, spends }) => {
     const breaker = start.index.get(p.breaker.instanceId);
     if (breaker === undefined) return [];
     const c = spends.counters;
@@ -758,8 +804,8 @@ export class Walk {
    * The run begins (6.9.1c; WalkBoard.runBegins): each Side Hustle places its credit and, at its payout, the Runner takes
    * all of them (1.10.4a), trashes it and draws; the first time this turn, Knickknack's trash as the bound (the largest
    * printed install cost among the other installed cards, the card kept) and a draw. The pool needed before a gain is the
-   * rest's need less the gain, at least 0 (a gain pays only what comes after it). A credit placed is progress a later
-   * run reads in the Runner's favour (`moved`).
+   * rest's need less the gain, at least 0 (a gain pays only what comes after it). A credit placed, and Knickknack's gain
+   * and draw, are progress a later run reads in the Runner's favour (`moved`).
    */
   private runBegins(ws: WalkState, then: (w: WalkState) => number): number {
     const list = this.board.runBegins;
@@ -782,7 +828,9 @@ export class Walk {
       }
       if (b.trashForCost && ws.runs === 0 && !b.trashForCost.used) {
         gain += b.trashForCost.costs.reduce((n, c, i) => (i === b.idx || w.gone.includes(i) ? n : Math.max(n, c)), 0);
-        w = draw(w, b.trashForCost.draw);
+        // Its gain and draw stay with the Runner after a run that fails, so a later run reads them (review
+        // AI-HOLD-KNICKKNACK-MOVED; the bound's card is kept, a known widening toward "does not hold")
+        w = { ...draw(w, b.trashForCost.draw), moved: true };
       }
     }
     return Math.max(0, then(w) - gain);
@@ -805,7 +853,7 @@ export class Walk {
    * something a later run reads in the Runner's favour. Everything of the brief's 2.2 a failed run leaves for the Runner
    * sets it, and a fact added to "what stays" must be added here: a rez (with it the Corp's credits spent, a lasting
    * choice such as Lycian's, a rez-time fact used up such as Ping's tag; set at any rez, one the Corp pays 0 for too),
-   * a Corp gain of credits, an ice that trashed itself. All else a run changes (a click, tags, damage, credits, counters
+   * a Corp gain of credits, an ice that trashed itself, a credit Side Hustle placed, Knickknack's gain. All else a run changes (a click, tags, damage, credits, counters
    * or cards spent) leaves the Runner no better off than at its start, where every way on was open already, so a retry
    * finds nothing new. The brute-force reference (tests/holdWalkReference.test.ts) keeps no cut.
    */
@@ -885,7 +933,7 @@ export class Walk {
     const subs = ice.subs;
     const types = this.typesOf(ice, ws);
     let best = FAIL;
-    if (this.board.bypass && !ice.resolving) {
+    if (this.board.bypass && !ice.begun) {
       for (const b of ice.bypassers) if (!ws.gone.includes(b.idx) && !types.includes(b.unless)) best = Math.min(best, this.pay(ws, b.per * subs.length, next));
     }
     return Math.min(best, this.tolls(ws, ice, w => this.breaks(w, ice, types, next, at), at));
@@ -912,7 +960,7 @@ export class Walk {
    */
   private tolls(ws: WalkState, ice: SearchIce, then: (w: WalkState) => number, at: Step): number {
     const e = ice.encounterFacts;
-    if (!e || ice.broken || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
+    if (!e || ice.begun || (e.threatAtLeast !== undefined && this.board.threat < e.threatAtLeast)) return then(ws);
     // Paywall: the Runner loses credits as the encounter begins (6.9.3a), from its pool (10.6.2: not the fund)
     if (e.loses) return lose(this.toll(ws, e, then, at), e.loses);
     return this.toll(ws, e, then, at);
@@ -1136,14 +1184,20 @@ interface Lender {
   facts: SubFacts[];
 }
 
-/** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it. */
-function lenders(state: GameState, targets: WalkTarget[]): Lender[] {
+/** Every ice a borrow may lend from, in board order: the walked ice as met, the rest as the board has it at the walk's start. */
+function lenders(state: GameState, targets: WalkTarget[], derezzed: Set<string>): Lender[] {
   const walked = new Map(targets.flatMap(t => t.ice.map(x => [x.id, x] as const)));
-  return lenderViews(state, walked).flatMap(v => (walked.has(v.id) ? [v.walked!] : v.unwalked ? [v.unwalked] : []));
+  return lenderViews(state, walked, derezzed).flatMap(v => (walked.has(v.id) ? [v.walked!] : v.unwalked ? [v.unwalked] : []));
 }
 
-/** Each ice of the board as a lender both ways, in board order: as met when `walked` holds it, and as the board has it (rezzed ice only). */
-function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: string; walked?: Lender; unwalked?: Lender }[] {
+/**
+ * Each ice of the board as a lender both ways, in board order: as met when `walked` holds it, and as the board has it at
+ * the walk's start (rezzed ice only, less the ice the start derezzes, WalkStart.derezzed: Lycian derezzes itself "when a
+ * turn ends", the Corp's (5.6.3d) or the Runner's (5.7.2d), and Tranquilizer's host; the review's AI-HOLD-MINOR-GAPS 3).
+ * Known gap: Lightning Laboratory's pick is read on the asked servers only (turnEndDerezPicks), so a lender on another
+ * server it derezzes still lends.
+ */
+function lenderViews(state: GameState, walked: Map<string, WalkIce>, derezzed: Set<string>): { id: string; walked?: Lender; unwalked?: Lender }[] {
   const facts = (c: CardInstance) => iceSubroutines(state, c).filter(sub => !/resolve 1 subroutine on/i.test(sub.label)).map(sub => subroutineFacts(sub.label));
   const out: { id: string; walked?: Lender; unwalked?: Lender }[] = [];
   for (const sv of Object.values(state.corp.servers)) {
@@ -1152,7 +1206,7 @@ function lenderViews(state: GameState, walked: Map<string, WalkIce>): { id: stri
       out.push({
         id: c.instanceId,
         walked: w ? { id: c.instanceId, rezzed: w.rezzed, types: w.types, facts: facts(w.card) } : undefined,
-        unwalked: c.isRezzed ? { id: c.instanceId, rezzed: true, types: iceSubtypes(c, state), facts: facts(c) } : undefined,
+        unwalked: c.isRezzed && !derezzed.has(c.instanceId) ? { id: c.instanceId, rezzed: true, types: iceSubtypes(c, state), facts: facts(c) } : undefined,
       });
     }
   }
@@ -1512,7 +1566,7 @@ function reachPickQuestion(state: GameState, servers: string[], from: TurnFrom, 
     const serverOf = new Map(targets.flatMap(t => t.ice.map(x => [x.id, t.server] as const)));
     const borrows = Object.fromEntries(targets.map(t => [t.server, t.ice.some(i => i.subs.some(f => f.does.some(e => e.kind === 'borrow')))]));
     // The lenders are read only by a borrow (setInput, walkBoard's rule)
-    const views = Object.values(borrows).some(Boolean) ? lenderViews(state, walked) : [];
+    const views = Object.values(borrows).some(Boolean) ? lenderViews(state, walked, start.derezzed) : [];
     // Nothing is rezzed on these runs (6.4.3: only a rez set's ice is rezzed as approached), so the Corp's credits are
     // read only by a subroutine's "more credits than the Runner", and HQ's size only by "more cards in HQ than in the
     // grip" and "trash 1 card from HQ to end the run": where no subroutine of these servers or of a lender says so, they
@@ -1688,8 +1742,15 @@ function runQuestion(state: GameState, server: string, opts: HoldOptions): RunQu
     const cost = base + extra.reduce((n, c) => n + rezCost(state, c), 0);
     if (cost - base > spare) continue;
     const up = new Set([...must.map(c => c.instanceId), ...extra.map(c => c.instanceId)]);
-    const view = withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c)));
-    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, pos + 1), true);
+    // Ranked without the encounter under way (runBypasses prices each ice by iceCost, which reads its boosts; 3.9.5b):
+    // the ice further in is met in encounters of its own, and the encountered ice's bypass is offered as its encounter
+    // begins (6.9.3a), before any boost. The encounters so far are the run's (runFlags), not touched
+    const view = outsideEncounter(withServerIce(state, sv.id, sv.ice.map(c => (up.has(c.instanceId) ? { ...c, isRezzed: true } : c))));
+    // A bypass is offered as an encounter begins (6.5.8b; none the walk models is triggered later, 6.5.8c): once the
+    // encounter with the ice at `pos` is past its beginning (WalkIce.begun) that ice is left out of the list before
+    // runBypasses chooses, so a single use goes to the ice further in (never filtered out of its result)
+    const begun = ice0[pos]?.begun;
+    const skipped = bypassesAhead(view, view.corp.servers[sv.id].ice.slice(0, begun ? pos : pos + 1), true);
     sets.push({ cost, up: [...up], skipped: [...skipped] });
   }
   // The Corp pays each rez as its ice is approached (6.4.3): it starts with the approached ice's cost still in hand.

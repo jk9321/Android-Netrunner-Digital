@@ -1196,14 +1196,26 @@ describe("keepFor's run sequence, gathered once and cached per decision", () => 
     });
   });
 
-  it("keeps one walk memo per set of a question: a lender walked in one set and not in the other (review R6)", () => {
-    // Mycoweb rezzed outside Funhouse on remote1, no decoder: its sentry borrow resolves Ballista's "trash 1 installed
-    // program or end the run" while Ballista lends. Ballista rezzed on HQ with Tranquilizer at 2 counters: HQ's walk meets
-    // it derezzed (5.7.1d), so a set that runs HQ has no lender; one that does not, has it (the lenders as the board has
-    // them). Lamplighter rezzed outside it on HQ: $3 pays its first subroutine untagged, and Funhouse tags the Runner, so
-    // {HQ, remote1} gets in only in that order, with remote1 last. R&D empty: {R&D, remote1} meets remote1 last too, with
-    // the same clicks and state, so only the memo kept per set tells the two apart
+  it("answers each set of a reach question as its fresh walk does, with a lender the walk's start derezzes (review R6)", () => {
+    // Mycoweb rezzed outside Funhouse on remote1, no decoder: its sentry borrow resolves a rezzed sentry's subroutine.
+    // Ballista rezzed on HQ with Tranquilizer at 2 counters: the Runner's turn start derezzes it (5.7.1d) whether HQ is
+    // run or not. Lamplighter rezzed outside it on HQ ($3 pays its first subroutine untagged, "End the run if the Runner
+    // is tagged" then does nothing) is the lender in every set. The Corp at $0, as the engine needs it to agree
+    // (tests/holdGathering.test.ts): with money, Mycoweb's "rez 1 installed piece of ice, paying 2 less" rezzes Ballista
+    // again, a Corp-side subroutine the walk does not carry (toward "does not hold"). {HQ, remote1} gets in in that order
+    // only: remote1 first leaves the Runner tagged by Funhouse at Lamplighter.
+    // What this no longer checks, and why: before ai-hold-inputs fix 6 a set that did not run HQ read Ballista as the
+    // board has it now, so it lent there ("trash 1 installed program or end the run", taken as the end) and not in a set
+    // that ran HQ, and only the memo kept per set (reachSetsOf's `mk` holds the set) told {R&D, remote1} from
+    // {HQ, remote1} apart. Since fix 6 no reach board can tell them apart: a reach question walks no rez set (runTarget
+    // with an empty set), so the walk's `up` stays empty and Walk.borrow takes only a lender rezzed at the walk's start;
+    // for that ice the walked view (WalkIce: rezzed, the card as met, its subtypes) and the unwalked one (rezzed and not
+    // derezzed at the start) are the same, and ice unrezzed or derezzed at the start lends in neither; a lender trashed
+    // during the walk is in the memo node's key (ws.trashed); and a set with no borrowing server gets no lenders, but
+    // then no walk in it borrows. So the set in the memo key changes no answer (a shared memo, `mk = servers`, passes
+    // every hold test at the fix 6 tree); this test keeps each set's answer against the fresh walk on that board.
     const s = bare(3, 2);
+    s.corp.credits = 0;
     installIceForTest(s, '30054', 'remote1', true);
     installIceForTest(s, MYCOWEB, 'remote1', true);
     const ballista = installIceForTest(s, '30062', 'hq', true);
@@ -1214,10 +1226,10 @@ describe("keepFor's run sequence, gathered once and cached per decision", () => 
     tranq.tokens = { virus: 2 };
     s.runner.rig.programs.push(tranq);
     const want = [fresh(s, ['remote1']), fresh(s, ['rd', 'remote1']), fresh(s, ['remote1', 'rd']), fresh(s, ['hq', 'remote1']), fresh(s, ['remote1', 'hq'])];
-    expect(want).toEqual([false, false, false, true, false]);
+    expect(want).toEqual([true, true, true, true, false]);
     inCorp(s, () => {
       const sets = reachSets(reachQuestion(s, ['rd', 'hq', 'remote1']));
-      expect([sets(['remote1']), sets(['rd', 'remote1']), sets(['hq', 'remote1'])]).toEqual([false, false, true]);
+      expect([sets(['remote1']), sets(['rd', 'remote1']), sets(['hq', 'remote1'])]).toEqual([true, true, true]);
     });
   });
 
