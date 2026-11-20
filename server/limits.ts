@@ -30,6 +30,14 @@ export interface BucketRule {
 export const STOPS_BUDGET: BucketRule = { burst: 5, refillMs: 60_000 };
 
 /**
+ * Credit-hold changes per seat (SET_CREDIT_HOLD, chunk 2i): a stored move like
+ * a stops change, in its own bucket so toggling holds can't use up the stops
+ * budget. A player toggles one card at a time, a few per turn at most. 10 at
+ * once, one back every 30 s: about 2,880 changes a day per seat sustained.
+ */
+export const HOLD_BUDGET: BucketRule = { burst: 10, refillMs: 30_000 };
+
+/**
  * Messages per seat's socket, of any kind (acts, stale acts, cancels, pings
  * that reach the room, junk). An honest client sends one message per click,
  * one automatic answer per state and a keep-alive ping every 30 s (answered
