@@ -11,6 +11,7 @@ import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, plac
 import { archivesWantsIce, rezAllowed } from './rez';
 import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
+import { memo } from '../valueModel';
 export { isPettyCash } from './cardRules';
 
 
@@ -403,13 +404,10 @@ function drawFirst(state: GameState, out: Candidate[]): boolean {
  * "which first", never as a value. Nothing is installed only when the order offers no install at all. The model's play
  * value is not read as a gate: it prices a card leaving HQ above unrezzed ice (Doomscroll on bare R&D, bug report #13).
  */
-const freeOrders = new WeakMap<GameState, Map<string, Candidate[]>>();
 export function freeInstallTarget(state: GameState, card: CardInstance, options: string[]): { server: string; score: number } | undefined {
   if (typeOf(card) === 'agenda') return undefined;
-  const key = options.join();
-  const cached = freeOrders.get(state)?.get(key);
-  const order = cached ?? freeInstallOrder(state, options);
-  if (!cached) (freeOrders.get(state) ?? freeOrders.set(state, new Map()).get(state)!).set(key, order);
+  // Once per position and pricing context (valueModel memo; bundle P fix 3: the hand-made cache had no pricing key)
+  const order = memo(state, 'freeOrder:' + options.join(), () => freeInstallOrder(state, options));
   const i = order.findIndex(c => c.card === card.instanceId);
   if (i < 0) return undefined;
   const a = order[i].action as Install;

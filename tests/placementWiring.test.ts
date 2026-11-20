@@ -21,11 +21,12 @@ import { GameRunner } from '../src/ai/playout';
 import { serverHold } from '../src/ai/corp/hold';
 import { lineKeep, rezMoney } from '../src/ai/corp/rezMoney';
 import { place, placedInstall, reservedForAgenda, scoreInTwoPick, scoringShort } from '../src/ai/corp/placement';
-import { corpCandidates } from '../src/ai/corp/candidates';
+import { corpCandidates, freeInstallTarget } from '../src/ai/corp/candidates';
+import { memo } from '../src/ai/valueModel';
 import { isEconAsset } from '../src/ai/cardValues';
 import { PW, pairBoards, pwBoard } from './fixtures/placement-wiring/boards';
 import { nextTurnCredits, scoringRemote } from '../src/ai/corp/lines';
-import { asSide } from '../src/ai/pricing';
+import { asSide, withPricing } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
 import { installCorpForTest, installIceForTest } from './helpers';
 
@@ -226,5 +227,24 @@ describe('fix 2: the asset cover\'s waiting form, the candidate is the install t
       }
     }
     expect(waiting).toBeGreaterThan(0);
+  });
+});
+
+describe('fix 3: the free install order, once per position and pricing context (valueModel memo)', () => {
+  // Bug report #13's board (tests/synapseFreeInstall.test.ts): Synapse Global's free install prompt open, Doomscroll and
+  // Offworld Office in HQ
+  it('two pricing contexts asked of one state get two entries', { timeout: T }, () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-13-synapse.json', import.meta.url), 'utf8'));
+    const doom = s.corp.hq.find(c => cardDef(c).title === 'Doomscroll')!;
+    const options = ['new', ...Object.keys(s.corp.servers)];
+    const key = 'freeOrder:' + options.join();
+    const cached = () => memo(s, key, () => 'not cached' as unknown);
+    const a = inCorp(s, () => [freeInstallTarget(s, doom, options), cached()] as const);
+    const b = inCorp(s, () => withPricing({ planning: true }, () => [freeInstallTarget(s, doom, options), cached()] as const));
+    expect(Array.isArray(a[1]) && Array.isArray(b[1])).toBe(true);
+    expect(b[1]).not.toBe(a[1]);
+    expect(a[0]?.server).toBe('rd');
+    // Both entries stay: asked again in the first context, its own order
+    expect(inCorp(s, () => cached())).toBe(a[1]);
   });
 });
