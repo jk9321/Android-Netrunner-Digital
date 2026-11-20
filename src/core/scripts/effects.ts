@@ -8,14 +8,15 @@ import { addLog } from '../engine/log';
 import { findCardAnywhere, illegal, isAdvanceable, removeCard } from '../engine/helpers';
 import { availableCredits, corpTrashFromHQ, corpTrashFromRD, installedIce, spendCredits } from '../engine/cardEffects';
 import {
+  canInstallMakingRoom,
   chosenToTrashFirst,
   corpInstallBlocker,
   corpInstallCost,
-  freedMemory,
   iceTrashedDiscount,
   installCorpCardFrom,
   installRunnerCardFrom,
-  runnerInstallBlocker,
+  makeRoomSets,
+  runnerInstallBlockerTrashing,
   trashFirst,
   trashableFirst,
 } from '../engine/actions/install';
@@ -175,18 +176,14 @@ export function runnerZoneOf(state: GameState, instanceId: string): CardInstance
 }
 
 /**
- * Runner cards in `cards` that could be installed now (with a discount). Trojans need some ice.
+ * Runner cards in `cards` that could be installed now (with a discount), trashing installed programs first if one
+ * doesn't fit (rules 8.5.6c; makeRoomSets: only if the install is then affordable too). Trojans need some ice.
  * `hostId`: a non-trojan card is installed on that card (Muse), so it can't be trashed to make room.
  */
 export function installableRunnerCards(state: GameState, cards: CardInstance[], discount = 0, hostId?: string): CardInstance[] {
-  const ice = installedIce(state);
-  // A program may fit once installed programs are trashed to make room (rules 8.5.6c)
-  const freeable = freedMemory(state.runner.rig.programs);
-  const freeableKeepingHost = freedMemory(state.runner.rig.programs.filter(c => c.instanceId !== hostId));
   return cards.filter(c => {
     if (!['program', 'hardware', 'resource'].includes(cardDef(c).type_code)) return false;
-    if (getCardScript(c.cardCode)?.installsOnIce) return ice.some(i => !runnerInstallBlocker(state, c, i.instanceId, discount, freeable));
-    return !runnerInstallBlocker(state, c, undefined, discount, freeableKeepingHost);
+    return canInstallMakingRoom(state, c, undefined, discount, effectTrashableFirst(state, c, hostId ? { hostId } : {}));
   });
 }
 
@@ -214,9 +211,10 @@ export function askRunnerInstall(
 }
 
 /**
- * Installs a Runner card from `zone` for an effect, first trashing the
- * installed programs the player chose (rules 8.5.6c). Returns false, doing
- * nothing, if the install isn't possible that way.
+ * Installs a Runner card from `zone` for an effect, first trashing the installed programs the player chose (rules
+ * 8.5.6c). Returns false, doing nothing, if the install isn't possible at all, even making room: an instruction that
+ * can't be carried out is ignored (rules 1.2.4). Throws if the answer names programs that don't make it possible, or
+ * names none while some set of them would (`data`: the effect's, for what it may trash; see effectTrashableFirst).
  */
 export function installRunnerTrashing(
   state: GameState,
@@ -224,11 +222,12 @@ export function installRunnerTrashing(
   zone: CardInstance[],
   hostInstanceId: string | undefined,
   discount: number,
-  trashIds: string[]
+  trashIds: string[],
+  data: EffectSource['data'] = {}
 ): boolean {
   const trash = chosenToTrashFirst(state, card, null, trashIds);
-  if (runnerInstallBlocker(state, card, hostInstanceId, discount, freedMemory(trash))) {
-    mustMakeRoom(state, card, hostInstanceId, discount);
+  if (runnerInstallBlockerTrashing(state, card, hostInstanceId, discount, trash)) {
+    mustMakeRoom(state, card, hostInstanceId, discount, trash, data);
     return false;
   }
   trashFirst(state, trash);
@@ -237,14 +236,23 @@ export function installRunnerTrashing(
 }
 
 /**
- * A program that fits once installed programs are trashed: the Runner must trash them first (rules 8.5.6c, 3.9.3b),
- * so an answer that names too few is not an answer (it would spend the effect and install nothing).
+ * The chosen trash doesn't make the install possible. The Runner must trash programs first when that would (rules
+ * 8.5.6c, 3.9.3b), so an answer that names too few, or the wrong ones, is not an answer (it would spend the effect and
+ * install nothing). When no set would, the install can't be done and is skipped (rules 1.2.4), with nothing trashed.
  */
-function mustMakeRoom(state: GameState, card: CardInstance, hostInstanceId: string | undefined, discount: number): void {
-  const room = freedMemory(trashableFirst(state, card, null));
-  if (room > 0 && !runnerInstallBlocker(state, card, hostInstanceId, discount, room)) {
-    illegal(`Trash installed programs first to make room for ${cardDef(card).title} (rules 8.5.6c)`);
+function mustMakeRoom(
+  state: GameState,
+  card: CardInstance,
+  hostInstanceId: string | undefined,
+  discount: number,
+  chosen: CardInstance[],
+  data: EffectSource['data'] = {}
+): void {
+  const title = cardDef(card).title;
+  if (!makeRoomSets(state, card, hostInstanceId, discount, effectTrashableFirst(state, card, data)).next().done) {
+    illegal(`Trash installed programs first to make room for ${title} (rules 8.5.6c)`);
   }
+  if (chosen.length > 0) illegal(`Trashing those programs doesn't let you install ${title}`);
 }
 
 /**
@@ -267,10 +275,10 @@ export function installRunnerChoice(
   if (!card || !zone) return false;
   if (getCardScript(card.cardCode)?.installsOnIce) {
     if (hostStep === null) throw new Error(`${cardDef(card).title} installs on ice, but the effect installing it declared no host step`);
-    const freed = freedMemory(chosenToTrashFirst(state, card, null, trashIds));
-    const hosts = installedIce(state).filter(i => !runnerInstallBlocker(state, card, i.instanceId, discount, freed));
+    const trash = chosenToTrashFirst(state, card, null, trashIds);
+    const hosts = installedIce(state).filter(i => !runnerInstallBlockerTrashing(state, card, i.instanceId, discount, trash));
     if (hosts.length === 0) {
-      for (const ice of installedIce(state)) mustMakeRoom(state, card, ice.instanceId, discount);
+      mustMakeRoom(state, card, undefined, discount, trash, data);
       return false;
     }
     askChoice(ctx, 'runner', `Install ${cardDef(card).title} on which ice?`, hosts.map(i => ({ id: i.instanceId, label: iceLabel(state, i) })), hostStep, {
@@ -281,7 +289,7 @@ export function installRunnerChoice(
     });
     return false;
   }
-  return installRunnerTrashing(state, card, zone, undefined, discount, trashIds);
+  return installRunnerTrashing(state, card, zone, undefined, discount, trashIds, data);
 }
 
 /** Finishes installRunnerChoice() once the host ice is chosen. */
@@ -292,7 +300,7 @@ export function installRunnerHostChoice(state: GameState, source: EffectSource, 
   const zone = runnerZoneOf(state, cardId);
   const discount = Number(source.data?.discount ?? 0);
   if (!card || !zone) return false;
-  return installRunnerTrashing(state, card, zone, answer.optionId, discount, (source.data?.trashIds as string[] | undefined) ?? []);
+  return installRunnerTrashing(state, card, zone, answer.optionId, discount, (source.data?.trashIds as string[] | undefined) ?? [], source.data);
 }
 
 /** "Rezzed Ice in Remote Server 1" style label for a piece of ice the other player may not see. */

@@ -2,7 +2,7 @@ import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
 import { nextInt } from '../../../rng';
 import { addLog } from '../../../engine/log';
-import { findCardAnywhere, findInstalledCorpCard, removeCard } from '../../../engine/helpers';
+import { findCardAnywhere, findInstalledCorpCard, illegal, removeCard } from '../../../engine/helpers';
 import { endRun, SHRED_STEP, ShredData } from '../../../engine/runEnd';
 import { getCardScript } from '../../index';
 import { runnerTrashInstalledCorpCard, runBlocked, startRun } from '../../../engine/actions/run';
@@ -73,7 +73,8 @@ const scroungeFlow = prompts({
   }),
   stack: cards(({ state }, a) => {
     if (a.ids.length === 0) return;
-    const card = state.runner.heap.find(c => c.instanceId === a.ids[0])!;
+    const card = state.runner.heap.find(c => c.instanceId === a.ids[0]);
+    if (!card) illegal('That program is no longer in your heap');
     removeCard(state.runner.heap, card);
     state.runner.stack.push(card);
     addLog(state, 'runner', `Runner added ${cardDef(card).title} to the bottom of their stack (Scrounge).`);
@@ -82,6 +83,9 @@ const scroungeFlow = prompts({
 
 export const scrounge: CardScript = {
   extraClicks: 1,
+  // The program installed may be Muse, whose search resolves before Scrounge's second sentence (rules 9.6.5a) and can
+  // take a program from the heap: the "add to stack" list is the heap as it is when that question comes up
+  liveCandidates: (state, source) => (source.step === 'stack' ? heapPrograms(state).map(c => c.instanceId) : undefined),
   onPlay: ctx => {
     const targets = installableRunnerCards(ctx.state, heapPrograms(ctx.state));
     if (targets.length === 0) return askScroungeStack(ctx);
