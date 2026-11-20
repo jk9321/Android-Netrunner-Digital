@@ -17,6 +17,7 @@ import { PersonStops, STOP_LABELS, nextStops } from '../stops';
 import type { OnlineInfo } from '../useOnlineController';
 import { AudioFxControls, CardSizeControls, OnlineMarks, ViewModeControl } from './GameSettingsControls';
 import { GameMenuDrawer } from './GameMenuDrawer';
+import type { ZoneId } from './ZoneViewer';
 
 interface GameHeaderProps {
   state: GameState;
@@ -34,6 +35,7 @@ interface GameHeaderProps {
   concedingSide: SideCode;
   onConcede: () => void;
   onLeave: () => void;
+  onOpenZone?: (zone: ZoneId) => void;
 }
 
 /** The bar across the top: title, bug report, phase, stops toggle, scores, card size, view, settings, forfeit and leave. */
@@ -50,6 +52,7 @@ export function GameHeader({
   concedingSide,
   onConcede,
   onLeave,
+  onOpenZone,
 }: GameHeaderProps) {
   const [sound, setSound] = useState(soundEnabled);
   const [music, setMusic] = useState(musicEnabled);
@@ -188,21 +191,29 @@ export function GameHeader({
       <div className="flex items-center gap-1.5 sm:gap-2 2xl:gap-3 bg-[#04070c] border border-slate-800/80 rounded-[2px] p-1 shadow-inner shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-bold text-cyan-400 font-cyber tracking-wider hidden 2xl:inline">CORP</span>
-          <div
-            title="Corp agenda points"
-            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 border border-cyan-700/80 px-2 sm:px-2.5 rounded-[2px] text-xs font-bold text-cyan-300 shadow"
+          <button
+            type="button"
+            data-testid="header-corp-score"
+            onClick={() => onOpenZone?.('corp-score')}
+            title="Corp agenda points — browse scored agendas"
+            aria-label="Browse Corp score area"
+            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 border border-cyan-700/80 hover:border-cyan-500 hover:brightness-110 active:translate-y-[1px] px-2 sm:px-2.5 rounded-[2px] text-xs font-bold text-cyan-300 shadow transition cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
           >
             <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 sm:mr-1.5 text-cyan-400" /> <StatTumbler value={corp.score} /> / 7
-          </div>
+          </button>
         </div>
         <div className="text-slate-600 font-bold text-[10px] uppercase font-mono px-0.5">vs</div>
         <div className="flex items-center gap-1.5">
-          <div
-            title="Runner agenda points"
-            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-pink-950/90 to-pink-950/40 border border-pink-700/80 px-2 sm:px-2.5 rounded-[2px] text-xs font-bold text-pink-300 shadow"
+          <button
+            type="button"
+            data-testid="header-runner-score"
+            onClick={() => onOpenZone?.('runner-score')}
+            title="Runner agenda points — browse stolen agendas"
+            aria-label="Browse Runner score area"
+            className="flex items-center whitespace-nowrap h-[26px] bg-gradient-to-b from-pink-950/90 to-pink-950/40 border border-pink-700/80 hover:border-pink-500 hover:brightness-110 active:translate-y-[1px] px-2 sm:px-2.5 rounded-[2px] text-xs font-bold text-pink-300 shadow transition cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pink-400"
           >
             <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 sm:mr-1.5 text-pink-400" /> <StatTumbler value={runner.score} /> / 7
-          </div>
+          </button>
           <span className="text-[11px] font-bold text-pink-400 font-cyber tracking-wider hidden 2xl:inline">RUNNER</span>
         </div>
       </div>

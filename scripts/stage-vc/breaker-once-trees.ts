@@ -33,6 +33,8 @@
  *    gone is priced with the ice's movement taken back out: the price less (corpBoardValue of the board, Corp view) less
  *    corpBoardValue of the same board with the gone programs back in the rig). So the trash is priced by the rig's
  *    movement alone.
+ *  - readerOnceRun (after the ruling, AI Coordinator 18:13Z): readerOnce with the run term's correction only; the
+ *    fallback (todayAnswer's loop, and so the look-ahead's reading of a fallback pick) is beta's exactly.
  *  - orEndCorp (mine, from A3: the pin's ice movement is not a breaker's coverage but Ballista's own price). iceCost's
  *    rule for "X or end the run" (runs.ts) prices 5 while the Runner has a program and a full stop when it has none, so
  *    trashing the last program raises the ice's worth from 5 to a stop on both views (found row 72a's second reading).
@@ -46,7 +48,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const ARMS = ['beta', 'control', 'source', 'iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'] as const;
+export const ARMS = ['beta', 'control', 'source', 'iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp', 'readerOnceRun'] as const;
 export type Arm = (typeof ARMS)[number];
 export const ONCE_ARMS: Arm[] = ['iceOwnsBoth', 'iceOwnsCorp', 'rigOwnsBoth', 'rigOwnsCorp', 'readerOnce', 'orEndCorp', 'iceOrEndCorp'];
 
@@ -56,7 +58,8 @@ function patches(arm: Arm): Patch[] {
   const ICE = arm === 'iceOwnsBoth' ? 'true' : arm === 'iceOwnsCorp' || arm === 'iceOrEndCorp' ? "__v === 'corp'" : 'false';
   const OREND = arm === 'orEndCorp' || arm === 'iceOrEndCorp' ? "__v === 'corp'" : 'false';
   const RIG = arm === 'rigOwnsBoth' ? 'true' : arm === 'rigOwnsCorp' ? "__v === 'corp'" : 'false';
-  const READ = arm === 'readerOnce' ? 'true' : 'false';
+  const READ_RUN = arm === 'readerOnce' || arm === 'readerOnceRun' ? 'true' : 'false';
+  const READ_FB = arm === 'readerOnce' ? 'true' : 'false';
   return [
     // ---------------------------------------------------------------------------------------- RECORD: top level
     [
@@ -84,8 +87,8 @@ function patches(arm: Arm): Patch[] {
 }
 
 /** readerOnce: the ice's movement on a board where Runner programs are gone (Corp view), 0 on every other tree. */
-function __iceMove(before: GameState, board: GameState): number {
-  if (!${READ}) return 0;
+function __iceMove(before: GameState, board: GameState, __w: 'run' | 'fb'): number {
+  if (__w === 'run' ? !${READ_RUN} : !${READ_FB}) return 0;
   const now = new Set(board.runner.rig.programs.map(p => p.instanceId));
   const gone = before.runner.rig.programs.filter(p => !now.has(p.instanceId));
   if (!gone.length) return 0;
@@ -114,7 +117,7 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
       `  if (!shredTrash) return scoreOutcome(state, followChain(prompt, after, 'corp', memory, synergy), 'corp', memory, synergy) + freeRezSaving(state, after);`,
       `  if (!shredTrash) {
     const __b = followChain(prompt, after, 'corp', memory, synergy);
-    return scoreOutcome(state, __b, 'corp', memory, synergy) + freeRezSaving(state, after) - __iceMove(state, __b);
+    return scoreOutcome(state, __b, 'corp', memory, synergy) + freeRezSaving(state, after) - __iceMove(state, __b, 'run');
   }`,
     ],
     // ---------------------------------------------------------------------------------------- RECORD + readerOnce: the fallback
@@ -132,7 +135,7 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
     if (!after) continue;
     const __b = followChain(prompt, after, side, memory, synergy);
     let score = scoreOutcome(state, __b, side, memory, synergy);
-    if (side === 'corp') score += freeRezSaving(state, after) - __iceMove(state, __b);
+    if (side === 'corp') score += freeRezSaving(state, after) - __iceMove(state, __b, 'fb');
     if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;
     if (__rec) __rec.push({ a: action, score });`,
     ],

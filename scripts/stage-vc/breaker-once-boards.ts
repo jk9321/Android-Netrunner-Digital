@@ -20,6 +20,8 @@ import { ARMS, Tree, loadTree, makeTrees } from './breaker-once-trees';
 const G = globalThis as any;
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const BALLISTA = '30062';
+/** BO_ARMS: the trees to report (default every tree); beta and source are always loaded. */
+const SHOW = (process.env.BO_ARMS ? process.env.BO_ARMS.split(',') : ARMS) as readonly string[];
 
 function label(t: Tree, s: GameState, a: any): string {
   if (!a) return 'none';
@@ -81,7 +83,7 @@ function playRun(t: Tree, s: GameState, server: string) {
 async function main() {
   const dirs = makeTrees(resolve('node_modules/.cache/breaker-once-boards'), ARMS);
   const trees: Record<string, Tree> = {};
-  for (const arm of ARMS) trees[arm] = await loadTree(arm, dirs[arm]);
+  for (const arm of ARMS) if (arm === 'beta' || arm === 'source' || SHOW.includes(arm)) trees[arm] = await loadTree(arm, dirs[arm]);
   const beta = trees.beta;
 
   // ---- the pin's board (as tests/exploitPins.test.ts builds it)
@@ -102,7 +104,7 @@ async function main() {
     if (isBallista(beta, g0.state)) for (const l of iceTable(beta, g0.state)) console.log(l);
   }
   for (const arm of ARMS) {
-    if (arm === 'source') continue;
+    if (arm === 'source' || !SHOW.includes(arm)) continue;
     const r = playRun(trees[arm], s, 'remote-1');
     console.log(`  ${arm}: Ballista rezzed ${r.rezzed[0]}; ${r.answers.map(a => `${a.pick} [${a.prices?.by} loss ${a.prices?.loss}: ${a.prices?.opts.join('; ')}]`).join(' / ') || 'no Ballista prompt'}; stolen ${r.stolen}${r.stolen ? ' STOLEN' : ''}`);
   }
@@ -124,7 +126,7 @@ async function main() {
     console.log(`  T${b.turnNumber} ${server} root [${root}]; Corp ${b.corp.credits}, Runner ${b.runner.credits} credits ${b.runner.clicks} clicks; programs [${b.runner.rig.programs.map(c => beta.core.cardDef(c).title)}]`);
     for (const l of iceTable(beta, b)) console.log(l);
     for (const arm of ARMS) {
-      if (arm === 'source') continue;
+      if (arm === 'source' || !SHOW.includes(arm)) continue;
       const r = playRun(trees[arm], b, server);
       console.log(`    ${arm}: ${r.answers.map(a => `${a.pick} [${a.prices?.by} loss ${a.prices?.loss}: ${a.prices?.opts.join('; ')}]`).join(' / ')}; stolen in the run ${r.stolen}`);
     }
