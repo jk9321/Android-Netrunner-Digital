@@ -343,6 +343,8 @@ const sources: [string, () => void][] = [
   ...humanFiles().map(f => [`human:${f.split('/').pop()}`, () => replayHuman(f, {})] as [string, () => void]),
 ];
 const MAXQ = Number(process.env.MAXQ ?? Infinity);
+/** The first question asked of a source (with MAXQ, a slice of a long source run apart). */
+const QFROM = Number(process.env.QFROM ?? 0);
 sources.forEach(([name, play], k) => {
   if (k % shards !== shard) return;
   src = name;
@@ -351,12 +353,16 @@ sources.forEach(([name, play], k) => {
   watching = true;
   play();
   watching = false;
-  const batch = queue.slice(0, MAXQ);
+  const batch: (Question | null)[] = queue.slice(QFROM, QFROM + MAXQ);
   const over = queue.length - batch.length;
   queue = [];
   let changed = 0;
   let allAsked = 0;
-  for (const q of batch) {
+  const asked = batch.length;
+  for (let i = 0; i < batch.length; i++) {
+    // Each question's board is let go once asked (the trees' memos hang on it): a long human file ran out of memory
+    const q = batch[i]!;
+    batch[i] = null;
     try {
       const firstA = answer(trees[0], q);
       const lastA = answer(trees[trees.length - 1], q);
@@ -396,6 +402,6 @@ sources.forEach(([name, play], k) => {
       console.log(JSON.stringify({ kind: 'error', src: q.src, reader: q.reader, error: (e as Error).message }));
     }
   }
-  console.log(JSON.stringify({ kind: 'src', src: name, distinct: batch.length, over, counts: { ...counts }, allAsked, changed, ms: Math.round(performance.now() - t0) }));
+  console.log(JSON.stringify({ kind: 'src', src: name, distinct: asked, over, ...(QFROM ? { from: QFROM } : {}), counts: { ...counts }, allAsked, changed, ms: Math.round(performance.now() - t0) }));
 });
 rmSync(root, { recursive: true, force: true });
