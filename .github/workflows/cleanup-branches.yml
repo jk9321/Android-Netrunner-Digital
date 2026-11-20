@@ -31,8 +31,50 @@ jobs:
       # Scheduled runs have no input: treat them as a real run.
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       # Long-lived branches that must never be deleted (space separated).
-      PROTECTED: 'main beta ai-batch-results'
+      PROTECTED: 'main beta ai-batch-results ai-value-b5'
+      # ONE-TIME delete list (Jeff 2026-11-20, second list): abandoned branches with unmerged
+      # commits that the merged-only rule above keeps forever. Format: name@sha.
+      # A branch is deleted only while its tip is still exactly that sha, so the
+      # list is a no-op once they are gone and never touches a branch someone
+      # pushed to since. Before each delete the tip is tagged archive/<name>,
+      # so nothing is lost. Restore steps and the reasons: docs/deleted-branches.md.
+      # Remove this list once the run has deleted them.
+      ONE_TIME_DELETE: >-
+        ai-search-first@7d0e2c708f33666f6466a8b8f0b6f2e315504c79
+        ai-hold-trash@c742520be32e7efa651c3e60a51f52a7d311b8ae
+        ai-grip-money@15686903ce4731525d150657fd452e2d1eded976
+        ai-human-holes@0b819f75638d141aa99042d0664814dcbf4fea05
+        ai-prompt-place@e188cc6b4bc107c3ed8bf6687e2bbac43fb0c8b4
+        ai-madani-count@c340705ab9930e60a63a6b7575fab08a6b412280
+        ai-draw-worth@62830939d7fa091f31b84c5fdf26c1c3fac80884
+        ai-decision-time@150d2b27efce007ba6e2278c6e4ebaf4fbc2ac41
+        ai-rig-loss@564ea14692d648c3056ab8802240c2668d5fa6b4
+        ai-tag-loss-time@2799b1878651149d0054de781f799b9f24c85a2b
+        ai-tag-rig-cache@165eb2b8d0ea8ed0b579bd8cb1f7f149e4559951
+        ai-terminal-e@bdf30b8a067866c4fb8ce1d9154b4dc5c45fd98c
     steps:
+      - name: One-time delete of listed abandoned branches (archived as tags first)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "dry_run=$DRY_RUN"
+          for entry in $ONE_TIME_DELETE; do
+            name="${entry%@*}"; want="${entry#*@}"
+            if [[ " $PROTECTED " == *" $name "* ]]; then echo "keep  $name (protected)"; continue; fi
+            # gh prints the 404 body on stdout, so a failed lookup must count as empty.
+            sha=$(gh api "repos/$REPO/git/ref/heads/$name" --jq .object.sha 2>/dev/null) || sha=""
+            if [ -z "$sha" ]; then echo "gone  $name (already deleted)"; continue; fi
+            if [ "$sha" != "$want" ]; then echo "keep  $name (tip $sha is not the listed $want: someone pushed to it)"; continue; fi
+            if [ "$DRY_RUN" = "true" ]; then echo "WOULD ARCHIVE+DELETE $name (tip $sha -> tag archive/$name)"; continue; fi
+            tag=$(gh api "repos/$REPO/git/ref/tags/archive/$name" --jq .object.sha 2>/dev/null) || tag=""
+            if [ -z "$tag" ]; then
+              gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/archive/$name" -f sha="$sha" >/dev/null
+              tag="$sha"
+            fi
+            if [ "$tag" != "$sha" ]; then echo "keep  $name (tag archive/$name exists at another sha $tag)"; continue; fi
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$name" && echo "DELETED $name (tip $sha kept as tag archive/$name)"
+          done
+
       - name: Delete merged branches
         shell: bash
         run: |

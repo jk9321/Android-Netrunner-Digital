@@ -29,3 +29,25 @@ Kept on purpose (named as parked or still needed): `ai-terminal-e`, `ai-tag-rig-
 (Step S switches; re-runs were planned), `ai-human-holes` (Part B chainEnd lives only
 there), `ai-draw-worth` (arm B drawResearch parked), plus `ai-hold-trash`,
 `ai-prompt-place`, `ai-value-b5` and the active Stage D branches.
+
+## 2026-11-20: second one-time delete list (Jeff asked, after beta went to main 555b956a)
+
+Abandoned or parked AI branches whose work is closed, ruled or moved to the Runner
+rework. Each tip is tagged `archive/<branch>` by the workflow before the delete.
+Kept on purpose: `main`, `beta`, `ai-batch-results` (batch results) and `ai-value-b5`
+(parked B5, now on the workflow's protected list).
+
+| Branch | Tip SHA | Last commit |
+|---|---|---|
+| ai-search-first | 7d0e2c708f33666f6466a8b8f0b6f2e315504c79 | 2026-11-16 |
+| ai-hold-trash | c742520be32e7efa651c3e60a51f52a7d311b8ae | 2026-11-18 |
+| ai-grip-money | 15686903ce4731525d150657fd452e2d1eded976 | 2026-11-18 |
+| ai-human-holes | 0b819f75638d141aa99042d0664814dcbf4fea05 | 2026-11-13 |
+| ai-prompt-place | e188cc6b4bc107c3ed8bf6687e2bbac43fb0c8b4 | 2026-11-18 |
+| ai-madani-count | c340705ab9930e60a63a6b7575fab08a6b412280 | 2026-11-19 |
+| ai-draw-worth | 62830939d7fa091f31b84c5fdf26c1c3fac80884 | 2026-11-12 |
+| ai-decision-time | 150d2b27efce007ba6e2278c6e4ebaf4fbc2ac41 | 2026-11-16 |
+| ai-rig-loss | 564ea14692d648c3056ab8802240c2668d5fa6b4 | 2026-11-13 |
+| ai-tag-loss-time | 2799b1878651149d0054de781f799b9f24c85a2b | 2026-11-16 |
+| ai-tag-rig-cache | 165eb2b8d0ea8ed0b579bd8cb1f7f149e4559951 | 2026-11-13 |
+| ai-terminal-e | bdf30b8a067866c4fb8ce1d9154b4dc5c45fd98c | 2026-11-14 |
