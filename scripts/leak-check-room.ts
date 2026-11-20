@@ -257,7 +257,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (nextInt(rng, 40) === 0) floodCheck(room, clients, checker, step, rng);
       // A credit hold toggled now and then (chunk 2i): the other seat must hear nothing of it (rules 10.2.2a-b).
       // At most 8 a game: the fuzz clock barely moves, so HOLD_BUDGET (10) does not refill
-      if (holds < 8 && nextInt(rng, 30) === 0 && holdCheck(room, clients, checker, step, rng, deliver, result.holdRows)) {
+      if (!room.meta.over && holds < 8 && nextInt(rng, 30) === 0 && holdCheck(room, clients, checker, step, rng, deliver, result.holdRows)) {
         holds++;
         result.holds++;
       }
@@ -526,6 +526,7 @@ export function summarize(results: RoomFuzzResult[]): string {
   const longest = results.reduce((m, r) => Math.max(m, r.moves), 0);
   return [
     `moves per game: max ${longest} (seed ${results.find(r => r.moves === longest)?.seed ?? '-'})`,
+    `credit-hold changes (chunk 2i): ${results.reduce((a, r) => a + r.holds, 0)} in ${results.filter(r => r.holds > 0).length} games, rows each ${[...new Set(results.flatMap(r => r.holdRows))].sort().join('/') || '-'}`,
     `rows written per stored move: min ${rows.length ? Math.min(...rows) : 0}, p50 ${quantile(rows, 0.5)}, max ${rows.length ? Math.max(...rows) : 0}, mean ${(rows.reduce((a, b) => a + b, 0) / Math.max(1, rows.length)).toFixed(2)} (${rows.length} saves)`,
     `state messages: ${sizes.length}, size p50 ${kb(quantile(sizes, 0.5))}, p99 ${kb(quantile(sizes, 0.99))}, max ${kb(Math.max(0, ...sizes))}`,
     `time per accepted move (receive, incl. both views and legal actions): p50 ${quantile(times, 0.5).toFixed(2)} ms, p99 ${quantile(times, 0.99).toFixed(2)} ms, max ${Math.max(0, ...times).toFixed(2)} ms`,
