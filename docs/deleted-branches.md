@@ -36,6 +36,7 @@ Abandoned or parked AI branches whose work is closed, ruled or moved to the Runn
 rework. Each tip is tagged `archive/<branch>` by the workflow before the delete.
 Kept on purpose: `main`, `beta`, `ai-batch-results` (batch results) and `ai-value-b5`
 (parked B5, now on the workflow's protected list).
+Ran 2026-11-20 (run 44766071668, from main 60f32777): all 12 deleted and tagged; the same run deleted the 15 merged branches. List removed from the workflow afterwards.
 
 | Branch | Tip SHA | Last commit |
 |---|---|---|
