@@ -295,7 +295,7 @@ function contTables(askRows, contRows, jobs) {
   for (const [id, x] of res) {
     const j = byId.get(id);
     if (!j || j.job !== 'R' || !x.i || !x.ii || x.i.err || x.ii.err) continue;
-    R.push({ j, ...cols(x.ii, x.i), forced: x.ii.r.forced, waitI: x.i.r.wait[j.id], waitII: x.ii.r.wait[j.id] });
+    R.push({ j, ...cols(x.ii, x.i), forced: x.ii.r.forced, waitI: x.i.r.wait[j.ids[0]], waitII: x.ii.r.wait[j.ids[0]] });
   }
   table('all sources', R);
   for (const k of KINDS) table(k, R.filter(d => d.j.sk === k));

@@ -642,7 +642,7 @@ async function partCont() {
       if (j.job === 'R') {
         // line i: beta's own line (its fresh, restored agents from this board); line ii: the save-up line
         out({ ...base, line: 'i', r: cont(d.s, [], d.snaps, j.ids) });
-        out({ ...base, line: 'ii', r: cont(d.s, [], d.snaps, j.ids, j.id) });
+        out({ ...base, line: 'ii', r: cont(d.s, [], d.snaps, j.ids, j.ids[0]) }); // the card (the job's own `id` is its number)
       } else {
         out({ ...base, line: 'a', r: cont(d.s, j.a, d.snaps, j.ids) });
         out({ ...base, line: 'b', r: cont(d.s, j.b, d.snaps, j.ids) });
