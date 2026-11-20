@@ -21,6 +21,19 @@ export interface UpdateEntry {
  */
 export const UPDATES: UpdateEntry[] = [
   {
+    id: '2026-11-20-corp-ai-rules-ui',
+    date: 'November 20, 2026',
+    title: 'Stronger Corp AI and rules fixes',
+    items: [
+      { text: 'The Corp AI plays stronger: better rez, scoring, ice placement and money decisions' },
+      { text: 'Rules fixes: the run continues correctly when ice leaves the server mid-run, and programs can trash others to make room when installed by a card effect' },
+      { text: 'Click board cards and servers to pick prompt and install targets' },
+      { text: 'Desktop: the run panel and board prompts dock in the sidebar' },
+      { text: 'Score counters in the header open each side\'s score area' },
+      { text: 'Deck picker: search decks by title or identity' },
+    ],
+  },
+  {
     id: '2026-11-main-liberation-multiplayer',
     date: 'Recent',
     title: 'Latest Updates',

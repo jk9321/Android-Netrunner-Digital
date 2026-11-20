@@ -11,6 +11,7 @@ import { parseRoomCode } from '../../net/protocol';
 import type { LobbyInfo } from '../../net/protocol';
 import { showConfirm } from './Dialog';
 import { BugReportButton } from './BugReportButton';
+import { WhatsNewButton } from './WhatsNewButton';
 import { DeckListColumn } from './DeckListColumn';
 import { OnlineLobbyPanel } from './OnlineLobbyPanel';
 import {
@@ -293,18 +294,22 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
 
   return (
     <div className="min-h-screen relative text-slate-100 font-mono flex flex-col items-center px-4 py-6">
-      <div className="w-full flex justify-start items-center gap-2 mb-3 sm:mb-0 sm:w-auto sm:absolute sm:top-4 sm:left-4">
-        <BugReportButton screen="deck picker" />
-        {BulkImportModal && (
-          <button
-            onClick={() => setBulkImporting(true)}
-            data-testid="bulk-import"
-            title="Beta only: fetch many NetrunnerDB decks at once"
-            className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
-          >
-            Bulk import (beta)
-          </button>
-        )}
+      {/* What's new sits on the right; it renders nothing on beta builds (main only, Jeff 2026-11-17), so beta's picker looks the same */}
+      <div className="w-full flex justify-between items-center gap-2 mb-3 sm:mb-0 sm:w-auto sm:absolute sm:top-4 sm:inset-x-4 sm:pointer-events-none">
+        <div className="flex items-center gap-2 sm:pointer-events-auto">
+          <BugReportButton screen="deck picker" />
+          {BulkImportModal && (
+            <button
+              onClick={() => setBulkImporting(true)}
+              data-testid="bulk-import"
+              title="Beta only: fetch many NetrunnerDB decks at once"
+              className="px-2.5 py-1 rounded-[2px] border border-fuchsia-600/80 border-b-2 border-b-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-bold active:translate-y-[1px] active:border-b-[1px]"
+            >
+              Bulk import (beta)
+            </button>
+          )}
+        </div>
+        <WhatsNewButton className="sm:pointer-events-auto" />
       </div>
 
       <div className="flex flex-col items-center mb-5">
