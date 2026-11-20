@@ -151,6 +151,9 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     }
     const cards = new Map<string, BoardCardTarget>();
     const servers = new Map<string, BoardServerTarget>();
+    // The deciding side's own hand is on the table too: its cards answer to clicks like installed ones
+    const ownHand = prompt.side === 'corp' ? state.corp.hq : state.runner.grip;
+    const inOwnHand = (id: string) => ownHand.some(c => c.instanceId === id);
 
     if (prompt.kind === 'access_order') {
       for (const opt of prompt.options) {
@@ -208,7 +211,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
           }
           answerRef.current({ kind: 'effect_choice', optionId: opt.id });
         };
-        if (card && cardInstalled) {
+        if (card && (cardInstalled || inOwnHand(opt.id))) {
           cards.set(opt.id, { onClick: pickOption });
         } else if (server) {
           servers.set(server.id, { title: opt.label, onClick: pickOption });
@@ -217,12 +220,14 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     } else if (prompt.kind === 'effect_cards') {
       for (const id of prompt.candidateIds) {
         const card = findCardAnywhere(state, id);
-        if (card && isInstalledCard(state, card)) {
+        if (card && (isInstalledCard(state, card) || inOwnHand(id))) {
           cards.set(id, {
             onClick: () => toggleRef.current(id),
           });
         }
       }
+    } else if (prompt.kind === 'discard') {
+      for (const card of ownHand) cards.set(card.instanceId, { onClick: () => toggleRef.current(card.instanceId) });
     }
 
     if (cards.size === 0 && servers.size === 0) {

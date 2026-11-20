@@ -340,6 +340,13 @@ describe('UI component smoke renders', () => {
     expect(targetedHtml).toContain('data-board-target="true"');
     // Only the installed card receives data-board-target, not the notInstalled hand card
     expect(targetedHtml.match(/data-board-target="true"/g)?.length).toBe(1);
+    // A hand card the hand row lets a prompt target (the deciding side's own, faceup hand) takes the click too
+    const handHtml = renderToStaticMarkup(
+      <ZoomContext.Provider value={zoomStore}>
+        <CardView card={handCard} notInstalled handTarget />
+      </ZoomContext.Provider>,
+    );
+    expect(handHtml).toContain('data-board-target="true"');
 
     clearBoardTargets(ownerA);
     const clearedHtml = renderToStaticMarkup(

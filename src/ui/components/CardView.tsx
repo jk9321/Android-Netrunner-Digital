@@ -40,6 +40,8 @@ export interface CardViewProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'fit' | 'fit-sm';
   /** Only installed cards are rezzed or unrezzed; hide the badge for cards in hand or in a pile. */
   notInstalled?: boolean;
+  /** A card in hand that an open prompt may register as a click target, although it is not installed. */
+  handTarget?: boolean;
   /**
    * Show the ice or icebreaker type icons (never on a hidden card): true reads them from the card,
    * a list gives them (ice with a subtype granted by Chromatophores).
@@ -432,7 +434,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
   const onTable = useZoom() !== null;
   const mark = usePromptHighlight(props.card.instanceId);
   const registeredTarget = useBoardCardTarget(props.card.instanceId);
-  const tableTarget = onTable && !props.notInstalled ? registeredTarget : undefined;
+  const tableTarget = onTable && (!props.notInstalled || props.handTarget) ? registeredTarget : undefined;
   const ref = useRef<HTMLDivElement>(null);
   const markClass = !onTable
     ? ''

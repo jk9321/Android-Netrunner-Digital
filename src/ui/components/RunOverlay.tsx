@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GameState } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
@@ -13,6 +13,7 @@ import { FloatingPanel } from './FloatingPanel';
 import { Keyword } from './Keyword';
 import { cardTextHtml } from '../cardText';
 import { runCreditPools } from '../liveValues';
+import { type BoardCardTarget, clearBoardTargets, setBoardTargets } from '../promptHighlight';
 
 /** The glossary entry that explains each run phase. */
 const PHASE_KEYWORD: Record<string, string> = {
@@ -45,6 +46,32 @@ export interface RunOverlayProps {
   onToggleDock?: () => void;
 }
 
+/**
+ * In the Corp's rez window, the cards it may rez answer to a click on the table,
+ * like the run panel's Rez buttons. Abilities stay on the buttons: a stray click
+ * on a card should not spend a counter or a credit the player didn't mean to.
+ */
+function useRezWindowBoardTargets(state: GameState, rezCards: CardInstance[], onRez: ((card: CardInstance) => void) | undefined) {
+  const [targetOwner] = useState(() => ({}));
+  const ids = onRez && state.activeRun ? rezCards.map(c => c.instanceId).join(',') : '';
+  const onRezRef = useRef(onRez);
+  onRezRef.current = onRez;
+  const cardsRef = useRef(rezCards);
+  cardsRef.current = rezCards;
+  useEffect(() => {
+    if (!ids) {
+      clearBoardTargets(targetOwner);
+      return;
+    }
+    const cards = new Map<string, BoardCardTarget>();
+    for (const card of cardsRef.current) {
+      cards.set(card.instanceId, { onClick: () => onRezRef.current?.(card) });
+    }
+    setBoardTargets(targetOwner, { cards });
+  }, [targetOwner, ids]);
+  useEffect(() => () => clearBoardTargets(targetOwner), [targetOwner]);
+}
+
 export const RunOverlay: React.FC<RunOverlayProps> = ({
   state,
   onContinueRun,
@@ -62,6 +89,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   onToggleDock,
 }) => {
   const seat = useSeat();
+  useRezWindowBoardTargets(state, rezCards, onRez);
   const { activeRun } = state;
   if (!activeRun) return null;
 

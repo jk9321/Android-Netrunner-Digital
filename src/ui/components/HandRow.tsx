@@ -126,6 +126,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
       card={card}
       size="fit"
       notInstalled
+      handTarget={canSee}
       isFaceDown={!canSee}
       canPeek={canSee}
       isSelectable={isSelectable}
