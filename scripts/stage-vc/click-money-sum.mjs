@@ -75,6 +75,44 @@ p();
 for (const x of ch) p(`- ${x.src} i${x.i} T${x.T} ${x.side} ${x.c} [${x.class}; installed ${x.foaf}, tags ${x.tags}, fire ${x.fire}]: beta ${x.beta} | branch ${x.branch}`);
 if (ch.length) p();
 
+p('## The input on the boards with Friend of a Friend installed (beta 1 a click, branch 9)');
+p();
+{
+  const ins = d.filter(x => x.inputs && !x.inputs.beta.err && !x.inputs.branch.err);
+  let sv = 0;
+  let unholds = 0;
+  let holdsNow = 0;
+  const moved = [];
+  for (const x of ins) {
+    const a = x.inputs.beta;
+    const b = x.inputs.branch;
+    let m = false;
+    for (const id of Object.keys(a.holds)) {
+      sv++;
+      if (a.holds[id] && !b.holds[id]) (unholds++, (m = true));
+      if (!a.holds[id] && b.holds[id]) (holdsNow++, (m = true));
+    }
+    if (m || a.keep !== b.keep || a.reserved !== b.reserved) moved.push(x);
+  }
+  p(`${ins.length} Corp decisions measured (errors ${d.filter(x => x.inputs && (x.inputs.beta.err || x.inputs.branch.err)).length}); ${sv} server answers.`);
+  p();
+  p('| | count |');
+  p('|---|---|');
+  p(`| a server held on beta, not on the branch | ${unholds} |`);
+  p(`| a server held on the branch, not on beta | ${holdsNow} |`);
+  p(`| decisions where keep changes | ${ins.filter(x => x.inputs.beta.keep !== x.inputs.branch.keep).length} |`);
+  p(`| decisions where reservedForAgenda changes | ${ins.filter(x => x.inputs.beta.reserved !== x.inputs.branch.reserved).length} |`);
+  p(`| decisions where any of these moved | ${moved.length} (the pick moved on ${moved.filter(x => x.class).length}) |`);
+  p();
+  for (const x of moved) {
+    const a = x.inputs.beta;
+    const b = x.inputs.branch;
+    const flips = Object.keys(a.holds).filter(id => a.holds[id] !== b.holds[id]).map(id => `${id} ${a.holds[id] ? 'holds' : 'open'}->${b.holds[id] ? 'holds' : 'open'}`);
+    p(`- ${x.src} i${x.i} T${x.T} ${x.c}: ${flips.join(', ') || 'no hold flip'}; keep ${a.keep}->${b.keep}; reserved ${a.reserved}->${b.reserved}; pick ${x.class ? `${x.beta} -> ${x.branch}` : 'same'}`);
+  }
+  p();
+}
+
 p('## Tagged boards (Friend of a Friend installed, Runner tagged, at a Corp decision): 9 against 5');
 p();
 const tg = d.filter(x => x.tagged);

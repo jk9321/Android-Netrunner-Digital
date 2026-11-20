@@ -24,6 +24,7 @@
  * Each changed decision gets two continuations from its board (the branch's action first, beta's), both sides beta's
  * agents to the end of the game: Corp wins, Corp points, Runner points.
  *
+ * Inputs: at every Corp decision with Friend of a Friend installed, the same measures (below) on beta and on the branch.
  * Tagged boards ("Tagged boards" in the brief): at every Corp decision with Friend of a Friend installed and the Runner
  * tagged, the decision is asked of `exact` too (the card's 5 while tagged), and on the deciding Corp's view, in branch
  * and in exact: every server's hold answer ('runnerTurn'), rezMoney's keep and unholdable list, and reservedForAgenda.
@@ -220,6 +221,9 @@ function decide(d: Dec) {
     row.beta = label(t, d.s, b.a);
     row.branch = label(t, d.s, asks.branch.a);
   }
+  // The count's input itself (every Corp decision with the card installed): the hold answers, keep and the reservation,
+  // on beta and on the branch, so a changed input that moves no pick is seen
+  if (d.side === 'corp' && foaf) row.inputs = { beta: measures(trees.beta, d.s), branch: measures(trees.branch, d.s) };
   // Tagged boards: the exact arm's pick and the measures both ways
   if (d.side === 'corp' && foaf && d.s.runner.tags > 0) {
     const e = ask(trees.exact, d.s, d.snaps);
