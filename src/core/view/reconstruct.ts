@@ -57,6 +57,7 @@ function fromCard(v: CardView, side: SideCode): CardInstance {
     ...(v.scoredTurn !== undefined && { scoredTurn: v.scoredTurn }),
     ...(v.chosenSubtypes && { chosenSubtypes: [...v.chosenSubtypes] }),
     ...(v.cannotScoreTurn !== undefined && { cannotScoreTurn: v.cannotScoreTurn }),
+    ...(v.holdCredits && { holdCredits: true }),
   };
 }
 

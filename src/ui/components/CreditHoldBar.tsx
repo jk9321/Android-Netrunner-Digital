@@ -1,6 +1,7 @@
 import React from 'react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, getCardScript } from '../../core';
 import { Credits } from './CreditIcon';
+import { useSeat } from '../seat';
 
 interface CreditHoldBarProps {
   state: GameState;
@@ -26,8 +27,10 @@ function payingCards(state: GameState, side: SideCode) {
  * last, so the credit pool pays first and that card only covers what the pool can't.
  */
 export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAction }) => {
+  const seat = useSeat();
   const cards = payingCards(state, side);
-  if (cards.length === 0) return null;
+  // A held (uncommitted) choice is open: a toggle would commit it and lose its Cancel
+  if (cards.length === 0 || seat.cancel) return null;
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid={`credit-hold-bar-${side}`}>
       <span className={`text-xs font-bold font-mono uppercase mr-1 ${side === 'corp' ? 'text-cyan-400' : 'text-pink-400'}`}>Hosted credits:</span>
