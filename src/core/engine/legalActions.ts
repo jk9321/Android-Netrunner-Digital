@@ -5,7 +5,7 @@ import { isLegalAction } from './gameEngine';
 import { activePrompt } from './prompts';
 import { breakerScript, encounteredIce, iceScript } from './ice';
 import { abilitySources, abilityUsableFrom } from './actions/ability';
-import { canInstallFaceUp, combinationsOf, makeRoomSets, playableHostZones } from './actions/install';
+import { ANY_DISCOUNT, canInstallFaceUp, combinationsOf, makeRoomSets, playableHostZones } from './actions/install';
 import { findCardAnywhere } from './helpers';
 import { CardInstance } from '../types/card';
 import { runBlocked } from './actions/run';
@@ -256,14 +256,15 @@ const MAX_LISTED_ANSWERS = 256;
 
 /**
  * When a program would exceed the memory limit, the Runner must trash installed programs first (rules 8.5.6c): the
- * answers trashing the smallest sets of installed programs that make the install possible (makeRoomSets: memory and
- * cost, a hosted card never listed with its host) AND that the engine accepts. A size whose sets the effect may not
- * trash (only Muse frees enough, and Muse can't be trashed for that program) moves on to the next size. None when the
- * program already fits.
+ * answers trashing the smallest sets of installed programs that make the install possible AND that the engine accepts.
+ * The sets come from makeRoomSets (memory, the card's own restrictions, a hosted card never listed with its host) with
+ * the cost left out, since only the effect knows its discount (Topan's 2 less): the engine's answer check prices each.
+ * A size whose sets the effect may not trash or can't pay for (only Muse frees enough, and Muse can't be trashed for
+ * that program; Principia dearer for each breaker trashed) moves on to the next size. None when the program fits.
  */
 function makeRoomAnswers(state: GameState, card: CardInstance, answer: (trashFirst: string[]) => GameAction): GameAction[] {
   const programs = state.runner.rig.programs.filter(c => c.instanceId !== card.instanceId);
-  for (const sets of makeRoomSets(state, card, undefined, 0, programs)) {
+  for (const sets of makeRoomSets(state, card, undefined, ANY_DISCOUNT, programs)) {
     const answers = sets.map(set => answer(set.map(c => c.instanceId))).filter(a => isLegalAction(state, a));
     if (answers.length > 0) return answers;
   }

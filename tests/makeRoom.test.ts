@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, executeAction, findCardAnywhere, GameAction, GameState, getLegalActions, isLegalAction } from '../src/core';
 import { installRunnerTrashing } from '../src/core/scripts/effects';
-import { answer, giveCard, installProgramForTest, keepGoing, newGame, play, runnerInstall, startRunnerTurn, useAbility } from './helpers';
+import { answer, giveCard, installProgramForTest, keepGoing, newGame, play, runnerInstall, setIdentity, startRunnerTurn, useAbility } from './helpers';
 
 // Making room for a program (rules 8.5.6c: "When installing a program, the Runner may first trash any number of
 // programs already installed. They must do so if installing the new program would exceed their memory limit.").
 // Regressions from the deep engine fuzz of 2026-11-20 (run 44736659830, beta 062dd0f0); the seeds themselves are
 // replayed in tests/engineFuzz.test.ts.
 
-const E = { scrounge: '35004', madani: '35028', principia: '35032' };
+const E = { topan: '35002', scrounge: '35004', madani: '35028', principia: '35032' };
 const L = { muse: '34091' };
 const SG = { buzzsaw: '30005', cleaver: '30006', leech: '30008', echelon: '30025', unity: '30026', mayfly: '30032' };
 
@@ -84,6 +84,26 @@ describe('Make room only when the install is then possible, cost included (rules
     // Naming programs that don't make it possible is not an answer
     expect(() => installRunnerTrashing(s, p, zone, undefined, 0, [breakers[0]])).toThrow();
     expect(heapIds(s)).not.toContain(breakers[0]);
+  });
+});
+
+describe("The listed make-room answers are priced by the effect's own discount", () => {
+  // Found by a local fuzz of the fix (seed 1120003674, Topan): listing make-room answers at full price dropped every
+  // answer when only Topan's 2-credit discount made the install affordable
+  it('Topan installs Echelon for 1 credit after trashing a program, and the engine lists those answers', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    setIdentity(s, 'runner', E.topan);
+    const leeches = [1, 2, 3, 4].map(() => installProgramForTest(s, SG.leech));
+    const echelon = giveCard(s, 'runner', SG.echelon); // 3, so 1 with Topan's discount
+    s.runner.credits = 1;
+    s.runner.clicks = 4;
+    s = useAbility(s, 'runner', s.runner.identity.instanceId, 0);
+    expect(s.pendingPrompts[0].message).toMatch(/^Topan/);
+    expect(listedTrash(s, echelon)).toEqual(leeches.map(id => [id]));
+    s = pick(s, [echelon], [leeches[0]]);
+    expect(s.runner.rig.programs.map(c => c.instanceId)).toContain(echelon);
+    expect(s.runner.credits).toBe(0);
   });
 });
 

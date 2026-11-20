@@ -69,6 +69,8 @@ const DEEP_SEEDS_1120: [number, string, string, number][] = [
   [1120169013, 'core-gimbatul', 'lib-bright-eyes', 85],
   [1120113068, 'nrdb-big-hands', 'nrdb-tadpole-of-wealth', 245],
   [1120075505, 'lib-response-rush-nuvem', 'lib-tao-s-angels', 185],
+  // Found by a local fuzz of the fix itself: make-room answers listed at full price, none left for Topan's discount
+  [1120003674, 'nrdb-warpdrive-nebula', 'vp-they-are-huge-with-it', 90],
 ];
 
 describe('Engine fuzzer, seeds the 2026-11-20 deep run failed on', () => {

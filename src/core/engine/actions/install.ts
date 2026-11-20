@@ -182,6 +182,9 @@ export function* makeRoomSets(
   }
 }
 
+/** A discount that makes any install free: install checks with it ask everything but the credits. */
+export const ANY_DISCOUNT = Infinity;
+
 /** Can the Runner install this card now (a trojan with no host: on some ice), trashing some of `trashable` first if it doesn't fit (rules 8.5.6c)? */
 export function canInstallMakingRoom(
   state: GameState,
