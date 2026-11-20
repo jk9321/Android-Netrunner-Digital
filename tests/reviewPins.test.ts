@@ -434,7 +434,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     return a?.type === 'USE_ABILITY' ? findCardAnywhere(s, a.cardInstanceId!)?.cardCode ?? null : a?.type ?? null;
   };
   const REPORT_HQ = [C.OFFWORLD, C.OFFWORLD, C.PALISADE, C.PALISADE, C.PALISADE, C.PALISADE];
-  it.fails("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
+  it("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
     const s = atHq(true, REPORT_HQ);
     const usable = getLegalActions(s, 'corp').flatMap(a => (a.type === 'USE_ABILITY' ? [findCardAnywhere(s, a.cardInstanceId)?.cardCode] : []));
     expect(usable.sort()).toEqual([C.LEO, C.RED_ROOM].sort());

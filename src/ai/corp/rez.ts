@@ -231,17 +231,19 @@ export function decideRez(state: GameState, cards: CardInstance[], synergy: bool
   return run.phase === 'approach_server' ? runStopper(state, importance, synergy) : null;
 }
 
-/** LEO Construction or Proprionegation, when the Runner is about to get into something that matters. */
+/**
+ * A run stopper, when the Runner is about to get into something that matters. LEO when its trash is worth it (leoGain
+ * above 0); else (or unpriced, -Infinity) the others by the thresholds every identity uses (registry debt; rez-build A).
+ */
 function runStopper(state: GameState, importance: number, synergy: boolean): GameAction | null {
   // (Jeff) LEO: worth it when the run would take more than the bioroid it trashes (plan.leoValue)
   const leo = getLegalActions(state, 'corp').find(a => a.type === 'USE_ABILITY' && findCardAnywhere(state, a.cardInstanceId)?.cardCode === '35035');
-  if (leo) return leoGain(state, leo, synergy) > 0 ? leo : null;
+  if (leo && leoGain(state, leo, synergy) > 0) return leo;
   if (importance < 6) return null;
   const archivesAgenda = state.corp.archives.faceDown.some(c => type(c) === 'agenda');
   for (const action of getLegalActions(state, 'corp')) {
     if (action.type !== 'USE_ABILITY') continue;
     const code = findCardAnywhere(state, action.cardInstanceId)?.cardCode;
-    if (code === '35035') return action; // LEO: trash a bioroid, end the run
     if (code === '35048' && !archivesAgenda && state.activeRun?.server !== 'archives') return action; // Proprionegation
     if (code === '36045') return action; // The Red Room: a power counter, end the run
     if (code === '36035' && perfectRecallTarget(state)) return action; // Perfect Recall: protect the agenda the Runner is after
