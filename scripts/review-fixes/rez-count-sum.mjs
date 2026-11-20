@@ -217,6 +217,10 @@ const tRow = ({ r, x }) => {
 for (const it of [...T].sort((a, b) => b.x.gain - a.x.gain)) p(tRow(it));
 const termSum = {};
 for (const { x } of T) for (const t of TERMS) termSum[t] = (termSum[t] ?? 0) + (x.trace.rez.parts[t] - x.trace.pass.parts[t]);
+const T2 = W.filter(({ r, x }) => rezzed(r.beta) && !x.spendsReal && x.trace);
+const t2 = {};
+for (const { x } of T2) for (const t of TERMS) t2[t] = (t2[t] ?? 0) + (x.trace.rez.parts[t] - x.trace.pass.parts[t]);
+p(`\nFor reference, the W windows where the priced rez is made and spendsKept (real) says no (${T2.length}): mean term ${TERMS.map(t => `${t} ${f2(t2[t] / Math.max(1, T2.length))}`).join(', ')}; mean gain ${f2(mean(T2.map(({ x }) => x.gain)))}; Corp credits after below the rest-of-turn keep ${T2.filter(({ x }) => x.keeps && x.keeps.crAfter < x.keeps.restRez).length}, below next turn's keep ${T2.filter(({ x }) => x.keeps && x.keeps.crAfter < x.keeps.nextTurn).length}; the slide's need is the build target in ${T2.filter(({ x }) => x.trace.rez.parts.cBoardNeed < x.trace.rez.parts.cNeed).length}.`);
 p(`\nMean term over T: ${TERMS.map(t => `${t} ${f2(termSum[t] / Math.max(1, T.length))}`).join(', ')}.`);
 p(`Short on the rest of the turn after the rez (Corp credits after < the rest-of-turn keep): ${T.filter(({ x }) => x.keeps && x.keeps.crAfter < x.keeps.restRez).length}; short on next turn's keep: ${T.filter(({ x }) => x.keeps && x.keeps.crAfter < x.keeps.nextTurn).length}; the slide's need is the build target (boardNeed below creditNeed) in ${T.filter(({ x }) => x.trace.rez.parts.cBoardNeed < x.trace.rez.parts.cNeed).length}.`);
 p('\nThe five largest (by gain), whole:');
@@ -234,7 +238,9 @@ const inClassTop = (arm, r) => {
   return false;
 };
 const FIRES = { leoFallThrough: 'leoFall', rdStakeUnseen: 'rdOut', tollByHold: 'tollGate', keepPricedCentral: 'keepPriced', keepPriced: 'keepPriced', spentApart: '-' };
-const where = (arm, r) => (inClassTop(arm, r) ? 'class' : arm !== 'spentApart' && fireOf(r, arm, FIRES[arm]) > 0 ? 'lookahead' : 'outside');
+// A rez window is its own decision board: in class or outside (a fire there is the arm's branch on a board outside the
+// class). A main or prompt decision moves only through the look-ahead: 'lookahead' when the arm's branch fired in it.
+const where = (arm, r) => (inClassTop(arm, r) ? 'class' : r.c !== 'corpRez' && arm !== 'spentApart' && fireOf(r, arm, FIRES[arm]) > 0 ? 'lookahead' : 'outside');
 const dirOf = r => (rezzed(r.beta) && !rezzed(r.changed.tollByHold) ? 'i' : !rezzed(r.beta) && rezzed(r.changed.tollByHold) ? 'ii' : 'other');
 p('| arm | kind | changed | a game | at the decision board (class) | through the look-ahead (fired) | outside every class | main | prompt | rez |');
 p('|---|---|---|---|---|---|---|---|---|---|');
@@ -247,7 +253,8 @@ for (const arm of ALL_ARMS)
 for (const arm of ALL_ARMS) {
   const o = D.filter(r => r.changed?.[arm] && where(arm, r) === 'outside');
   if (o.length) p(`\n**STOP: ${arm} changed decisions outside every class: ${o.length}**`);
-  for (const r of o.slice(0, 20)) p(`- ${r.src} i${r.i} T${r.T} ${r.c} (${r.sk}): beta ${r.beta} | arm ${r.changed[arm]}; fire ${JSON.stringify(r.fire?.[ASKED.indexOf(arm)] ?? {})}`);
+  for (const r of o.slice(0, 20))
+    p(`- ${r.src} i${r.i} T${r.T} ${r.c} (${r.sk}) ${r.m?.server ?? ''}${ices(r).map(x => ` ${x.title} exit ${x.at}, need ${x.need}, toll by hold ${x.tollHold}, real ${x.realRez}/${x.realPass}, subs ${x.subs.join(' / ')}`).join(';')}: beta ${r.beta} | arm ${r.changed[arm]}; fire ${JSON.stringify(r.fire?.[ASKED.indexOf(arm)] ?? {})}`);
 }
 p('\ntollByHold by direction ((i) beta rezzes, the arm passes: F1 met; (ii) beta passes, the arm rezzes: R3 or R4 on a loss toll), at the decision board and through the look-ahead (by the fires: tollGate:pass, tollGate:rez):\n');
 p('| kind | (i) at the board | (ii) at the board | other at the board | look-ahead with a pass fire only | with a rez fire only | both |');
