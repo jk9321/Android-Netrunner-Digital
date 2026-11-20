@@ -4,6 +4,8 @@
 # is not on the protected list, has no open pull request, and its tip is not
 # the current tip of main/beta (a brand-new branch looks "merged" until it
 # gets its first commit).
+# Abandoned branches with unmerged work: see docs/deleted-branches.md (one-time
+# list, archived as tags archive/<name> first; the step is in this file's history).
 name: Cleanup merged branches
 
 on:
@@ -30,44 +32,7 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       # Long-lived branches that must never be deleted (space separated).
       PROTECTED: 'main beta ai-batch-results'
-      # ONE-TIME delete list (Jeff 2026-11-18): abandoned branches with unmerged
-      # commits that the merged-only rule above keeps forever. Format: name@sha.
-      # A branch is deleted only while its tip is still exactly that sha, so the
-      # list is a no-op once they are gone and never touches a branch someone
-      # pushed to since. Before each delete the tip is tagged archive/<name>,
-      # so nothing is lost. Restore steps and the reasons: docs/deleted-branches.md.
-      # Remove this list once the run has deleted them.
-      ONE_TIME_DELETE: >-
-        ai-corp-core-c-stealbase@97d167d757d6251b6adbf0e0c22f97ab7bb3fbf8
-        ai-corp-core-c-g1base@e32341d6ff356dab8ef7c2f273de0e24ff9180d6
-        ai-ice-discard@591a18b7d08b1fddf1ce75e7a50023bc577ca630
-        ai-assets@ac9e53484d05faed9e5894b46312f2096e28d2df
-        ai-runner-reading@2304ec2b49c5cd91922dd2d547e627a87381d8c9
-        ai-placement@bf4c1125e29137566e7878f848b971095b832220
-        ai-click-cache@ed390e090dae1abfca9b163540b6ce6e35479d45
-        ai-tag-cache@11ccef974b3c0430774ecfe383a169b5c1a7fbfb
     steps:
-      - name: One-time delete of listed abandoned branches (archived as tags first)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "dry_run=$DRY_RUN"
-          for entry in $ONE_TIME_DELETE; do
-            name="${entry%@*}"; want="${entry#*@}"
-            if [[ " $PROTECTED " == *" $name "* ]]; then echo "keep  $name (protected)"; continue; fi
-            sha=$(gh api "repos/$REPO/git/ref/heads/$name" --jq .object.sha 2>/dev/null || true)
-            if [ -z "$sha" ]; then echo "gone  $name (already deleted)"; continue; fi
-            if [ "$sha" != "$want" ]; then echo "keep  $name (tip $sha is not the listed $want: someone pushed to it)"; continue; fi
-            if [ "$DRY_RUN" = "true" ]; then echo "WOULD ARCHIVE+DELETE $name (tip $sha -> tag archive/$name)"; continue; fi
-            tag=$(gh api "repos/$REPO/git/ref/tags/archive/$name" --jq .object.sha 2>/dev/null || true)
-            if [ -z "$tag" ]; then
-              gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/archive/$name" -f sha="$sha" >/dev/null
-              tag="$sha"
-            fi
-            if [ "$tag" != "$sha" ]; then echo "keep  $name (tag archive/$name exists at another sha $tag)"; continue; fi
-            gh api -X DELETE "repos/$REPO/git/refs/heads/$name" && echo "DELETED $name (tip $sha kept as tag archive/$name)"
-          done
-
       - name: Delete merged branches
         shell: bash
         run: |

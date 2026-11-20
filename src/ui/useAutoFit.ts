@@ -32,10 +32,12 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     let frame = 0;
+    let settleTimer = 0;
     let running = false;
-    // A real change (a card added, the size or Auto fit toggled) that arrives while our own
+    // A real change (a card added, the size or Auto fit toggled, window resized) that arrives while our own
     // changes settle must not be lost: it re-fits once they have settled
     let pending = false;
+    let finishSettle: (() => void) | null = null;
 
     const fit = () => {
       frame = 0;
@@ -73,7 +75,9 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
         }
       }
       const final = parseFloat(el.style.getPropertyValue('--card-w'));
-      if (animationsEnabled() && Number.isFinite(previous) && Number.isFinite(final) && Math.abs(previous - final) > 0.5) {
+      const gliding =
+        animationsEnabled() && Number.isFinite(previous) && Number.isFinite(final) && Math.abs(previous - final) > 0.5;
+      if (gliding) {
         setSize(el, previous);
         void el.offsetWidth; // commit the starting size before the transition is switched on
         el.style.removeProperty('transition');
@@ -82,11 +86,28 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
         void el.offsetWidth;
         el.style.removeProperty('transition');
       }
-      // Let observers triggered by our own changes settle before listening again
-      requestAnimationFrame(() => {
+      // Let observers triggered by our own changes (including the CSS transition) settle before listening again
+      const done = () => {
+        if (!finishSettle) return;
+        finishSettle = null;
+        if (settleTimer) {
+          window.clearTimeout(settleTimer);
+          settleTimer = 0;
+        }
+        el.removeEventListener('transitionend', onTransitionEnd);
         running = false;
         if (pending) request();
-      });
+      };
+      const onTransitionEnd = (e: TransitionEvent) => {
+        if (e.target === el && e.propertyName === '--card-w') done();
+      };
+      finishSettle = done;
+      if (gliding && parseFloat(getComputedStyle(el).transitionDuration) > 0) {
+        el.addEventListener('transitionend', onTransitionEnd);
+        settleTimer = window.setTimeout(done, 320);
+      } else {
+        requestAnimationFrame(done);
+      }
     };
     // Size changes while we settle are our own doing, so they are dropped
     const schedule = () => {
@@ -113,13 +134,17 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
     const settings = new MutationObserver(request);
     settings.observe(document.documentElement, { attributes: true, attributeFilter: ['data-card-size'] });
     window.addEventListener(AUTO_FIT_EVENT, request);
+    window.addEventListener('resize', request);
     schedule();
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      if (settleTimer) window.clearTimeout(settleTimer);
+      if (finishSettle) finishSettle = null;
       resize.disconnect();
       mutation.disconnect();
       settings.disconnect();
       window.removeEventListener(AUTO_FIT_EVENT, request);
+      window.removeEventListener('resize', request);
       clearSize(el);
       el.style.removeProperty('transition');
     };

@@ -1,7 +1,7 @@
 # Deleted branches
 
 Branches deleted on purpose that still had commits not in `beta` or `main`.
-Each tip is kept as a tag `archive/<branch>`, so nothing is lost.
+Each tip is kept as a tag `archive/<branch>`, so nothing is lost. The 2026-11-18 list ran 2026-11-19 (run 44604277506): all 8 deleted and tagged.
 
 **Restore one:** on GitHub open the repo's Tags, pick `archive/<branch>`, or create
 the branch again from that tag (or from the SHA below).
