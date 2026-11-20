@@ -232,7 +232,7 @@ function classOf(t: Tree, s: GameState, played: GameAction | null | undefined): 
       if (!playable.has(c.instanceId)) continue; // payable but not legal (a condition): not in the class
       sub = played?.type === 'PLAY_OPERATION_OR_EVENT' && (played as any).cardInstanceId === c.instanceId ? 'played' : 'held';
     } else sub = cr + clicks - 1 >= cost ? 'now' : cr + clicks + maxClicks - 1 >= cost ? 'next' : 'far';
-    let plan = false;
+    let plan: boolean;
     try {
       plan = asCorp(t, s, view => {
         const card = view.corp.hq.find((x: any) => x.instanceId === c.instanceId);
@@ -432,7 +432,7 @@ let rot = 0;
 const RUNNER = process.env.RUNNER === '1';
 function partAsk(src: Source) {
   const t = trees.beta;
-  const { decs, steps } = src;
+  const { decs } = src;
   const r50 = src.name.includes('report-50');
   /** spells: card id -> its first class board (decision index) and the boards since */
   const spells = new Map<string, { start: number; title: string; subs: string[]; boards: number[] }>();
@@ -471,7 +471,7 @@ function partAsk(src: Source) {
     const live = cls.filter(c => c.sub === 'now' || c.sub === 'next' || c.sub === 'held');
     if (live.length) {
       const tr = ask(t, d.s, d.snaps, live.map(c => c.id));
-      let S: any = null;
+      let S: any;
       try {
         S = priceTable(t, d.s, live);
       } catch (e) {
