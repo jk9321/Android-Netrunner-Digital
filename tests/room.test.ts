@@ -9,13 +9,14 @@ import { STARTER_DECKS } from '../src/data/decks';
 import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { RoomCore, checkDeck, settledFor, storageWrites, ENDED_LIFETIME_MS, IDLE_LIFETIME_MS } from '../server/room';
 import type { Outbox, RoomSnapshot, StoredRefs } from '../server/room';
-import { MAX_GAME_MOVES, SOCKET_BUDGET, STOPS_BUDGET, TOO_LONG_REASON, lifetimeOverride, take } from '../server/limits';
+import { HOLD_BUDGET, MAX_GAME_MOVES, SOCKET_BUDGET, STOPS_BUDGET, TOO_LONG_REASON, lifetimeOverride, take } from '../server/limits';
 import type { Bucket } from '../server/limits';
 import type { ClientMessage } from '../src/net/protocol';
 import { SOCKET_ERROR_TEXT, displayRoomCode, parseClientMessage, parseRoomCode } from '../src/net/protocol';
 import type { ServerMessage } from '../src/net/protocol';
 import { submission } from '../scripts/leak-check-room';
-import { giveCard, newGame, startRunnerTurn } from './helpers';
+import { spendCredits } from '../src/core/engine/cardEffects';
+import { giveCard, installCorpForTest, installIceForTest, newGame, rezForTest, run, runnerInstall, startRunnerTurn } from './helpers';
 
 const corpStarter = submission(STARTER_DECKS[0]);
 const runnerStarter = submission(STARTER_DECKS[1]);
@@ -95,9 +96,15 @@ describe('Client actions are rebuilt and checked (review R2: no free text anywhe
     expect(act({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-4' })).toBeNull();
     expect(act({ type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq; chat' })).toBeNull();
     expect(act({ type: 'USE_ABILITY', player: 'runner', cardInstanceId: 'r3', abilityIndex: 1.5 })).toBeNull();
-    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId: 'a long free text message' } })).toBeNull();
+    // (Spaces pass the shape since chunk 2i, for subtype names; a free-text answer is still refused by the room's offered check)
+    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId: 'hello runner, this is chat!' } })).toBeNull();
     expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'], note: 'x' } })).toMatchObject({ action: { choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'] } } });
     expect(act({ type: 'CHAT', player: 'corp' })).toBeNull();
+  });
+  it("option ids may hold spaces and '+' (Lycian Multi-Munition's subtypes, chunk 2i); nothing else new", () => {
+    const choice = (optionId: string) => act({ type: 'RESOLVE_PROMPT', player: 'corp', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId } });
+    for (const ok of ['code gate', 'code gate+sentry', 'barrier+code gate', 'x'.repeat(40)]) expect(choice(ok), ok).toMatchObject({ action: { choice: { optionId: ok } } });
+    for (const bad of ['code\u0007gate', 'code\ngate', 'code\tgate', 'x'.repeat(41), '<b>', 'say "hi"', "it's", '']) expect(choice(bad), bad).toBeNull();
   });
   it('the room takes only what the seat was offered, and stores nothing it did not check', () => {
     const { room } = started();
@@ -742,5 +749,176 @@ describe('The seed never reaches a seat (chunk 2f)', () => {
     }
     // The real state does hold it (the game id and the rng), so the check above is not vacuous
     expect(JSON.stringify(room.inspect('corp')!.state)).toContain(String(SEED));
+  });
+});
+
+describe('Credit holds online (chunk 2i; rules 1.10.3c, 10.2.2a-b)', () => {
+  const AZIMAT = '35029'; // Runner: 2 recurring credits, pay trash costs
+  const HARVESTER = '34058'; // Corp: Cybersand Harvester, hosted credits pay install costs
+
+  /** The seat's id for a real card id. */
+  const seatId = (room: RoomCore, side: SideCode, real: string) => Object.entries(room.inspect(side)!.ids.real).find(([, r]) => r === real)![0];
+  const hold = (side: SideCode, cardInstanceId: string, on: boolean, seq = 999): ClientMessage => ({ type: 'act', seq, action: { type: 'SET_CREDIT_HOLD', player: side, cardInstanceId, hold: on } });
+  const realCard = (room: RoomCore, id: string) => [...room.realState!.runner.rig.programs, ...Object.values(room.realState!.corp.servers).flatMap(s => s.root)].find(c => c.instanceId === id);
+
+  /** Azimat installed for the Runner, a rezzed Harvester with 2 credits for the Corp; `runnerTurn` with Jailbreak in the grip. */
+  function holdRoom(runnerTurn: boolean) {
+    const [s, azimat] = runnerInstall(newGame(3), AZIMAT);
+    const harvester = installCorpForTest(s, HARVESTER, 'remote1', true);
+    realCardIn(s, harvester).tokens = { credit: 2 };
+    const jailbreak = giveCard(s, 'runner', JAILBREAK);
+    if (!runnerTurn) {
+      s.activePlayer = 'corp';
+      s.phase = 'corp_turn';
+      s.corp.clicks = 3;
+      s.runner.clicks = 0;
+    }
+    const room = roomWith(s);
+    // roomWith keeps another game's meta, so each seat's "last sent" is stale: one public change brings both up to date
+    room.receive('corp', stops('corp', 'none'), 0);
+    room.receive('runner', stops('runner', 'none'), 0);
+    room.moves.length = 0;
+    return { room, azimat, harvester, jailbreak };
+  }
+  function realCardIn(s: GameState, id: string) {
+    return Object.values(s.corp.servers).flatMap(x => x.root).find(c => c.instanceId === id)!;
+  }
+
+  it('is taken out of turn and with a stale seq; the mover hears back, the opponent gets nothing and its view is unchanged', () => {
+    const { room, azimat } = holdRoom(false);
+    const corpBefore = room.connect('corp');
+    const corpSeq = room.meta.seq.corp;
+    const res = room.receive('runner', hold('runner', seatId(room, 'runner', azimat), true, 0), 10_000);
+    expect(res.persist).toBe(true);
+    expect(res.out.map(o => o.to)).toEqual(['runner']);
+    expect(statesTo(res.out, 'runner')[0].view.runner.rig.programs.find(c => c.holdCredits)).toBeDefined();
+    expect(room.moves.map(m => m.type)).toEqual(['SET_CREDIT_HOLD']);
+    expect(realCard(room, azimat)!.holdCredits).toBe(true);
+    expect(room.meta.seq.corp).toBe(corpSeq);
+    expect(JSON.stringify(room.connect('corp'))).toBe(JSON.stringify(corpBefore));
+    // Off again: the same, and the opponent still hears nothing
+    const off = room.receive('runner', hold('runner', seatId(room, 'runner', azimat), false), 10_001);
+    expect(off.out.map(o => o.to)).toEqual(['runner']);
+    expect(realCard(room, azimat)!.holdCredits).toBeUndefined();
+    expect(JSON.stringify(room.connect('corp'))).toBe(JSON.stringify(corpBefore));
+  });
+
+  it('a hold the card already has (or lacks) is nothing: no move, no write, no message', () => {
+    const { room, azimat } = holdRoom(false);
+    const id = seatId(room, 'runner', azimat);
+    expect(room.receive('runner', hold('runner', id, false), 10_000)).toEqual({ out: [], persist: false });
+    room.receive('runner', hold('runner', id, true), 10_000);
+    expect(room.receive('runner', hold('runner', id, true), 10_001)).toEqual({ out: [], persist: false });
+    expect(room.moves.length).toBe(1);
+  });
+
+  it('is budgeted per seat in its own bucket: 10 at once, one back every 30 s; the stops budget is untouched', () => {
+    expect(HOLD_BUDGET).toEqual({ burst: 10, refillMs: 30_000 });
+    const { room, azimat } = holdRoom(false);
+    const id = seatId(room, 'runner', azimat);
+    for (let i = 0; i < HOLD_BUDGET.burst; i++) expect(room.receive('runner', hold('runner', id, i % 2 === 0), 10_000).persist).toBe(true);
+    const moves = room.moves.length;
+    const res = room.receive('runner', hold('runner', id, true), 10_000);
+    expect(res).toEqual({ out: [{ to: 'runner', msg: { type: 'error', code: 'too_many', message: SOCKET_ERROR_TEXT.too_many } }], persist: false });
+    expect(room.moves.length).toBe(moves);
+    expect(realCard(room, azimat)!.holdCredits).toBeUndefined();
+    expect(room.receive('runner', stops('runner', 'auto'), 10_000).persist).toBe(true);
+    const slept = RoomCore.load(JSON.parse(JSON.stringify(room.snapshot())) as RoomSnapshot, 0);
+    expect(slept.receive('runner', hold('runner', id, true), 10_000 + HOLD_BUDGET.refillMs - 1).persist).toBe(false);
+    expect(slept.receive('runner', hold('runner', id, true), 10_000 + HOLD_BUDGET.refillMs).persist).toBe(true);
+  });
+
+  it('one hold change writes 4 rows (meta, state, moves, the mover\'s last state); 1,000 toggles write at most the burst', () => {
+    const { room, azimat } = holdRoom(false);
+    const id = seatId(room, 'runner', azimat);
+    const one = rowCounter(room);
+    one.send('runner', hold('runner', id, true), 10_000);
+    expect(one.rows).toBe(4);
+    const { room: r2, azimat: a2 } = holdRoom(false);
+    const id2 = seatId(r2, 'runner', a2);
+    const many = rowCounter(r2);
+    for (let i = 0; i < 1000; i++) many.send('runner', hold('runner', id2, i % 2 === 0), 10_000 + i);
+    // 1,000 ms of toggles refills none of the 30 s bucket: the burst of 10, 4 rows each
+    expect(many.rows).toBe(HOLD_BUDGET.burst * 4);
+  });
+
+  it("the other side's card and an unknown id are `illegal`, nothing stored", () => {
+    const { room, harvester } = holdRoom(false);
+    const theirs = seatId(room, 'runner', harvester);
+    for (const id of [theirs, 'r99999']) {
+      const res = room.receive('runner', hold('runner', id, true), 10_000);
+      expect(res).toEqual({ out: [{ to: 'runner', msg: { type: 'error', code: 'illegal', message: SOCKET_ERROR_TEXT.illegal } }], persist: false });
+    }
+    expect(room.moves).toEqual([]);
+  });
+
+  it("under the seat's own held choice: the choice stays held on top, the opponent hears nothing", () => {
+    const { room, azimat, jailbreak } = holdRoom(true);
+    const r = lastState(room, 'runner');
+    const play = r.legal.find(a => a.type === 'PLAY_OPERATION_OR_EVENT' && room.inspect('runner')!.ids.real[a.cardInstanceId] === jailbreak)!;
+    room.receive('runner', { type: 'act', seq: r.seq, action: play }, 0);
+    expect(room.meta.held?.side).toBe('runner');
+    const corpBefore = JSON.stringify(room.connect('corp'));
+    const res = room.receive('runner', hold('runner', seatId(room, 'runner', azimat), true), 10_000);
+    expect(res.out.map(o => o.to)).toEqual(['runner']);
+    const rs = statesTo(res.out, 'runner')[0];
+    expect(rs.held).toBe(true);
+    expect(rs.view.pendingPrompts[0]).toMatchObject({ kind: 'effect_choice' });
+    expect(rs.view.runner.rig.programs.find(c => c.holdCredits)).toBeDefined();
+    expect(room.moves.map(m => m.type)).toEqual(['SET_CREDIT_HOLD']);
+    expect(JSON.stringify(room.connect('corp'))).toBe(corpBefore);
+  });
+
+  it("under the opponent's held choice: the holder gets no message and keeps its choice", () => {
+    const { room, harvester, jailbreak } = holdRoom(true);
+    const r = lastState(room, 'runner');
+    const play = r.legal.find(a => a.type === 'PLAY_OPERATION_OR_EVENT' && room.inspect('runner')!.ids.real[a.cardInstanceId] === jailbreak)!;
+    room.receive('runner', { type: 'act', seq: r.seq, action: play }, 0);
+    const runnerBefore = JSON.stringify(room.connect('runner'));
+    const runnerSeq = room.meta.seq.runner;
+    const res = room.receive('corp', hold('corp', seatId(room, 'corp', harvester), true), 10_000);
+    expect(res.persist).toBe(true);
+    expect(res.out.map(o => o.to)).toEqual(['corp']);
+    expect(room.meta.held?.side).toBe('runner');
+    expect(room.meta.seq.runner).toBe(runnerSeq);
+    expect(JSON.stringify(room.connect('runner'))).toBe(runnerBefore);
+    expect(room.moves.map(m => m.type)).toEqual(['SET_CREDIT_HOLD']);
+  });
+
+  it('a payment after a hold online takes the pool first (rules 1.10.3c)', () => {
+    // The order itself is the engine's (tests/creditHold.test.ts); this shows the hold sent online reaches the real
+    // state the room pays from. (A Corp install with Cybersand Harvester's credits goes through a prompt, not spendCredits)
+    for (const held of [false, true]) {
+      const { room, azimat } = holdRoom(true);
+      if (held) room.receive('runner', hold('runner', seatId(room, 'runner', azimat), true), 10_000);
+      const s = structuredClone(room.realState!);
+      s.runner.credits = 5;
+      spendCredits(s, 'runner', 3, { kind: 'trash' } as never);
+      const az = s.runner.rig.programs.find(c => c.instanceId === azimat)!;
+      expect({ pool: 5 - s.runner.credits, hosted: 2 - (az.tokens.credit ?? 0) }).toEqual(held ? { pool: 3, hosted: 0 } : { pool: 1, hosted: 2 });
+    }
+  });
+});
+
+describe('An online Corp answers Lycian Multi-Munition with a combined subtype option (chunk 2i)', () => {
+  // Card text: "When you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry. This ice gains
+  // the chosen subtypes while it remains rezzed." The engine's option ids are 'code gate', 'code gate+sentry', ...
+  it("'code gate+sentry' is accepted and the game goes on", () => {
+    let s = newGame();
+    const ly = installIceForTest(s, '34100', 'hq', false);
+    s = rezForTest(run(s, 'hq'), ly);
+    expect(s.pendingPrompts[0]).toMatchObject({ side: 'corp', kind: 'effect_choice' });
+    const room = roomWith(s);
+    const c = lastState(room, 'corp');
+    const pick = c.legal.find(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_choice' && a.choice.optionId === 'code gate+sentry');
+    expect(pick).toBeDefined();
+    // Free text that fits the wider shape is still not an offered option: refused, nothing stored
+    const chat: GameAction = { ...pick!, choice: { kind: 'effect_choice', optionId: 'a long free text message' } } as GameAction;
+    expect(room.receive('corp', { type: 'act', seq: c.seq, action: chat }, 6000)).toMatchObject({ out: [{ to: 'corp', msg: { code: 'illegal' } }], persist: false });
+    const res = room.receive('corp', { type: 'act', seq: c.seq, action: pick! }, 6000);
+    expect(errorsTo(res.out, 'corp')).toEqual([]);
+    expect(res.persist).toBe(true);
+    const lycian = Object.values(room.realState!.corp.servers).flatMap(x => x.ice).find(i => i.instanceId === ly)!;
+    expect(lycian.chosenSubtypes).toEqual(['code gate', 'sentry']);
   });
 });

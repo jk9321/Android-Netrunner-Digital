@@ -36,6 +36,7 @@ import {
   validateDeck,
 } from '../src/core';
 import type { FormatId } from '../src/core';
+import { activeCards } from '../src/core/engine/triggers';
 import { STARTER_DECKS, deckCodes } from '../src/data/decks';
 import {
   DeckSubmission,
@@ -50,7 +51,7 @@ import {
   actionKey,
   sanitizeAction,
 } from '../src/net/protocol';
-import { Bucket, MAX_GAME_MOVES, STOPS_BUDGET, TOO_LONG_REASON, take } from './limits';
+import { Bucket, HOLD_BUDGET, MAX_GAME_MOVES, STOPS_BUDGET, TOO_LONG_REASON, take } from './limits';
 
 const SIDES: SideCode[] = ['corp', 'runner'];
 const other = (side: SideCode): SideCode => (side === 'corp' ? 'runner' : 'corp');
@@ -102,6 +103,8 @@ export interface RoomMeta {
    * chunk 2e): full.
    */
   stopsBudget?: Partial<Record<SideCode, Bucket>>;
+  /** Each seat's credit-hold budget (HOLD_BUDGET, chunk 2i), kept like `stopsBudget`. Missing: full. */
+  holdBudget?: Partial<Record<SideCode, Bucket>>;
 }
 
 export interface RoomSnapshot {
@@ -468,8 +471,8 @@ export class RoomCore {
     const action = sanitizeAction(msg.action);
     if (!action) return { out: error(side, 'bad_message'), persist: false };
     if (action.player !== side) return { out: error(side, 'not_your_turn'), persist: false };
-    // Rule 1: only the acting seat acts; stops and conceding are one's own business at any time
-    const anyTime = action.type === 'SET_STOPS' || action.type === 'CONCEDE';
+    // Rule 1: only the acting seat acts; stops, credit holds and conceding are one's own business at any time
+    const anyTime = action.type === 'SET_STOPS' || action.type === 'SET_CREDIT_HOLD' || action.type === 'CONCEDE';
     if (!anyTime && msg.seq !== this.meta.seq[side]) return { out: error(side, 'stale'), persist: false };
     if (!anyTime && actingSide(this.viewsFor(side).state) !== side) return { out: error(side, 'not_your_turn'), persist: false };
 
@@ -489,7 +492,21 @@ export class RoomCore {
       if (!budget) return { out: error(side, 'too_many'), persist: false };
       this.meta.stopsBudget = { ...this.meta.stopsBudget, [side]: budget };
       // Stops changed while a choice is held: applied to the committed state, the held choice kept on top of it
-      if (this.meta.held) return this.stopsUnderHold(side, engine, now);
+      if (this.meta.held) return this.settingUnderHold(side, engine, now);
+    }
+    if (engine.type === 'SET_CREDIT_HOLD') {
+      // Chunk 2i. A hold the card already has (or lacks) is nothing: no move, no write, no message. An unknown id
+      // or another side's card falls through to the engine's own check ("one of your active cards"), sent as `illegal`
+      const id = engine.cardInstanceId;
+      const card = activeCards(table.state, side).find(c => c.instanceId === id);
+      if (card && !!card.holdCredits === engine.hold) return { out: [], persist: false };
+      if (card) {
+        // A change is a stored move (it changes how later payments are paid), budgeted per seat in its own bucket
+        const budget = take(this.meta.holdBudget?.[side], HOLD_BUDGET, now);
+        if (!budget) return { out: error(side, 'too_many'), persist: false };
+        this.meta.holdBudget = { ...this.meta.holdBudget, [side]: budget };
+        if (this.meta.held) return this.settingUnderHold(side, engine, now);
+      }
     }
 
     let step;
@@ -517,7 +534,12 @@ export class RoomCore {
     return { out: error(side, 'illegal'), persist: false };
   }
 
-  private stopsUnderHold(side: SideCode, action: GameAction, now: number): RoomResult {
+  /**
+   * A seat's own setting (stops, a credit hold) changed while a choice is held: the held step is cancelled, the
+   * setting committed on the committed state, the held action stepped again on top (it may now pay in another order:
+   * the player changed the order before confirming).
+   */
+  private settingUnderHold(side: SideCode, action: GameAction, now: number): RoomResult {
     const table = this.table!;
     const held = this.meta.held!;
     table.cancel();
@@ -542,8 +564,9 @@ export class RoomCore {
       this.meta.held = held;
     }
     const out = this.afterMove(side, null, now);
-    // The holder's screen changed too (the stops, or the choice is gone)
-    if (held.side !== side && !out.some(o => o.to === held.side && o.msg.type === 'state')) out.push(...this.stateFor(held.side, true));
+    // The holder's screen changed too (the stops, or the choice is gone). A credit hold is the owner's business
+    // (rules 10.2.2a-b, view.ts `holdCredits: 'own'`): the holder hears only if what it is shown changed
+    if (held.side !== side && !out.some(o => o.to === held.side && o.msg.type === 'state')) out.push(...this.stateFor(held.side, action.type !== 'SET_CREDIT_HOLD'));
     return { out, persist: true };
   }
 

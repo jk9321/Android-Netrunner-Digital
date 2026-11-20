@@ -23,6 +23,7 @@ import {
   viewFor,
 } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
+import { activeCards } from '../src/core/engine/triggers';
 import type { DeckList } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
@@ -33,7 +34,7 @@ export interface LeakFailure {
   seed: number;
   step: number;
   viewer: SideCode;
-  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash' | 'recon' | 'seat' | 'twin';
+  check: 'hidden-card' | 'hidden-code' | 'hidden-title' | 'view-id-shape' | 'internal' | 'ids' | 'round-trip' | 'purity' | 'crash' | 'recon' | 'seat' | 'twin' | 'owner-only';
   detail: string;
   /** JSON path in the view where it appeared. */
   path?: string;
@@ -215,6 +216,12 @@ export class LeakChecker {
       const real = ids.real[obj.instanceId];
       if (real === undefined) this.fail(step, side, 'ids', `${obj.instanceId} not in the id map`, path);
       else if (obj.cardCode !== undefined && hiddenIds.has(real) && !(inPrompt && shownIds.has(real))) this.fail(step, side, 'hidden-card', `${obj.cardCode} ${titleOf(obj.cardCode)} is in a zone hidden from ${side}`, path);
+    }
+    // 1b. Owner-only card fields (chunk 2i, rules 10.2.2a-b): a credit hold shows only on the viewer's own active cards
+    const own = new Set(activeCards(state, side).map(c => c.instanceId));
+    for (const [path, obj] of cardObjects(view)) {
+      const real = ids.real[obj.instanceId];
+      if ((obj as { holdCredits?: boolean }).holdCredits && !(real !== undefined && own.has(real))) this.fail(step, side, 'owner-only', `holdCredits on ${real ?? obj.instanceId}, not one of ${side}'s active cards`, path);
     }
     // Codes seen in text or in an open place stay allowed (old log lines name them); cards shown in a hidden place, per instance
     for (const code of [...textCodes, ...openCodes]) this.seen[side].add(code);

@@ -190,8 +190,12 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
 const VIEWER_ID = /^[cr]\d{1,6}$/;
 const SERVER_ID = /^(hq|rd|archives|new|remote-\d{1,3})$/;
 const PROMPT_ID = /^prompt-\d{1,7}$/;
-/** Engine option ids: server ids, words, viewer ids, card codes ('steal', 'remote-2', 'c12', '30037'). */
-const OPTION_ID = /^[A-Za-z0-9_:.-]{1,40}$/;
+/**
+ * Engine option ids: server ids, words, viewer ids, card codes ('steal', 'remote-2', 'c12', '30037'), and subtype
+ * names with spaces and '+' (Lycian Multi-Munition's 'code gate', 'code gate+sentry'; chunk 2i). The room's offered
+ * check is the real gate; this is shape hygiene.
+ */
+const OPTION_ID = /^[A-Za-z0-9_:. +-]{1,40}$/;
 const STOP_LEVELS = ['auto', 'full', 'none'] as const;
 const MAX_LIST = 60;
 
