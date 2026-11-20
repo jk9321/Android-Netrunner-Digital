@@ -25,7 +25,7 @@ import {
   trashInstalledCorpCard,
   turnKey,
 } from '../helpers';
-import { trashInstalledRunnerCard } from '../damage';
+import { installedRunnerCards, trashInstalledRunnerCard } from '../damage';
 
 export function installCard(state: GameState, action: InstallCardAction): void {
   requireActionPhase(state, action.player);
@@ -86,10 +86,145 @@ export function freedMemory(trash: CardInstance[]): number {
   return trash.reduce((mu, c) => mu + (cardDef(c).type_code === 'program' ? cardDef(c).memory_cost || 0 : 0), 0);
 }
 
+/**
+ * The installed Runner cards that leave play when these are trashed: the cards themselves and, at any depth, the
+ * installed cards hosted on them (a program on Muse, GAMEDRAGON™ Pro on an icebreaker), which are trashed with their
+ * host (rules 1.13.13). Each card once.
+ */
+export function withHostedInstalled(state: GameState, cards: CardInstance[]): CardInstance[] {
+  const out = [...new Set(cards)];
+  const ids = new Set(out.map(c => c.instanceId));
+  const installed = installedRunnerCards(state);
+  for (let i = 0; i < out.length; i++) {
+    for (const c of installed) {
+      if (c.hostedOnId === out[i].instanceId && !ids.has(c.instanceId)) {
+        ids.add(c.instanceId);
+        out.push(c);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The game as it stands once these installed Runner cards (and what they host) are trashed to make room: a read-only
+ * view for install legality only, never mutated or executed. Programs trashed this way are trashed at step 8.5.16c,
+ * before the install cost is paid at 8.5.16d, so the cost and the memory are both read after the trash (Principia:
+ * "Programs trashed as part of installing this program don't count").
+ */
+function afterTrashing(state: GameState, trash: CardInstance[]): GameState {
+  if (trash.length === 0) return state;
+  const gone = new Set(withHostedInstalled(state, trash).map(c => c.instanceId));
+  const stays = (c: CardInstance) => !gone.has(c.instanceId);
+  const { rig } = state.runner;
+  const programs = rig.programs.filter(stays);
+  const freed = freedMemory(rig.programs.filter(c => !stays(c)));
+  return {
+    ...state,
+    runner: {
+      ...state.runner,
+      memoryUnitsUsed: state.runner.memoryUnitsUsed - freed,
+      rig: { ...rig, programs, hardware: rig.hardware.filter(stays), resources: rig.resources.filter(stays) },
+    },
+  };
+}
+
+/** runnerInstallBlocker() once the chosen installed cards are trashed to make room (rules 8.5.6c, 8.5.16c-d). */
+export function runnerInstallBlockerTrashing(
+  state: GameState,
+  card: CardInstance,
+  hostInstanceId: string | undefined,
+  discount: number,
+  trash: CardInstance[]
+): string | null {
+  return runnerInstallBlocker(afterTrashing(state, trash), card, hostInstanceId, discount);
+}
+
+/**
+ * Can the card be installed once these are trashed? A trojan given no host may go on any piece of ice (its host is
+ * asked after the trash is chosen).
+ */
+function installsAfterTrashing(state: GameState, card: CardInstance, hostInstanceId: string | undefined, discount: number, trash: CardInstance[]): boolean {
+  if (hostInstanceId === undefined && getCardScript(card.cardCode)?.installsOnIce) {
+    return installedIce(state).some(ice => !runnerInstallBlockerTrashing(state, card, ice.instanceId, discount, trash));
+  }
+  return !runnerInstallBlockerTrashing(state, card, hostInstanceId, discount, trash);
+}
+
+/**
+ * The sets of installed programs (from `trashable`) the Runner can trash to install `card` when it would exceed their
+ * memory limit (rules 3.9.3b, 8.5.6c), by size, smallest first: each yield holds every working set of one size, and
+ * sizes with none are skipped. A set works only if the install is then possible at all, cost included (see
+ * afterTrashing). A set naming a card hosted on another card of the set is left out: the host's trash takes it
+ * (rules 1.13.13). Nothing when the program fits as it is.
+ */
+export function* makeRoomSets(
+  state: GameState,
+  card: CardInstance,
+  hostInstanceId: string | undefined,
+  discount: number,
+  trashable: CardInstance[]
+): Generator<CardInstance[][]> {
+  const def = cardDef(card);
+  if (def.type_code !== 'program') return;
+  const over = state.runner.memoryUnitsUsed + (def.memory_cost || 0) - memoryLimit(state);
+  if (over <= 0) return;
+  const pool = trashable.filter(c => c.instanceId !== card.instanceId && cardDef(c).type_code === 'program');
+  for (let k = 1; k <= pool.length; k++) {
+    const sets: CardInstance[][] = [];
+    for (const set of combinationsOf(pool, k)) {
+      if (hostsAnotherMember(state, set)) continue;
+      // Trashing never raises the memory limit, so a set must free at least the excess (the blocker then checks exactly)
+      if (freedMemory(withHostedInstalled(state, set)) < over) continue;
+      if (installsAfterTrashing(state, card, hostInstanceId, discount, set)) sets.push(set);
+    }
+    if (sets.length > 0) yield sets;
+  }
+}
+
+/** Can the Runner install this card now (a trojan with no host: on some ice), trashing some of `trashable` first if it doesn't fit (rules 8.5.6c)? */
+export function canInstallMakingRoom(
+  state: GameState,
+  card: CardInstance,
+  hostInstanceId: string | undefined,
+  discount: number,
+  trashable: CardInstance[]
+): boolean {
+  return installsAfterTrashing(state, card, hostInstanceId, discount, []) || !makeRoomSets(state, card, hostInstanceId, discount, trashable).next().done;
+}
+
+/** True if a card of the set is hosted, at any depth, on another card of the set. */
+function hostsAnotherMember(state: GameState, set: CardInstance[]): boolean {
+  if (set.length < 2) return false;
+  const ids = new Set(set.map(c => c.instanceId));
+  const installed = installedRunnerCards(state);
+  return set.some(c => {
+    const seen = new Set<string>();
+    for (let hostId = c.hostedOnId; hostId && !seen.has(hostId); hostId = installed.find(x => x.instanceId === hostId)?.hostedOnId) {
+      if (ids.has(hostId)) return true;
+      seen.add(hostId);
+    }
+    return false;
+  });
+}
+
+/** The k-card combinations of `items`, generated lazily. */
+export function* combinationsOf<T>(items: T[], k: number, start = 0): Generator<T[]> {
+  if (k === 0) {
+    yield [];
+    return;
+  }
+  for (let i = start; i <= items.length - k; i++) {
+    for (const rest of combinationsOf(items, k - 1, i + 1)) yield [items[i], ...rest];
+  }
+}
+
 /** Trashes the cards chosen in chosenToTrashFirst(), before the install itself. */
 export function trashFirst(state: GameState, trash: CardInstance[]): void {
   for (const card of trash) {
     if (cardDef(card).side_code === 'runner') {
+      // Already gone with its host, trashed earlier in this list (rules 1.13.13): a card is in one zone only (4.1.1c)
+      if (!installedRunnerCards(state).includes(card)) continue;
       trashInstalledRunnerCard(state, card);
       addLog(state, 'runner', `Runner trashed ${cardDef(card).title} to make room.`);
       continue;
@@ -217,7 +352,7 @@ function installRunnerCard(state: GameState, action: InstallCardAction): void {
   if (!zone || !card) illegal('Card not in Grip');
   if (cardDef(card).type_code === 'event') illegal('Events are played, not installed');
   const trash = chosenToTrashFirst(state, card, null, action.trashFirst ?? []);
-  const blocker = runnerInstallBlocker(state, card, action.hostInstanceId, 0, freedMemory(trash));
+  const blocker = runnerInstallBlockerTrashing(state, card, action.hostInstanceId, 0, trash);
   if (blocker) illegal(blocker);
   state.runner.clicks -= 1;
   trashFirst(state, trash);

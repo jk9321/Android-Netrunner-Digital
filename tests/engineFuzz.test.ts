@@ -59,6 +59,26 @@ describe('Engine fuzzer, seeds the deep run failed on', () => {
   }, 30_000);
 });
 
+// Seeds the deep run of 2026-11-20 (Actions run 44736659830, beta 062dd0f0) failed on, each played a few steps past
+// its failing step: a make-room prompt with no answer, the trash pricing Principia out of reach (1.14.5, 8.5.6c; Madani,
+// Arissana), a program hosted on Muse trashed twice with its host (4.1.1c, 1.13.13), and Scrounge's second question
+// listing a program Muse's search had just installed (9.6.5a). Unit tests: tests/makeRoom.test.ts.
+const DEEP_SEEDS_1120: [number, string, string, number][] = [
+  [1120134654, 'core-brick-stack', 'nrdb-rising-tide', 190],
+  [1120109228, 'nrdb-big-hands', 'nrdb-tadpole-of-wealth', 270],
+  [1120169013, 'core-gimbatul', 'lib-bright-eyes', 85],
+  [1120113068, 'nrdb-big-hands', 'nrdb-tadpole-of-wealth', 245],
+  [1120075505, 'lib-response-rush-nuvem', 'lib-tao-s-angels', 185],
+];
+
+describe('Engine fuzzer, seeds the 2026-11-20 deep run failed on', () => {
+  it.each(DEEP_SEEDS_1120)('seed %i, %s vs %s', (seed, corp, runner, steps) => {
+    const deck = (id: string) => FUZZ_DECKS.find(d => d.id === id)!;
+    const res = fuzzEngineGame(seed, deck(corp), deck(runner), { maxSteps: steps });
+    expect(res.failures.length ? summaryLine(res) : '').toBe('');
+  }, 30_000);
+});
+
 // The checks must be able to fail: break a copy of a real state and each one fires.
 describe('Engine fuzzer checks catch broken states', () => {
   const base = newGame(3);

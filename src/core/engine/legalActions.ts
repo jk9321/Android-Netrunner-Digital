@@ -5,8 +5,7 @@ import { isLegalAction } from './gameEngine';
 import { activePrompt } from './prompts';
 import { breakerScript, encounteredIce, iceScript } from './ice';
 import { abilitySources, abilityUsableFrom } from './actions/ability';
-import { canInstallFaceUp, playableHostZones } from './actions/install';
-import { memoryLimit } from './cardEffects';
+import { canInstallFaceUp, combinationsOf, makeRoomSets, playableHostZones } from './actions/install';
 import { findCardAnywhere } from './helpers';
 import { CardInstance } from '../types/card';
 import { runBlocked } from './actions/run';
@@ -257,36 +256,18 @@ const MAX_LISTED_ANSWERS = 256;
 
 /**
  * When a program would exceed the memory limit, the Runner must trash installed programs first (rules 8.5.6c): the
- * answers trashing the smallest sets of installed programs that free enough memory AND that the engine accepts (every
- * single one, else every pair, else every triple). A size whose sets the effect may not trash (only Muse frees enough,
- * and Muse can't be trashed for that program) moves on to the next size. None when the program already fits.
+ * answers trashing the smallest sets of installed programs that make the install possible (makeRoomSets: memory and
+ * cost, a hosted card never listed with its host) AND that the engine accepts. A size whose sets the effect may not
+ * trash (only Muse frees enough, and Muse can't be trashed for that program) moves on to the next size. None when the
+ * program already fits.
  */
 function makeRoomAnswers(state: GameState, card: CardInstance, answer: (trashFirst: string[]) => GameAction): GameAction[] {
-  const def = cardDef(card);
-  if (def.type_code !== 'program') return [];
   const programs = state.runner.rig.programs.filter(c => c.instanceId !== card.instanceId);
-  const over = state.runner.memoryUnitsUsed + (def.memory_cost || 0) - memoryLimit(state);
-  if (over <= 0) return [];
-  const mu = (c: CardInstance) => cardDef(c).memory_cost || 0;
-  for (let k = 1; k <= Math.min(3, programs.length); k++) {
-    const answers = [...combinationsOf(programs, k)]
-      .filter(set => set.reduce((n, c) => n + mu(c), 0) >= over)
-      .map(set => answer(set.map(c => c.instanceId)))
-      .filter(a => isLegalAction(state, a));
+  for (const sets of makeRoomSets(state, card, undefined, 0, programs)) {
+    const answers = sets.map(set => answer(set.map(c => c.instanceId))).filter(a => isLegalAction(state, a));
     if (answers.length > 0) return answers;
   }
   return [];
-}
-
-/** The k-card combinations of `items`, generated lazily. */
-function* combinationsOf<T>(items: T[], k: number, start = 0): Generator<T[]> {
-  if (k === 0) {
-    yield [];
-    return;
-  }
-  for (let i = start; i <= items.length - k; i++) {
-    for (const rest of combinationsOf(items, k - 1, i + 1)) yield [items[i], ...rest];
-  }
 }
 
 function combinations<T>(items: T[], k: number): T[][] {

@@ -524,7 +524,8 @@ const museFlow = prompts({
       }
       // Searched for without a reveal: the Corp learns the card only once it is installed (rules 4.2.2, 4.3.2)
       if (card) addLog(state, 'runner', `Runner found ${title(card)} (Muse).`, card.cardCode, undefined, { from: 'corp', publicMessage: 'Runner searched for a program (Muse).' });
-      const installed = museFlow.installRunner(ctx, id, 'host', 0, trashIds);
+      // Its hostId goes with the install, so the make-room check knows Muse can't be trashed for this program
+      const installed = museFlow.installRunner(ctx, id, 'host', 0, trashIds, { hostId: data.hostId });
       const muse = ctx.card;
       if (installed && card && state.runner.rig.programs.includes(muse) && state.runner.rig.programs.includes(card)) {
         card.hostedOnId = muse.instanceId;
@@ -533,7 +534,7 @@ const museFlow = prompts({
     }
     shuffleInPlace(state.rng, state.runner.stack);
   }),
-  host: choice<RunnerHostData>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
+  host: choice<RunnerHostData & { hostId: string }>((ctx, a, _d, source) => void installRunnerHostChoice(ctx.state, source, a.raw)),
 });
 
 export const muse: CardScript = {
