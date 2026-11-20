@@ -654,6 +654,25 @@ describe('Online table: waiting, errors and reconnects', () => {
     expect((ws as FakeSocket).sent).toEqual([]);
   });
 
+  it('a credit hold is sent while waiting on the opponent (chunk 2i); the toggle changes only when the state comes back', () => {
+    const s = setup(30);
+    const t = s.tables.runner;
+    const seat = () => t.seatFor('runner');
+    // The Corp's first turn: the Runner waits
+    expect(seat().waitingOn).not.toBe('runner');
+    const id = seat().view!.runner.identity.instanceId;
+    const sent = s.hub.sockets.runner!.sent.length;
+    void seat().act({ type: 'SET_CREDIT_HOLD', player: 'runner', cardInstanceId: id, hold: true });
+    expect(s.hub.sockets.runner!.sent.slice(sent).map(m => JSON.parse(m).action?.type)).toEqual(['SET_CREDIT_HOLD']);
+    // No optimistic update
+    expect(seat().view!.runner.identity.holdCredits).toBeUndefined();
+    s.hub.flush();
+    expect(seat().view!.runner.identity.holdCredits).toBe(true);
+    expect(s.alerts.runner).toEqual([]);
+    // The Corp's seat never sees it
+    expect(s.tables.corp.seatFor('corp').view!.runner.identity.holdCredits).toBeUndefined();
+  });
+
   it('conceding works while waiting and ends the game for both; the session is cleared', () => {
     const s = setup(29);
     saveSession(s.sessions.corp);

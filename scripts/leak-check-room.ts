@@ -34,6 +34,7 @@ import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
 import { RoomCore, checkDeck, settledFor, storageWrites } from '../server/room';
+import { activeCards } from '../src/core/engine/triggers';
 import type { Outbox } from '../server/room';
 import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
@@ -60,6 +61,9 @@ export interface RoomFuzzResult {
   moves: number;
   winner: SideCode | null;
   failures: LeakFailure[];
+  /** Credit-hold changes the fuzzer made (chunk 2i), and the rows each one wrote. */
+  holds: number;
+  holdRows: number[];
   /** Sizes of every `state` message (bytes of JSON). */
   sizes: number[];
   /** Milliseconds per receive() call that applied a move. */
@@ -138,6 +142,8 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
     runner: runner.id,
     format: onlineFormat(corp, runner),
     players,
+    holds: 0,
+    holdRows: [],
     moves: 0,
     winner: null,
     failures: checker.failures,
@@ -203,6 +209,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
 
   const agents = players === 'ai' ? { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') } : null;
   let stuck = 0;
+  let holds = 0;
   try {
     while (step < maxMoves && !room.meta.over) {
       const acting = SIDES.find(s => clients[s].last?.waitingOn === s && !clients[s].waiting);
@@ -227,7 +234,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (accepted && !res.out.some(o => o.to === acting && o.msg.type === 'state')) clients[acting].waiting = true;
       if (accepted) result.times.push(ms);
       else if (++stuck > 50) {
-        checker.fail(step, acting, 'seat', `50 refused messages in a row (last ${JSON.stringify(res.out[0]?.msg).slice(0, 160)})`);
+        checker.fail(step, acting, 'seat', `50 refused messages in a row (last ${JSON.stringify(res.out[0]?.msg).slice(0, 160)}; sent ${JSON.stringify(msg).slice(0, 300)})`);
         break;
       }
       if (accepted) stuck = 0;
@@ -239,6 +246,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (nextInt(rng, 15) === 0) junkCheck(room, clients, checker, step, rng, deliver);
       // A flood of messages that must change nothing (chunk 2e, MP-STOPS-WRITE-FLOOD)
       if (nextInt(rng, 40) === 0) floodCheck(room, clients, checker, step, rng);
+      // A credit hold toggled now and then (chunk 2i): the other seat must hear nothing of it (rules 10.2.2a-b).
+      // At most 8 a game: the fuzz clock barely moves, so HOLD_BUDGET (10) does not refill
+      if (holds < 8 && nextInt(rng, 30) === 0 && holdCheck(room, clients, checker, step, rng, deliver, result.holdRows)) {
+        holds++;
+        result.holds++;
+      }
     }
   } catch (e) {
     checker.failures.push({ seed, step, viewer: 'corp', check: 'crash', detail: `${e instanceof Error ? e.stack : e}`.slice(0, 400) });
@@ -320,6 +333,32 @@ function junkCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: L
   const accepted = res.persist && !res.out.some(o => o.to === side && o.msg.type === 'error');
   if (accepted && !res.out.some(o => o.to === side && o.msg.type === 'state')) client.waiting = true;
   deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+}
+
+/**
+ * One seat toggles the credit hold of one of its own active cards (chunk 2i). The other seat gets no message and
+ * its last state is unchanged; the mover's own state comes back (or nothing, at its R&D-access wait). Returns
+ * whether a change was made.
+ */
+function holdCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, rng: RngState, deliver: (out: Outbox, mover: SideCode | null) => void, rows: number[]): boolean {
+  const side = SIDES[nextInt(rng, 2)];
+  const seen = room.inspect(side);
+  if (!seen) return false;
+  const cards = activeCards(seen.state, side);
+  if (cards.length === 0) return false;
+  const card = cards[nextInt(rng, cards.length)];
+  const action = fromEngineAction({ type: 'SET_CREDIT_HOLD', player: side, cardInstanceId: card.instanceId, hold: !card.holdCredits }, seen.ids);
+  if (!action) return false;
+  const opp = other(side);
+  const before = room.connect(opp).map(m => JSON.stringify(m)).join();
+  const refs = storageWrites(null, room.snapshot()).refs;
+  const res = room.receive(side, { type: 'act', seq: clients[side].seq, action }, step);
+  if (res.persist) rows.push(Object.keys(storageWrites(refs, room.snapshot()).put).length);
+  if (res.out.some(o => o.to === opp)) checker.fail(step, opp, 'seat', `a credit hold by ${side} sent ${opp} a message`);
+  if (room.connect(opp).map(m => JSON.stringify(m)).join() !== before) checker.fail(step, opp, 'seat', `a credit hold by ${side} changed what ${opp} was last sent`);
+  if (res.out.some(o => o.to === side && o.msg.type === 'error')) checker.fail(step, side, 'seat', `a credit hold on an own active card was refused: ${JSON.stringify(res.out[0]?.msg)}`);
+  deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+  return res.persist;
 }
 
 /**
