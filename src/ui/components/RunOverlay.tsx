@@ -124,7 +124,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               ? `Your normal credit pool (${pools.runner.pool}) cannot be spent during this run`
               : `Total credits you can spend during this run (${pools.runner.pool} in pool + ${pools.runner.bonus} from run/hosted sources)`
           }
-          className={`text-[11px] sm:text-xs font-mono px-2 py-0.5 rounded-[2px] border font-bold shrink-0 inline-flex items-center gap-1 ${
+          className={`text-[11px] sm:text-xs font-mono px-2 py-0.5 rounded-[2px] border font-bold max-w-full min-w-0 inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-snug ${
             docked ? '' : 'sm:px-2.5 sm:py-1'
           } ${
             pools.runner.poolLocked
@@ -132,10 +132,14 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
               : 'bg-emerald-950/90 text-emerald-200 border-emerald-500/80'
           }`}
         >
-          <span>
+          <span className="shrink-0">
             SPENDABLE: <Credits amount={pools.runner.total} />
           </span>
-          <span className={pools.runner.poolLocked ? 'text-amber-300/90 font-normal' : 'text-emerald-300/90 font-normal'}>
+          <span
+            className={`min-w-0 break-words ${
+              pools.runner.poolLocked ? 'text-amber-300/90 font-normal' : 'text-emerald-300/90 font-normal'
+            }`}
+          >
             {pools.runner.poolLocked
               ? `(${pools.runner.sources.map(s => `${s.amount} ${s.label}`).join(' + ') || '0'} · ${pools.runner.pool} pool locked)`
               : `(${pools.runner.pool} pool ${pools.runner.sources.map(s => `+ ${s.amount} ${s.label}`).join(' ')})`}
@@ -146,14 +150,14 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
         <span
           data-testid="run-corp-rez-pool"
           title={`Corp has ${pools.corpRez.bonus} recurring/hosted credits usable to rez cards on ${server?.name ?? 'this server'}`}
-          className={`text-[11px] sm:text-xs font-mono bg-cyan-950/90 text-cyan-200 px-2 py-0.5 rounded-[2px] border border-cyan-500/80 font-bold shrink-0 inline-flex items-center gap-1 ${
+          className={`text-[11px] sm:text-xs font-mono bg-cyan-950/90 text-cyan-200 px-2 py-0.5 rounded-[2px] border border-cyan-500/80 font-bold max-w-full min-w-0 inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-snug ${
             docked ? '' : 'sm:px-2.5 sm:py-1'
           }`}
         >
-          <span>
+          <span className="shrink-0">
             CORP REZ: <Credits amount={pools.corpRez.total} />
           </span>
-          <span className="text-cyan-300/90 font-normal">
+          <span className="min-w-0 break-words text-cyan-300/90 font-normal">
             ({pools.corpRez.pool} pool {pools.corpRez.sources.map(s => `+ ${s.amount} ${s.label}`).join(' ')})
           </span>
         </span>
