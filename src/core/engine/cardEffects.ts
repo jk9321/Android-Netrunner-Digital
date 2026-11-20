@@ -6,6 +6,7 @@ import { CounterType, PaymentPurpose } from '../scripts/types';
 import { addLog } from './log';
 import { beforeCorpCardUninstalled, drawCards, findCardAnywhere, findInstalledCorpCard, removeCard, trashInstalledCorpCard } from './helpers';
 import { activeCards, fireTrigger, resumeTrigger } from './triggers';
+import { IllegalActionError } from './errors';
 import { trashInstalledRunnerCard, uninstallRunnerCard } from './damage';
 
 /**
@@ -274,7 +275,8 @@ function payFromCard(state: GameState, side: SideCode, source: CardInstance, amo
  * for this run (Aircheck's, the bad publicity fund, Overclock's), then
  * credits the Runner keeps after the run (Methuselah), then the credit pool.
  * With Shackleton Grid in the attacked server the pool goes before anything
- * outside it. Callers check availableCredits beforehand.
+ * outside it. Cards whose credits the player keeps for last (holdCredits)
+ * pay after the pool. Callers check availableCredits beforehand.
  */
 export function spendCredits(state: GameState, side: SideCode, amount: number, purpose: PaymentPurpose = { kind: 'other' }): void {
   let remaining = amount;
@@ -289,7 +291,9 @@ export function spendCredits(state: GameState, side: SideCode, amount: number, p
     fromPoolTotal += fromPool;
   };
   if (purpose.kind !== 'stealth' && run && outsidePoolPunished(state)) pool();
-  for (const source of sources.filter(c => !lasting(c))) remaining -= payFromCard(state, side, source, remaining);
+  // Credits the player keeps for last (SET_CREDIT_HOLD, rules 1.10.3c) pay only what the pool and the rest can't
+  const held = sources.filter(c => c.holdCredits);
+  for (const source of sources.filter(c => !c.holdCredits && !lasting(c))) remaining -= payFromCard(state, side, source, remaining);
   if (run && purpose.kind !== 'stealth') {
     const fromFund = Math.min(run.badPublicityCredits ?? 0, remaining);
     run.badPublicityCredits = (run.badPublicityCredits ?? 0) - fromFund;
@@ -298,12 +302,25 @@ export function spendCredits(state: GameState, side: SideCode, amount: number, p
     run.bonusCredits -= fromBonus;
     remaining -= fromBonus;
   }
-  for (const source of sources.filter(lasting)) remaining -= payFromCard(state, side, source, remaining);
+  for (const source of sources.filter(c => !c.holdCredits && lasting(c))) remaining -= payFromCard(state, side, source, remaining);
   if (purpose.kind !== 'stealth') pool();
+  for (const source of held) remaining -= payFromCard(state, side, source, remaining);
   // Whatever is left is a caller that didn't check (old behaviour: the pool goes negative)
   state[side].credits -= remaining;
   const outside = amount - remaining - fromPoolTotal;
   if (run && outside > 0) fireTrigger(state, { type: 'credits_spent_outside_pool', amount: outside });
+}
+
+/**
+ * A player keeps the credits hosted on one of their active cards for last, or stops doing so
+ * (SET_CREDIT_HOLD). Rules 1.10.3c: when hosted credits may pay, the player chooses how to divide
+ * the payment among the allowed locations. Holding only changes the order, never what can be paid.
+ */
+export function setCreditHold(state: GameState, action: { player: SideCode; cardInstanceId: string; hold: boolean }): void {
+  const card = activeCards(state, action.player).find(c => c.instanceId === action.cardInstanceId);
+  if (!card) throw new IllegalActionError('Not one of your active cards.');
+  if (action.hold) card.holdCredits = true;
+  else delete card.holdCredits;
 }
 
 /**

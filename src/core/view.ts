@@ -76,6 +76,7 @@ export interface CardView {
   scoredTurn?: string;
   chosenSubtypes?: string[];
   cannotScoreTurn?: string;
+  holdCredits?: boolean;
 }
 
 /** A hand: the owner gets every card; the opponent gets the count and the names they know (rules 4.3.2, 4.3.4). */
@@ -382,6 +383,7 @@ export const CARD_FIELDS = {
   scoredTurn: 'own',
   chosenSubtypes: 'own',
   cannotScoreTurn: 'own',
+  holdCredits: 'own',
 } as const satisfies Record<keyof CardInstance, Vis>;
 
 export const RUN_STATE_FIELDS = {
@@ -543,6 +545,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
       if (c.scoredTurn !== undefined) v.scoredTurn = c.scoredTurn;
       if (c.chosenSubtypes) v.chosenSubtypes = [...c.chosenSubtypes];
       if (c.cannotScoreTurn !== undefined) v.cannotScoreTurn = c.cannotScoreTurn;
+      if (c.holdCredits) v.holdCredits = true;
     }
     fixups.push(() => {
       v.hostedCardIds = refs(c.hostedCardIds);
@@ -866,6 +869,7 @@ function mapAction(action: GameAction, map: (id: string) => string | undefined, 
     case 'REZ_CARD':
     case 'USE_ABILITY':
     case 'TRASH_RESOURCE':
+    case 'SET_CREDIT_HOLD':
       res = { ...action, cardInstanceId: one(action.cardInstanceId) };
       break;
     case 'BREAK_SUBROUTINE':

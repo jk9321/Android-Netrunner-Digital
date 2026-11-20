@@ -11,7 +11,7 @@ import { resolvePrompt } from './actions/prompt';
 import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
 import { useAbility } from './actions/ability';
-import { bumpTurnFlag, fireSettled, syncDerivedStats, TurnFlag, whenSettled } from './cardEffects';
+import { bumpTurnFlag, fireSettled, setCreditHold, syncDerivedStats, TurnFlag, whenSettled } from './cardEffects';
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
@@ -46,6 +46,7 @@ const handlers: ActionHandlers = {
   SET_STOPS: (state, action) => {
     state.stops = { ...state.stops, [action.player]: action.level };
   },
+  SET_CREDIT_HOLD: setCreditHold,
   CONCEDE: concede,
   RESOLVE_PROMPT: resolvePrompt,
   PLAY_OPERATION_OR_EVENT: playOperationOrEvent,
@@ -80,7 +81,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
     throw new IllegalActionError('Game is already over.');
   }
   // While a decision is pending, answering it (or conceding) is the only legal action.
-  if (prevState.pendingPrompts.length > 0 && action.type !== 'RESOLVE_PROMPT' && action.type !== 'CONCEDE' && action.type !== 'SET_STOPS') {
+  if (prevState.pendingPrompts.length > 0 && action.type !== 'RESOLVE_PROMPT' && action.type !== 'CONCEDE' && action.type !== 'SET_STOPS' && action.type !== 'SET_CREDIT_HOLD') {
     const p = prevState.pendingPrompts[0];
     throw new IllegalActionError(`Waiting on a decision: ${p.message}`);
   }
@@ -175,7 +176,7 @@ for (const step of ['corp_action', 'runner_action'] as const) {
  * not act now.
  */
 function windowRole(state: GameState, action: GameAction): 'pass' | 'intent' | 'option' | 'free' {
-  if (action.type === 'CONCEDE' || action.type === 'RESOLVE_PROMPT' || action.type === 'SET_STOPS') return 'free';
+  if (action.type === 'CONCEDE' || action.type === 'RESOLVE_PROMPT' || action.type === 'SET_STOPS' || action.type === 'SET_CREDIT_HOLD') return 'free';
   const holder = priorityHolder(state);
   if (action.player !== holder) throw new IllegalActionError(`Waiting for the ${sideName(holder)}`);
   const step = currentStep(state);

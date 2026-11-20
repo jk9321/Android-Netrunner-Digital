@@ -283,6 +283,9 @@ export function sanitizeAction(raw: unknown): GameAction | null {
       case 'REZ_CARD':
       case 'TRASH_RESOURCE':
         return { type: a.type, player, cardInstanceId: id(a.cardInstanceId) };
+      // Parsed, but the room does not accept it yet (not an any-time action there): the toggle is local-only for now
+      case 'SET_CREDIT_HOLD':
+        return { type: 'SET_CREDIT_HOLD', player, cardInstanceId: id(a.cardInstanceId), hold: bool(a.hold) };
       case 'ADVANCE_CARD':
         return { type: 'ADVANCE_CARD', player, cardInstanceId: id(a.cardInstanceId), serverId: match(a.serverId, SERVER_ID) };
       case 'INITIATE_RUN':

@@ -13,6 +13,7 @@ import { DeckPicker } from './ui/components/DeckPicker';
 import { LogFeed } from './ui/components/LogFeed';
 import { WindowBar } from './ui/components/WindowBar';
 import { AbilityBar } from './ui/components/AbilityBar';
+import { CreditHoldBar } from './ui/components/CreditHoldBar';
 import { ZoneId, zoneContents } from './ui/components/ZoneViewer';
 import { ZoomContext, ZoomPanel, createZoomStore } from './ui/components/ZoomPanel';
 import { GameHeader } from './ui/components/GameHeader';
@@ -453,7 +454,9 @@ function GameScreen({
                   />
                   <div className="shrink-0 max-h-[20vh] overflow-y-auto flex flex-col gap-1.5 empty:hidden">
                     {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {config && corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
                     {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                    {config && runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
                   </div>
                 </>
               ) : (
@@ -465,11 +468,13 @@ function GameScreen({
                     {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
                     {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
                     {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {config && corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
                     {activePlayer === 'runner' && runnerCanAct && (
                       <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
                     )}
                     {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
                     {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                    {config && runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
                   </div>
                 </>
               )}
