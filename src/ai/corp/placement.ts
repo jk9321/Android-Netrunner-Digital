@@ -360,8 +360,12 @@ export function scoringShort(state: GameState): ServerLike | null {
  * for its agendas), the ice goes to the scoring remote instead, outermost. Its install cost there is 1 credit for each
  * ice already protecting it (8.5.11a), against none on a new remote. Measured and not kept: redirecting only while the
  * Corp still covers the holding rez after that cost (+0.5 ± 0.6, run 43158132282: it removes most fires), and keeping the
- * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). Central ice and the choice to install ice at all are the
- * pick's: a pure redirect, no veto, no extra install. Null: no change.
+ * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). A pure redirect, no veto, no
+ * extra install; but inside generation a counted placement is the card's only candidate (spec 1.3 point 3), so while the
+ * redirect applies this ice is offered at the scoring remote alone, and a central install of it is centralIce's, not the
+ * pick's. Counted (bundle P, 2026-11-19): the class (a staked central that does not hold, which this ice would improve)
+ * is 1.76 decisions a game; offering the centrals beside the redirect (`redirectRemoteOnly`) was not kept (+0.03 ± 0.11
+ * points stolen on 518 pairs, run 44585255841). Null: no change.
  */
 export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInstall): GameAction | null {
   if (pick.type !== 'INSTALL_CARD' || !mainOr(state, free)) return null;

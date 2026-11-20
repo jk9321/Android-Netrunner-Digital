@@ -518,9 +518,11 @@ describe('AI code health (audit guards)', () => {
   // corp/ 4,063, src/ai 16,083 (actual 16,059)
   // Then - 2 in corp/ (ai-placement-wiring fix 3: candidates.ts, freeInstallTarget's order on valueModel's memo, keyed by
   // the pricing context; the hand-made WeakMap deleted): corp/ 4,061, src/ai 16,081 (actual 16,057)
-  it('keeps src/ai/corp at or under 4,061 lines and src/ai at or under 16,081 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-placement-wiring)', () => {
+  // Then + 4 in corp/ (ai-placement-wiring fix 4: placement.ts, the comment above iceRedirect says what the code does,
+  // with the count's numbers): corp/ 4,065, src/ai 16,085 (actual 16,061)
+  it('keeps src/ai/corp at or under 4,065 lines and src/ai at or under 16,085 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-placement-wiring)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(4061);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16081);
+    expect(corp).toBeLessThanOrEqual(4065);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16085);
   });
 });
