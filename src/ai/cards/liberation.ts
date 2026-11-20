@@ -457,6 +457,13 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Friend of a Friend
   '34074': {
+    // The hold count's click money (runnerEarnings): "[click], [trash]: Gain 9 credits and take 1 tag. Use this ability
+    // only if you are not tagged." (an action, 5.2.1; its restriction gates the cost, 1.16.1c). While the Runner is
+    // tagged the card pays 5, so this overstates by 4 then (and two copies read 18 for 2 clicks where they pay 14: the
+    // first use tags the Runner). That errs toward "does not hold", which can cost the Corp: an unholdable staked server
+    // adds nothing to the rez money kept, the scoring remote loses its reservation and agenda commits wait. Rests on how
+    // rarely the card is installed while the Runner is tagged (foaf-fix count note). `once` has no reader.
+    clickMoney: { clicks: 1, credits: 9, once: true },
     synergy: { gives: { econ: 2 } },
     value: { rig: 2 },
     // A click for 5 credits and a tag gone, or 9 credits for a tag
