@@ -11,7 +11,7 @@ import { StatTumbler } from './StatTumbler';
 import { useZoom } from './ZoomPanel';
 import { hoverHoldRemaining } from '../hoverHold';
 import { createPortal } from 'react-dom';
-import { usePromptHighlight } from '../promptHighlight';
+import { useBoardCardTarget, usePromptHighlight } from '../promptHighlight';
 import { IceTypeIcons, breakerTypes } from './IceTypeIcons';
 import { iceSubtypes } from '../../core/engine/ice';
 import type { IceSubtype } from '../../core/scripts/types';
@@ -60,7 +60,9 @@ export interface CardViewProps {
   coveredBottom?: number;
 }
 
-const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip: (show: boolean) => void }> = ({
+const CardFace: React.FC<
+  CardViewProps & { showTooltip: boolean; setShowTooltip: (show: boolean) => void; stopClickPropagation?: boolean }
+> = ({
   card,
   isFaceDown = false,
   canPeek = true,
@@ -79,6 +81,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
   coveredBottom = 0,
   showTooltip,
   setShowTooltip,
+  stopClickPropagation = false,
 }) => {
   const [imageError, setImageError] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -192,6 +195,7 @@ const CardFace: React.FC<CardViewProps & { showTooltip: boolean; setShowTooltip:
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button, [data-kw], [data-tip]')) return;
         if (isSelectable) {
+          if (stopClickPropagation) e.stopPropagation();
           onClick?.();
         } else if (onInspect && (Date.now() - lastTouchTime.current < 1000 || isTouchViewport())) {
           onInspect(card);
@@ -424,11 +428,21 @@ export const CardView: React.FC<CardViewProps> = props =>
 const FlippingCard: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
   const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
-  // Only table cards (inside the zoom provider) answer to the prompt's hover; the prompt's own copies don't
+  // Only table cards (inside the zoom provider) answer to the prompt's hover/clicks; the prompt's own copies don't
   const onTable = useZoom() !== null;
   const mark = usePromptHighlight(props.card.instanceId);
+  const registeredTarget = useBoardCardTarget(props.card.instanceId);
+  const tableTarget = onTable && !props.notInstalled ? registeredTarget : undefined;
   const ref = useRef<HTMLDivElement>(null);
-  const markClass = !onTable ? '' : mark.hovered ? 'prompt-target-hover' : mark.selected ? 'prompt-target-picked' : '';
+  const markClass = !onTable
+    ? ''
+    : mark.hovered
+      ? 'prompt-target-hover'
+      : mark.selected
+        ? 'prompt-target-picked'
+        : tableTarget
+          ? 'prompt-target-eligible'
+          : '';
   const [showTooltip, setShowTooltip] = useState(false);
 
   const isInstalledOnTable = !props.notInstalled && onTable;
@@ -451,6 +465,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
     <motion.div
       key={face}
       ref={ref}
+      data-board-target={tableTarget ? 'true' : undefined}
       className={`relative shrink-0 rounded-[3px] ${markClass}`}
       initial={
         prefersReduced
@@ -477,7 +492,14 @@ const FlippingCard: React.FC<CardViewProps> = props => {
       }
       style={{ transformPerspective: 700 }}
     >
-      <CardFace {...props} showTooltip={showTooltip} setShowTooltip={setShowTooltip} />
+      <CardFace
+        {...props}
+        isSelectable={props.isSelectable || Boolean(tableTarget)}
+        onClick={tableTarget ? tableTarget.onClick : props.onClick}
+        stopClickPropagation={Boolean(tableTarget)}
+        showTooltip={showTooltip}
+        setShowTooltip={setShowTooltip}
+      />
       {isRezFlash && !prefersReduced && (
         <motion.div
           aria-hidden="true"

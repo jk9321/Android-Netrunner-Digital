@@ -358,20 +358,38 @@
   box-shadow: 0 0 0 2px rgb(var(--runner-400)), 0 0 18px rgb(var(--runner-500) / 0.7);
   z-index: 25;
 }
-/* A board card the prompt's hovered option points at, and the options already picked */
+/* A board card the prompt's hovered option points at, the options already picked, or eligible board targets */
 .prompt-target-hover {
   box-shadow: 0 0 0 3px rgb(var(--signal-400)), 0 0 24px rgb(var(--signal-400) / 0.8);
   position: relative;
   z-index: 30;
 }
 .prompt-target-picked {
-  box-shadow: 0 0 0 2px rgb(var(--corp-400)), 0 0 12px rgb(var(--corp-400) / 0.6);
+  box-shadow: 0 0 0 2px rgb(var(--corp-400)), 0 0 14px rgb(var(--corp-400) / 0.7);
+  position: relative;
+  z-index: 25;
 }
-/* A server column whose install or prompt option is currently hovered */
+.prompt-target-eligible {
+  box-shadow: 0 0 0 2px rgb(var(--signal-400) / 0.7), 0 0 12px rgb(var(--signal-400) / 0.35);
+}
+.prompt-target-eligible:hover {
+  box-shadow: 0 0 0 3px rgb(var(--signal-400)), 0 0 20px rgb(var(--signal-400) / 0.7);
+  z-index: 28;
+}
+/* A server column whose install or prompt option is currently hovered or clickable */
 .prompt-server-target {
   border-color: rgb(var(--signal-400)) !important;
   box-shadow: 0 0 0 2px rgb(var(--signal-400)), 0 0 24px rgb(var(--signal-400) / 0.5) !important;
   position: relative;
+  z-index: 20;
+}
+.prompt-server-eligible {
+  border-color: rgb(var(--signal-400) / 0.65) !important;
+  box-shadow: 0 0 0 1px rgb(var(--signal-400) / 0.45), 0 0 14px rgb(var(--signal-400) / 0.25) !important;
+}
+.prompt-server-eligible:hover {
+  border-color: rgb(var(--signal-400)) !important;
+  box-shadow: 0 0 0 2px rgb(var(--signal-400)), 0 0 24px rgb(var(--signal-400) / 0.5) !important;
   z-index: 20;
 }
 

@@ -6,17 +6,29 @@ export interface PromptTarget {
   label: string | null;
 }
 
+/** An interactive card target on the tabletop registered by an open prompt or install bar. */
+export interface BoardCardTarget {
+  onClick: () => void;
+}
+
+/** An interactive server target on the tabletop registered by an open prompt or install bar. */
+export interface BoardServerTarget {
+  onClick: () => void;
+  title?: string;
+}
+
 /**
  * Links a decision's card and server options to the board: hover an option
- * and its board card or server column lights up with an outline. Facedown
- * cards all look alike, so this is how a player tells which one they are
- * choosing (Tāo Salonga swapping unrezzed ice). Server buttons outline the
- * targeted server's frame containing all its cards.
+ * and its board card or server column lights up with an outline, or click the
+ * board card / server directly to pick it as a target.
  * A module store so only the linked elements repaint, not the whole table.
  */
 let hovered: PromptTarget | null = null;
 let hoveredServerId: string | null = null;
 let selected: ReadonlySet<string> = new Set();
+let targetOwner: object | null = null;
+let cardTargets: ReadonlyMap<string, BoardCardTarget> = new Map();
+let serverTargets: ReadonlyMap<string, BoardServerTarget> = new Map();
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(l => l());
 
@@ -35,6 +47,24 @@ export function hoverPromptServer(serverId: string | null) {
 export function selectPromptTargets(ids: string[]) {
   if (ids.length === selected.size && ids.every(id => selected.has(id))) return;
   selected = new Set(ids);
+  notify();
+}
+
+export function setBoardTargets(
+  owner: object,
+  targets: { cards?: ReadonlyMap<string, BoardCardTarget>; servers?: ReadonlyMap<string, BoardServerTarget> },
+) {
+  targetOwner = owner;
+  cardTargets = targets.cards ?? new Map();
+  serverTargets = targets.servers ?? new Map();
+  notify();
+}
+
+export function clearBoardTargets(owner: object) {
+  if (targetOwner !== owner) return;
+  targetOwner = null;
+  cardTargets = new Map();
+  serverTargets = new Map();
   notify();
 }
 
@@ -57,4 +87,16 @@ export function usePromptHighlight(instanceId: string): { hovered: boolean; labe
 export function usePromptServerHighlight(serverId: string): boolean {
   const getHovered = () => hoveredServerId === serverId;
   return useSyncExternalStore(subscribe, getHovered, getHovered);
+}
+
+/** The active click target for a board card, if the open prompt or picker lets the player pick it. */
+export function useBoardCardTarget(instanceId: string): BoardCardTarget | undefined {
+  const getTarget = () => cardTargets.get(instanceId);
+  return useSyncExternalStore(subscribe, getTarget, getTarget);
+}
+
+/** The active click target for a server column, if the open prompt or install bar lets the player pick it. */
+export function useBoardServerTarget(serverId: string): BoardServerTarget | undefined {
+  const getTarget = () => serverTargets.get(serverId);
+  return useSyncExternalStore(subscribe, getTarget, getTarget);
 }

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { CardInstance, GameAction, GameState, cardDef, trashableFirst } from '../../core';
 import { legalFor, useSeat } from '../seat';
 import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
-import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
+import { type BoardServerTarget, clearBoardTargets, hoverPromptServer, hoverPromptTarget, setBoardTargets } from '../promptHighlight';
 
 /**
  * Where the selected HQ card can go: a new remote, or any server the engine
@@ -20,6 +20,10 @@ export function CorpInstallOptions({
 }) {
   const def = cardDef(card);
   const seat = useSeat();
+  const [targetOwner] = useState(() => ({}));
+  const onActionRef = useRef(onAction);
+  onActionRef.current = onAction;
+
   // Clear any hovered target/server when this options bar closes or card changes
   useEffect(() => () => {
     hoverPromptServer(null);
@@ -28,6 +32,7 @@ export function CorpInstallOptions({
 
   // Trash cards already there first (rules 8.5.6): ice for ice (they then don't count toward its cost), root cards for a root install
   const [replacing, setReplacing] = useState<{ cardId: string; serverId: string } | null>(null);
+  const isReplacing = replacing?.cardId === card.instanceId;
   const installWithTrash = (serverId: string, trashFirst: string[]): GameAction => ({
     type: 'INSTALL_CARD',
     player: 'corp',
@@ -41,7 +46,53 @@ export function CorpInstallOptions({
   });
   const replaceableIds = new Set(replaceable.map(s => s.id));
   const what = def.type_code === 'ice' ? 'ice' : 'cards';
-  if (replacing?.cardId === card.instanceId) {
+  const options = legalFor(seat, 'corp').filter(
+    (a): a is Extract<GameAction, { type: 'INSTALL_CARD' }> => a.type === 'INSTALL_CARD' && a.cardInstanceId === card.instanceId
+  );
+  // Servers that can only be installed into after trashing first (e.g., too expensive without trashing ice)
+  const trashOnlyServers = replaceable.filter(s => !options.some(a => a.targetServerId === s.id));
+
+  // Let clicking a valid existing server column on the board install directly there
+  useEffect(() => {
+    if (isReplacing) {
+      clearBoardTargets(targetOwner);
+      return;
+    }
+    const servers = new Map<string, BoardServerTarget>();
+    for (const a of options) {
+      const server = a.targetServerId ? state.corp.servers[a.targetServerId] : null;
+      if (!server) continue;
+      if (!a.faceUp || !servers.has(server.id)) {
+        servers.set(server.id, {
+          title: `Click to install ${def.title} in ${server.name}`,
+          onClick: () => {
+            hoverPromptServer(null);
+            hoverPromptTarget(null);
+            onActionRef.current(a);
+          },
+        });
+      }
+    }
+    for (const server of trashOnlyServers) {
+      if (!servers.has(server.id)) {
+        servers.set(server.id, {
+          title: `Click to trash ${what} and install ${def.title} in ${server.name}`,
+          onClick: () => {
+            hoverPromptServer(null);
+            hoverPromptTarget(null);
+            setReplacing({ cardId: card.instanceId, serverId: server.id });
+          },
+        });
+      }
+    }
+    if (servers.size === 0) clearBoardTargets(targetOwner);
+    else setBoardTargets(targetOwner, { servers });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetOwner, isReplacing, state, seat, card.instanceId]);
+
+  useEffect(() => () => clearBoardTargets(targetOwner), [targetOwner]);
+
+  if (isReplacing && replacing) {
     const server = state.corp.servers[replacing.serverId];
     // Outermost ice first, as on the board
     const cards = trashableFirst(state, card, server.id);
@@ -79,11 +130,6 @@ export function CorpInstallOptions({
       />
     );
   }
-  const options = legalFor(seat, 'corp').filter(
-    (a): a is Extract<GameAction, { type: 'INSTALL_CARD' }> => a.type === 'INSTALL_CARD' && a.cardInstanceId === card.instanceId
-  );
-  // Servers that can only be installed into after trashing first (e.g., too expensive without trashing ice)
-  const trashOnlyServers = replaceable.filter(s => !options.some(a => a.targetServerId === s.id));
 
   if (options.length === 0 && replaceable.length === 0) {
     return <span className="text-xs text-slate-400">{def.title} cannot be installed right now.</span>;
