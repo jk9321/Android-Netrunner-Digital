@@ -6,22 +6,28 @@
  * Fix 1 (AI-SCORING-SHORT-DOUBLE-COUNT): lineKeep takes the server a line is on and leaves it out of the pools
  * (rezMoney's `except`, honoured on the next turn too), so scoringShort counts the scoring remote's own holding rez once.
  *
+ * Fix 2 (AI-ASSET-COVER-PLANNER-MISMATCH): an asset cover placement's waiting form (no ice pair) is one install, so the
+ * candidate is that install (the asset at the iced remote that waits), the move the Corp makes; the ice pair is as before.
+ *
  * Rules (Comprehensive Rules v26.03): 6.9.2b the Corp rezzes ice as the Runner approaches it (the holding rez is paid on
  * the Runner's turn, from what the Corp ends its turn on); 8.5.11a an install costs 1 credit per ice already protecting
  * the server; 3.3.1 one agenda or asset in a remote's root.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, cardDef } from '../src/core';
+import { GameAction, GameState, cardDef, createCardInstance, getLegalActions, isLegalAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { serverHold } from '../src/ai/corp/hold';
 import { lineKeep, rezMoney } from '../src/ai/corp/rezMoney';
-import { reservedForAgenda, scoringShort } from '../src/ai/corp/placement';
+import { place, placedInstall, reservedForAgenda, scoreInTwoPick, scoringShort } from '../src/ai/corp/placement';
+import { corpCandidates } from '../src/ai/corp/candidates';
+import { isEconAsset } from '../src/ai/cardValues';
+import { PW, pairBoards, pwBoard } from './fixtures/placement-wiring/boards';
 import { nextTurnCredits, scoringRemote } from '../src/ai/corp/lines';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
-import { installCorpForTest, installIceForTest, newGame } from './helpers';
+import { installCorpForTest, installIceForTest } from './helpers';
 
 const C = { PALISADE: '30072', OFFWORLD: '30067', SAM: '30069', LYCIAN: '34100', MYCOWEB: '35053', PING: '30055' };
 const T = 120_000;
@@ -29,17 +35,7 @@ const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisio
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/placement-wiring/${name}`, import.meta.url), 'utf8'));
 const agendasInHq = (s: GameState) => s.corp.hq.filter(c => cardDef(c).type_code === 'agenda');
 
-/** A Corp turn-7 board (as tests/reviewPins.test.ts): empty rig and HQ, the Runner at $0 and 4 clicks. */
-function board(setup: (s: GameState) => void): GameState {
-  const s = newGame(3);
-  s.corp.hq = [];
-  s.runner.rig = { ...s.runner.rig, programs: [], hardware: [], resources: [] };
-  s.runner.credits = 0;
-  s.corp.credits = 20;
-  s.turnNumber = 7;
-  setup(s);
-  return s;
-}
+const board = pwBoard;
 
 /** The review pin's board: remote-1 an unrezzed Palisade with Offworld Office in the root, R&D a rezzed Palisade, 1 click. */
 const shortBoard = (corp: number) =>
@@ -160,5 +156,75 @@ describe('fix 1: the scoring remote\'s own holding rez counted once (rezMoney `e
     const horizon = inCorp(s, () => nextTurnCredits(s, s.corp.credits + Math.max(0, s.corp.clicks - 1), 0, 0));
     const holdsOn = (floor: number) => inCorp(s, () => serverHold(s, 'remote-1', { when: 'runnerTurn', corpCredits: horizon - floor }).holds);
     expect([holdsOn(6), holdsOn(4)]).toEqual([false, true]);
+  });
+});
+
+type Install = GameAction & { type: 'INSTALL_CARD'; cardInstanceId: string; targetServerId?: string; asNewRemote?: boolean };
+const candidatesOf = (s: GameState) => inCorp(s, () => corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false }));
+const installsOf = (s: GameState, id: string) => getLegalActions(s, 'corp').filter((a): a is Install => a.type === 'INSTALL_CARD' && a.cardInstanceId === id && !(a as { faceUp?: boolean }).faceUp);
+
+describe('fix 2: the asset cover\'s waiting form, the candidate is the install the Corp makes', () => {
+  // The review pin's board (tests/reviewPins.test.ts, "asset cover, the waiting remote"): Regolith in HQ, remote-1 a
+  // rezzed Palisade with an empty root, no agenda in HQ, Corp 5 and 3 clicks
+  const waitingBoard = () =>
+    pwBoard(st => {
+      installIceForTest(st, PW.PALISADE, 'remote-1', true);
+      st.corp.credits = 5;
+      st.corp.hq.push(createCardInstance(st, PW.REGOLITH));
+    });
+  it('Q5 (scoreInTwoPick) given the waiting-form candidate returns it unchanged and begins no line', { timeout: T }, () => {
+    const s = waitingBoard();
+    const reg = s.corp.hq[0];
+    const mine = candidatesOf(s).filter(c => (c.action as Install).cardInstanceId === reg.instanceId);
+    expect(mine.map(c => (c.action as Install).targetServerId)).toEqual(['remote-1']);
+    const r = inCorp(s, () => scoreInTwoPick(s, mine[0].action, null));
+    expect(r.action).toBe(mine[0].action);
+    expect(r.held).toBe(null);
+    // Beta's candidate (the asset's own install on a new remote) began the asset line whose step is this same install
+    const bare = installsOf(s, reg.instanceId).find(a => a.asNewRemote)!;
+    const old = inCorp(s, () => scoreInTwoPick(s, bare, null));
+    expect(old.action).toEqual(mine[0].action);
+    expect(old.held?.line.kind).toBe('asset');
+  });
+
+  it('a board with an ice-pair placement has the same candidates, values and order as on the merge base', { timeout: T }, () => {
+    const base = JSON.parse(readFileSync(new URL('./fixtures/placement-wiring/pair-candidates.json', import.meta.url), 'utf8'));
+    for (const [name, make] of Object.entries(pairBoards)) {
+      const s = make();
+      const reg = s.corp.hq.find(c => c.cardCode === PW.REGOLITH)!;
+      const fromNew = installsOf(s, reg.instanceId).find(a => a.asNewRemote)!;
+      expect(inCorp(s, () => place(s, reg, { from: fromNew, held: null }))[0], name).toMatchObject({ reason: 'assetCover', server: 'new' });
+      expect(inCorp(s, () => place(s, reg, { from: fromNew, held: null }))[0].pairWith, name).toBeDefined();
+      const now = candidatesOf(s).map(c => ({ action: c.action, line: c.line, behind: c.behind, keys: c.keys, card: c.card ?? null }));
+      // compared as written (JSON: an infinite key is written null)
+      expect(JSON.parse(JSON.stringify(now)), name).toEqual(base[name]);
+    }
+  });
+
+  // Red team M4: a placed install the engine would refuse keeps today's candidate. No real board was found where it is
+  // refused: this asserts that every waiting-form placement on the suite's saved boards is a legal install (and that the
+  // saved boards have some).
+  it('every waiting-form placement on the saved boards is a legal install (no refusal found)', { timeout: T }, () => {
+    const dir = new URL('./fixtures/', import.meta.url);
+    const boards: [string, GameState][] = [['waiting', waitingBoard()]];
+    for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
+      const s = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
+      if (s?.corp?.hq && s?.corp?.servers) boards.push([f, s]);
+    }
+    for (const f of readdirSync(new URL('./placement-wiring/', dir)).filter(f => f.startsWith('report-'))) boards.push([f, JSON.parse(readFileSync(new URL(`./placement-wiring/${f}`, dir), 'utf8'))]);
+    let waiting = 0;
+    for (const [name, s0] of boards) {
+      const s: GameState = { ...structuredClone(s0), activePlayer: 'corp', activeRun: null, pendingPrompts: [], winner: null } as GameState;
+      if (s.corp.clicks <= 0) s.corp.clicks = 3;
+      for (const card of s.corp.hq.filter(c => cardDef(c).type_code === 'asset' && isEconAsset(c.cardCode))) {
+        for (const from of installsOf(s, card.instanceId)) {
+          const p = inCorp(s, () => place(s, card, { from, held: null }))[0];
+          if (p?.reason !== 'assetCover' || p.pairWith) continue;
+          waiting++;
+          expect(isLegalAction(s, placedInstall(from, p)), `${name} ${card.cardCode} ${JSON.stringify(p)}`).toBe(true);
+        }
+      }
+    }
+    expect(waiting).toBeGreaterThan(0);
   });
 });

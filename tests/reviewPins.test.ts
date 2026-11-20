@@ -520,7 +520,8 @@ describe('bundle P: placement wiring (counted before any fix; the pins say what 
   // placement ("Q5 plays its ice first"), which is right for the ice-pair form only: in the waiting-remote form `place`
   // puts the asset on the iced remote and the candidate (and so the look-ahead's play of it) is a new remote. Regolith
   // Mining License in HQ; remote-1 a rezzed Palisade, empty root; no agenda in HQ; Corp 5 and 3 clicks.
-  it.fails('asset cover, the waiting remote: the candidate installs Regolith where place says (remote-1)', { timeout: T }, () => {
+  // Fixed by bundle P fix 2 (the waiting form's candidate is the install place gives; tests/placementWiring.test.ts)
+  it('asset cover, the waiting remote: the candidate installs Regolith where place says (remote-1)', { timeout: T }, () => {
     const s = board(st => {
       installIceForTest(st, C.PALISADE, 'remote-1', true);
       st.corp.credits = 5;

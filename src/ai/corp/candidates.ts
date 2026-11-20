@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions, isLegalAction } from '../../core';
 import { evaluate, handValue, hqTrashCardsLoss } from '../evaluate';
 import { resourceTrashHqCost } from '../../core/engine/actions/basic';
 import { plan } from '../pricing';
@@ -99,6 +99,8 @@ function turnsToScore(state: GameState, agenda: CardInstance, clicksUsed: number
   return Math.ceil((short - now) / Math.max(1, state.corp.maxClicks));
 }
 
+const legalOr = (state: GameState, a: Install, otherwise: Install): Install => (isLegalAction(state, a) ? a : otherwise);
+
 /** The destinations `place` gives a card's installs: the counted rule's alone where one applies (spec 1.3, authority 3). */
 function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null, free?: FreeInstall): { action: Install; placement: Placement }[] {
   const seen = new Map<string, { action: Install; placement: Placement }>();
@@ -107,8 +109,12 @@ function placedInstalls(state: GameState, card: CardInstance, installs: Install[
     const p = place(state, card, { from, held: held ? structuredClone(held) : null, ...(free ? { free } : {}) });
     if (!p.length) continue;
     const placement = p[0];
-    // An asset line (assetCover) is begun from the asset's own install: Q5 (scoreInTwoPick) plays its ice first
-    const clean = placement.reason === 'assetCover' ? from : placedInstall(from, placement);
+    // An asset line (assetCover) is begun from the asset's own install. The ice pair: Q5 (scoreInTwoPick) plays its ice
+    // first, so the candidate stays the asset's own install. The waiting form (no pairWith: the asset at the iced remote
+    // that waits, or a held asset line's next step, the same move) is one install, so the candidate is that install, the
+    // move the Corp makes; Q5 begins no line from it (its target is iced). A placed install the engine refuses keeps the
+    // asset's own install (bundle P fix 2, AI-ASSET-COVER-PLANNER-MISMATCH)
+    const clean = placement.reason !== 'assetCover' ? placedInstall(from, placement) : placement.pairWith ? from : legalOr(state, placedInstall(from, placement), from);
     const key = JSON.stringify(placementAction(card, { ...placement, server: placement.server }));
     const entry = { action: clean, placement };
     if (!['pick', 'fallback', 'fallback:unpaid', 'assetLine:econIced', 'assetLine:trapOffScoring'].includes(placement.reason)) counted.push(entry);
