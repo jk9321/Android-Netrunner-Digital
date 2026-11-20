@@ -53,15 +53,18 @@ test('cancel an ability whose first step is choosing', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+/** The deal the board-click install test plays; its first installable card goes straight onto a central. */
+const INSTALL_SEED = 20261120;
+
 test('board clicks install a selected Corp card directly onto a server column', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', err => errors.push(err.message));
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
 
-  await page.goto('/');
-  await page.getByTestId('mode-computer').click();
-  await page.getByTestId('opponent-ai-runner').click();
-  await page.getByTestId('start-game').click();
+  // A fixed deal against the computer Runner (the default starter decks). With a random deal the first card could be
+  // an asset or agenda going into a remote that already held a card, and the click at (40, 120) then landed on that
+  // card's own Inspect button, which keeps the click to itself (CI run 44685258464)
+  await page.goto(`/?seed=${INSTALL_SEED}&ai=runner`);
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByText('Corp Actions (3 Clicks):')).toBeVisible({ timeout: 30_000 });
 
