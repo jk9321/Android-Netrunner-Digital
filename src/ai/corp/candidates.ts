@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions } from '../../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions, isLegalAction } from '../../core';
 import { evaluate, handValue, hqTrashCardsLoss } from '../evaluate';
 import { resourceTrashHqCost } from '../../core/engine/actions/basic';
 import { plan } from '../pricing';
@@ -11,6 +11,7 @@ import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, plac
 import { archivesWantsIce, rezAllowed } from './rez';
 import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
+import { memo } from '../valueModel';
 export { isPettyCash } from './cardRules';
 
 
@@ -99,6 +100,8 @@ function turnsToScore(state: GameState, agenda: CardInstance, clicksUsed: number
   return Math.ceil((short - now) / Math.max(1, state.corp.maxClicks));
 }
 
+const legalOr = (state: GameState, a: Install, otherwise: Install): Install => (isLegalAction(state, a) ? a : otherwise);
+
 /** The destinations `place` gives a card's installs: the counted rule's alone where one applies (spec 1.3, authority 3). */
 function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null, free?: FreeInstall): { action: Install; placement: Placement }[] {
   const seen = new Map<string, { action: Install; placement: Placement }>();
@@ -107,8 +110,12 @@ function placedInstalls(state: GameState, card: CardInstance, installs: Install[
     const p = place(state, card, { from, held: held ? structuredClone(held) : null, ...(free ? { free } : {}) });
     if (!p.length) continue;
     const placement = p[0];
-    // An asset line (assetCover) is begun from the asset's own install: Q5 (scoreInTwoPick) plays its ice first
-    const clean = placement.reason === 'assetCover' ? from : placedInstall(from, placement);
+    // An asset line (assetCover) is begun from the asset's own install. The ice pair: Q5 (scoreInTwoPick) plays its ice
+    // first, so the candidate stays the asset's own install. The waiting form (no pairWith: the asset at the iced remote
+    // that waits, or a held asset line's next step, the same move) is one install, so the candidate is that install, the
+    // move the Corp makes; Q5 begins no line from it (its target is iced). A placed install the engine refuses keeps the
+    // asset's own install (bundle P fix 2, AI-ASSET-COVER-PLANNER-MISMATCH)
+    const clean = placement.reason !== 'assetCover' ? placedInstall(from, placement) : placement.pairWith ? from : legalOr(state, placedInstall(from, placement), from);
     const key = JSON.stringify(placementAction(card, { ...placement, server: placement.server }));
     const entry = { action: clean, placement };
     if (!['pick', 'fallback', 'fallback:unpaid', 'assetLine:econIced', 'assetLine:trapOffScoring'].includes(placement.reason)) counted.push(entry);
@@ -397,13 +404,10 @@ function drawFirst(state: GameState, out: Candidate[]): boolean {
  * "which first", never as a value. Nothing is installed only when the order offers no install at all. The model's play
  * value is not read as a gate: it prices a card leaving HQ above unrezzed ice (Doomscroll on bare R&D, bug report #13).
  */
-const freeOrders = new WeakMap<GameState, Map<string, Candidate[]>>();
 export function freeInstallTarget(state: GameState, card: CardInstance, options: string[]): { server: string; score: number } | undefined {
   if (typeOf(card) === 'agenda') return undefined;
-  const key = options.join();
-  const cached = freeOrders.get(state)?.get(key);
-  const order = cached ?? freeInstallOrder(state, options);
-  if (!cached) (freeOrders.get(state) ?? freeOrders.set(state, new Map()).get(state)!).set(key, order);
+  // Once per position and pricing context (valueModel memo; bundle P fix 3: the hand-made cache had no pricing key)
+  const order = memo(state, 'freeOrder:' + options.join(), () => freeInstallOrder(state, options));
   const i = order.findIndex(c => c.card === card.instanceId);
   if (i < 0) return undefined;
   const a = order[i].action as Install;

@@ -51,7 +51,11 @@ describe('the Corp reads how this Runner treats unprotected assets (plan.readAss
     expect(before(ranked(position({ exposed: 7, trashed: 6 })), 'install Otto Campaign new', 'GAIN_CREDIT')).toBe(false);
   });
 
-  it.fails('then an empty iced side remote takes it', () => {
+  // Passes since bundle P fix 2 (the asset cover's waiting form, corp/candidates.ts placedInstalls): place gives Otto
+  // Campaign's install the counted assetCover placement at remote-9, the empty iced remote that waits (remote-12, with
+  // more ice, is the scoring remote), and the candidate is now that install instead of the asset's own install on a new
+  // remote. The record (bareAssetRisk) is still not read by the order: the test above stays known-failing.
+  it('then an empty iced side remote takes it', () => {
     const s = position({ exposed: 7, trashed: 6 });
     // A better-iced empty remote is the scoring remote; Remote 9 (Ablative Barrier) is the side one
     const main = s.corp.servers['remote-9'];

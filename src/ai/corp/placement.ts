@@ -336,12 +336,19 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
   return executeAction(state, pick);
 }
 
-/** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less lineKeep (rezMoney.ts) for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
+/**
+ * The scoring remote when it does not hold by the count (serverHold against the Runner's budget with what the Corp ends
+ * the turn on, less lineKeep (rezMoney.ts) for its agendas with the scoring remote itself left out of the pools: its own
+ * holding rez is the question asked here, so it is not also kept; bundle P fix 1, AI-SCORING-SHORT-DOUBLE-COUNT); null
+ * when it holds or there is none. The double count is removed, the count is not exact: the Runner's clicks and credits
+ * shared between this remote and the other staked servers are not one joint question here (red team M1). Readers:
+ * iceRedirect, assetCover's gate, and iceCount (the scoring remote's `scoring` flag, read by the order's ice lines).
+ */
 export function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
   const agendas = state.corp.hq.filter(isAgenda);
-  const floor = lineKeep(state, agendas);
+  const floor = lineKeep(state, agendas, scoring.id);
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floor }).holds ? null : scoring;
 }
@@ -353,8 +360,12 @@ export function scoringShort(state: GameState): ServerLike | null {
  * for its agendas), the ice goes to the scoring remote instead, outermost. Its install cost there is 1 credit for each
  * ice already protecting it (8.5.11a), against none on a new remote. Measured and not kept: redirecting only while the
  * Corp still covers the holding rez after that cost (+0.5 ± 0.6, run 43158132282: it removes most fires), and keeping the
- * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). Central ice and the choice to install ice at all are the
- * pick's: a pure redirect, no veto, no extra install. Null: no change.
+ * first ice on a server with a card in its root (-1.4 ± 0.8 against this, run 43167848111). A pure redirect, no veto, no
+ * extra install; but inside generation a counted placement is the card's only candidate (spec 1.3 point 3), so while the
+ * redirect applies this ice is offered at the scoring remote alone, and a central install of it is centralIce's, not the
+ * pick's. Counted (bundle P, 2026-11-19): the class (a staked central that does not hold, which this ice would improve)
+ * is 1.76 decisions a game; offering the centrals beside the redirect (`redirectRemoteOnly`) was not kept (+0.03 ± 0.11
+ * points stolen on 518 pairs, run 44585255841). Null: no change.
  */
 export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInstall): GameAction | null {
   if (pick.type !== 'INSTALL_CARD' || !mainOr(state, free)) return null;
@@ -380,8 +391,13 @@ export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInsta
  * lineKeep. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
  * (8.5.6a). Null: not reserved. Folded 2026-11-13 (plan.assetReserve, g3 +0.5 ± 1.6, run 43354222438; before it the
  * remote was reserved whenever an agenda waited in HQ).
+ * KNOWN DOUBLE COUNT, counted and not built (bundle P 1b, found row 89 e and j): the floor here keeps the scoring
+ * remote's own holding rez (lineKeep without the server) and serverHold then asks that same rez of the horizon, as
+ * scoringShort did before fix 1. Leaving the remote out (the count's arm `reservedOnce`) changed one decision (report-48
+ * move 59) and that pair was worse on every column, so it is pinned known-failing instead (tests/reviewPins.test.ts,
+ * bundle P, "reservedForAgenda").
  */
-function reservedForAgenda(state: GameState): ServerLike | null {
+export function reservedForAgenda(state: GameState): ServerLike | null {
   const agendas = state.corp.hq.filter(isAgenda);
   const scoring = agendas.length ? scoringRemote(state) : null;
   if (!scoring) return scoring;
