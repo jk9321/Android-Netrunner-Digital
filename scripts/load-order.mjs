@@ -1,5 +1,7 @@
 // Module load order: the order the repo's modules are evaluated in (ESM depth-first post-order) from an entry file,
-// after esbuild's TS transform, which drops imports used only as types or not at all, as vite and vite-node do.
+// after esbuild's TS transform, which drops imports used only as types or not at all, as vite and vite-node do (vite 8
+// transforms with oxc instead; checked 2026-11-20 that both keep the same import edges in every src file).
+// esbuild is an explicit devDependency for this script: vite 8 no longer installs it.
 //
 // Why (audit Step 3, 2026-11-14): AI play depended on module load order. runnerAI.ts built its trojan list at load from
 // runs.ts's constants, and under the batch entry runnerAI loads inside runs.ts's import cycle, before those constants
