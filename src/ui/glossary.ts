@@ -253,7 +253,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   'bad-publicity': {
     term: 'Bad publicity',
-    text: 'When each run begins, the Runner puts 1 credit in their bad publicity fund for each bad publicity the Corp has. They can spend those credits during that run only; the rest go back at the end of the run (rules 10.6).',
+    text: 'When each run begins, the Runner puts 1 credit in their bad publicity fund for each bad publicity the Corp has. They can spend those credits during that run only; the rest go back at the end of the run.',
     match: ['bad publicity'],
   },
   stealth: {
