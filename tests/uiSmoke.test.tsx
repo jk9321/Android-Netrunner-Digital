@@ -12,6 +12,10 @@ import { DeckPicker } from '../src/ui/components/DeckPicker';
 import { DeckBuilder, DeckViewer } from '../src/ui/components/DeckBuilder';
 import { RunOverlay } from '../src/ui/components/RunOverlay';
 import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel';
+import { ServerColumn } from '../src/ui/components/ServerColumn';
+import { CardView } from '../src/ui/components/CardView';
+import { ZoomContext, createZoomStore } from '../src/ui/components/ZoomPanel';
+import { clearBoardTargets, setBoardTargets } from '../src/ui/promptHighlight';
 import { SeatContext } from '../src/ui/seat';
 import { executeAction } from '../src/core';
 import { newGame, startRunnerTurn } from './helpers';
@@ -307,5 +311,44 @@ describe('UI component smoke renders', () => {
     );
     expect(mulliganHtml).toContain('data-testid="prompt-panel-handle"');
     expect(mulliganHtml).not.toContain('data-testid="prompt-panel-dock"');
+  });
+
+  it('registers two-way board card and server targets safely by owner without marking non-installed cards', () => {
+    const state = newGame();
+    const installedCard = state.corp.hq.pop()!;
+    state.corp.servers.hq.root.push(installedCard);
+    const handCard = state.corp.hq[0];
+
+    const ownerA = {};
+    const ownerB = {};
+    setBoardTargets(ownerA, {
+      cards: new Map([[installedCard.instanceId, { onClick: () => {} }], [handCard.instanceId, { onClick: () => {} }]]),
+      servers: new Map([['archives', { onClick: () => {}, title: 'Archives target' }]]),
+    });
+    // Clearing with an old owner must not wipe active targets
+    clearBoardTargets(ownerB);
+
+    const zoomStore = createZoomStore();
+    const targetedHtml = renderToStaticMarkup(
+      <ZoomContext.Provider value={zoomStore}>
+        <ServerColumn server={state.corp.servers.archives} activePlayer="runner" />
+        <CardView card={installedCard} />
+        <CardView card={handCard} notInstalled />
+      </ZoomContext.Provider>,
+    );
+    expect(targetedHtml).toContain('data-server-target="true"');
+    expect(targetedHtml).toContain('data-board-target="true"');
+    // Only the installed card receives data-board-target, not the notInstalled hand card
+    expect(targetedHtml.match(/data-board-target="true"/g)?.length).toBe(1);
+
+    clearBoardTargets(ownerA);
+    const clearedHtml = renderToStaticMarkup(
+      <ZoomContext.Provider value={zoomStore}>
+        <ServerColumn server={state.corp.servers.archives} activePlayer="runner" />
+        <CardView card={installedCard} />
+      </ZoomContext.Provider>,
+    );
+    expect(clearedHtml).not.toContain('data-server-target="true"');
+    expect(clearedHtml).not.toContain('data-board-target="true"');
   });
 });

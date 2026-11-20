@@ -45,8 +45,64 @@ test('cancel an ability whose first step is choosing', async ({ page }) => {
   await expect(page.getByText('Runner Actions (4 Clicks):')).toBeVisible();
 
   await useRedTeam();
-  await page.getByTestId('prompt-panel').getByRole('button', { name: 'Archives' }).click();
+  // Clicking the targetable server column directly on the board answers the prompt too
+  await expect(page.getByTestId('server-archives')).toHaveAttribute('data-server-target', 'true');
+  await page.getByTestId('server-archives').click({ position: { x: 40, y: 120 } });
   await expect(page.getByText('3 / 4 Clicks')).toBeVisible();
   await expect(page.getByTestId('run-overlay')).toContainText('RUN // ARCHIVES');
+  expect(errors).toEqual([]);
+});
+
+test('board clicks install a selected Corp card directly onto a server column', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+
+  await page.goto('/');
+  await page.getByTestId('mode-computer').click();
+  await page.getByTestId('opponent-ai-runner').click();
+  await page.getByTestId('start-game').click();
+  await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
+  await expect(page.getByText('Corp Actions (3 Clicks):')).toBeVisible({ timeout: 30_000 });
+
+  // Select an ice or upgrade/asset/agenda in HQ via the spread hand
+  const pickInstallableInHq = async (requireBoardServer = false): Promise<boolean> => {
+    const box = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
+    await page.mouse.move(box.x + 20, box.y + 30, { steps: 4 });
+    const spread = page.getByTestId('hand-corp-spread');
+    await expect(spread).toBeVisible();
+    const n = await spread.locator('> *').count();
+    for (let i = 0; i < n; i++) {
+      await spread.locator('> *').nth(i).click();
+      if (await page.getByTestId('install-options').count()) {
+        if (!requireBoardServer || (await page.locator('#corp-board [data-server-target="true"]').count()) > 0) {
+          // Move pointer off the hand so the spread closes cleanly before board clicks
+          await page.mouse.move(10, 10);
+          return true;
+        }
+      }
+    }
+    await page.mouse.move(10, 10);
+    return false;
+  };
+
+  expect(await pickInstallableInHq()).toBe(true);
+
+  const installBtn = page.getByTestId('install-options').locator('button[data-testid^="install-"]').first();
+  const btnId = (await installBtn.getAttribute('data-testid'))!;
+  // Create a remote if the first installable card only goes into a new remote, then pick a card targeting an existing server
+  if (btnId === 'install-new' && (await page.locator('#corp-board [data-server-target="true"]').count()) === 0) {
+    await installBtn.click();
+    await expect(page.getByText('Corp Actions (2 Clicks):')).toBeVisible();
+    expect(await pickInstallableInHq(true)).toBe(true);
+  }
+
+  const targetServer = page.locator('#corp-board [data-server-target="true"]').first();
+  await expect(targetServer).toBeVisible();
+  const serverTestId = (await targetServer.getAttribute('data-testid'))!;
+  // Click inside the central/remote server column (even over its anchor/pile) to install directly
+  await targetServer.click({ position: { x: 40, y: 120 } });
+  await expect(page.getByTestId('install-options')).toHaveCount(0);
+  await expect(page.getByTestId(serverTestId)).not.toHaveAttribute('data-server-target', 'true');
   expect(errors).toEqual([]);
 });

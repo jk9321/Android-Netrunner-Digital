@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance, GameState, Prompt, PromptChoice, SideCode, activePrompt, availableCredits, cardDef, findCardAnywhere, locateCorpCard, trashableFirst, effectTrashableFirst } from '../../core';
 import { useSeat } from '../seat';
 import { TrashFirstPicker, TrashSplitSegment } from './TrashFirstPicker';
@@ -8,7 +8,15 @@ import { CardNameText } from './CardNameText';
 import { Credits, MuIcon } from './CreditIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { cardPositionLabel, isInstalledCard } from '../cardLabels';
-import { hoverPromptServer, hoverPromptTarget, selectPromptTargets } from '../promptHighlight';
+import {
+  type BoardCardTarget,
+  type BoardServerTarget,
+  clearBoardTargets,
+  hoverPromptServer,
+  hoverPromptTarget,
+  selectPromptTargets,
+  setBoardTargets,
+} from '../promptHighlight';
 
 /** An installed Corp card that is neither rezzed nor faceup: only the Corp may look at it (rules 4.6.3). */
 function isFacedownCorpCard(state: GameState, card: CardInstance): boolean {
@@ -78,6 +86,51 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
   const [selected, setSelected] = useState<string[]>([]);
   // An effect installing a card: the option (server) whose cards to trash first (rules 8.5.6)
   const [trashingFor, setTrashingFor] = useState<{ promptId: string; optionId: string } | null>(null);
+  const [targetOwner] = useState(() => ({}));
+
+  const isCorp = prompt?.side === 'corp';
+  // An effect installing a card may first trash cards already installed (rules 8.5.6): Corp effects
+  // asking where to install (option: a server), Runner effects picking a card (option: the picked card)
+  const installs = !!prompt && (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards') && !!prompt.source.data?.install;
+  const installCardFor = (optionId: string): CardInstance | undefined => {
+    if (!prompt || !installs) return undefined;
+    if (prompt.kind === 'effect_cards') return findCardAnywhere(state, optionId);
+    return isCorp || optionId === 'install' ? findCardAnywhere(state, String(prompt.source.data?.cardId)) : undefined;
+  };
+  const trashableFor = (optionId: string): CardInstance[] => {
+    if (!prompt) return [];
+    const card = installCardFor(optionId);
+    if (!card) return [];
+    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : effectTrashableFirst(state, card, 'source' in prompt ? prompt.source.data : undefined);
+  };
+  const trashingChoice = (optionId: string, trash: string[]): PromptChoice =>
+    prompt?.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: [optionId], trashFirst: trash } : { kind: 'effect_choice', optionId, trashFirst: trash };
+  const trashing = !!prompt && installs && trashingFor?.promptId === prompt.id ? trashingFor.optionId : null;
+  const maxSelected = prompt?.kind === 'discard' ? prompt.count : prompt?.kind === 'effect_cards' ? prompt.max : Infinity;
+  const toggle = (id: string) =>
+    setSelected(sel =>
+      sel.includes(id)
+        ? sel.filter(s => s !== id)
+        : sel.length < maxSelected
+          ? [...sel, id]
+          : maxSelected === 1
+            ? [id]
+            : sel,
+    );
+  const answer = (choice: PromptChoice) => {
+    setSelected([]);
+    onAnswer(choice);
+  };
+
+  const answerRef = useRef(answer);
+  answerRef.current = answer;
+  const toggleRef = useRef(toggle);
+  toggleRef.current = toggle;
+  const trashableForRef = useRef(trashableFor);
+  trashableForRef.current = trashableFor;
+  const trashingChoiceRef = useRef(trashingChoice);
+  trashingChoiceRef.current = trashingChoice;
+
   // Mark the picked cards on the table too, and drop every mark once the prompt closes
   useEffect(() => selectPromptTargets(selected), [selected]);
   useEffect(() => {
@@ -89,6 +142,98 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
       selectPromptTargets([]);
     };
   }, [prompt?.id]);
+
+  // Publish clickable board cards & servers for the active prompt (unless TrashFirstPicker holds them)
+  useEffect(() => {
+    if (!prompt || !canAnswer || trashing) {
+      clearBoardTargets(targetOwner);
+      return;
+    }
+    const cards = new Map<string, BoardCardTarget>();
+    const servers = new Map<string, BoardServerTarget>();
+
+    if (prompt.kind === 'access_order') {
+      for (const opt of prompt.options) {
+        if (opt.id.startsWith('root:')) {
+          const cardId = opt.id.slice('root:'.length);
+          if (findCardAnywhere(state, cardId)) {
+            cards.set(cardId, {
+              onClick: () => {
+                hoverPromptTarget(null);
+                hoverPromptServer(null);
+                answerRef.current({ kind: 'access_order', optionId: opt.id });
+              },
+            });
+          }
+        } else if (state.corp.servers[opt.id]) {
+          servers.set(opt.id, {
+            title: `Click to access ${state.corp.servers[opt.id].name} next`,
+            onClick: () => {
+              hoverPromptTarget(null);
+              hoverPromptServer(null);
+              answerRef.current({ kind: 'access_order', optionId: opt.id });
+            },
+          });
+        }
+      }
+    } else if (prompt.kind === 'effect_choice') {
+      for (const opt of prompt.options) {
+        const card = findCardAnywhere(state, opt.id);
+        const server = state.corp.servers[opt.id];
+        const cardInstalled = card ? isInstalledCard(state, card) : false;
+        const canNormal = seat.can({
+          type: 'RESOLVE_PROMPT',
+          player: prompt.side,
+          promptId: prompt.id,
+          choice: { kind: 'effect_choice', optionId: opt.id },
+        });
+        const trashables = installs ? trashableForRef.current(opt.id) : [];
+        const canWithTrash =
+          trashables.length > 0 &&
+          seat.can({
+            type: 'RESOLVE_PROMPT',
+            player: prompt.side,
+            promptId: prompt.id,
+            choice: trashingChoiceRef.current(opt.id, trashables.map(c => c.instanceId)),
+          });
+        const autoTrash = !canNormal && canWithTrash;
+        if (!canNormal && !autoTrash) continue;
+
+        const pickOption = () => {
+          hoverPromptTarget(null);
+          hoverPromptServer(null);
+          if (autoTrash) {
+            setTrashingFor({ promptId: prompt.id, optionId: opt.id });
+            return;
+          }
+          answerRef.current({ kind: 'effect_choice', optionId: opt.id });
+        };
+        if (card && cardInstalled) {
+          cards.set(opt.id, { onClick: pickOption });
+        } else if (server) {
+          servers.set(server.id, { title: opt.label, onClick: pickOption });
+        }
+      }
+    } else if (prompt.kind === 'effect_cards') {
+      for (const id of prompt.candidateIds) {
+        const card = findCardAnywhere(state, id);
+        if (card && isInstalledCard(state, card)) {
+          cards.set(id, {
+            onClick: () => toggleRef.current(id),
+          });
+        }
+      }
+    }
+
+    if (cards.size === 0 && servers.size === 0) {
+      clearBoardTargets(targetOwner);
+    } else {
+      setBoardTargets(targetOwner, { cards, servers });
+    }
+  }, [targetOwner, prompt, canAnswer, trashing, installs, state, seat]);
+
+  useEffect(() => () => clearBoardTargets(targetOwner), [targetOwner]);
+
   if (!prompt && !waitingFor) return null;
   if (!prompt || !canAnswer) {
     const side = waitingFor ?? prompt?.side;
@@ -99,45 +244,12 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     );
   }
 
-  const isCorp = prompt.side === 'corp';
-  // An effect installing a card may first trash cards already installed (rules 8.5.6): Corp effects
-  // asking where to install (option: a server), Runner effects picking a card (option: the picked card)
-  const installs = (prompt.kind === 'effect_choice' || prompt.kind === 'effect_cards') && !!prompt.source.data?.install;
-  const installCardFor = (optionId: string): CardInstance | undefined => {
-    if (!installs) return undefined;
-    if (prompt.kind === 'effect_cards') return findCardAnywhere(state, optionId);
-    return isCorp || optionId === 'install' ? findCardAnywhere(state, String(prompt.source.data?.cardId)) : undefined;
-  };
-  const trashableFor = (optionId: string): CardInstance[] => {
-    const card = installCardFor(optionId);
-    if (!card) return [];
-    return isCorp ? (optionId === 'new' ? [] : trashableFirst(state, card, optionId)) : effectTrashableFirst(state, card, 'source' in prompt ? prompt.source.data : undefined);
-  };
-  const trashingChoice = (optionId: string, trash: string[]): PromptChoice =>
-    prompt.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: [optionId], trashFirst: trash } : { kind: 'effect_choice', optionId, trashFirst: trash };
   const trashOptions = !installs
     ? []
     : (prompt.kind === 'effect_choice' ? prompt.options.map(o => o.id) : selected.length === 1 ? selected : []).filter(id => trashableFor(id).length > 0);
-  const trashing = installs && trashingFor?.promptId === prompt.id ? trashingFor.optionId : null;
   const hand = isCorp ? state.corp.hq : state.runner.grip;
   const accent = isCorp ? 'border-cyan-500 shadow-cyan-950/60' : 'border-pink-500 shadow-pink-950/60';
-  // Selection stops at the most cards the prompt takes; with a limit of one, a new pick replaces the old
-  const maxSelected = prompt.kind === 'discard' ? prompt.count : prompt.kind === 'effect_cards' ? prompt.max : Infinity;
-  const toggle = (id: string) =>
-    setSelected(sel =>
-      sel.includes(id)
-        ? sel.filter(s => s !== id)
-        : sel.length < maxSelected
-          ? [...sel, id]
-          : maxSelected === 1
-            ? [id]
-            : sel,
-    );
   const isFull = selected.length >= maxSelected && maxSelected !== 1;
-  const answer = (choice: PromptChoice) => {
-    setSelected([]);
-    onAnswer(choice);
-  };
 
   const button = `${docked ? 'px-3 py-1.5' : 'px-4 py-2'} text-xs font-bold rounded-[2px] border border-b-2 flex items-center gap-1.5 transition-all disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px]`;
 

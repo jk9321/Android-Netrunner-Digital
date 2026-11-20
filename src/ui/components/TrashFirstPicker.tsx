@@ -1,5 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { hoverPromptServer, hoverPromptTarget } from '../promptHighlight';
+import {
+  clearBoardTargets,
+  hoverPromptServer,
+  hoverPromptTarget,
+  selectPromptTargets,
+  setBoardTargets,
+} from '../promptHighlight';
 import { Plus, Trash2 } from 'lucide-react';
 import { CardInstance, cardDef } from '../../core';
 
@@ -37,6 +43,9 @@ export function TrashFirstPicker({
   onCancel: () => void;
 }) {
   const [trash, setTrash] = useState<string[]>([]);
+  const [targetOwner] = useState(() => ({}));
+  const toggle = (id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+
   // Drop the board & server highlight if the picker closes while a button is hovered
   useEffect(() => {
     if (serverId) hoverPromptServer(serverId);
@@ -45,7 +54,18 @@ export function TrashFirstPicker({
       if (serverId) hoverPromptServer(null);
     };
   }, [serverId]);
-  const toggle = (id: string) => setTrash(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+
+  // Keep selected cards highlighted on the board and clear on unmount
+  useEffect(() => selectPromptTargets(trash), [trash]);
+  useEffect(() => () => selectPromptTargets([]), []);
+
+  // Let the player toggle these cards by clicking them directly on the board too
+  useEffect(() => {
+    const map = new Map(cards.map(c => [c.instanceId, { onClick: () => toggle(c.instanceId) }]));
+    setBoardTargets(targetOwner, { cards: map });
+    return () => clearBoardTargets(targetOwner);
+  }, [targetOwner, cards]);
+
   const status = statusText?.(trash);
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="trash-first">

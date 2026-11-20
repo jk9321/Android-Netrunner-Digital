@@ -1,0 +1,161 @@
+{
+ "mirror": [
+  {
+   "action": {
+    "type": "INSTALL_CARD",
+    "player": "corp",
+    "cardInstanceId": "inst-64",
+    "targetServerId": "rd"
+   },
+   "line": 2,
+   "behind": false,
+   "keys": [
+    -20,
+    3,
+    null,
+    64
+   ],
+   "card": "inst-64"
+  },
+  {
+   "action": {
+    "type": "INSTALL_CARD",
+    "player": "corp",
+    "cardInstanceId": "inst-63",
+    "asNewRemote": true
+   },
+   "line": 4,
+   "behind": false,
+   "keys": [
+    0.6932173395997907,
+    63
+   ],
+   "card": "inst-63"
+  },
+  {
+   "action": {
+    "type": "GAIN_CREDIT",
+    "player": "corp"
+   },
+   "line": 7,
+   "behind": false,
+   "keys": [
+    0
+   ],
+   "card": null
+  },
+  {
+   "action": {
+    "type": "DRAW_CARD",
+    "player": "corp"
+   },
+   "line": 7,
+   "behind": false,
+   "keys": [
+    1
+   ],
+   "card": null
+  },
+  {
+   "action": {
+    "type": "PURGE_VIRUS",
+    "player": "corp"
+   },
+   "line": 5,
+   "behind": true,
+   "keys": [
+    3.75,
+    0
+   ],
+   "card": null
+  }
+ ],
+ "twoIce": [
+  {
+   "action": {
+    "type": "INSTALL_CARD",
+    "player": "corp",
+    "cardInstanceId": "inst-66",
+    "targetServerId": "rd"
+   },
+   "line": 2,
+   "behind": false,
+   "keys": [
+    -20,
+    2,
+    null,
+    66
+   ],
+   "card": "inst-66"
+  },
+  {
+   "action": {
+    "type": "INSTALL_CARD",
+    "player": "corp",
+    "cardInstanceId": "inst-65",
+    "targetServerId": "rd"
+   },
+   "line": 2,
+   "behind": false,
+   "keys": [
+    -20,
+    3,
+    null,
+    65
+   ],
+   "card": "inst-65"
+  },
+  {
+   "action": {
+    "type": "INSTALL_CARD",
+    "player": "corp",
+    "cardInstanceId": "inst-64",
+    "asNewRemote": true
+   },
+   "line": 4,
+   "behind": false,
+   "keys": [
+    0.6932173395997907,
+    64
+   ],
+   "card": "inst-64"
+  },
+  {
+   "action": {
+    "type": "GAIN_CREDIT",
+    "player": "corp"
+   },
+   "line": 7,
+   "behind": false,
+   "keys": [
+    0
+   ],
+   "card": null
+  },
+  {
+   "action": {
+    "type": "DRAW_CARD",
+    "player": "corp"
+   },
+   "line": 7,
+   "behind": false,
+   "keys": [
+    1
+   ],
+   "card": null
+  },
+  {
+   "action": {
+    "type": "PURGE_VIRUS",
+    "player": "corp"
+   },
+   "line": 5,
+   "behind": true,
+   "keys": [
+    3.75,
+    0
+   ],
+   "card": null
+  }
+ ]
+}

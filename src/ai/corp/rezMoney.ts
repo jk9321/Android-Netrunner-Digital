@@ -2,14 +2,15 @@ import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { TurnFrom, afterRun, nextTurn, nextTurnBoard, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
 import { memo } from '../valueModel';
+import { agendasUnseen } from './pools';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
  * (Step 4 Stage A, spec-step4-corp-core.md 1.5; registry row "rez money the Corp must keep").
  *
  * A server stakes something next Runner turn when the Runner's access there can take an agenda the Corp knows of:
- * R&D always (the deck list's agendas still there, rule 10.2.2a: never its order); HQ while it holds an agenda; a remote
- * with an agenda in its root. A card the caller is about to score or install leaves the pools (`without`).
+ * R&D while the deck list has an agenda left there (agendasUnseen, the pools' owner; rule 10.2.2a: the set, never its
+ * order); HQ while it holds an agenda; a remote with an agenda in its root. A card the caller is about to score or install leaves the pools (`without`).
  *
  *  - byServer: for each staked server, the cheapest rez that keeps the Runner out next turn (serverHold, 'runnerTurn',
  *    the Corp's money unbounded: what it should keep, not what it has). Rezzed ice that holds costs 0. This is
@@ -24,6 +25,8 @@ import { memo } from '../valueModel';
  * current turn instead of its next one: the board with the run over, the Runner's clicks left and the credits it will
  * have once this run is paid (hold.ts's 'restOfTurn' start, the same walk). `except` leaves the run's own server out (the
  * rez in question pays for it). countedRez's toll rezzes (R3t, R4t) read it: a toll rez that spends this money passes.
+ * `except` on the next turn (the external review of 2026-11-19, bundle P fix 1, AI-SCORING-SHORT-DOUBLE-COUNT): lineKeep
+ * given a line's own server leaves it out the same way (the line pays that server's rez as its own question).
  *
  * Since Stage C6 lineFloor returns `keep`; the placement rules (scoringShort, reservedForAgenda, centralIce's rez gate)
  * read it, and the valuation reaches it through corpPorts (boardNeed reads keep, rezBudget the holding rezzes; registry
@@ -40,9 +43,9 @@ export interface RezMoney {
 
 const isAgenda = (c: CardInstance | undefined) => (c ? cardDef(c).type_code === 'agenda' : false);
 
-/** The servers that stake an agenda through the Runner's next turn, R&D first, then HQ, then remotes in id order. */
+/** The servers that stake an agenda through the Runner's next turn: R&D (while agendasUnseen is above 0), then HQ, then remotes in id order. */
 export function stakedServers(state: GameState, without: string[] = []): string[] {
-  const out = ['rd'];
+  const out = agendasUnseen(state) > 0 ? ['rd'] : [];
   if (state.corp.hq.some(c => isAgenda(c) && !without.includes(c.instanceId))) out.push('hq');
   for (const v of Object.values(state.corp.servers)) if (v.isRemote && v.root.some(c => isAgenda(c) && !without.includes(c.instanceId))) out.push(v.id);
   return out;
@@ -61,14 +64,18 @@ export function rezMoney(state: GameState, opts: { without?: string[]; restOfTur
     return countRezMoney(state, holdingRez(state, opts.without, from, opts.except), from);
   }
   state = nextTurnBoard(state);
+  const without = opts.without ?? [];
+  // `except` (a line's own server: lineKeep) leaves the pools only where it stakes; elsewhere the answer is the plain one
+  const except = opts.except !== undefined && stakedServers(state, without).includes(opts.except) ? opts.except : undefined;
+  if (except !== undefined) return memo(state, `rezMoney:${without.join()}|except:${except}`, () => countRezMoney(state, holdingRez(state, without, undefined, except)));
   // Worked out once per position (valueModel memo: on the state object, the pricing context in its key): boardNeed and
   // rezBudget ask it of the same boards many times over in one decision (Stage B5 decision time)
-  if (!opts.without?.length) {
+  if (!without.length) {
     const money = memo(state, 'rezMoney', () => countRezMoney(state, holding(state)));
     if (rezMoneyAudit.on) audit(money, countRezMoney(state, holdingRez(state)));
     return money;
   }
-  return countRezMoney(state, holdingRez(state, opts.without));
+  return countRezMoney(state, holdingRez(state, without));
 }
 
 /** On-hit audit of the per-position memo (as handValues clickAudit): every call worked out again and compared. */
@@ -177,9 +184,11 @@ export const floorLog = { on: false, checked: 0, differ: [] as { keep: number; s
 /**
  * The credits the Corp keeps under a counted line (keepFloor before Stage C6, moved here from corp/placement.ts): the
  * least keep over the HQ agendas a line could take, each left out of the pools (the line pays its own server's rez as
- * its own step); with no agenda in HQ, keep itself.
+ * its own step); with no agenda in HQ, keep itself. `server`: the server the line is on, left out of the pools too
+ * (scoringShort asks serverHold of it with the money less this keep: its own rez counted once, bundle P fix 1).
  */
-export function lineKeep(state: GameState, agendas: CardInstance[]): number {
-  return agendas.length ? Math.min(...agendas.map(x => rezMoney(state, { without: [x.instanceId] }).keep)) : rezMoney(state).keep;
+export function lineKeep(state: GameState, agendas: CardInstance[], server?: string): number {
+  const except = server === undefined ? {} : { except: server };
+  return agendas.length ? Math.min(...agendas.map(x => rezMoney(state, { without: [x.instanceId], ...except }).keep)) : rezMoney(state, except).keep;
 }
 

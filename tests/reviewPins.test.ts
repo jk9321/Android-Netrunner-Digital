@@ -27,7 +27,7 @@ import { rezMoney } from '../src/ai/corp/rezMoney';
 import { agendasUnseen } from '../src/ai/corp/pools';
 import { countedRez, spendsKept } from '../src/ai/corp/rez';
 import { corpCandidates } from '../src/ai/corp/candidates';
-import { place, scoringShort } from '../src/ai/corp/placement';
+import { place, reservedForAgenda, scoringShort } from '../src/ai/corp/placement';
 import { iceCreditNeed } from '../src/ai/runs';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -329,7 +329,7 @@ function scripted(script: (s: GameState) => GameAction | null): Agent {
   }) as Agent;
 }
 
-describe('bundle R: rez and rez money (known-failing until the bundle R fix)', () => {
+describe('bundle R: rez and rez money (LEO and the empty R&D pass since ai-rez-fixes; the two Whitespace pins stay known-failing by Jeff\'s card of 2026-11-20 03:51Z)', () => {
   // AI-SPENDS-KEPT-FLOOR-NEED. spendsKept (corp/rez.ts) hands rezMoney the Runner's credits after the toll as
   // credits - toll.need, and toll.need is the least pool that gets through, not what the toll takes. Whitespace (30074):
   // "The Runner loses 3. / If the Runner has 6 or less, end the run." F1's board (tests/fixtures/adversarial/
@@ -370,6 +370,11 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     inCorp(s, () => spendsKept(s, s.corp.servers.hq.ice[1]));
     return restCredits[0];
   };
+  // Counted and not built (bundle R's count and ruling, 2026-11-20, review-fixes-1119/rez-count/ruling.md, C1): known
+  // debt on the rez money row of docs/ai-priced-quantities.md. In play the class is reached where a credit-threshold ice
+  // is already rezzed further in, behind an approached ice with a break cost (deal 1131 turn 14: Palisade approached on
+  // R&D, Whitespace rezzed further in; handed 17, real 24); on 259 sources the real number changes no spendsKept answer.
+  // On this pin's board the decision is not spendsKept's (the next pin). Stays known-failing.
   it.fails("Whitespace toll: spendsKept hands rezMoney the Runner's real credits after the toll (11 - 3 = 8)", { timeout: T }, () => {
     const s = tollBoard(C.WHITESPACE);
     expect(afterToll(s)).toBe(8);
@@ -391,6 +396,10 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     for (let i = 0; i < 600 && !g.state.winner && g.state.activePlayer === 'runner'; i++) if (!g.step()) break;
     return g.state;
   };
+  // Counted and not built (ruling C2): 81 windows of the kind (a loss toll at countedRez's free gate) on 259 sources, 0
+  // with the exploit in play; `keepPricedCentral` (F1's check asked of the priced rez under R3's or R4's conditions)
+  // turns this pin with 0 changed decisions. Jeff's card of 2026-11-20 03:51Z: "Leave it as known debt" (the free gate's
+  // two owners of "free" and the priced rez's horizon, registry debt; beta-to-main-step.md 1f). Stays known-failing.
   it.fails('Whitespace toll, the decision: the Corp keeps the money for Sleipnir and Send a Message is not stolen', { timeout: T }, () => {
     const s = tollBoard(C.WHITESPACE);
     expect(inCorp(s, () => countedRez(s, s.corp.servers.hq.ice[1]))).toBe(null);
@@ -434,7 +443,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     return a?.type === 'USE_ABILITY' ? findCardAnywhere(s, a.cardInstanceId!)?.cardCode ?? null : a?.type ?? null;
   };
   const REPORT_HQ = [C.OFFWORLD, C.OFFWORLD, C.PALISADE, C.PALISADE, C.PALISADE, C.PALISADE];
-  it.fails("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
+  it("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
     const s = atHq(true, REPORT_HQ);
     const usable = getLegalActions(s, 'corp').flatMap(a => (a.type === 'USE_ABILITY' ? [findCardAnywhere(s, a.cardInstanceId)?.cardCode] : []));
     expect(usable.sort()).toEqual([C.LEO, C.RED_ROOM].sort());
@@ -461,7 +470,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
       st.corp.archives.faceUp.push(...st.corp.rd.filter(c => out.has(c.instanceId)));
       st.corp.rd = st.corp.rd.filter(c => !out.has(c.instanceId));
     });
-  it.fails('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
+  it('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
     const s = emptyRd(0);
     expect(inCorp(s, () => agendasUnseen(s))).toBe(0);
     expect(inCorp(s, () => rezMoney(s)).byServer).not.toHaveProperty('rd');
@@ -492,7 +501,8 @@ describe('bundle P: placement wiring (counted before any fix; the pins say what 
       st.corp.credits = corp;
       st.corp.clicks = 1;
     });
-  it.fails('scoringShort, Corp 5: remote-1 holds for its 3 (keep 3 is that same rez): not short', { timeout: T }, () => {
+  // Fixed by bundle P fix 1 (lineKeep leaves the scoring remote out of the pools; tests/placementWiring.test.ts)
+  it('scoringShort, Corp 5: remote-1 holds for its 3 (keep 3 is that same rez): not short', { timeout: T }, () => {
     const s = shortBoard(5);
     expect(nextTurn(s, 'remote-1', 5)).toMatchObject({ holds: true, rezCost: 3 });
     expect(inCorp(s, () => rezMoney(s))).toMatchObject({ keep: 3, byServer: { rd: 0, 'remote-1': 3 } });
@@ -504,11 +514,23 @@ describe('bundle P: placement wiring (counted before any fix; the pins say what 
     expect(inCorp(s, () => scoringShort(s)?.id)).toBe('remote-1');
   });
 
+  // 1b, the sibling reader (red team M3; found row 89 e and j): reservedForAgenda reads the same lineKeep and asks
+  // serverHold of the same scoring remote, so the remote's own holding rez is counted twice there too. The correction
+  // (the count's arm `reservedOnce`) was counted and NOT built: it changed one decision, this board's (an asset's bare
+  // install in place of Funhouse on a new remote), and that one pair was worse on all four columns. Human file report-48,
+  // move 59, turn 6, the AI Corp at 3 credits and 2 clicks, Witch Hunt in HQ: with the remote counted once (floor 4, not
+  // 6) the line's horizon holds remote-1 and the remote is reserved; today it is not (null).
+  it.fails('reservedForAgenda, report-48 move 59: with remote-1 counted once it is reserved for the agenda', { timeout: T }, () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/placement-wiring/report-48-59.json', import.meta.url), 'utf8'));
+    expect(inCorp(s, () => reservedForAgenda(s)?.id)).toBe('remote-1');
+  });
+
   // AI-ASSET-COVER-PLANNER-MISMATCH. placedInstalls (corp/candidates.ts) keeps the bare install for every assetCover
   // placement ("Q5 plays its ice first"), which is right for the ice-pair form only: in the waiting-remote form `place`
   // puts the asset on the iced remote and the candidate (and so the look-ahead's play of it) is a new remote. Regolith
   // Mining License in HQ; remote-1 a rezzed Palisade, empty root; no agenda in HQ; Corp 5 and 3 clicks.
-  it.fails('asset cover, the waiting remote: the candidate installs Regolith where place says (remote-1)', { timeout: T }, () => {
+  // Fixed by bundle P fix 2 (the waiting form's candidate is the install place gives; tests/placementWiring.test.ts)
+  it('asset cover, the waiting remote: the candidate installs Regolith where place says (remote-1)', { timeout: T }, () => {
     const s = board(st => {
       installIceForTest(st, C.PALISADE, 'remote-1', true);
       st.corp.credits = 5;
