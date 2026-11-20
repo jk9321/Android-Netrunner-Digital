@@ -336,12 +336,19 @@ function spareAfter(state: GameState, pick: GameAction): GameState {
   return executeAction(state, pick);
 }
 
-/** The scoring remote when it does not hold by the count (holdCost against runnerBudget with what the Corp ends the turn on, less lineKeep (rezMoney.ts) for its agendas); null when it holds or there is none. iceRedirect and assetCover read it. */
+/**
+ * The scoring remote when it does not hold by the count (serverHold against the Runner's budget with what the Corp ends
+ * the turn on, less lineKeep (rezMoney.ts) for its agendas with the scoring remote itself left out of the pools: its own
+ * holding rez is the question asked here, so it is not also kept; bundle P fix 1, AI-SCORING-SHORT-DOUBLE-COUNT); null
+ * when it holds or there is none. The double count is removed, the count is not exact: the Runner's clicks and credits
+ * shared between this remote and the other staked servers are not one joint question here (red team M1). Readers:
+ * iceRedirect, assetCover's gate, and iceCount (the scoring remote's `scoring` flag, read by the order's ice lines).
+ */
 export function scoringShort(state: GameState): ServerLike | null {
   const scoring = scoringRemote(state);
   if (!scoring) return null;
   const agendas = state.corp.hq.filter(isAgenda);
-  const floor = lineKeep(state, agendas);
+  const floor = lineKeep(state, agendas, scoring.id);
   const end = state.corp.credits + Math.max(0, state.corp.clicks - 1);
   return serverHold(state, scoring.id, { when: 'runnerTurn', corpCredits: end - floor }).holds ? null : scoring;
 }
@@ -380,8 +387,13 @@ export function iceRedirect(state: GameState, pick: GameAction, free?: FreeInsta
  * lineKeep. Otherwise an asset may take its root (3.3.1); an agenda can still replace it later by trashing it
  * (8.5.6a). Null: not reserved. Folded 2026-11-13 (plan.assetReserve, g3 +0.5 ± 1.6, run 43354222438; before it the
  * remote was reserved whenever an agenda waited in HQ).
+ * KNOWN DOUBLE COUNT, counted and not built (bundle P 1b, found row 89 e and j): the floor here keeps the scoring
+ * remote's own holding rez (lineKeep without the server) and serverHold then asks that same rez of the horizon, as
+ * scoringShort did before fix 1. Leaving the remote out (the count's arm `reservedOnce`) changed one decision (report-48
+ * move 59) and that pair was worse on every column, so it is pinned known-failing instead (tests/reviewPins.test.ts,
+ * bundle P, "reservedForAgenda").
  */
-function reservedForAgenda(state: GameState): ServerLike | null {
+export function reservedForAgenda(state: GameState): ServerLike | null {
   const agendas = state.corp.hq.filter(isAgenda);
   const scoring = agendas.length ? scoringRemote(state) : null;
   if (!scoring) return scoring;

@@ -27,7 +27,7 @@ import { rezMoney } from '../src/ai/corp/rezMoney';
 import { agendasUnseen } from '../src/ai/corp/pools';
 import { countedRez, spendsKept } from '../src/ai/corp/rez';
 import { corpCandidates } from '../src/ai/corp/candidates';
-import { place, scoringShort } from '../src/ai/corp/placement';
+import { place, reservedForAgenda, scoringShort } from '../src/ai/corp/placement';
 import { iceCreditNeed } from '../src/ai/runs';
 import { asSide } from '../src/ai/pricing';
 import { decisionContext } from '../src/ai/handValues';
@@ -492,7 +492,8 @@ describe('bundle P: placement wiring (counted before any fix; the pins say what 
       st.corp.credits = corp;
       st.corp.clicks = 1;
     });
-  it.fails('scoringShort, Corp 5: remote-1 holds for its 3 (keep 3 is that same rez): not short', { timeout: T }, () => {
+  // Fixed by bundle P fix 1 (lineKeep leaves the scoring remote out of the pools; tests/placementWiring.test.ts)
+  it('scoringShort, Corp 5: remote-1 holds for its 3 (keep 3 is that same rez): not short', { timeout: T }, () => {
     const s = shortBoard(5);
     expect(nextTurn(s, 'remote-1', 5)).toMatchObject({ holds: true, rezCost: 3 });
     expect(inCorp(s, () => rezMoney(s))).toMatchObject({ keep: 3, byServer: { rd: 0, 'remote-1': 3 } });
@@ -502,6 +503,17 @@ describe('bundle P: placement wiring (counted before any fix; the pins say what 
     const s = shortBoard(2);
     expect(nextTurn(s, 'remote-1', 2).holds).toBe(false);
     expect(inCorp(s, () => scoringShort(s)?.id)).toBe('remote-1');
+  });
+
+  // 1b, the sibling reader (red team M3; found row 89 e and j): reservedForAgenda reads the same lineKeep and asks
+  // serverHold of the same scoring remote, so the remote's own holding rez is counted twice there too. The correction
+  // (the count's arm `reservedOnce`) was counted and NOT built: it changed one decision, this board's (an asset's bare
+  // install in place of Funhouse on a new remote), and that one pair was worse on all four columns. Human file report-48,
+  // move 59, turn 6, the AI Corp at 3 credits and 2 clicks, Witch Hunt in HQ: with the remote counted once (floor 4, not
+  // 6) the line's horizon holds remote-1 and the remote is reserved; today it is not (null).
+  it.fails('reservedForAgenda, report-48 move 59: with remote-1 counted once it is reserved for the agenda', { timeout: T }, () => {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/placement-wiring/report-48-59.json', import.meta.url), 'utf8'));
+    expect(inCorp(s, () => reservedForAgenda(s)?.id)).toBe('remote-1');
   });
 
   // AI-ASSET-COVER-PLANNER-MISMATCH. placedInstalls (corp/candidates.ts) keeps the bare install for every assetCover
