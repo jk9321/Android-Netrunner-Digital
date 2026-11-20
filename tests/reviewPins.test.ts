@@ -370,6 +370,11 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     inCorp(s, () => spendsKept(s, s.corp.servers.hq.ice[1]));
     return restCredits[0];
   };
+  // Counted and not built (bundle R's count and ruling, 2026-11-20, review-fixes-1119/rez-count/ruling.md, C1): known
+  // debt on the rez money row of docs/ai-priced-quantities.md. In play the class is reached where a credit-threshold ice
+  // is already rezzed further in, behind an approached ice with a break cost (deal 1131 turn 14: Palisade approached on
+  // R&D, Whitespace rezzed further in; handed 17, real 24); on 259 sources the real number changes no spendsKept answer.
+  // On this pin's board the decision is not spendsKept's (the next pin). Stays known-failing.
   it.fails("Whitespace toll: spendsKept hands rezMoney the Runner's real credits after the toll (11 - 3 = 8)", { timeout: T }, () => {
     const s = tollBoard(C.WHITESPACE);
     expect(afterToll(s)).toBe(8);
@@ -391,6 +396,10 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     for (let i = 0; i < 600 && !g.state.winner && g.state.activePlayer === 'runner'; i++) if (!g.step()) break;
     return g.state;
   };
+  // Counted and not built (ruling C2): 81 windows of the kind (a loss toll at countedRez's free gate) on 259 sources, 0
+  // with the exploit in play; `keepPricedCentral` (F1's check asked of the priced rez under R3's or R4's conditions)
+  // turns this pin with 0 changed decisions. Jeff's card of 2026-11-20 03:51Z: "Leave it as known debt" (the free gate's
+  // two owners of "free" and the priced rez's horizon, registry debt; beta-to-main-step.md 1f). Stays known-failing.
   it.fails('Whitespace toll, the decision: the Corp keeps the money for Sleipnir and Send a Message is not stolen', { timeout: T }, () => {
     const s = tollBoard(C.WHITESPACE);
     expect(inCorp(s, () => countedRez(s, s.corp.servers.hq.ice[1]))).toBe(null);
@@ -434,7 +443,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
     return a?.type === 'USE_ABILITY' ? findCardAnywhere(s, a.cardInstanceId!)?.cardCode ?? null : a?.type ?? null;
   };
   const REPORT_HQ = [C.OFFWORLD, C.OFFWORLD, C.PALISADE, C.PALISADE, C.PALISADE, C.PALISADE];
-  it.fails("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
+  it("LEO with The Red Room, the report's HQ (2 Offworld Office, 4 Palisade): the Corp fires The Red Room", { timeout: T }, () => {
     const s = atHq(true, REPORT_HQ);
     const usable = getLegalActions(s, 'corp').flatMap(a => (a.type === 'USE_ABILITY' ? [findCardAnywhere(s, a.cardInstanceId)?.cardCode] : []));
     expect(usable.sort()).toEqual([C.LEO, C.RED_ROOM].sort());
@@ -461,7 +470,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
       st.corp.archives.faceUp.push(...st.corp.rd.filter(c => out.has(c.instanceId)));
       st.corp.rd = st.corp.rd.filter(c => !out.has(c.instanceId));
     });
-  it.fails('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
+  it('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
     const s = emptyRd(0);
     expect(inCorp(s, () => agendasUnseen(s))).toBe(0);
     expect(inCorp(s, () => rezMoney(s)).byServer).not.toHaveProperty('rd');

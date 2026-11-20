@@ -2,14 +2,15 @@ import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
 import { TurnFrom, afterRun, nextTurn, nextTurnBoard, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
 import { memo } from '../valueModel';
+import { agendasUnseen } from './pools';
 
 /**
  * Owner: rez money, the credits the Corp keeps to rez the ice that holds what it stakes through the Runner's next turn
  * (Step 4 Stage A, spec-step4-corp-core.md 1.5; registry row "rez money the Corp must keep").
  *
  * A server stakes something next Runner turn when the Runner's access there can take an agenda the Corp knows of:
- * R&D always (the deck list's agendas still there, rule 10.2.2a: never its order); HQ while it holds an agenda; a remote
- * with an agenda in its root. A card the caller is about to score or install leaves the pools (`without`).
+ * R&D while the deck list has an agenda left there (agendasUnseen, the pools' owner; rule 10.2.2a: the set, never its
+ * order); HQ while it holds an agenda; a remote with an agenda in its root. A card the caller is about to score or install leaves the pools (`without`).
  *
  *  - byServer: for each staked server, the cheapest rez that keeps the Runner out next turn (serverHold, 'runnerTurn',
  *    the Corp's money unbounded: what it should keep, not what it has). Rezzed ice that holds costs 0. This is
@@ -40,9 +41,9 @@ export interface RezMoney {
 
 const isAgenda = (c: CardInstance | undefined) => (c ? cardDef(c).type_code === 'agenda' : false);
 
-/** The servers that stake an agenda through the Runner's next turn, R&D first, then HQ, then remotes in id order. */
+/** The servers that stake an agenda through the Runner's next turn: R&D (while agendasUnseen is above 0), then HQ, then remotes in id order. */
 export function stakedServers(state: GameState, without: string[] = []): string[] {
-  const out = ['rd'];
+  const out = agendasUnseen(state) > 0 ? ['rd'] : [];
   if (state.corp.hq.some(c => isAgenda(c) && !without.includes(c.instanceId))) out.push('hq');
   for (const v of Object.values(state.corp.servers)) if (v.isRemote && v.root.some(c => isAgenda(c) && !without.includes(c.instanceId))) out.push(v.id);
   return out;
