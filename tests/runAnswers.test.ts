@@ -14,9 +14,12 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameAction, GameState, activePrompt, executeAction, getLegalActions } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, getLegalActions } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { createAgent } from '../src/ai';
+import { GameRunner } from '../src/ai/playout';
+import { corpBoardValue } from '../src/ai/evaluate';
+import { iceWorth } from '../src/ai/iceValues';
 import { answerPrompt, runTermStats, scoreOutcome, settledStand } from '../src/ai/prompts';
 import { runStands, serverHold } from '../src/ai/corp/hold';
 import { runRestWorth } from '../src/ai/runs';
@@ -53,9 +56,11 @@ describe('the run term: Ballista, Boto, Shred, Anoetic Void (recorded boards)', 
     expect(pick(corpMove(fixture('deal-1601-t7-30062')))).toBe('end');
   });
 
-  // Known-failing (ruling 5, found-list row 48, valuation): the Corp's board prices a lone barrier breaker at 20.8
-  // against a 16 steal, so it trades the steal for the breaker. Tuning, not this branch.
-  it.fails('deal 2873 T8, Ballista with Bumi behind: ends the run (known-failing: row 48)', () => {
+  // Was known-failing (ruling 5, found-list row 48): the Corp's board priced a lone barrier breaker at 20.8 against a 16
+  // steal, so it traded the steal for the breaker. Passes since V-C item 1 (Jeff 2026-11-19, `ai-run-term-once`): the run
+  // term prices a program trash by the rig's movement alone (prompts.ts rigMove). The owner fix (V5 and V22 one owner:
+  // the Runner rework and the learned rounds) is still owed; see the two guards in "the run term's correction" below.
+  it('deal 2873 T8, Ballista with Bumi behind: ends the run (fails on beta b450b50: row 48)', () => {
     expect(pick(corpMove(fixture('deal-2873-t8-30062')))).toBe('end');
   });
 
@@ -767,5 +772,229 @@ describe('the run reads of the audit of 2026-11-18 (AI-RUN-POSITION-EMPTY, AI-SO
     expect(ask({ when: 'thisRun', mustRez: [kess], further: false, from: s.activeRun!.icePosition! - 2 }).holds).toBe(true);
     expect(ask({ when: 'thisRun', mustRez: [pal], further: false, from: s.activeRun!.icePosition! - 1 }).holds).toBe(true);
     expect(ask({ when: 'thisRun', mustRez: [], further: true })).toMatchObject({ holds: true, rez: [kess], rezCost: 2 });
+  });
+});
+
+/**
+ * V-C item 1 (found rows 72b, 73b; Jeff 2026-11-19 18:15Z "Build the in-run correction"; brief
+ * stage-vc/item1-breaker-double-count/build/brief.md, Tests 2 to 6): the run term prices a program trash by the rig's
+ * movement alone (prompts.ts rigMove: the Corp-view board's movement as the program leaves is taken back out). Rules:
+ * 1.14.5 (the Corp makes the choices of its ice's subroutines: Ballista's "or end the run" is the Corp's), 6.9.3c and
+ * 9.8.7b-c (subroutines resolve in order), 6.1.4 (an ended run goes to its Run Ends Phase). Cards (src/data): Ballista
+ * 30062 "[subroutine] Trash 1 installed program or end the run."; Palisade 30072 "While this ice is protecting a remote
+ * server, it gets +2 strength. [subroutine] End the run."; Cleaver 30006 (fracter: barrier), Unity 30026 (decoder: code
+ * gate); Mayfly 30032 "... When this run ends, trash this program."; Retribution 30065 "Play only if the Runner is
+ * tagged. Trash 1 program or piece of hardware."; Read-Write Share 36022 "you may host 1 card from your grip facedown".
+ */
+describe("the run term's correction: a program trash priced by the rig's movement alone (V-C item 1)", () => {
+  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+  /** The pin's board (tests/exploitPins.test.ts, rez-toll.json: the Corp 8, Offworld Office out of HQ), `edit` places the ice. */
+  const pinBoard = (edit: (s: GameState, mk: (code: string, rezzed?: boolean) => CardInstance, agenda: CardInstance) => void): GameState => {
+    const s = structuredClone(JSON.parse(readFileSync(new URL('./fixtures/rez-toll.json', import.meta.url), 'utf8')).state as GameState);
+    const agenda = s.corp.hq.find(c => cardDef(c).type_code === 'agenda')!;
+    s.corp.hq = s.corp.hq.filter(c => c !== agenda);
+    s.corp.servers.rd = { ...s.corp.servers.rd, ice: [] };
+    s.corp.credits = 8;
+    edit(s, (code, rezzed = true) => Object.assign(createCardInstance(s, code), { isRezzed: rezzed }), agenda);
+    return s;
+  };
+  const addProgram = (s: GameState, code: string): CardInstance => {
+    const c = Object.assign(createCardInstance(s, code), { isRezzed: true });
+    s.runner.rig.programs.push(c);
+    s.runner.memoryUnitsUsed += cardDef(c).memory_cost || 0;
+    return c;
+  };
+  const isBallista = (s: GameState) => {
+    const p = activePrompt(s);
+    return !!p && p.side === 'corp' && 'source' in p && p.source.cardCode === '30062';
+  };
+  /** Plays the run (both Normal agents, as the batches) to the Corp's Ballista prompt. */
+  const toBallista = (s0: GameState): GameState => {
+    clearCaches();
+    const g = new GameRunner(structuredClone(s0), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    for (let i = 0; i < 200 && g.state.activeRun && !isBallista(g.state); i++) if (!g.step()) break;
+    expect(isBallista(g.state)).toBe(true);
+    return g.state;
+  };
+  /** Plays on from `s` with both Normal agents until the run ends: the points the Runner gained. */
+  const stolenInRun = (s: GameState): number => {
+    clearCaches();
+    const g = new GameRunner(structuredClone(s), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    for (let i = 0; i < 300 && g.state.activeRun && !g.state.winner; i++) if (!g.step()) break;
+    return g.state.runner.score - s.runner.score;
+  };
+  /** The answer's one-step board, and the same board with the programs it removed back in the rig (rigMove's `back`). */
+  const boards = (s: GameState, a: GameAction) => {
+    const after = executeAction(structuredClone(s), a);
+    const left = new Set(after.runner.rig.programs.map(p => p.instanceId));
+    const gone = s.runner.rig.programs.filter(p => !left.has(p.instanceId));
+    const back: GameState = { ...after, runner: { ...after.runner, rig: { ...after.runner.rig, programs: [...after.runner.rig.programs, ...gone] } } };
+    return { after, back, gone };
+  };
+  const answer = (s: GameState, id: string): GameAction => (getLegalActions(s, 'corp') as GameAction[]).find(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_choice' && a.choice.optionId === id)!;
+
+  it('deal 1601 T6, Ballista with Sang Kancil and Marjanah in the rig, an upgrade and a 2-point agenda in the root: ends the run (fails on beta b450b50: trashes Marjanah)', () => {
+    // The board as the batch plays deal 1601 on beta b450b50 (scripts/stage-vc/run-term-once-fixtures.ts), decision #87
+    expect(pick(corpMove(fixture('deal-1601-t6-30062')))).toBe('end');
+  });
+
+  // Red team S2 (adversarial/2026-11-19-run-term-once): a two-answer Ballista board cannot test a trash that keeps the
+  // server held (the run term is silent when every answer reads "out", prompts.ts runAnswer). Three answers: trashing
+  // Cleaver keeps the Runner out at Palisade, trashing Unity lets it in, the end is out. The margin for Cleaver over the
+  // end falls from 30.5 to 9.4 with the correction: the board shape to watch.
+  it("three answers, Palisade inside Ballista, Cleaver and Unity at 8 credits: the Corp trashes Cleaver and nothing is stolen; the 'in' answer (Unity) still loses, though the correction raises its price (both)", { timeout: 60_000 }, () => {
+    let cleaver!: CardInstance;
+    let unity!: CardInstance;
+    const s0 = pinBoard((s, mk, agenda) => {
+      s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [mk('30072'), mk('30062')], root: [agenda] } as never;
+      cleaver = s.runner.rig.programs.find(c => c.cardCode === '30006')!;
+      unity = addProgram(s, '30026');
+      s.runner.credits = 8;
+      s.activeRun = { ...s.activeRun!, server: 'remote-1', icePosition: 1 };
+    });
+    const s = toBallista(s0);
+    expect(pick(corpMove(s))).toBe(cleaver.instanceId);
+    expect(stolenInRun(s)).toBe(0);
+    // M2: the correction is signed. The Corp-view board falls as Unity leaves, so rigMove is negative there and the Unity
+    // answer's price rises; it still loses (the pick above)
+    const { after, back } = boards(s, answer(s, unity.instanceId));
+    expect(inCorp(s, () => corpBoardValue(after, 'corp') - corpBoardValue(back, 'corp'))).toBeLessThan(0);
+  });
+
+  // Red team M4: the correction keeps the board-blind rig term and drops the board's ice movement, so a trash's margin
+  // shrinks as the wall of its type grows. Beta's margin over the end on these boards is 37 to 41, the correction's 7.9 to
+  // 12.6 (2 to 5 Offworld Office of 7 cards in HQ); this is the smallest (5 of 7).
+  it('a wall mirror: Ballista alone on HQ, Cleaver only, three more rezzed Palisades elsewhere, five Offworld Office of 7 cards in HQ: the Corp still trashes Cleaver (both)', () => {
+    const s0 = pinBoard((s, mk, agenda) => {
+      // HQ: the fixture's two Offworld Office, three more, and its Urtica Cipher and Whitespace
+      const office = s.corp.hq.find(c => c.cardCode === '30067')!;
+      s.corp.hq = [agenda, office, mk('30067', false), mk('30067', false), mk('30067', false), ...s.corp.hq.filter(c => c.cardCode === '30045' || c.cardCode === '30074')];
+      s.corp.servers.hq = { ...s.corp.servers.hq, ice: [mk('30062')] };
+      s.corp.servers.rd = { ...s.corp.servers.rd, ice: [mk('30072')] };
+      s.corp.servers['remote-1'] = { ...s.corp.servers['remote-1'], ice: [mk('30072'), mk('30072')], root: [] };
+      s.runner.credits = 5;
+      s.activeRun = { ...s.activeRun!, server: 'hq', icePosition: 0 };
+    });
+    expect(s0.corp.hq.filter(c => c.cardCode === '30067')).toHaveLength(5);
+    expect(s0.corp.hq).toHaveLength(7);
+    const s = toBallista(s0);
+    const cleaver = s.runner.rig.programs.find(c => c.cardCode === '30006')!;
+    expect(pick(corpMove(s))).toBe(cleaver.instanceId);
+  });
+
+  // Red team M1: a program trashed when the run ends (Mayfly, Arissana Rocha Nahu) is gone on the "end the run" answer's
+  // one-step board too (engine/runEnd.ts), so the correction reads it there as well, as the brief's rule says (every
+  // program that left, whatever sent it). Here the end's price moves by 0.12 and the pick stays beta's.
+  it("Mayfly used this run beside Cleaver, the Runner at 0: the Corp ends the run (beta's pick), and the end answer's board has Mayfly gone, so the correction reads it (both)", () => {
+    let mayfly!: CardInstance;
+    const s0 = pinBoard((s, mk, agenda) => {
+      s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [mk('30062')], root: [agenda] } as never;
+      mayfly = addProgram(s, '30032');
+      s.runner.credits = 0;
+      s.activeRun = { ...s.activeRun!, server: 'remote-1', icePosition: 0, trashAtRunEnd: [mayfly.instanceId] };
+    });
+    const s = toBallista(s0);
+    expect(pick(corpMove(s))).toBe('end');
+    expect(boards(s, answer(s, 'end')).gone.map(c => c.instanceId)).toEqual([mayfly.instanceId]);
+    expect(stolenInRun(s)).toBe(0);
+  });
+
+  // Builder point 1: a program that leaves the rig without being trashed by the answer is in `gone` as well. Lethe 36051
+  // "[subroutine] Add 1 installed Runner card to the grip." (a Corp choice, 1.14.5) returns a program to the grip.
+  // Here Lethe sits outside Palisade: Cleaver to the grip keeps the Runner out at Palisade, the resource lets it in.
+  it("Lethe outside Palisade, Cleaver and a resource: the Corp returns Cleaver to the grip, and that answer's board has Cleaver gone from the rig, so the correction reads it (both)", () => {
+    const s0 = pinBoard((s, mk, agenda) => {
+      s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [mk('30072'), mk('36051')], root: [agenda] } as never;
+      s.runner.credits = 8;
+      s.activeRun = { ...s.activeRun!, server: 'remote-1', icePosition: 1 };
+    });
+    clearCaches();
+    const g = new GameRunner(structuredClone(s0), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    const atGrip = (x: GameState) => {
+      const p = activePrompt(x);
+      return !!p && p.side === 'corp' && 'source' in p && p.source.cardCode === '36051' && p.source.step === 'grip';
+    };
+    for (let i = 0; i < 200 && g.state.activeRun && !atGrip(g.state); i++) if (!g.step()) break;
+    const s = g.state;
+    expect(atGrip(s)).toBe(true);
+    const cleaver = s.runner.rig.programs.find(c => c.cardCode === '30006')!;
+    expect(s.runner.rig.resources.length).toBeGreaterThan(0);
+    const a = corpMove(s);
+    expect(pick(a)).toEqual([cleaver.instanceId]);
+    const { after, gone } = boards(s, a);
+    expect(gone.map(c => c.instanceId)).toEqual([cleaver.instanceId]);
+    expect(after.runner.grip.some(c => c.instanceId === cleaver.instanceId)).toBe(true);
+  });
+
+  it("the fallback is untouched: deal 1601 T22, Retribution (four programs): trashes Marjanah, beta's pick (decision #395)", () => {
+    const s = fixture('deal-1601-t22-30065');
+    expect(s.activeRun).toBeFalsy();
+    expect([pick(corpMove(s))].flat().map(id => title(s, id))).toEqual(['30016']);
+  });
+
+  // THE DEBT (registry V5 and V22, docs/ai-priced-quantities.md): the correction is deleted only when BOTH guards fail.
+  // With one failing, turn that guard into a plain statement of the fixed owner and keep the correction.
+  it('guard, cause 2 (`or end the run`, src/ai/runs.ts): on the pin\'s board Ballista\'s own Corp-view worth rises when the last program leaves', () => {
+    let ballista!: CardInstance;
+    const s = pinBoard((st, mk, agenda) => {
+      ballista = mk('30062');
+      st.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [ballista], root: [agenda] } as never;
+    });
+    expect(s.runner.rig.programs.map(c => c.cardCode)).toEqual(['30006']);
+    const without: GameState = { ...s, runner: { ...s.runner, rig: { ...s.runner.rig, programs: [] } } };
+    clearCaches();
+    const now = inCorp(s, () => iceWorth(s, ballista, 'corp'));
+    const gone = inCorp(without, () => iceWorth(without, ballista, 'corp'));
+    expect(gone, "cause 2 is fixed at its owner (Ballista's 'or end the run' price no longer jumps with the last program). Delete the run term's correction (prompts.ts rigMove) ONLY if the cause 1 guard fails too; otherwise turn this guard into a plain statement of the fixed owner").toBeGreaterThan(now);
+  });
+
+  it("guard, cause 1 (iceCost reads the rig, src/ai/iceValues.ts iceWorthOf): on deal 1601 T6 R&D's Palisade (no 'or end the run' ice) rises on the Corp's view when Marjanah, its fracter, leaves and Sang Kancil stays", () => {
+    const s = fixture('deal-1601-t6-30062');
+    const palisade = s.corp.servers.rd.ice.find(c => c.cardCode === '30072' && c.isRezzed)!;
+    const marjanah = s.runner.rig.programs.find(c => c.cardCode === '30016')!;
+    expect(palisade).toBeTruthy();
+    const without: GameState = { ...s, runner: { ...s.runner, rig: { ...s.runner.rig, programs: s.runner.rig.programs.filter(c => c !== marjanah) } } };
+    expect(without.runner.rig.programs.length).toBeGreaterThan(0);
+    clearCaches();
+    const now = inCorp(s, () => iceWorth(s, palisade, 'corp'));
+    const gone = inCorp(without, () => iceWorth(without, palisade, 'corp'));
+    expect(gone, "cause 1 is fixed at its owner (an ice's worth no longer moves with the Runner's breakers that the rig's own value prices). Delete the run term's correction (prompts.ts rigMove) ONLY if the cause 2 guard fails too; otherwise turn this guard into a plain statement of the fixed owner").toBeGreaterThan(now);
+  });
+
+  // Red team M6: the correction reads installed programs (public) and the Corp-view board only, never the grip, the stack or
+  // a facedown Runner card. Its two inputs (corpBoardValue of the answer's board and of the board with the programs back)
+  // and the Corp's pick are the same when those hidden cards are swapped.
+  it('hidden information: with cards in the grip and the stack and Read-Write Share hosting two facedown cards, the correction\'s inputs and the pick are the same when the hidden cards are swapped', () => {
+    const build = (swap: boolean) => {
+      const s0 = pinBoard((s, mk, agenda) => {
+        s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [mk('30072'), mk('30062')], root: [agenda] } as never;
+        addProgram(s, '30026');
+        const rws = addProgram(s, '36022');
+        const hosted = swap ? ['30029', '30033'] : ['30021', '30027'];
+        rws.hostedCards = hosted.map(code => Object.assign(createCardInstance(s, code), { hostedOnId: rws.instanceId }));
+        if (swap) {
+          s.runner.grip = s.runner.grip.map(c => Object.assign(createCardInstance(s, c.cardCode === '30030' ? '30006' : '30030'), {}));
+          s.runner.stack = [...s.runner.stack].reverse();
+        }
+        s.runner.credits = 8;
+        s.activeRun = { ...s.activeRun!, server: 'remote-1', icePosition: 1 };
+      });
+      return toBallista(s0);
+    };
+    const [a, b] = [build(false), build(true)];
+    expect(a.runner.grip.map(c => c.cardCode)).not.toEqual(b.runner.grip.map(c => c.cardCode));
+    expect(a.runner.grip).toHaveLength(b.runner.grip.length);
+    const inputs = (s: GameState) =>
+      (getLegalActions(s, 'corp') as GameAction[])
+        .filter(x => x.type === 'RESOLVE_PROMPT')
+        .map(x => {
+          const { after, back, gone } = boards(s, x);
+          clearCaches();
+          return gone.length ? inCorp(s, () => [corpBoardValue(after, 'corp'), corpBoardValue(back, 'corp')]) : null;
+        });
+    const ia = inputs(a);
+    expect(ia.filter(Boolean).length).toBeGreaterThan(0);
+    expect(inputs(b)).toEqual(ia);
+    expect(pick(corpMove(b))).toEqual(pick(corpMove(a)));
   });
 });
