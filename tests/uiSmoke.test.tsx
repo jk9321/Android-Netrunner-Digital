@@ -14,6 +14,8 @@ import { RunOverlay } from '../src/ui/components/RunOverlay';
 import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel';
 import { ServerColumn } from '../src/ui/components/ServerColumn';
 import { CardView } from '../src/ui/components/CardView';
+import { RigView } from '../src/ui/components/RigView';
+import { breakerTypes } from '../src/ui/components/IceTypeIcons';
 import { ZoomContext, createZoomStore } from '../src/ui/components/ZoomPanel';
 import { clearBoardTargets, setBoardTargets } from '../src/ui/promptHighlight';
 import { SeatContext } from '../src/ui/seat';
@@ -357,5 +359,38 @@ describe('UI component smoke renders', () => {
     );
     expect(clearedHtml).not.toContain('data-server-target="true"');
     expect(clearedHtml).not.toContain('data-board-target="true"');
+  });
+
+  it('shows breaker and ice type icons on cards hosted in RigView while hiding facedown hosted secrets', () => {
+    const state = newGame();
+    const mk = (instanceId: string, cardCode: string, hostedCards?: typeof state.runner.grip) => ({
+      instanceId,
+      cardCode,
+      isRezzed: true,
+      advancementCounters: 0,
+      tokens: {},
+      hostedCardIds: [],
+      ...(hostedCards ? { hostedCards } : {}),
+    });
+
+    state.runner.rig.hardware.push(
+      mk('madani-1', '35028', [mk('hosted-cleaver', '30006')]),
+      mk('bling-1', '35006', [mk('hosted-buzzsaw', '30005')]),
+      mk('detente-1', '35018', [mk('hosted-palisade', '30072')]),
+    );
+    state.runner.rig.programs.push(
+      mk('rws-1', '36022', [mk('hosted-secret-breaker', '30006')]),
+    );
+
+    const runnerHtml = renderToStaticMarkup(<RigView rig={state.runner.rig} breaks={breakerTypes} canSeeSecrets />);
+    expect(runnerHtml).toContain('aria-label="Breaks Barrier"');
+    expect(runnerHtml).toContain('aria-label="Breaks Code gate"');
+    expect(runnerHtml).toContain('aria-label="Barrier"');
+    expect(runnerHtml.match(/data-testid="breaker-types"/g)?.length).toBe(3);
+    expect(runnerHtml.match(/data-testid="ice-types"/g)?.length).toBe(1);
+
+    const corpHtml = renderToStaticMarkup(<RigView rig={state.runner.rig} breaks={breakerTypes} canSeeSecrets={false} />);
+    expect(corpHtml.match(/data-testid="breaker-types"/g)?.length).toBe(2);
+    expect(corpHtml.match(/data-testid="ice-types"/g)?.length).toBe(1);
   });
 });

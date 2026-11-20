@@ -63,7 +63,7 @@ const RigCard: React.FC<{
       {face}
       <div className="flex flex-col gap-0.5" title={`Hosted (${hosted.length})`}>
         {hosted.map(h => (
-          <CardView key={h.instanceId} card={h} size="fit-sm" notInstalled onInspect={onInspect} isFaceDown={faceDown} canPeek={canSeeSecrets} />
+          <CardView key={h.instanceId} card={h} size="fit-sm" notInstalled onInspect={onInspect} isFaceDown={faceDown} canPeek={canSeeSecrets} typeIcons />
         ))}
       </div>
     </div>
@@ -107,8 +107,8 @@ export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hos
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
         <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
-          <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} className="w-full sm:flex-1" />
-          <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} className="w-full sm:flex-[2]" />
+          <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} canSeeSecrets={canSeeSecrets} className="w-full sm:flex-1" />
+          <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} canSeeSecrets={canSeeSecrets} className="w-full sm:flex-[2]" />
         </div>
       </div>
     </div>
