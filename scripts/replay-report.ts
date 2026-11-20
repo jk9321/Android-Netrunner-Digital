@@ -69,7 +69,7 @@ let compared = 0;
 let lastTurn = '';
 for (const move of moves) {
   const side = move.player;
-  if (side === human && move.type !== 'SET_STOPS' && actingSide(state) === side) {
+  if (side === human && move.type !== 'SET_STOPS' && move.type !== 'SET_CREDIT_HOLD' && actingSide(state) === side) {
     const window = state.priority && state.pendingPrompts.length === 0 && state.priority.holder !== state.activePlayer ? state.priority : null;
     const rezWindow = side === 'corp' && window && (window.step === 'approach_ice' || window.step === 'approach_server');
     const main = mainPhase(state) && state.activePlayer === side;

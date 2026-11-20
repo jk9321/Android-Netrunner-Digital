@@ -206,7 +206,7 @@ export class OpeningTracker {
     if (!this.rec.firstScore && after.corp.score > before.corp.score && after.corp.scoreArea.length > before.corp.scoreArea.length) this.rec.firstScore = k;
     if (!this.rec.firstRemote && Object.values(after.corp.servers).some(sv => sv.isRemote && sv.root.length + sv.ice.length > 0)) this.rec.firstRemote = k;
 
-    if (!action || !corpMainPhase(before) || action.player !== 'corp' || action.type === 'START_TURN' || action.type === 'SET_STOPS') return;
+    if (!action || !corpMainPhase(before) || action.player !== 'corp' || action.type === 'START_TURN' || action.type === 'SET_STOPS' || action.type === 'SET_CREDIT_HOLD') return;
     if (this.suppliedTurn !== k) {
       this.suppliedTurn = k;
       this.rec.supply!.push(this.supplyAt(before, k));
