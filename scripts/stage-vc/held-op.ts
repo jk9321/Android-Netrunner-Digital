@@ -44,6 +44,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameAction, GameState } from '../../src/core';
 import { dealState } from '../stage-a/harness';
+import { sampleGameSetup } from '../../tests/sampleDecks';
 import { ARMS, Arm, PRICE_ARMS, Tree, loadTree, makeTrees } from './held-op-trees';
 
 for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.split(/\s+/).filter(x => x.includes('='))) {
@@ -651,6 +652,46 @@ async function partCont() {
   }
 }
 
+
+// ------------------------------------------------------------------------------------------------ PART pin
+/**
+ * The known-failing pin tests/synergy.test.ts "clicks for credits toward a Hedge Fund it can almost afford", its board
+ * built as the test builds it (seed 1, both kept; HQ = Hedge Fund + the first two cards; 3 credits). Each tree plays the
+ * Corp's turn; on beta's line every class board is traced (the layer that loses the play), as in PART ask.
+ */
+function partPin() {
+  const t = trees.beta;
+  let s0: GameState = t.core.createInitialGameState(sampleGameSetup(1));
+  while (s0.pendingPrompts.length > 0) {
+    const p = s0.pendingPrompts[0];
+    s0 = t.core.executeAction(s0, { type: 'RESOLVE_PROMPT', player: p.side, promptId: p.id, choice: { kind: 'mulligan', mulligan: false } } as any);
+  }
+  s0 = structuredClone(s0);
+  s0.corp.hq = [t.core.createCardInstance(s0, '30075'), ...s0.corp.hq.slice(0, 2)];
+  s0.corp.credits = 3;
+  for (const arm of ASKED) {
+    const tr = trees[arm];
+    tr.clear();
+    const ai = tr.createAgent('corp', 'normal');
+    let st: GameState = structuredClone(s0);
+    const line: string[] = [];
+    for (let i = 0; i < 8 && st.activePlayer === 'corp'; i++) {
+      if (arm === 'beta') {
+        const cls = classOf(t, st, undefined).filter(c => c.sub === 'now' || c.sub === 'next' || c.sub === 'held');
+        if (cls.length) {
+          const x = ask(t, st, { corp: snapAgent(ai) }, cls.map(c => c.id));
+          for (const c of cls) out({ kind: 'pinTrace', i, cr: st.corp.credits, clk: st.corp.clicks, card: c.title, sub: c.sub, short: c.short, ...layerOf(t, st, c, x, x.a) });
+        }
+      }
+      const a = ai.chooseAction(st);
+      line.push(label(tr, st, a));
+      st = tr.core.executeAction(st, a);
+      if (a.type === 'END_TURN') break;
+    }
+    out({ kind: 'pin', arm, line, hedgeFundPlayed: st.corp.archives.faceUp.some((c: any) => c.cardCode === '30075'), cr: st.corp.credits });
+  }
+}
+
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
   const used = PART === 'cont' ? (['beta', 'source'] as Arm[]) : ARMS.filter(a => a === 'source' || ASKED.includes(a));
@@ -658,6 +699,7 @@ async function main() {
   trees = {};
   for (const arm of used) trees[arm] = await loadTree(arm, dirs[arm]);
   if (PART === 'cont') await partCont();
+  else if (PART === 'pin') partPin();
   else {
     if (shard === 0) out({ kind: 'meta', asked: ASKED });
     const want = (process.env.DEALS ?? '').split(',').filter(Boolean);
