@@ -160,11 +160,18 @@ for (const k of KINDS) {
 
 // ---------------------------------------------------------------- arms
 p('\n## Arms: changed decisions and continuations\n');
+/** coverWaiting's class: a board with a waiting-form assetCover placement. reservedOnce's: reservedForAgenda answers differently once. */
+const isW = r => (r.m?.c ?? []).some(c => c.form === 'waiting');
+const isR = r => !!r.m?.g && r.m.g.tt.reserved !== r.m.g.ot.reserved;
 const inClass = (arm, r) => {
   if (arm === 'shortOnce') return isS(r);
   if (arm === 'coverAtPlace') return !!r.m?.c?.length;
   if (arm === 'redirectRemoteOnly') return (r.m?.d ?? []).some(x => x.rule === 'iceRedirect' || x.rule === 'assetPartner');
   if (arm === 'shortCover') return isS(r) || !!r.m?.c?.length;
+  if (arm === 'coverWaiting') return isW(r);
+  if (arm === 'reservedOnce') return isR(r);
+  if (arm === 'shortReserved') return isS(r) || isR(r);
+  if (arm === 'shortCoverWaiting') return isS(r) || isW(r);
   return false;
 };
 /** Direct: one of the two picks is not in the other tree's order (the candidate list changed at the pick); else the look-ahead chose apart. */
@@ -182,17 +189,21 @@ for (const arm of ARMS)
     p(`| ${arm} | ${k} | ${d.length} | ${f3(d.length / Math.max(1, nGames(k)))} | ${d.filter(r => inClass(arm, r)).length} | ${d.filter(r => !inClass(arm, r)).length} | ${d.filter(r => how(arm, r) === 'direct').length} | ${d.filter(r => how(arm, r) === 'lookahead').length} | ${d.filter(r => r.c === 'corpPrompt').length} | ${d.filter(r => r.c === 'corpRez').length} |`);
   }
 p('\nContinuations (beta\'s agents both sides to the end; arm\'s move against beta\'s from the same board): pairs, Corp wins each way, the paired difference arm − beta in Corp points and in agenda points stolen (mean ± SE).\n');
-p('| arm | sources | pairs | errors | Corp wins arm / beta | Corp points diff | points stolen diff |');
-p('|---|---|---|---|---|---|---|');
+p('Columns (red team S2, addendum 1): Corp wins diff = arm − beta in Corp wins (0/1) per pair; win-adjusted Corp points = a winner\'s score read as at least 7 (a Corp flatline or deck-out win counts 7); raw Corp points; points stolen.\n');
+p('| arm | sources | pairs | errors | Corp wins arm / beta | Corp wins diff | win-adjusted Corp points diff | Corp points diff | points stolen diff |');
+p('|---|---|---|---|---|---|---|---|---|');
+const wadj = o => (o.winner === 'corp' ? Math.max(7, o.cs) : o.cs);
+const pm = v => `${f2(mean(v))} ± ${f2(se(v))}`;
+/** The four paired columns: Corp wins diff, win-adjusted Corp points, raw Corp points, points stolen (arm − beta). */
+const cols = c =>
+  [c.map(x => (x.ca.winner === 'corp') - (x.cb.winner === 'corp')), c.map(x => wadj(x.ca) - wadj(x.cb)), c.map(x => x.ca.cs - x.cb.cs), c.map(x => x.ca.rs - x.cb.rs)].map(pm).join(' | ');
 const contsOf = (arm, kinds) => C.filter(c => c.arm === arm && kinds.includes(c.sk) && !c.ca.err && !c.cb.err);
 for (const arm of ARMS)
   for (const [name, kinds] of [['all', KINDS], ['self', ['self']], ['humanRunner', ['humanRunner']], ['humanCorp', ['humanCorp']]]) {
     const c = contsOf(arm, kinds);
     const errsN = C.filter(x => x.arm === arm && kinds.includes(x.sk) && (x.ca.err || x.cb.err)).length;
     if (!c.length && !errsN) continue;
-    const dc = c.map(x => x.ca.cs - x.cb.cs);
-    const ds = c.map(x => x.ca.rs - x.rs0 - (x.cb.rs - x.rs0));
-    p(`| ${arm} | ${name} | ${c.length} | ${errsN} | ${c.filter(x => x.ca.winner === 'corp').length} / ${c.filter(x => x.cb.winner === 'corp').length} | ${f2(mean(dc))} ± ${f2(se(dc))} | ${f2(mean(ds))} ± ${f2(se(ds))} |`);
+    p(`| ${arm} | ${name} | ${c.length} | ${errsN} | ${c.filter(x => x.ca.winner === 'corp').length} / ${c.filter(x => x.cb.winner === 'corp').length} | ${cols(c)} |`);
   }
 p('\nredirectRemoteOnly: points stolen by server, arm − beta, over the whole continuation and in the window (Runner turns T and T+1); the scoring remote is the decision\'s own.\n');
 p('| kinds | pairs | HQ | R&D | Archives | the scoring remote | other remotes | window: centrals | window: scoring remote |');
@@ -224,6 +235,88 @@ p('\nredirectRemoteOnly, the error to look for: continuations where the arm lost
   for (const x of list) {
     const sid = dec.get(x.src + '|' + x.i)?.m?.s?.id;
     p(`- ${x.src} T${x.T} (${x.sk}): arm ${x.a} | beta ${x.b}; ${sid} stolen arm ${x.ca.stolenBy[sid] ?? 0} / beta ${x.cb.stolenBy[sid] ?? 0}; Corp ${x.ca.cs}-${x.ca.rs} (${x.ca.winner}) / ${x.cb.cs}-${x.cb.rs} (${x.cb.winner})`);
+  }
+}
+
+// ---------------------------------------------------------------- addendum 1: the narrower arms
+const decOf = new Map(D.map(r => [r.src + '|' + r.i, r]));
+const KSETS = [['all', KINDS], ['self', ['self']], ['human', ['humanRunner', 'humanCorp']]];
+const pickOf = (r, a) => r.changed?.[a] ?? r.beta;
+if (ARMS.includes('coverWaiting')) {
+  p('\n## coverWaiting by red team S1\'s class\n');
+  p('A side "covers" when its move is the cover\'s real move: the asset at the waiting remote (waiting form) or the pair\'s ice at the cover\'s server (pair form), on the decision\'s board.\n');
+  p('| class | sources | pairs | Corp wins arm / beta | Corp wins diff | win-adjusted Corp points | Corp points | points stolen |');
+  p('|---|---|---|---|---|---|---|---|');
+  for (const arm of ['coverWaiting', 'shortCoverWaiting'].filter(a => ARMS.includes(a)))
+    for (const [label, sel] of [
+      ['arm covers, beta not (waiting)', cv => cv?.[arm] === 'waiting' && cv?.beta !== 'waiting'],
+      ['beta covers, arm not (waiting)', cv => cv?.beta === 'waiting' && cv?.[arm] !== 'waiting'],
+      ['arm covers, beta not (pair)', cv => cv?.[arm] === 'pair' && cv?.beta !== 'pair'],
+      ['beta covers, arm not (pair)', cv => cv?.beta === 'pair' && cv?.[arm] !== 'pair'],
+      ['neither', cv => !cv?.[arm] && !cv?.beta],
+    ])
+      for (const [name, kinds] of KSETS) {
+        const c = contsOf(arm, kinds).filter(x => sel(decOf.get(x.src + '|' + x.i)?.covers));
+        if (!c.length) continue;
+        p(`| ${arm}: ${label} | ${name} | ${c.length} | ${c.filter(x => x.ca.winner === 'corp').length} / ${c.filter(x => x.cb.winner === 'corp').length} | ${cols(c)} |`);
+      }
+  for (const arm of ['coverWaiting', 'shortCoverWaiting'].filter(a => ARMS.includes(a))) {
+    const d = D.filter(r => r.changed?.[arm] && (r.m?.c ?? []).some(c => c.form === 'pair'));
+    p(`\n${arm}: changed decisions on a board with a pair-form placement: ${d.length} (expected only through the look-ahead).\n`);
+    for (const r of d)
+      p(`- ${r.src} i${r.i} T${r.T} (${r.sk}, ${how(arm, r)}, waiting form on the board too: ${isW(r)}): beta ${r.beta} | arm ${r.changed[arm]}; covers ${JSON.stringify(r.covers ?? null)}`);
+    const out = D.filter(r => r.changed?.[arm] && !inClass(arm, r));
+    p(`\n${arm}: changed decisions outside its class: ${out.length}.\n`);
+    for (const r of out) p(`- ${r.src} i${r.i} T${r.T} ${r.c} (${r.sk}, ${how(arm, r)}): beta ${r.beta} | arm ${r.changed[arm]}`);
+    const ai = ASKED.indexOf(arm);
+    const ill = D.filter(r => r.fire?.[ai]?.waitIllegal);
+    p(`\n${arm}: waiting-form candidates the engine would refuse (red team M4): ${sum(ill.map(r => r.fire[ai].waitIllegal))} at ${ill.length} decisions.`);
+  }
+}
+const gateFlips = (title, a, b, armA, armB) => {
+  p(`\n### ${title}\n`);
+  p('Boards with the gate measured (corp main decisions); "reserved differs" = reservedForAgenda answers differently; gate = `reserved && scoringShort(state)`; "reached" = the waiting branch does not return first for the cheapest econ asset in HQ.\n');
+  p('| kind | boards | econ asset in HQ | reserved differs | gate false→true | gate true→false | of those, reached | decision differs |');
+  p('|---|---|---|---|---|---|---|---|');
+  for (const k of KINDS) {
+    const g = D.filter(r => r.sk === k && r.m?.g);
+    const rd = g.filter(r => r.m.g[a].reserved !== r.m.g[b].reserved);
+    const econ = g.filter(r => r.m.g.econ > 0);
+    const ft = econ.filter(r => !r.m.g[a].gate && r.m.g[b].gate);
+    const tf = econ.filter(r => r.m.g[a].gate && !r.m.g[b].gate);
+    const reached = [...ft, ...tf].filter(r => r.m.g[a].reached || r.m.g[b].reached);
+    const differs = [...new Set([...rd, ...ft, ...tf])].filter(r => pickOf(r, armA) !== pickOf(r, armB));
+    p(`| ${k} | ${g.length} | ${econ.length} | ${rd.length} | ${ft.length} | ${tf.length} | ${reached.length} | ${differs.length} |`);
+  }
+  const all = D.filter(r => r.m?.g && (r.m.g[a].reserved !== r.m.g[b].reserved || (r.m.g.econ > 0 && r.m.g[a].gate !== r.m.g[b].gate)));
+  for (const r of all.slice(0, 60))
+    p(`- ${r.src} i${r.i} T${r.T} (${r.sk}) cr ${r.cr} cl ${r.cl}: reserved ${r.m.g[a].reserved}→${r.m.g[b].reserved}, waiting ${r.m.g[a].waiting}→${r.m.g[b].waiting}, gate ${r.m.g[a].gate}→${r.m.g[b].gate}, reached ${r.m.g[a].reached}/${r.m.g[b].reached}; ${armA} ${pickOf(r, armA)} | ${armB} ${pickOf(r, armB)}`);
+  if (all.length > 60) p(`- … ${all.length - 60} more`);
+};
+if (ARMS.includes('reservedOnce') || ARMS.includes('shortReserved')) {
+  p('\n## reservedOnce: where the reservation and the gate answer differently\n');
+  if (ARMS.includes('reservedOnce')) gateFlips('reservedOnce against control (today/today → once/today)', 'tt', 'ot', 'control', 'reservedOnce');
+  if (ARMS.includes('shortReserved') && ARMS.includes('shortOnce')) {
+    gateFlips('shortReserved against shortOnce (today/once → once/once)', 'to', 'oo', 'shortOnce', 'shortReserved');
+    p('\nshortReserved against shortOnce, changed decisions by source kind:');
+    for (const k of KINDS) p(`- ${k}: ${D.filter(r => r.sk === k && pickOf(r, 'shortReserved') !== pickOf(r, 'shortOnce')).length}`);
+  }
+}
+if (ARMS.includes('shortCoverWaiting')) {
+  p('\n## shortCoverWaiting against the union of shortOnce and coverWaiting\n');
+  const ch = a => new Set(D.filter(r => r.changed?.[a]).map(r => r.src + '|' + r.i));
+  const u = new Set([...ch('shortOnce'), ...ch('coverWaiting')]);
+  const s = ch('shortCoverWaiting');
+  const extra = [...s].filter(x => !u.has(x));
+  const missing = [...u].filter(x => !s.has(x));
+  const samePick = [...s].filter(x => u.has(x)).filter(x => {
+    const r = decOf.get(x);
+    return pickOf(r, 'shortCoverWaiting') !== (r.changed?.coverWaiting ?? r.changed?.shortOnce);
+  });
+  p(`shortCoverWaiting ${s.size}, union ${u.size}; new (in shortCoverWaiting only) ${extra.length}; missing (in the union only) ${missing.length}; in both but a different pick ${samePick.length}.`);
+  for (const x of [...extra, ...missing, ...samePick]) {
+    const r = decOf.get(x);
+    p(`- ${r.src} i${r.i} T${r.T} ${r.c} (${r.sk}): beta ${r.beta} | shortCoverWaiting ${pickOf(r, 'shortCoverWaiting')} | coverWaiting ${pickOf(r, 'coverWaiting')} | shortOnce ${pickOf(r, 'shortOnce')}`);
   }
 }
 
