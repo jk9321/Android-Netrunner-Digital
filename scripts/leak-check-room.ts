@@ -34,8 +34,12 @@ import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
 import { RoomCore, checkDeck, settledFor, storageWrites } from '../server/room';
+import { activeCards } from '../src/core/engine/triggers';
 import type { Outbox } from '../server/room';
-import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
+import { SOCKET_ERROR_TEXT, parseClientMessage, sanitizeAction } from '../src/net/protocol';
+
+/** JSON with sorted keys and no undefined fields, to compare two actions built in different key orders. */
+const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
 import { LeakChecker, seedIn, type LeakFailure } from './leak-check';
 import { firstDiff, pickPair, shown, twinOf } from './leak-check-twin';
@@ -60,6 +64,9 @@ export interface RoomFuzzResult {
   moves: number;
   winner: SideCode | null;
   failures: LeakFailure[];
+  /** Credit-hold changes the fuzzer made (chunk 2i), and the rows each one wrote. */
+  holds: number;
+  holdRows: number[];
   /** Sizes of every `state` message (bytes of JSON). */
   sizes: number[];
   /** Milliseconds per receive() call that applied a move. */
@@ -138,6 +145,8 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
     runner: runner.id,
     format: onlineFormat(corp, runner),
     players,
+    holds: 0,
+    holdRows: [],
     moves: 0,
     winner: null,
     failures: checker.failures,
@@ -170,6 +179,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
         const seen = room.inspect(to)!;
         checker.checkContent(seen.state, to, msg, seen.ids, step);
         if (msg.legal.length > 0 && msg.waitingOn !== to) checker.fail(step, to, 'seat', 'legal actions sent to a seat that is not acting');
+        // Every action offered must survive the server's own shape check unchanged, or the seat can't send it back (chunk 2i:
+        // Lycian Multi-Munition's 'code gate+sentry' was offered and refused as bad_message)
+        for (const a of msg.legal) {
+          const back = sanitizeAction(a);
+          if (!back || canonical(back) !== canonical(a)) checker.fail(step, to, 'seat', `offered action does not survive sanitizeAction: ${JSON.stringify(a).slice(0, 200)}`);
+        }
         // The seat that did not act hears only at settled points (or when the game ends, or its held choice was dropped)
         if (mover && to !== mover && !settledFor(seen.state, to) && !seen.state.winner) checker.fail(step, to, 'seat', 'state sent to the other seat at an unsettled point');
         client.last = msg;
@@ -203,6 +218,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
 
   const agents = players === 'ai' ? { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') } : null;
   let stuck = 0;
+  let holds = 0;
   try {
     while (step < maxMoves && !room.meta.over) {
       const acting = SIDES.find(s => clients[s].last?.waitingOn === s && !clients[s].waiting);
@@ -227,7 +243,7 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (accepted && !res.out.some(o => o.to === acting && o.msg.type === 'state')) clients[acting].waiting = true;
       if (accepted) result.times.push(ms);
       else if (++stuck > 50) {
-        checker.fail(step, acting, 'seat', `50 refused messages in a row (last ${JSON.stringify(res.out[0]?.msg).slice(0, 160)})`);
+        checker.fail(step, acting, 'seat', `50 refused messages in a row (last ${JSON.stringify(res.out[0]?.msg).slice(0, 160)}; sent ${JSON.stringify(msg).slice(0, 300)})`);
         break;
       }
       if (accepted) stuck = 0;
@@ -239,6 +255,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
       if (nextInt(rng, 15) === 0) junkCheck(room, clients, checker, step, rng, deliver);
       // A flood of messages that must change nothing (chunk 2e, MP-STOPS-WRITE-FLOOD)
       if (nextInt(rng, 40) === 0) floodCheck(room, clients, checker, step, rng);
+      // A credit hold toggled now and then (chunk 2i): the other seat must hear nothing of it (rules 10.2.2a-b).
+      // At most 8 a game: the fuzz clock barely moves, so HOLD_BUDGET (10) does not refill
+      if (!room.meta.over && holds < 8 && nextInt(rng, 30) === 0 && holdCheck(room, clients, checker, step, rng, deliver, result.holdRows)) {
+        holds++;
+        result.holds++;
+      }
     }
   } catch (e) {
     checker.failures.push({ seed, step, viewer: 'corp', check: 'crash', detail: `${e instanceof Error ? e.stack : e}`.slice(0, 400) });
@@ -320,6 +342,32 @@ function junkCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: L
   const accepted = res.persist && !res.out.some(o => o.to === side && o.msg.type === 'error');
   if (accepted && !res.out.some(o => o.to === side && o.msg.type === 'state')) client.waiting = true;
   deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+}
+
+/**
+ * One seat toggles the credit hold of one of its own active cards (chunk 2i). The other seat gets no message and
+ * its last state is unchanged; the mover's own state comes back (or nothing, at its R&D-access wait). Returns
+ * whether a change was made.
+ */
+function holdCheck(room: RoomCore, clients: Record<SideCode, Client>, checker: LeakChecker, step: number, rng: RngState, deliver: (out: Outbox, mover: SideCode | null) => void, rows: number[]): boolean {
+  const side = SIDES[nextInt(rng, 2)];
+  const seen = room.inspect(side);
+  if (!seen) return false;
+  const cards = activeCards(seen.state, side);
+  if (cards.length === 0) return false;
+  const card = cards[nextInt(rng, cards.length)];
+  const action = fromEngineAction({ type: 'SET_CREDIT_HOLD', player: side, cardInstanceId: card.instanceId, hold: !card.holdCredits }, seen.ids);
+  if (!action) return false;
+  const opp = other(side);
+  const before = room.connect(opp).map(m => JSON.stringify(m)).join();
+  const refs = storageWrites(null, room.snapshot()).refs;
+  const res = room.receive(side, { type: 'act', seq: clients[side].seq, action }, step);
+  if (res.persist) rows.push(Object.keys(storageWrites(refs, room.snapshot()).put).length);
+  if (res.out.some(o => o.to === opp)) checker.fail(step, opp, 'seat', `a credit hold by ${side} sent ${opp} a message`);
+  if (room.connect(opp).map(m => JSON.stringify(m)).join() !== before) checker.fail(step, opp, 'seat', `a credit hold by ${side} changed what ${opp} was last sent`);
+  if (res.out.some(o => o.to === side && o.msg.type === 'error')) checker.fail(step, side, 'seat', `a credit hold on an own active card was refused: ${JSON.stringify(res.out[0]?.msg)}`);
+  deliver(res.out, res.out.some(o => o.to === side && o.msg.type === 'state') ? side : null);
+  return res.persist;
 }
 
 /**
@@ -478,6 +526,7 @@ export function summarize(results: RoomFuzzResult[]): string {
   const longest = results.reduce((m, r) => Math.max(m, r.moves), 0);
   return [
     `moves per game: max ${longest} (seed ${results.find(r => r.moves === longest)?.seed ?? '-'})`,
+    `credit-hold changes (chunk 2i): ${results.reduce((a, r) => a + r.holds, 0)} in ${results.filter(r => r.holds > 0).length} games, rows each ${[...new Set(results.flatMap(r => r.holdRows))].sort().join('/') || '-'}`,
     `rows written per stored move: min ${rows.length ? Math.min(...rows) : 0}, p50 ${quantile(rows, 0.5)}, max ${rows.length ? Math.max(...rows) : 0}, mean ${(rows.reduce((a, b) => a + b, 0) / Math.max(1, rows.length)).toFixed(2)} (${rows.length} saves)`,
     `state messages: ${sizes.length}, size p50 ${kb(quantile(sizes, 0.5))}, p99 ${kb(quantile(sizes, 0.99))}, max ${kb(Math.max(0, ...sizes))}`,
     `time per accepted move (receive, incl. both views and legal actions): p50 ${quantile(times, 0.5).toFixed(2)} ms, p99 ${quantile(times, 0.99).toFixed(2)} ms, max ${Math.max(0, ...times).toFixed(2)} ms`,

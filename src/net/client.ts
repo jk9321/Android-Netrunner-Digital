@@ -119,7 +119,7 @@ const browserTimers: Timers = {
 };
 
 /** Actions a seat may send at any time, against no particular state (server/room.ts, rule 1). */
-const anyTime = (action: GameAction) => action.type === 'SET_STOPS' || action.type === 'CONCEDE';
+const anyTime = (action: GameAction) => action.type === 'SET_STOPS' || action.type === 'SET_CREDIT_HOLD' || action.type === 'CONCEDE';
 
 export class OnlineTable {
   readonly side: SideCode;

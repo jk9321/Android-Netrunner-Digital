@@ -38,6 +38,7 @@ import type { GameAction } from './types/actions';
 import type { Prompt, PromptChoice } from './types/prompts';
 import { IllegalActionError } from './engine/errors';
 import { actingSide } from './engine/priority';
+import { activeCards } from './engine/triggers';
 
 // --- Types ------------------------------------------------------------------------
 
@@ -383,7 +384,7 @@ export const CARD_FIELDS = {
   scoredTurn: 'own',
   chosenSubtypes: 'own',
   cannotScoreTurn: 'own',
-  holdCredits: 'own',
+  holdCredits: 'own', // owner only, not "with the face": the viewer's own active cards (chunk 2i, rules 10.2.2a-b)
 } as const satisfies Record<keyof CardInstance, Vis>;
 
 export const RUN_STATE_FIELDS = {
@@ -520,6 +521,10 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     return res;
   };
 
+  // The viewer's own active cards, worked out once on first use: only their credit holds are shown (chunk 2i)
+  let ownActive: Set<string> | null = null;
+  const ownsActive = (id: string) => (ownActive ??= new Set(activeCards(state, side).map(c => c.instanceId))).has(id);
+
   // Hosted-id fixups run once every card has its id
   const fixups: (() => void)[] = [];
 
@@ -545,7 +550,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
       if (c.scoredTurn !== undefined) v.scoredTurn = c.scoredTurn;
       if (c.chosenSubtypes) v.chosenSubtypes = [...c.chosenSubtypes];
       if (c.cannotScoreTurn !== undefined) v.cannotScoreTurn = c.cannotScoreTurn;
-      if (c.holdCredits) v.holdCredits = true;
+      if (c.holdCredits && ownsActive(c.instanceId)) v.holdCredits = true;
     }
     fixups.push(() => {
       v.hostedCardIds = refs(c.hostedCardIds);
