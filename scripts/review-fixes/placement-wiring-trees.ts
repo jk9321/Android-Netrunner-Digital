@@ -251,6 +251,12 @@ function __placedInstalls(state: GameState, card: CardInstance, installs: Instal
     const __cover = ${COVER} && placement.reason === 'assetCover';
     const __wait = ${WAIT} && placement.reason === 'assetCover' && !placement.pairWith;
     const clean = placement.reason === 'assetCover' && !((__cover || __wait) && !placement.pairWith) ? from : placedInstall(from, placement);
+    if (__wait) {
+      // record only: a waiting-form candidate that replaces the bare install (top level or inside the look-ahead's playouts)
+      const G = globalThis as any;
+      const k = G.__pwInTop ? 'waitSwapTop' : 'waitSwapLookahead';
+      G.__pwFire = { ...(G.__pwFire ?? {}), [k]: (G.__pwFire?.[k] ?? 0) + 1 };
+    }
     if (__wait && !__legal(state, clean)) {
       // red team M4 (record only): a waiting-form candidate the engine would refuse
       const G = globalThis as any;
@@ -309,6 +315,7 @@ function __placedInstalls(state: GameState, card: CardInstance, installs: Instal
   const __top = !!__G.__pwTop;
   __G.__pwTop = false;
   const __rec: any[] | null = __top ? [] : null;
+  __G.__pwInTop = __top;
   const corp = state.corp;
   const keep = rezMoney(state).keep;
   const before = evaluate(state, 'corp');`,
