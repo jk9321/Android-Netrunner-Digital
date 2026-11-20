@@ -120,16 +120,19 @@ const isW = r => (r.m?.c ?? []).some(c => c.form === 'waiting');
 const hasPair = r => (r.m?.c ?? []).some(c => c.form === 'pair');
 const coverStep = f => !!f && (f.armW || f.refW || /^INSTALL_CARD asset:/.test(f.ref ?? '') || /^INSTALL_CARD asset:/.test(f.arm ?? ''));
 const s2 = vs('c2/c1');
-const m7 = { cover: [], other: [], none: [] };
+// The move itself is the waiting cover's install where one side ran no playout to log (its pick came from the kept
+// line's memo, or the order decided without the look-ahead): the first difference is the cover's own install.
+const ownInstall = r => r.covers?.c2 === 'waiting' && (!r.diff['c2/c1'].log?.first || r.diff['c2/c1'].log.playouts.includes(0));
+const m7 = { cover: [], own: [], other: [], none: [] };
 for (const r of s2) {
   const f = r.diff['c2/c1'].log?.first;
-  (f ? (coverStep(f) ? m7.cover : m7.other) : m7.none).push(r);
+  (f && coverStep(f) ? m7.cover : ownInstall(r) ? m7.own : f ? m7.other : m7.none).push(r);
 }
 p(`Fix 2: ${s2.length} changed (self ${s2.filter(r => r.sk === 'self').length}, human Runner ${s2.filter(r => r.sk === 'humanRunner').length}, human Corp ${s2.filter(r => r.sk === 'humanCorp').length}); a waiting-form placement on the decision's board ${s2.filter(isW).length}; outside the class ${s2.filter(r => !isW(r)).length}; on a board with a pair-form placement ${s2.filter(hasPair).length}. Logs read the same pick as the timed asks at ${s2.filter(r => r.diff['c2/c1'].log?.same).length} of ${s2.length}.`);
-p(`\nM7, the first step where c1's and c2's playouts differ: at a waiting-form cover's own install or an asset install (a later order pick of one) ${m7.cover.length}; **elsewhere (a stop) ${m7.other.length}**; no difference in the logs ${m7.none.length}.`);
-for (const r of [...m7.other, ...m7.none]) {
+p(`\nM7, the first step where c1's and c2's playouts differ: at a waiting-form cover's own install or an asset install (a later order pick of one) ${m7.cover.length}; c2's move is itself the waiting cover's install and one side ran no playout (a kept line's memo pick, or the order decided without the look-ahead) ${m7.own.length}; **elsewhere (a stop) ${m7.other.length}**; no difference in the logs and not the cover's install (a stop) ${m7.none.length}.`);
+for (const r of [...m7.own, ...m7.other, ...m7.none]) {
   const x = r.diff['c2/c1'];
-  p(`- ${m7.other.includes(r) ? 'ELSEWHERE' : 'NO LOG DIFF'} ${r.src} i${r.i} T${r.T} (${r.sk}, ${x.how}): c1 ${x.ref} | c2 ${x.arm}; ${JSON.stringify(x.log?.first ?? null)}`);
+  p(`- ${m7.own.includes(r) ? 'OWN INSTALL' : m7.other.includes(r) ? 'ELSEWHERE' : 'NO LOG DIFF'} ${r.src} i${r.i} T${r.T} (${r.sk}, ${x.how}): c1 ${x.ref} | c2 ${x.arm}; c2's planner ${JSON.stringify(x.intake)}, c1's ${JSON.stringify(x.refIntake)}; playouts logged c1/c2 ${JSON.stringify(x.log?.playouts ?? null)}; ${JSON.stringify(x.log?.first ?? null)}`);
 }
 for (const r of s2.filter(r => !isW(r))) {
   const x = r.diff['c2/c1'];
