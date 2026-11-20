@@ -36,7 +36,10 @@ import { GameRunner } from '../src/ai/playout';
 import { RoomCore, checkDeck, settledFor, storageWrites } from '../server/room';
 import { activeCards } from '../src/core/engine/triggers';
 import type { Outbox } from '../server/room';
-import { SOCKET_ERROR_TEXT, parseClientMessage } from '../src/net/protocol';
+import { SOCKET_ERROR_TEXT, parseClientMessage, sanitizeAction } from '../src/net/protocol';
+
+/** JSON with sorted keys and no undefined fields, to compare two actions built in different key orders. */
+const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
 import type { ClientMessage, DeckSubmission, ServerMessage } from '../src/net/protocol';
 import { LeakChecker, seedIn, type LeakFailure } from './leak-check';
 import { firstDiff, pickPair, shown, twinOf } from './leak-check-twin';
@@ -176,6 +179,12 @@ export function fuzzRoomGame(seed: number, corp: DeckList, runner: DeckList, pla
         const seen = room.inspect(to)!;
         checker.checkContent(seen.state, to, msg, seen.ids, step);
         if (msg.legal.length > 0 && msg.waitingOn !== to) checker.fail(step, to, 'seat', 'legal actions sent to a seat that is not acting');
+        // Every action offered must survive the server's own shape check unchanged, or the seat can't send it back (chunk 2i:
+        // Lycian Multi-Munition's 'code gate+sentry' was offered and refused as bad_message)
+        for (const a of msg.legal) {
+          const back = sanitizeAction(a);
+          if (!back || canonical(back) !== canonical(a)) checker.fail(step, to, 'seat', `offered action does not survive sanitizeAction: ${JSON.stringify(a).slice(0, 200)}`);
+        }
         // The seat that did not act hears only at settled points (or when the game ends, or its held choice was dropped)
         if (mover && to !== mover && !settledFor(seen.state, to) && !seen.state.winner) checker.fail(step, to, 'seat', 'state sent to the other seat at an unsettled point');
         client.last = msg;

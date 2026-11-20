@@ -16,7 +16,7 @@ import { SOCKET_ERROR_TEXT, displayRoomCode, parseClientMessage, parseRoomCode }
 import type { ServerMessage } from '../src/net/protocol';
 import { submission } from '../scripts/leak-check-room';
 import { spendCredits } from '../src/core/engine/cardEffects';
-import { giveCard, installCorpForTest, newGame, runnerInstall, startRunnerTurn } from './helpers';
+import { giveCard, installCorpForTest, installIceForTest, newGame, rezForTest, run, runnerInstall, startRunnerTurn } from './helpers';
 
 const corpStarter = submission(STARTER_DECKS[0]);
 const runnerStarter = submission(STARTER_DECKS[1]);
@@ -96,9 +96,15 @@ describe('Client actions are rebuilt and checked (review R2: no free text anywhe
     expect(act({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-4' })).toBeNull();
     expect(act({ type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq; chat' })).toBeNull();
     expect(act({ type: 'USE_ABILITY', player: 'runner', cardInstanceId: 'r3', abilityIndex: 1.5 })).toBeNull();
-    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId: 'a long free text message' } })).toBeNull();
+    // (Spaces pass the shape since chunk 2i, for subtype names; a free-text answer is still refused by the room's offered check)
+    expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId: 'hello runner, this is chat!' } })).toBeNull();
     expect(act({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: 'prompt-3', choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'], note: 'x' } })).toMatchObject({ action: { choice: { kind: 'effect_cards', cardInstanceIds: ['r1', 'r2'] } } });
     expect(act({ type: 'CHAT', player: 'corp' })).toBeNull();
+  });
+  it("option ids may hold spaces and '+' (Lycian Multi-Munition's subtypes, chunk 2i); nothing else new", () => {
+    const choice = (optionId: string) => act({ type: 'RESOLVE_PROMPT', player: 'corp', promptId: 'prompt-3', choice: { kind: 'effect_choice', optionId } });
+    for (const ok of ['code gate', 'code gate+sentry', 'barrier+code gate', 'x'.repeat(40)]) expect(choice(ok), ok).toMatchObject({ action: { choice: { optionId: ok } } });
+    for (const bad of ['code\u0007gate', 'code\ngate', 'code\tgate', 'x'.repeat(41), '<b>', 'say "hi"', "it's", '']) expect(choice(bad), bad).toBeNull();
   });
   it('the room takes only what the seat was offered, and stores nothing it did not check', () => {
     const { room } = started();
@@ -822,6 +828,20 @@ describe('Credit holds online (chunk 2i; rules 1.10.3c, 10.2.2a-b)', () => {
     expect(slept.receive('runner', hold('runner', id, true), 10_000 + HOLD_BUDGET.refillMs).persist).toBe(true);
   });
 
+  it('one hold change writes 4 rows (meta, state, moves, the mover\'s last state); 1,000 toggles write at most the burst', () => {
+    const { room, azimat } = holdRoom(false);
+    const id = seatId(room, 'runner', azimat);
+    const one = rowCounter(room);
+    one.send('runner', hold('runner', id, true), 10_000);
+    expect(one.rows).toBe(4);
+    const { room: r2, azimat: a2 } = holdRoom(false);
+    const id2 = seatId(r2, 'runner', a2);
+    const many = rowCounter(r2);
+    for (let i = 0; i < 1000; i++) many.send('runner', hold('runner', id2, i % 2 === 0), 10_000 + i);
+    // 1,000 ms of toggles refills none of the 30 s bucket: the burst of 10, 4 rows each
+    expect(many.rows).toBe(HOLD_BUDGET.burst * 4);
+  });
+
   it("the other side's card and an unknown id are `illegal`, nothing stored", () => {
     const { room, harvester } = holdRoom(false);
     const theirs = seatId(room, 'runner', harvester);
@@ -877,5 +897,28 @@ describe('Credit holds online (chunk 2i; rules 1.10.3c, 10.2.2a-b)', () => {
       const az = s.runner.rig.programs.find(c => c.instanceId === azimat)!;
       expect({ pool: 5 - s.runner.credits, hosted: 2 - (az.tokens.credit ?? 0) }).toEqual(held ? { pool: 3, hosted: 0 } : { pool: 1, hosted: 2 });
     }
+  });
+});
+
+describe('An online Corp answers Lycian Multi-Munition with a combined subtype option (chunk 2i)', () => {
+  // Card text: "When you rez this ice, choose 1 or more subtypes among barrier, code gate, and sentry. This ice gains
+  // the chosen subtypes while it remains rezzed." The engine's option ids are 'code gate', 'code gate+sentry', ...
+  it("'code gate+sentry' is accepted and the game goes on", () => {
+    let s = newGame();
+    const ly = installIceForTest(s, '34100', 'hq', false);
+    s = rezForTest(run(s, 'hq'), ly);
+    expect(s.pendingPrompts[0]).toMatchObject({ side: 'corp', kind: 'effect_choice' });
+    const room = roomWith(s);
+    const c = lastState(room, 'corp');
+    const pick = c.legal.find(a => a.type === 'RESOLVE_PROMPT' && a.choice.kind === 'effect_choice' && a.choice.optionId === 'code gate+sentry');
+    expect(pick).toBeDefined();
+    // Free text that fits the wider shape is still not an offered option: refused, nothing stored
+    const chat: GameAction = { ...pick!, choice: { kind: 'effect_choice', optionId: 'a long free text message' } } as GameAction;
+    expect(room.receive('corp', { type: 'act', seq: c.seq, action: chat }, 6000)).toMatchObject({ out: [{ to: 'corp', msg: { code: 'illegal' } }], persist: false });
+    const res = room.receive('corp', { type: 'act', seq: c.seq, action: pick! }, 6000);
+    expect(errorsTo(res.out, 'corp')).toEqual([]);
+    expect(res.persist).toBe(true);
+    const lycian = Object.values(room.realState!.corp.servers).flatMap(x => x.ice).find(i => i.instanceId === ly)!;
+    expect(lycian.chosenSubtypes).toEqual(['code gate', 'sentry']);
   });
 });
