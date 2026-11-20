@@ -35,8 +35,8 @@ export const UPDATES: UpdateEntry[] = [
   },
   {
     id: '2026-11-main-liberation-multiplayer',
-    date: 'Recent',
-    title: 'Latest Updates',
+    date: 'November 16, 2026',
+    title: 'Previous Updates',
     items: [
       {
         text: 'Added Online Multiplayer',
