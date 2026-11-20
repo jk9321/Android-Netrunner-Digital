@@ -107,8 +107,8 @@ const TABLE: Record<string, Row> = {
 };
 
 /** Runner cards whose money, cost or ice effect the count reads today, or that are not about getting in. */
-const READ_OR_IRRELEVANT: Record<string, string> = {
-  '30007': 'Fermenter: clickMoney', '35011': 'Rent Rioters: clickMoney', '30027': 'Telework Contract: clickMoney', '30033': 'Smartware Distributor: turnIncome and clickMoney',
+export const READ_OR_IRRELEVANT: Record<string, string> = {
+  '30007': 'Fermenter: clickMoney', '35011': 'Rent Rioters: clickMoney', '30027': 'Telework Contract: clickMoney', '30033': 'Smartware Distributor: turnIncome (its turn-start take; its click places credits and pays nothing this turn, so it has no click entry)',
   '35022': 'Open Market: turnIncome (its hosted credits install only)', '34074': 'Friend of a Friend: clickMoney', '36021': 'Touchstone: stealth credits (runCredits)',
   '34082': 'Physarum Entangler: holdFacts.hostBypass', '30004': 'Botulus: holdFacts', '30017': 'Tranquilizer: holdFacts', '35030': 'Chromatophores: granter',
   '34081': 'Malandragem: runBypasses', '34016': 'Laser Pointer: runBypasses', '34015': 'Curupira: runBypasses', '35021': 'Fransofia Ward: runBypasses (its +1 rez cost: rezCostOf)',
@@ -125,56 +125,61 @@ const READ_OR_IRRELEVANT: Record<string, string> = {
   '34085': 'Burner: instead of the breach', '36010': 'Kompromat: the Corp\'s choice of a derez after the run', '35015': 'Lie Low: cards or tags', '30021': 'VRcation: cards',
 };
 
-const files = readdirSync('src/data').filter(f => f.endsWith('-cards.json'));
-const cards = files.flatMap(f => (JSON.parse(readFileSync(`src/data/${f}`, 'utf8')) as { code: string; title: string; side_code: string; type_code: string; stripped_text?: string }[]).map(c => ({ ...c, set: f.replace('-cards.json', '') })));
-const runner = cards.filter(c => c.side_code === 'runner');
-const corp = cards.filter(c => c.side_code === 'corp');
+// The table is imported by tests/clickMoneyFacts.test.ts (its field claims as a test); the report runs only as a script.
+if (!process.env.VITEST) main();
 
-// The count's readers today, from the entries (a check of the table's "read already" column)
-const reads = (code: string): string[] => {
-  const e = CARDS[code];
-  const s = getCardScript(code);
-  return [e?.turnIncome && 'turnIncome', e?.clickMoney && 'clickMoney', e?.holdFacts && 'holdFacts', s?.paysDuringRuns && 'paysDuringRuns'].filter((x): x is string => !!x);
-};
+function main() {
+  const files = readdirSync('src/data').filter(f => f.endsWith('-cards.json'));
+  const cards = files.flatMap(f => (JSON.parse(readFileSync(`src/data/${f}`, 'utf8')) as { code: string; title: string; side_code: string; type_code: string; stripped_text?: string }[]).map(c => ({ ...c, set: f.replace('-cards.json', '') })));
+  const runner = cards.filter(c => c.side_code === 'runner');
+  const corp = cards.filter(c => c.side_code === 'corp');
 
-const PATTERN = /\bgain \d+\s*(?:\[credit\]|credits?)|\btake (?:all|\d+) (?:\[credit\]|credits?)|hosted credits|gain (?:\[click\]|click)|\bbypass\b|-\d+ strength|\bderez\b|costs? \d+ (?:\[credit\]|credits?) less|\bless to use|place \d+ (?:\[credit\]|credits?)|recurring|instead of breaching|change the attacked server/i;
-const unclassified = runner.filter(c => PATTERN.test(c.stripped_text ?? '') && !TABLE[c.code] && !(c.code in READ_OR_IRRELEVANT));
+  // The count's readers today, from the entries (a check of the table's "read already" column)
+  const reads = (code: string): string[] => {
+    const e = CARDS[code];
+    const s = getCardScript(code);
+    return [e?.turnIncome && 'turnIncome', e?.clickMoney && 'clickMoney', e?.holdFacts && 'holdFacts', s?.paysDuringRuns && 'paysDuringRuns'].filter((x): x is string => !!x);
+  };
 
-console.log('# Inventory: what the Runner can do that the hold count does not read\n');
-console.log(`Runner cards in the game: ${runner.length} (${files.join(', ')}). In the table: ${Object.keys(TABLE).length}. Read already or not about getting in: ${Object.keys(READ_OR_IRRELEVANT).filter(k => runner.some(c => c.code === k)).length}. Unclassified by the pattern: ${unclassified.length}.\n`);
-const routes = [...new Set(Object.values(TABLE).map(r => r.route))].sort();
-for (const route of routes) {
-  const rows = Object.entries(TABLE).filter(([, r]) => r.route === route);
-  const by = (k: Info | 'holds') => rows.filter(([, r]) => r.info === k || r.errs === k).length;
-  console.log(`## ${route}: ${rows.length} cards (open ${by('open') + by('open (identity)')}, hidden ${by('hidden')}; errs toward "holds": ${by('holds')})\n`);
-  console.log('| card | set | info | what the count misses (reader) | errs | arm | reads today |');
-  console.log('|---|---|---|---|---|---|---|');
-  for (const [code, r] of rows) {
-    const c = runner.find(x => x.code === code);
-    console.log(`| ${c?.title ?? code} (${code}) | ${c?.set ?? '?'} | ${r.info} | ${r.missing} | ${r.errs} | ${r.arm ?? '-'} | ${reads(code).join(', ') || '-'} |`);
+  const PATTERN = /\bgain \d+\s*(?:\[credit\]|credits?)|\btake (?:all|\d+) (?:\[credit\]|credits?)|hosted credits|gain (?:\[click\]|click)|\bbypass\b|-\d+ strength|\bderez\b|costs? \d+ (?:\[credit\]|credits?) less|\bless to use|place \d+ (?:\[credit\]|credits?)|recurring|instead of breaching|change the attacked server/i;
+  const unclassified = runner.filter(c => PATTERN.test(c.stripped_text ?? '') && !TABLE[c.code] && !(c.code in READ_OR_IRRELEVANT));
+
+  console.log('# Inventory: what the Runner can do that the hold count does not read\n');
+  console.log(`Runner cards in the game: ${runner.length} (${files.join(', ')}). In the table: ${Object.keys(TABLE).length}. Read already or not about getting in: ${Object.keys(READ_OR_IRRELEVANT).filter(k => runner.some(c => c.code === k)).length}. Unclassified by the pattern: ${unclassified.length}.\n`);
+  const routes = [...new Set(Object.values(TABLE).map(r => r.route))].sort();
+  for (const route of routes) {
+    const rows = Object.entries(TABLE).filter(([, r]) => r.route === route);
+    const by = (k: Info | 'holds') => rows.filter(([, r]) => r.info === k || r.errs === k).length;
+    console.log(`## ${route}: ${rows.length} cards (open ${by('open') + by('open (identity)')}, hidden ${by('hidden')}; errs toward "holds": ${by('holds')})\n`);
+    console.log('| card | set | info | what the count misses (reader) | errs | arm | reads today |');
+    console.log('|---|---|---|---|---|---|---|');
+    for (const [code, r] of rows) {
+      const c = runner.find(x => x.code === code);
+      console.log(`| ${c?.title ?? code} (${code}) | ${c?.set ?? '?'} | ${r.info} | ${r.missing} | ${r.errs} | ${r.arm ?? '-'} | ${reads(code).join(', ') || '-'} |`);
+    }
+    console.log();
   }
+
+  // Corp cards that change which ice is rezzed (or met) at the Runner's turn
+  const CORP: Record<string, Row> = {
+    '34097': { route: C1, info: 'open', missing: 'Lightning Laboratory: when the turn it was used ends, 2 ice of that server derezzed (turnIce counts them rezzed)', errs: 'holds', arm: 'lightning' },
+    '36040': { route: C1, info: 'open', missing: 'Knowledge Seeker: derezzes itself after an encounter at 3 counters (a retry meets it unrezzed)', errs: 'holds' },
+    '34100': { route: C1, info: 'open', missing: 'Lycian Multi-Munition: read (holdFacts.turnEndDerezSelf)', errs: 'none (not a hold question)' },
+    '34032': { route: C1, info: 'open', missing: 'Stegodon MK IV: the Corp derezzes ice of another server for 1 (the Corp\'s choice; -2 to breakers after: toward the Corp)', errs: 'does not hold' },
+    '34104': { route: C1, info: 'open', missing: 'Brasília Government Grid: the Corp derezzes another ice for +3 strength (the Corp\'s choice)', errs: 'does not hold' },
+    '34038': { route: C1, info: 'open', missing: 'Vovô Ozetti: may move when the Corp\'s turn ends (rez costs read where it stands)', errs: 'does not hold' },
+  };
+  console.log(`## ${C1}: ${Object.keys(CORP).length} cards\n`);
+  console.log('| card | info | what the count misses | errs | arm |');
+  console.log('|---|---|---|---|---|');
+  for (const [code, r] of Object.entries(CORP)) console.log(`| ${corp.find(x => x.code === code)?.title ?? code} (${code}) | ${r.info} | ${r.missing} | ${r.errs} | ${r.arm ?? '-'} |`);
   console.log();
+
+  console.log('## Cross-check\n');
+  if (unclassified.length) {
+    for (const c of unclassified) console.log(`- UNCLASSIFIED ${c.title} (${c.code}): ${c.stripped_text}`);
+    process.exitCode = 1;
+  } else console.log('Every Runner card whose text matches the money, click, bypass, strength or derez pattern is in the table or in the read-already list.');
+  const wrong = Object.keys(TABLE).filter(code => reads(code).length && TABLE[code].route !== R6);
+  if (wrong.length) console.log(`\nIn the table with a reader today for another part of the card (Pennyshaver's click, Methuselah's hosted credits): ${wrong.map(c => `${runner.find(x => x.code === c)?.title} [${reads(c)}]`).join('; ')}`);
 }
-
-// Corp cards that change which ice is rezzed (or met) at the Runner's turn
-const CORP: Record<string, Row> = {
-  '34097': { route: C1, info: 'open', missing: 'Lightning Laboratory: when the turn it was used ends, 2 ice of that server derezzed (turnIce counts them rezzed)', errs: 'holds', arm: 'lightning' },
-  '36040': { route: C1, info: 'open', missing: 'Knowledge Seeker: derezzes itself after an encounter at 3 counters (a retry meets it unrezzed)', errs: 'holds' },
-  '34100': { route: C1, info: 'open', missing: 'Lycian Multi-Munition: read (holdFacts.turnEndDerezSelf)', errs: 'none (not a hold question)' },
-  '34032': { route: C1, info: 'open', missing: 'Stegodon MK IV: the Corp derezzes ice of another server for 1 (the Corp\'s choice; -2 to breakers after: toward the Corp)', errs: 'does not hold' },
-  '34104': { route: C1, info: 'open', missing: 'Brasília Government Grid: the Corp derezzes another ice for +3 strength (the Corp\'s choice)', errs: 'does not hold' },
-  '34038': { route: C1, info: 'open', missing: 'Vovô Ozetti: may move when the Corp\'s turn ends (rez costs read where it stands)', errs: 'does not hold' },
-};
-console.log(`## ${C1}: ${Object.keys(CORP).length} cards\n`);
-console.log('| card | info | what the count misses | errs | arm |');
-console.log('|---|---|---|---|---|');
-for (const [code, r] of Object.entries(CORP)) console.log(`| ${corp.find(x => x.code === code)?.title ?? code} (${code}) | ${r.info} | ${r.missing} | ${r.errs} | ${r.arm ?? '-'} |`);
-console.log();
-
-console.log('## Cross-check\n');
-if (unclassified.length) {
-  for (const c of unclassified) console.log(`- UNCLASSIFIED ${c.title} (${c.code}): ${c.stripped_text}`);
-  process.exitCode = 1;
-} else console.log('Every Runner card whose text matches the money, click, bypass, strength or derez pattern is in the table or in the read-already list.');
-const wrong = Object.keys(TABLE).filter(code => reads(code).length && TABLE[code].route !== R6);
-if (wrong.length) console.log(`\nIn the table with a reader today for another part of the card (Pennyshaver's click, Methuselah's hosted credits): ${wrong.map(c => `${runner.find(x => x.code === c)?.title} [${reads(c)}]`).join('; ')}`);

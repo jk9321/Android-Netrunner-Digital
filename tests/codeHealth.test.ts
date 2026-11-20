@@ -525,9 +525,11 @@ describe('AI code health (audit guards)', () => {
   // Then + 4 in corp/ (ai-placement-wiring fix 4: placement.ts, the comment above iceRedirect says what the code does,
   // with the count's numbers): corp/ 4,068, src/ai 16,085. The branch's + 28 on top of ai-rez-fixes' caps (merged after
   // beta 6e254bee; measured on the merged tree: corp/ 4,068, src/ai 16,085, at the caps)
-  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,085 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring)', () => {
+  // Then + 7 in src/ai/cards (ai-foaf-click-money, V-C checkpoint hunt finding 1: liberation.ts, Friend of a Friend's
+  // clickMoney entry + 1 and its comment + 6; corp/ unchanged): corp/ 4,068, src/ai 16,092
+  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,092 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(4068);
-    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16085);
+    expect(aiFiles().reduce((n, f) => n + lines(f), 0)).toBeLessThanOrEqual(16092);
   });
 });
