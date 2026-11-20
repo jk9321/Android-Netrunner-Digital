@@ -1,6 +1,6 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { runnerInstallCost } from '../core/engine/actions/install';
-import { evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
+import { corpBoardValue, evaluate, keepValue, rigCoverage, runnerRigValue } from './evaluate';
 import { bakerWantsFuel, principiaFuel } from './cardPlans';
 import { CARDS } from './cards';
 import { CLICK, cardRate } from './valueModel';
@@ -719,20 +719,41 @@ export function settledStand(board: GameState, server: string, synergy = false, 
 }
 
 /**
- * An answer's price for the run term: today's score of its one-step board (the fallback's). Shred's reveal ("reveals and
+ * An answer's price for the run term: today's score of its one-step board (the fallback's), less the ice's movement
+ * when Runner programs left the rig (rigMove, the run term's correction). Shred's reveal ("reveals and
  * trashes X cards from HQ at random") is chance, never the simulated pick (ruling 3): the board with the trashed cards
  * still in HQ, less the expected loss of X random cards of the Corp's own hand by the hand's owner (ownHandValue, the
  * registry row "a card held in HQ"), every set of X cards alike.
  */
 function runPrice(state: GameState, prompt: Prompt, action: GameAction, after: GameState, memory?: RunnerMemory, synergy = false): number {
   const shredTrash = 'source' in prompt && prompt.source.step === SHRED_STEP && action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId === 'trash';
-  if (!shredTrash) return scoreOutcome(state, followChain(prompt, after, 'corp', memory, synergy), 'corp', memory, synergy) + freeRezSaving(state, after);
+  if (!shredTrash) {
+    const board = followChain(prompt, after, 'corp', memory, synergy);
+    return scoreOutcome(state, board, 'corp', memory, synergy) + freeRezSaving(state, after) - rigMove(state, board);
+  }
   const kept = new Set(after.corp.hq.map(c => c.instanceId));
   const gone = state.corp.hq.filter(c => !kept.has(c.instanceId));
   const ids = new Set(gone.map(c => c.instanceId));
   const archives = { ...after.corp.archives, faceUp: after.corp.archives.faceUp.filter(c => !ids.has(c.instanceId)), faceDown: after.corp.archives.faceDown.filter(c => !ids.has(c.instanceId)) };
   const board: GameState = { ...after, corp: { ...after.corp, hq: state.corp.hq, archives } };
   return scoreOutcome(state, board, 'corp', memory, synergy) + freeRezSaving(state, after) - hqChanceLoss(state, gone.length);
+}
+
+/**
+ * The run term's correction (V-C item 1, Jeff 2026-11-19; registry V5 and V22, DEBT): a board on which Runner programs
+ * are gone is priced by the rig's movement alone. A breaker is counted on both sides of `evaluate` (iceCost reads the rig
+ * the rig's own value prices, and Ballista's "or end the run" price jumps with the last program), so a program trash
+ * read the ice's rise as a Corp gain on top of the rig's fall. This takes the Corp-view board's movement back out: the
+ * board less the same board with the gone programs back in the rig (the objects from `state`, which keep their host and
+ * counters; a copy only priced). 0 when no program left. Every other reader of `evaluate` still counts the breaker twice;
+ * this is deleted when the two terms have one owner (the guards in tests/runAnswers.test.ts fail then).
+ */
+function rigMove(state: GameState, board: GameState): number {
+  const left = new Set(board.runner.rig.programs.map(p => p.instanceId));
+  const gone = state.runner.rig.programs.filter(p => !left.has(p.instanceId));
+  if (gone.length === 0) return 0;
+  const back: GameState = { ...board, runner: { ...board.runner, rig: { ...board.runner.rig, programs: [...board.runner.rig.programs, ...gone] } } };
+  return corpBoardValue(board, 'corp') - corpBoardValue(back, 'corp');
 }
 
 /** The expected loss of `x` cards of HQ at random, by ownHandValue: every set of x alike (up to 70 sets; past that, x times a single card's mean). */

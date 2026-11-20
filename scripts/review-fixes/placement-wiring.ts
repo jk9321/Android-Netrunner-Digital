@@ -330,7 +330,7 @@ function decide(d: Dec, perSrc: Record<string, number>) {
     }
     // C: the planner's intake and values for the cover candidate, beta's and coverAtPlace's
     if (mm?.c?.length) {
-      const cov = asks.coverAtPlace ?? asks.shortCover;
+      const cov = asks.coverAtPlace ?? asks.shortCover ?? asks.coverWaiting ?? asks.shortCoverWaiting;
       row.cPlan = mm.c.map((c: any) => {
         const bAct = (b.main?.placements ?? []).find((p: any) => p.card === c.card);
         return {
@@ -346,6 +346,19 @@ function decide(d: Dec, perSrc: Record<string, number>) {
         };
       });
     }
+  }
+  // Addendum 1 (red team S1's classes): whether each side's move is a cover's real move (the asset at the waiting
+  // remote, or a pair's ice at the cover's server), by form
+  const covers = (row.m as any)?.c as any[] | undefined;
+  if (covers?.length) {
+    const coverKind = (a: GameAction | null) => {
+      if (!a || a.type !== 'INSTALL_CARD') return null;
+      const x = a as any;
+      const at = x.asNewRemote || !x.targetServerId ? 'new' : x.targetServerId;
+      const c = covers.find(c => (c.form === 'waiting' ? x.cardInstanceId === c.card : x.cardInstanceId === c.pairWith) && at === c.server);
+      return c ? c.form : null;
+    };
+    row.covers = Object.fromEntries(['beta', ...ASKED_ARMS].map(a => [a, coverKind(asks[a].a)]));
   }
   if (changed.length) {
     row.changed = Object.fromEntries(changed.map(a => [a, label(t, d.s, asks[a].a)]));
