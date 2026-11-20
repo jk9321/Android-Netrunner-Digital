@@ -112,6 +112,17 @@ describe('Seat', () => {
     expect(table.moves).toEqual([{ type: 'GAIN_CREDIT', player: 'runner' }]);
   });
 
+  it("pass and play: a credit hold shows on the owner's seat, not the other one (chunk 2i)", async () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    const table = new LocalTable(s, null, quiet);
+    const runner = table.seatFor('runner');
+    await runner.act({ type: 'SET_CREDIT_HOLD', player: 'runner', cardInstanceId: runner.state.runner.identity.instanceId, hold: true });
+    expect(table.state.runner.identity.holdCredits).toBe(true);
+    expect(table.seatFor('runner').state.runner.identity.holdCredits).toBe(true);
+    expect(table.seatFor('corp').state.runner.identity.holdCredits).toBeUndefined();
+  });
+
   it('the open table gets the real state and both sides\' moves', () => {
     const s = newGame();
     const seat = new LocalTable(s, null, quiet).seatFor('both');
