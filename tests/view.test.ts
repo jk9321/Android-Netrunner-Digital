@@ -399,3 +399,14 @@ describe('Per-player views', () => {
     });
   });
 });
+
+describe('Credit holds are the owner\'s business (chunk 2i; rules 10.2.2a-b)', () => {
+  it("the owner sees its hold; the opponent's view is byte-identical before and after", async () => {
+    const { runnerInstall } = await import('./helpers');
+    const [s, azimat] = runnerInstall(newGame(3), '35029');
+    const held = executeAction(s, { type: 'SET_CREDIT_HOLD', player: 'runner', cardInstanceId: azimat, hold: true });
+    const corp = (st: GameState) => JSON.stringify(viewFor(st, 'corp', newViewIds(), 'g').view);
+    expect(corp(held)).toBe(corp(s));
+    expect(viewFor(held, 'runner', newViewIds(), 'g').view.runner.rig.programs.some(c => c.holdCredits)).toBe(true);
+  });
+});
