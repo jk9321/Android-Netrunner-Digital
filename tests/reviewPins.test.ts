@@ -461,7 +461,7 @@ describe('bundle R: rez and rez money (known-failing until the bundle R fix)', (
       st.corp.archives.faceUp.push(...st.corp.rd.filter(c => out.has(c.instanceId)));
       st.corp.rd = st.corp.rd.filter(c => !out.has(c.instanceId));
     });
-  it.fails('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
+  it('empty R&D: no money is kept for R&D when no agenda is left in it', { timeout: T }, () => {
     const s = emptyRd(0);
     expect(inCorp(s, () => agendasUnseen(s))).toBe(0);
     expect(inCorp(s, () => rezMoney(s)).byServer).not.toHaveProperty('rd');
