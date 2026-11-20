@@ -135,10 +135,20 @@ function baseSrc(dir: string): string {
   const out = join(dir, 'base');
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  try {
-    execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
-  } catch {
-    execSync(`git fetch -q --depth=1 origin ${BASE}`, { stdio: 'inherit' });
+  // The four processes of an Actions shard fetch at once and race on .git/shallow.lock
+  // (run 44605621027: 48 of 64 parts failed here), so each retries until the commit is present.
+  for (let tryNo = 0; ; tryNo++) {
+    try {
+      execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
+      break;
+    } catch {
+      if (tryNo >= 20) throw new Error(`merge base ${BASE} not fetched after ${tryNo} tries`);
+      try {
+        execSync(`git fetch -q --depth=1 origin ${BASE}`, { stdio: 'ignore' });
+      } catch {
+        execSync(`sleep ${1 + Math.floor(Math.random() * 4)}`);
+      }
+    }
   }
   execSync(`git archive ${BASE} src | tar -x -C ${out}`, { stdio: 'inherit' });
   return join(out, 'src');
