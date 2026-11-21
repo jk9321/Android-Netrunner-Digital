@@ -248,6 +248,7 @@ export function DockedHandBar({
   onInspect,
   discardedIds,
   position,
+  actions,
 }: {
   side: SideCode;
   cards: CardInstance[];
@@ -258,54 +259,67 @@ export function DockedHandBar({
   onInspect?: (card: CardInstance) => void;
   discardedIds: ReadonlySet<string>;
   position: 'top' | 'bottom';
+  /** Common click actions + Play/Install + End Turn placed right beside the hand on this side's turn. */
+  actions?: React.ReactNode;
 }) {
   const isCorp = side === 'corp';
   const overLimit = cards.length > handSizeLimit;
+  const handLabel = (
+    <div
+      className={`flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider font-mono leading-none ${
+        isCorp ? 'text-cyan-400' : 'text-pink-400'
+      }`}
+    >
+      <span>
+        <Keyword id={isCorp ? 'hq' : 'grip'}>{isCorp ? 'HQ' : 'Grip'}</Keyword> Hand
+      </span>
+      <span className={overLimit ? 'text-amber-300' : 'opacity-90'}>
+        (<Keyword id="hand-size">{cards.length} / {handSizeLimit}</Keyword>)
+      </span>
+    </div>
+  );
+
   return (
     <div
       data-testid={`hand-dock-${side}`}
-      className={`hand-dock shrink-0 w-full flex items-center justify-between gap-3 px-2.5 py-1 rounded-[2px] border shadow-lg ${
+      className={`hand-dock shrink-0 w-full flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-1.5 px-2.5 py-1.5 rounded-[2px] border shadow-lg ${
         isCorp
           ? 'bg-gradient-to-r from-[#0a131d] to-[#070d14] border-cyan-900/70'
           : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
       }`}
     >
-      <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
-        <div
-          className={`flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider font-mono ${
-            isCorp ? 'text-cyan-400' : 'text-pink-400'
-          }`}
-        >
-          <span>
-            <Keyword id={isCorp ? 'hq' : 'grip'}>{isCorp ? 'HQ' : 'Grip'}</Keyword> Hand
-          </span>
-          <span className={overLimit ? 'text-amber-300' : 'opacity-90'}>
-            (<Keyword id="hand-size">{cards.length} / {handSizeLimit}</Keyword>)
+      {actions ? (
+        <div className="flex-1 min-w-0">{actions}</div>
+      ) : (
+        <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
+          {handLabel}
+          <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">
+            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover to fan · click to select' : 'Click to select'}
           </span>
         </div>
-        <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">
-          {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover to fan · click to select' : 'Click to select'}
-        </span>
-      </div>
-      <div className="min-w-0 flex items-center justify-end overflow-x-auto overflow-y-hidden">
-        {cards.length === 0 ? (
-          <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
-            No cards in hand
-          </div>
-        ) : (
-          <HandRow
-            cards={cards}
-            side={side}
-            canSee
-            isSelectable={isSelectable}
-            selectedCardId={selectedCardId}
-            onSelect={onSelect}
-            onInspect={onInspect}
-            discardedIds={discardedIds}
-            docked
-            position={position}
-          />
-        )}
+      )}
+      <div className="min-w-0 flex flex-col items-end gap-0.5 ml-auto shrink-0">
+        {actions && handLabel}
+        <div className="min-w-0 flex items-center justify-end overflow-x-auto overflow-y-hidden">
+          {cards.length === 0 ? (
+            <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
+              No cards in hand
+            </div>
+          ) : (
+            <HandRow
+              cards={cards}
+              side={side}
+              canSee
+              isSelectable={isSelectable}
+              selectedCardId={selectedCardId}
+              onSelect={onSelect}
+              onInspect={onInspect}
+              discardedIds={discardedIds}
+              docked
+              position={position}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

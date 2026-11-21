@@ -17,7 +17,7 @@ import { CreditHoldBar } from './ui/components/CreditHoldBar';
 import { ZoneId, zoneContents } from './ui/components/ZoneViewer';
 import { ZoomContext, createZoomStore } from './ui/components/ZoomPanel';
 import { GameHeader } from './ui/components/GameHeader';
-import { CorpActions, RunnerActions } from './ui/components/ActionBars';
+import { CorpActions, RunnerActions, useRunnerInstallFlow } from './ui/components/ActionBars';
 import { CorpBoard } from './ui/components/CorpBoard';
 import { RunnerBoard } from './ui/components/RunnerBoard';
 import { DockedHandBar } from './ui/components/HandRow';
@@ -339,6 +339,11 @@ function GameScreen({
   }, [activePlayer, winner]);
 
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
+  const runnerFlow = useRunnerInstallFlow(activePlayer === 'runner' && runnerCanAct);
+  const corpHandDocked = canSeeCorpSecrets(viewer);
+  const runnerHandDocked = canSeeRunnerSecrets(viewer);
+  const corpDockActions = !sidebarDocked && corpHandDocked && activePlayer === 'corp' && corpCanAct;
+  const runnerDockActions = !sidebarDocked && runnerHandDocked && activePlayer === 'runner' && runnerCanAct;
 
   // New only when a move changes the piles, so the hands below can skip redrawing
   const discardedIds = useMemo(
@@ -400,7 +405,7 @@ function GameScreen({
                   </div>
                 )}
 
-                {canSeeCorpSecrets(viewer) && (
+                {corpHandDocked && (
                   <DockedHandBar
                     side="corp"
                     position="top"
@@ -411,6 +416,17 @@ function GameScreen({
                     onSelect={setSelectedCardId}
                     onInspect={setInspectedCard}
                     discardedIds={discardedIds}
+                    actions={
+                      corpDockActions ? (
+                        <CorpActions
+                          state={gameState}
+                          selectedCard={selectedCard}
+                          onAction={handleAction}
+                          onInspect={setInspectedCard}
+                          section="dock"
+                        />
+                      ) : undefined
+                    }
                   />
                 )}
 
@@ -434,7 +450,7 @@ function GameScreen({
                   isShiftActive={shiftSide === 'runner'}
                 />
 
-                {canSeeRunnerSecrets(viewer) && (
+                {runnerHandDocked && (
                   <DockedHandBar
                     side="runner"
                     position="bottom"
@@ -445,12 +461,24 @@ function GameScreen({
                     onSelect={setSelectedCardId}
                     onInspect={setInspectedCard}
                     discardedIds={discardedIds}
+                    actions={
+                      runnerDockActions ? (
+                        <RunnerActions
+                          state={gameState}
+                          selectedCard={selectedCard}
+                          onAction={handleAction}
+                          onInspect={setInspectedCard}
+                          section="dock"
+                          runnerFlow={runnerFlow}
+                        />
+                      ) : undefined
+                    }
                   />
                 )}
               </main>
             </ZoomContext.Provider>
 
-            {/* Slim, steady-width sidebar: actions/runs/prompts above a full-height LogFeed (card previews float on hover dwell) */}
+            {/* Slim, steady-width sidebar: pickers, installed abilities, runs/prompts above a full-height LogFeed */}
             <aside className="contents lg:flex lg:w-72 xl:w-80 shrink-0 flex-col gap-2 min-h-0">
               {promptDocked ? (
                 <PromptPanel
@@ -482,12 +510,27 @@ function GameScreen({
                 </>
               ) : (
                 <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-                  {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+                  {activePlayer === 'corp' && corpCanAct && (
+                    <CorpActions
+                      state={gameState}
+                      selectedCard={selectedCard}
+                      onAction={handleAction}
+                      onInspect={setInspectedCard}
+                      section={corpDockActions ? 'sidebar' : 'all'}
+                    />
+                  )}
                   {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
                   {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
                   {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
                   {activePlayer === 'runner' && runnerCanAct && (
-                    <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
+                    <RunnerActions
+                      state={gameState}
+                      selectedCard={selectedCard}
+                      onAction={handleAction}
+                      onInspect={setInspectedCard}
+                      section={runnerDockActions ? 'sidebar' : 'all'}
+                      runnerFlow={runnerFlow}
+                    />
                   )}
                   {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
                   {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}

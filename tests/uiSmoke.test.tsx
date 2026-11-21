@@ -15,6 +15,7 @@ import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel'
 import { ServerColumn } from '../src/ui/components/ServerColumn';
 import { SideStrip } from '../src/ui/components/SideStrip';
 import { DockedHandBar } from '../src/ui/components/HandRow';
+import { CorpActions, RunnerActions } from '../src/ui/components/ActionBars';
 import { CardView } from '../src/ui/components/CardView';
 import { RigView } from '../src/ui/components/RigView';
 import { breakerTypes } from '../src/ui/components/IceTypeIcons';
@@ -473,5 +474,43 @@ describe('UI component smoke renders', () => {
     const rigHtml = renderToStaticMarkup(<RigView rig={state.runner.rig} />);
     expect(rigHtml).toContain('data-auto-fit-track=""');
     expect(rigHtml).toContain('Hardware (0)');
+  });
+
+  it('ActionBars splits common click actions + Play/End Turn into dock and contextual pickers into sidebar', () => {
+    const state = newGame();
+    const seat = { can: () => true, reason: () => null, legal: [], waitingOn: null } as unknown as React.ContextType<typeof SeatContext>;
+
+    const corpDockHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <CorpActions state={state} selectedCard={undefined} onAction={() => {}} section="dock" />
+      </SeatContext.Provider>,
+    );
+    expect(corpDockHtml).toContain('data-testid="corp-dock-actions"');
+    expect(corpDockHtml).toContain('+1 Credit');
+    expect(corpDockHtml).toContain('Draw Card');
+    expect(corpDockHtml).toContain('data-testid="end-turn"');
+
+    const corpSidebarEmpty = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <CorpActions state={state} selectedCard={undefined} onAction={() => {}} section="sidebar" />
+      </SeatContext.Provider>,
+    );
+    expect(corpSidebarEmpty).toBe('');
+
+    const runnerDockHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <RunnerActions state={state} selectedCard={undefined} onAction={() => {}} section="dock" />
+      </SeatContext.Provider>,
+    );
+    expect(runnerDockHtml).toContain('data-testid="runner-dock-actions"');
+    expect(runnerDockHtml).toContain('+1 Credit');
+    expect(runnerDockHtml).toContain('End Runner Turn');
+
+    const runnerSidebarEmpty = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <RunnerActions state={state} selectedCard={undefined} onAction={() => {}} section="sidebar" />
+      </SeatContext.Provider>,
+    );
+    expect(runnerSidebarEmpty).toBe('');
   });
 });
