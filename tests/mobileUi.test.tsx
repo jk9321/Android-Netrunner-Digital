@@ -231,7 +231,7 @@ describe('MobileThumbCockpit & MobileBottomSheet', () => {
       </SeatContext.Provider>,
     );
     expect(tuckedHtml).toContain('data-testid="mobile-thumb-cockpit"');
-    expect(tuckedHtml).toContain('h-[42px]');
+    expect(tuckedHtml).toContain('h-[44px]');
     expect(tuckedHtml).toContain('Expand');
     expect(tuckedHtml).toContain('data-testid="end-turn"');
     expect(tuckedHtml).not.toContain('data-testid="mobile-abilities-chip"');
@@ -685,7 +685,7 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
     );
     expect(html).toContain('data-layout="landscape"');
     expect(html).toContain('flex-row');
-    expect(html).toContain('h-[34px]');
+    expect(html).toContain('h-[36px]');
   });
 
   it('MobileCardSheet masks Read-Write Share facedown hosted cards from Corp while showing them to Runner', () => {
@@ -789,5 +789,76 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
       </SeatContext.Provider>,
     );
     expect(html).toContain('data-testid="window-pass-runner"');
+  });
+
+  it('MobileThumbCockpit renders ice and breaker subtype icons on tucked hand strips', () => {
+    const state = newGame(4242);
+    // Put Palisade (Barrier ice, 30072) in HQ and Cleaver (Fracter breaker, 30004) in Grip
+    state.corp.hq[0].cardCode = '30072';
+    state.runner.grip[0].cardCode = '30004';
+    const idleFlow = {
+      makingRoom: null,
+      setMakingRoom: () => {},
+      pendingTrash: null,
+      setPendingTrash: () => {},
+      pickingHost: null,
+      setPickingHost: () => {},
+    };
+
+    const corpCtl = ctlFromState(state, 'corp');
+    const corpHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={corpCtl.seat}>
+        <MobileThumbCockpit
+          state={corpCtl.gameState}
+          side="corp"
+          canAct
+          handCards={corpCtl.gameState.corp.hq}
+          handSizeLimit={corpCtl.gameState.corp.handSizeLimit}
+          selectedCardId={null}
+          onSelectCard={() => {}}
+          onInspect={() => {}}
+          onAction={() => {}}
+          handExpanded={false}
+          onHandExpandedChange={() => {}}
+          abilityCount={0}
+          onOpenAbilities={() => {}}
+          onOpenLog={() => {}}
+          hasUnreadLog={false}
+          onOpenCorpInstall={() => {}}
+          runnerFlow={idleFlow}
+          aiThinking={false}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(corpHtml).toContain('data-testid="ice-types"');
+    expect(corpHtml).toContain('aria-label="Barrier"');
+
+    const runnerCtl = ctlFromState(state, 'runner');
+    const runnerHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={runnerCtl.seat}>
+        <MobileThumbCockpit
+          state={runnerCtl.gameState}
+          side="runner"
+          canAct
+          handCards={runnerCtl.gameState.runner.grip}
+          handSizeLimit={runnerCtl.gameState.runner.handSizeLimit}
+          selectedCardId={null}
+          onSelectCard={() => {}}
+          onInspect={() => {}}
+          onAction={() => {}}
+          handExpanded={false}
+          onHandExpandedChange={() => {}}
+          abilityCount={0}
+          onOpenAbilities={() => {}}
+          onOpenLog={() => {}}
+          hasUnreadLog={false}
+          onOpenCorpInstall={() => {}}
+          runnerFlow={idleFlow}
+          aiThinking={false}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(runnerHtml).toContain('data-testid="breaker-types"');
+    expect(runnerHtml).toContain('aria-label="Breaks Barrier"');
   });
 });

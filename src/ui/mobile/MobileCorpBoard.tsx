@@ -102,7 +102,7 @@ const MobileIceStrip: React.FC<{
   const corpVisible = canSeeCorpSecrets(viewer);
   const knownToViewer = ice.isRezzed || Boolean(ice.faceUp) || corpVisible || Boolean(ice.runnerKnows);
   const def = knownToViewer ? cardDef(ice) : null;
-  const subtypes = ice.isRezzed ? iceSubtypes(ice, state) : [];
+  const subtypes = knownToViewer ? iceSubtypes(ice, ice.isRezzed ? state : undefined) : [];
   const liveStr = ice.isRezzed ? iceStrength(state, ice) : null;
   const printedStr = def?.strength ?? null;
   const strChanged = liveStr !== null && printedStr !== null && liveStr !== printedStr;
@@ -140,8 +140,13 @@ const MobileIceStrip: React.FC<{
     >
       <div className="min-w-0 flex items-center gap-1 flex-1">
         {isActiveEncounter && <span className="text-pink-400 font-bold shrink-0">▶</span>}
-        {ice.isRezzed && subtypes.length > 0 && (
-          <IceTypeIcons types={subtypes} side="ice" row className="text-[6.5px] shrink-0" />
+        {subtypes.length > 0 && (
+          <IceTypeIcons
+            types={subtypes}
+            side="ice"
+            row
+            className={`text-[6.5px] shrink-0 ${ice.isRezzed ? '' : 'opacity-75'}`}
+          />
         )}
         {!ice.isRezzed && !knownToViewer && <Shield className="w-3 h-3 text-slate-500 shrink-0" />}
         <span

@@ -7,6 +7,7 @@ import {
   SideCode,
   cardDef,
   getCardScript,
+  iceSubtypes,
   installedIce,
   trashableFirst,
   virusCountersInPlay,
@@ -14,6 +15,7 @@ import {
 import { runnerInstallCost } from '../../core/engine/actions/install';
 import { playCost } from '../../core/engine/actions/play';
 import { CreditIcon, Credits, TagIcon, VirusIcon } from '../components/CreditIcon';
+import { IceTypeIcons, breakerTypes } from '../components/IceTypeIcons';
 import { WindowBar } from '../components/WindowBar';
 import { legalFor, useSeat } from '../seat';
 import type { RunnerInstallFlow } from '../components/ActionBars';
@@ -223,16 +225,25 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
       className="shrink-0 bg-[#070b12] border-t border-slate-800 pb-[env(safe-area-inset-bottom)] z-20"
     >
       {/* Inline Contextual Selected-Card Bar */}
-      {selectedCard && (
+      {selectedCard && (() => {
+        const selDef = cardDef(selectedCard);
+        const selIsIce = selDef.type_code === 'ice';
+        const selTypes = selIsIce ? iceSubtypes(selectedCard) : breakerTypes(selectedCard);
+        return (
         <div
           data-testid="mobile-selected-card-bar"
           className="px-2 py-1.5 bg-[#0e1524] border-b border-amber-500/50 flex items-center justify-between gap-2 text-xs"
         >
           <div className="min-w-0 flex-1">
-            <div className="font-bold text-amber-300 truncate">{cardDef(selectedCard).title}</div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {selTypes.length > 0 && (
+                <IceTypeIcons types={selTypes} side={selIsIce ? 'ice' : 'breaker'} row className="text-[7px] shrink-0" />
+              )}
+              <span className="font-bold text-amber-300 truncate">{selDef.title}</span>
+            </div>
             <div className="text-[11px] text-slate-400 capitalize truncate">
-              {cardDef(selectedCard).type_code}
-              {cardDef(selectedCard).keywords ? ` · ${cardDef(selectedCard).keywords}` : ''}
+              {selDef.type_code}
+              {selDef.keywords ? ` · ${selDef.keywords}` : ''}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -287,7 +298,8 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Paid-ability priority window banner (renders for both sides in Open Table; empty:hidden outside priority windows) */}
       {(showCorpWindow || showRunnerWindow) && (
@@ -441,6 +453,9 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
               handCards.map(card => {
                 const def = cardDef(card);
                 const selected = selectedCardId === card.instanceId;
+                const isIceCard = def.type_code === 'ice';
+                const cardTypeIcons = isIceCard ? iceSubtypes(card) : breakerTypes(card);
+                const typeIconSide = isIceCard ? 'ice' : 'breaker';
                 const liveCost = isPlayableType(card)
                   ? playCost(state, card)
                   : def.side_code === 'runner'
@@ -460,7 +475,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                     data-hand-card
                     onClick={() => handleCardTap(card)}
                     className={`snap-start shrink-0 w-[104px] ${
-                      handExpanded ? 'h-[98px]' : compact ? 'h-[34px]' : 'h-[42px]'
+                      handExpanded ? 'h-[98px]' : compact ? 'h-[36px]' : 'h-[44px]'
                     } p-1.5 rounded-[3px] border text-left flex flex-col justify-between transition-all ${
                       selected
                         ? 'border-amber-400 ring-1 ring-amber-400 -translate-y-1 bg-[#1b1609]'
@@ -470,20 +485,44 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <span className="text-[11px] font-bold text-slate-100 leading-tight line-clamp-2">
+                      <span
+                        className={`text-[11px] font-bold text-slate-100 leading-tight ${
+                          compact && !handExpanded ? 'truncate' : 'line-clamp-2'
+                        }`}
+                      >
                         {def.title}
                       </span>
-                      {liveCost !== null && (
-                        <span className={`px-1 rounded bg-slate-900 border border-slate-700 text-[10px] font-bold shrink-0 ${costColor}`}>
-                          {liveCost}¢
-                        </span>
-                      )}
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        {liveCost !== null && (
+                          <span className={`px-1 rounded bg-slate-900 border border-slate-700 text-[10px] font-bold leading-tight ${costColor}`}>
+                            {liveCost}¢
+                          </span>
+                        )}
+                        {!handExpanded && cardTypeIcons.length > 0 && (
+                          <IceTypeIcons
+                            types={cardTypeIcons}
+                            side={typeIconSide}
+                            row
+                            className={compact ? 'text-[5.5px]' : 'text-[6.5px]'}
+                          />
+                        )}
+                      </div>
                     </div>
                     {handExpanded && (
                       <div className="mt-auto space-y-0.5">
-                        <div className={`text-[10px] font-bold capitalize truncate ${isCorp ? 'text-cyan-300' : 'text-pink-300'}`}>
-                          {def.type_code}
-                          {def.agenda_points ? ` · ${def.advancement_cost ?? 0}/${def.agenda_points}` : ''}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-[10px] font-bold capitalize truncate ${isCorp ? 'text-cyan-300' : 'text-pink-300'}`}>
+                            {def.type_code}
+                            {def.agenda_points ? ` · ${def.advancement_cost ?? 0}/${def.agenda_points}` : ''}
+                          </span>
+                          {cardTypeIcons.length > 0 && (
+                            <IceTypeIcons
+                              types={cardTypeIcons}
+                              side={typeIconSide}
+                              row
+                              className="text-[7px] shrink-0"
+                            />
+                          )}
                         </div>
                         {def.keywords && (
                           <div className="text-[10px] text-slate-400 truncate">{def.keywords}</div>
