@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { cardDef } from '../src/core';
+import { cardDef, executeAction } from '../src/core';
 import { STARTER_DECKS } from '../src/data/decks';
 import { LocalTable } from '../src/ui/table';
 import { SeatContext } from '../src/ui/seat';
@@ -22,8 +22,11 @@ import { MobileCorpBoard } from '../src/ui/mobile/MobileCorpBoard';
 import { MobileRunnerBoard } from '../src/ui/mobile/MobileRunnerBoard';
 import { MobileCardSheet } from '../src/ui/mobile/MobileCardSheet';
 import { MobileServerSheet } from '../src/ui/mobile/MobileServerSheet';
+import { MobileRunSheet } from '../src/ui/mobile/MobileRunSheet';
+import { MobilePromptSheet } from '../src/ui/mobile/MobilePromptSheet';
+import { MobileAccessedBanner } from '../src/ui/mobile/MobileAccessedBanner';
 import { MobileGameShell } from '../src/ui/mobile/MobileGameShell';
-import { installForTest, newGame, startRunnerTurn } from './helpers';
+import { installForTest, newGame, newGameAtSetup, startRunnerTurn } from './helpers';
 
 const corpStarter = STARTER_DECKS.find(d => d.side === 'corp')!;
 const runnerStarter = STARTER_DECKS.find(d => d.side === 'runner')!;
@@ -542,5 +545,117 @@ describe('Phase 2 compact mobile boards & tap-to-act sheets', () => {
     expect(html).toContain('data-testid="mobile-run-rd"');
     expect(html).toContain('Unrezzed Ice');
     expect(html).not.toContain(cardDef(realIce).title);
+  });
+});
+
+describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
+  function ctlFromState(state: ReturnType<typeof newGame>, viewer: Viewer): GameController {
+    const table = new LocalTable(state, null, { confirm: async () => true, alert: () => {} });
+    const seat = table.seatFor(viewer);
+    return {
+      seat,
+      gameState: seat.state,
+      handleAction: async () => {},
+      cancelChoice: undefined,
+      selectedCardId: null,
+      setSelectedCardId: () => {},
+      viewMode: viewer === 'both' ? 'open' : viewer,
+      setViewMode: () => {},
+      hotseatSide: viewer === 'runner' ? 'runner' : 'corp',
+      setHotseatSide: () => {},
+      accessed: [],
+      clearAccessed: () => {},
+      fates: [],
+      aiSide: null,
+      humanSide: viewer === 'both' ? null : viewer,
+      rezWindow: null,
+      rezWindowOpen: false,
+      passWindow: async () => {},
+      stops: 'auto',
+      setStops: () => {},
+      viewer,
+      handoffTo: null,
+      corpCanAct: viewer === 'corp' || viewer === 'both',
+      runnerCanAct: viewer === 'runner' || viewer === 'both',
+      aiThinking: false,
+      online: null,
+    };
+  }
+
+  it('MobileRunSheet renders active run in peekable bottom sheet and hides when paused for a prompt', () => {
+    const base = newGame(6060);
+    startRunnerTurn(base);
+    const running = executeAction(base, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'rd' });
+    const ctl = ctlFromState(running, 'runner');
+
+    const html = renderToStaticMarkup(
+      <GameStateContext.Provider value={ctl.gameState}>
+        <SeatContext.Provider value={ctl.seat}>
+          <MobileRunSheet ctl={ctl} onInspectCard={() => {}} />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(html).toContain('data-testid="mobile-run-sheet"');
+    expect(html).toContain('data-testid="mobile-run-sheet-peek-btn"');
+    expect(html).toContain('data-testid="run-overlay"');
+    expect(html).toContain('RUN // R&amp;D');
+
+    const hiddenHtml = renderToStaticMarkup(
+      <GameStateContext.Provider value={ctl.gameState}>
+        <SeatContext.Provider value={ctl.seat}>
+          <MobileRunSheet ctl={ctl} hidden onInspectCard={() => {}} />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(hiddenHtml).toBe('');
+  });
+
+  it('MobilePromptSheet renders peekable decision sheet for acting side and non-blocking pill for waiting side', () => {
+    const setupState = newGameAtSetup(7070);
+    // Corp mulligans first at setup
+    const corpCtl = ctlFromState(setupState, 'corp');
+    const corpHtml = renderToStaticMarkup(
+      <GameStateContext.Provider value={corpCtl.gameState}>
+        <SeatContext.Provider value={corpCtl.seat}>
+          <MobilePromptSheet ctl={corpCtl} ended={false} onInspectCard={() => {}} />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(corpHtml).toContain('data-testid="mobile-prompt-sheet"');
+    expect(corpHtml).toContain('data-testid="mobile-prompt-sheet-peek-btn"');
+    expect(corpHtml).toContain('data-testid="prompt-panel"');
+
+    // Runner waits while Corp decides — non-blocking top pill, no bottom sheet
+    const runnerCtl = ctlFromState(setupState, 'runner');
+    const runnerHtml = renderToStaticMarkup(
+      <GameStateContext.Provider value={runnerCtl.gameState}>
+        <SeatContext.Provider value={runnerCtl.seat}>
+          <MobilePromptSheet ctl={runnerCtl} ended={false} onInspectCard={() => {}} />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(runnerHtml).toContain('data-testid="mobile-prompt-waiting"');
+    expect(runnerHtml).toContain('Waiting on the Corp to decide');
+    expect(runnerHtml).not.toContain('data-testid="mobile-prompt-sheet"');
+  });
+
+  it('MobileAccessedBanner renders visible cards and hides secret R&D accesses from Corp', () => {
+    const state = newGame(8080);
+    const sampleCard = state.corp.rd[0];
+    const html = renderToStaticMarkup(
+      <MobileAccessedBanner
+        cards={[
+          { code: sampleCard.cardCode },
+          {},
+        ]}
+        onInspect={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(html).toContain('data-testid="mobile-accessed-banner"');
+    expect(html).toContain('Accessed this run (2)');
+    expect(html).toContain(cardDef(sampleCard).title);
+    expect(html).toContain('data-testid="mobile-accessed-hidden"');
+    expect(html).toContain('R&amp;D Card (hidden)');
   });
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CardInstance, SideCode, cardDef, getCardScript, virusCountersInPlay } from '../../core';
+import { CardInstance, SideCode, activePrompt, cardDef, getCardScript, virusCountersInPlay } from '../../core';
 import type { GameController } from '../useGameController';
 import type { GameConfig } from '../savedGame';
 import { canSeeCorpSecrets, canSeeRunnerSecrets } from '../viewer';
@@ -8,7 +8,7 @@ import { AbilityBar } from '../components/AbilityBar';
 import { CreditHoldBar } from '../components/CreditHoldBar';
 import { CorpActions, RunnerActions, useRunnerInstallFlow } from '../components/ActionBars';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
-import { GameOverlays } from '../components/GameOverlays';
+import { GameOverlays, canAnswerActivePrompt } from '../components/GameOverlays';
 import { LogFeed } from '../components/LogFeed';
 import { ZoneId, zoneContents } from '../components/ZoneViewer';
 import { showConfirm } from '../components/Dialog';
@@ -27,6 +27,9 @@ import { MobileCorpBoard } from './MobileCorpBoard';
 import { MobileRunnerBoard } from './MobileRunnerBoard';
 import { MobileCardSheet } from './MobileCardSheet';
 import { MobileServerSheet } from './MobileServerSheet';
+import { MobileRunSheet } from './MobileRunSheet';
+import { MobilePromptSheet } from './MobilePromptSheet';
+import { MobileAccessedBanner } from './MobileAccessedBanner';
 
 interface MobileGameShellProps {
   ctl: GameController;
@@ -299,6 +302,15 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         </main>
       </ZoomContext.Provider>
 
+      {/* Inline Accessed-Cards Banner (never overlaps the thumb cockpit) */}
+      {ctl.accessed.length > 0 && !ctl.handoffTo && (
+        <MobileAccessedBanner
+          cards={ctl.accessed}
+          onInspect={setInspectedCard}
+          onClose={ctl.clearAccessed}
+        />
+      )}
+
       {/* Fixed Bottom Thumb Cockpit */}
       <MobileThumbCockpit
         state={gameState}
@@ -538,7 +550,17 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         />
       )}
 
-      {/* Shared Overlays (Run, Prompt, Accessed, ZoneViewer, Handoff, GameOver, CardZoomModal) */}
+      {/* Peekable Active Run Sheet (pauses cleanly while a mid-run PromptSheet is open) */}
+      <MobileRunSheet
+        ctl={ctl}
+        hidden={ended || (!!activePrompt(gameState) && canAnswerActivePrompt(ctl))}
+        onInspectCard={setInspectedCard}
+      />
+
+      {/* Peekable Decision / Prompt Sheet (or slim waiting pill when opponent decides) */}
+      <MobilePromptSheet ctl={ctl} ended={ended} onInspectCard={setInspectedCard} />
+
+      {/* Shared Overlays (ZoneViewer, Handoff, GameOver, CardZoomModal; Run/Prompt/Accessed handled natively above) */}
       <GameOverlays
         ctl={ctl}
         ended={ended}
@@ -552,6 +574,9 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         onGameOverHiddenChange={setGameOverHidden}
         onNewGame={onNewGame}
         onRematch={onRematch}
+        hideRunOverlay
+        hidePromptPanel
+        hideAccessedPanel
       />
     </div>
   );

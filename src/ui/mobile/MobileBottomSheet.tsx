@@ -19,6 +19,10 @@ interface MobileBottomSheetProps {
   footer?: React.ReactNode;
   /** Extra content rendered in the header next to peek/close buttons. */
   headerActions?: React.ReactNode;
+  /** Keep children mounted in a hidden container while peeking so board-click targets and multi-select state stay alive. */
+  keepMountedWhilePeeking?: boolean;
+  /** Optional override for the scrollable content wrapper classes (e.g. flush docked Run/Prompt panels). */
+  contentClassName?: string;
   zIndexClass?: string;
   testId?: string;
   children: React.ReactNode;
@@ -39,6 +43,8 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
   peekLabel = 'Return',
   footer,
   headerActions,
+  keepMountedWhilePeeking = false,
+  contentClassName = 'flex-1 min-h-0 overflow-y-auto px-3.5 py-3',
   zIndexClass = 'z-[60]',
   testId,
   children,
@@ -60,20 +66,30 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
 
   if (peeking && onTogglePeek) {
     return renderInPortal(
-      <div
-        className={`fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3rem)] ${zIndexClass} flex items-center justify-between gap-2 px-3 py-2 rounded-[4px] bg-[#0c121e]/95 border ${accentClass} shadow-2xl font-mono text-xs backdrop-blur-md`}
-        data-testid={testId ? `${testId}-peek` : undefined}
-      >
-        <div className="min-w-0 flex-1 truncate font-bold text-slate-100">{title}</div>
-        <button
-          type="button"
-          onClick={onTogglePeek}
-          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[2px] bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold text-xs min-h-[36px]"
-          data-testid={testId ? `${testId}-restore` : undefined}
+      <>
+        <div
+          className={`fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3rem)] ${zIndexClass} flex items-center justify-between gap-2 px-3 py-2 rounded-[4px] bg-[#0c121e]/95 border ${accentClass} shadow-2xl font-mono text-xs backdrop-blur-md`}
+          data-testid={testId ? `${testId}-peek` : undefined}
         >
-          <ChevronUp className="w-3.5 h-3.5" /> {peekLabel}
-        </button>
-      </div>,
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-bold text-slate-100">{title}</div>
+            {subtitle && <div className="truncate text-[10px] text-slate-400">{subtitle}</div>}
+          </div>
+          <button
+            type="button"
+            onClick={onTogglePeek}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[2px] bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold text-xs min-h-[36px]"
+            data-testid={testId ? `${testId}-restore` : undefined}
+          >
+            <ChevronUp className="w-3.5 h-3.5" /> {peekLabel}
+          </button>
+        </div>
+        {keepMountedWhilePeeking && (
+          <div className="hidden" aria-hidden="true">
+            {children}
+          </div>
+        )}
+      </>,
     );
   }
 
@@ -129,7 +145,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3">{children}</div>
+        <div className={contentClassName}>{children}</div>
 
         {/* Optional Sticky Footer (thumb zone) */}
         {footer && (
