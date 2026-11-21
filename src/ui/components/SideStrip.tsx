@@ -16,14 +16,14 @@ const MELIES_SIDES = { hq: 'HQ', rd: 'R&D', archives: 'Archives' } as const;
 const pillBase =
   'h-[26px] px-2 flex items-center gap-1.5 rounded-[2px] text-[12px] font-mono leading-none shadow ![clip-path:none] shrink-0 border';
 
-const STYLE: Record<SideCode, { strip: string; name: string; stat: string }> = {
+const STYLE: Record<SideCode, { border: string; name: string; stat: string }> = {
   corp: {
-    strip: 'pb-1 border-b border-cyan-950',
+    border: 'border-cyan-950',
     name: 'text-cyan-400',
     stat: 'bg-cyan-950/80 border-cyan-800 text-cyan-300',
   },
   runner: {
-    strip: 'pt-1 border-t border-pink-950',
+    border: 'border-pink-950',
     name: 'text-pink-400',
     stat: 'bg-pink-950/80 border-pink-800 text-pink-300',
   },
@@ -107,18 +107,22 @@ function OpponentHandBadge({
 /** One side's identity and counters (credits, clicks, scores, opponent hand), along the edge of its half of the table. */
 export function SideStrip({
   side,
+  edge = side === 'corp' ? 'top' : 'bottom',
   state,
   viewer,
   onInspect,
   onOpenZone,
 }: {
   side: SideCode;
+  /** Which edge of its board half the strip sits on, so the divider line separates it from the cards. */
+  edge?: 'top' | 'bottom';
   state: GameState;
   viewer: Viewer;
   onInspect: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
 }) {
   const style = STYLE[side];
+  const stripEdge = edge === 'top' ? `pb-1 border-b ${style.border}` : `pt-1 border-t ${style.border}`;
   const player = side === 'corp' ? state.corp : state.runner;
   const { corp, runner } = state;
   const pools = runCreditPools(state);
@@ -142,7 +146,7 @@ export function SideStrip({
   const plain = `${pillBase} bg-slate-900 border-slate-800 text-slate-400`;
 
   return (
-    <div className={`shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 ${style.strip}`}>
+    <div className={`shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 ${stripEdge}`}>
       {/* Identity & Header */}
       <div className="flex items-center gap-2 min-w-0">
         <h2 className={`font-cyber font-bold text-xs tracking-wider shrink-0 ${style.name}`}>{side === 'corp' ? 'CORP' : 'RUNNER'}</h2>

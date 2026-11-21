@@ -103,14 +103,14 @@ export function RunnerBoard({
         id="runner-board"
         className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
       >
-        {mirrored && <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
+        {mirrored && <SideStrip side="runner" edge="top" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
 
         {/* Runner Rig (Installed Programs, Hardware, Resources) */}
         <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
           {rigView}
         </AutoFitArea>
 
-        {!mirrored && <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
+        {!mirrored && <SideStrip side="runner" edge="bottom" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
       </section>
     </div>
   );

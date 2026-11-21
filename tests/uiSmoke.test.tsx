@@ -606,5 +606,31 @@ describe('UI component smoke renders', () => {
       />,
     );
     expect(withoutFlipHtml).not.toContain('Flip boards at turn end');
+
+    const corpBottomStrip = renderToStaticMarkup(
+      <SideStrip side="corp" edge="bottom" state={state} viewer="corp" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(corpBottomStrip).toContain('border-t border-cyan-950');
+    expect(corpBottomStrip).not.toContain('border-b border-cyan-950');
+
+    const runnerTopStrip = renderToStaticMarkup(
+      <SideStrip side="runner" edge="top" state={state} viewer="corp" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(runnerTopStrip).toContain('border-b border-pink-950');
+    expect(runnerTopStrip).not.toContain('border-t border-pink-950');
+
+    const selectedHandHtml = renderToStaticMarkup(
+      <DockedHandBar
+        side="runner"
+        position="bottom"
+        cards={state.runner.grip}
+        handSizeLimit={state.runner.handSizeLimit}
+        isSelectable
+        selectedCardId={state.runner.grip[0].instanceId}
+        onSelect={() => {}}
+        discardedIds={new Set()}
+      />,
+    );
+    expect(selectedHandHtml).toContain('-translate-y-2');
   });
 });

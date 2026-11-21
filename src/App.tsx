@@ -533,7 +533,7 @@ function GameScreen({
                     className="lg:order-3"
                     onToggleDock={() => setRunPoppedOut(true)}
                   />
-                  <div className="lg:order-4 shrink-0 max-h-[20vh] overflow-y-auto flex flex-col gap-1.5 empty:hidden">
+                  <div className="lg:order-4 shrink-0 max-h-[20vh] overflow-y-auto bg-[#080d15] border border-slate-800 rounded-[2px] p-2 shadow-inner flex flex-col gap-1.5 empty:hidden">
                     {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
                     {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
                     {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
@@ -541,7 +541,7 @@ function GameScreen({
                   </div>
                 </>
               ) : (
-                <div className="lg:order-3 sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+                <div className="lg:order-3 sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-[#080d15] lg:border lg:border-slate-800 lg:rounded-[2px] lg:p-2 lg:shadow-inner backdrop-blur-md lg:backdrop-blur-none py-1 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
                   {activePlayer === 'corp' && corpCanAct && (
                     <CorpActions
                       state={gameState}

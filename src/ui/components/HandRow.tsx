@@ -195,10 +195,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   );
 
   const duration = animationsOn ? SPREAD_SECONDS : 0;
-  const flatHoverLift =
-    docked && canSee && !canSpread
-      ? `${position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'} transition-transform`
-      : undefined;
+  const flatDockCards = docked && canSee && !canSpread;
 
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
@@ -224,35 +221,43 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
         }
       >
         <AnimatePresence initial={false} mode="popLayout" custom={discardedIds}>
-          {cards.map(card => (
-            <motion.div
-              key={card.instanceId}
-              layout
-              data-hand-card
-              custom={discardedIds}
-              // isolate: a card's type icons stay in its own layer, under the next card in the fan until hovered
-              className={`relative isolate shrink-0 rounded-[2px] ${flatHoverLift ? 'hover:z-10' : ''}`}
-              initial={{ opacity: 0, x: 40, y: -24, scale: 0.8, boxShadow: `0 0 0px ${glow}` }}
-              animate={{
-                opacity: 1,
-                x: 0,
-                y: 0,
-                scale: 1,
-                rotate: 0,
-                boxShadow: [`0 0 18px ${glow}`, '0 0 0px rgba(0,0,0,0)'],
-              }}
-              variants={{
-                leave: (discarded: ExitCustom) =>
-                  discarded.has(card.instanceId)
-                    ? { opacity: 0, y: 40, rotate: side === 'corp' ? -8 : 8, scale: 0.85, transition: { duration: 0.3, ease: 'easeIn' } }
-                    : { opacity: 0, y: -36, scale: 1.08, transition: { duration: 0.28, ease: 'easeOut' } },
-              }}
-              exit="leave"
-              transition={{ duration: 0.3, ease: 'easeOut', layout: { duration: 0.25 }, boxShadow: { duration: 0.7 } }}
-            >
-              {flatHoverLift ? <div className={flatHoverLift}>{cardView(card)}</div> : cardView(card)}
-            </motion.div>
-          ))}
+          {cards.map(card => {
+            const isSelected = selectedCardId === card.instanceId;
+            const liftClass = flatDockCards
+              ? isSelected
+                ? `${position === 'top' ? 'translate-y-2' : '-translate-y-2'} transition-transform`
+                : `${position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'} transition-transform`
+              : undefined;
+            return (
+              <motion.div
+                key={card.instanceId}
+                layout
+                data-hand-card
+                custom={discardedIds}
+                // isolate: a card's type icons stay in its own layer, under the next card in the fan until hovered
+                className={`relative isolate shrink-0 rounded-[2px] ${liftClass ? (isSelected ? 'z-10' : 'hover:z-10') : ''}`}
+                initial={{ opacity: 0, x: 40, y: -24, scale: 0.8, boxShadow: `0 0 0px ${glow}` }}
+                animate={{
+                  opacity: 1,
+                  x: 0,
+                  y: 0,
+                  scale: 1,
+                  rotate: 0,
+                  boxShadow: [`0 0 18px ${glow}`, '0 0 0px rgba(0,0,0,0)'],
+                }}
+                variants={{
+                  leave: (discarded: ExitCustom) =>
+                    discarded.has(card.instanceId)
+                      ? { opacity: 0, y: 40, rotate: side === 'corp' ? -8 : 8, scale: 0.85, transition: { duration: 0.3, ease: 'easeIn' } }
+                      : { opacity: 0, y: -36, scale: 1.08, transition: { duration: 0.28, ease: 'easeOut' } },
+                }}
+                exit="leave"
+                transition={{ duration: 0.3, ease: 'easeOut', layout: { duration: 0.25 }, boxShadow: { duration: 0.7 } }}
+              >
+                {liftClass ? <div className={liftClass}>{cardView(card)}</div> : cardView(card)}
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
       {spread &&
@@ -268,19 +273,24 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
             onMouseEnter={() => window.clearTimeout(closeTimer.current)}
             onMouseLeave={close}
           >
-            {cards.map(card => (
-              <motion.div
-                key={card.instanceId}
-                className={`relative isolate shrink-0 rounded-[2px] hover:z-10 ${
-                  position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'
-                } transition-transform`}
-                initial={{ ['--hand-overlap' as string]: overlap }}
-                animate={{ ['--hand-overlap' as string]: spread.overlap }}
-                transition={{ duration }}
-              >
-                {cardView(card)}
-              </motion.div>
-            ))}
+            {cards.map(card => {
+              const isSelected = selectedCardId === card.instanceId;
+              return (
+                <motion.div
+                  key={card.instanceId}
+                  className={`relative isolate shrink-0 rounded-[2px] ${
+                    isSelected
+                      ? `z-10 ${position === 'top' ? 'translate-y-2' : '-translate-y-2'}`
+                      : `hover:z-10 ${position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'}`
+                  } transition-transform`}
+                  initial={{ ['--hand-overlap' as string]: overlap }}
+                  animate={{ ['--hand-overlap' as string]: spread.overlap }}
+                  transition={{ duration }}
+                >
+                  {cardView(card)}
+                </motion.div>
+              );
+            })}
           </motion.div>,
           document.body,
         )}
