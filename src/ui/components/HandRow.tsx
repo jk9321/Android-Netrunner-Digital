@@ -22,9 +22,13 @@ interface HandRowProps {
   docked?: boolean;
   /** Dock edge: top-docked Corp cards nudge downward on hover so they stay clear of the header. */
   position?: 'top' | 'bottom';
+  /** Measured horizontal room (px) available inside DockedHandBar; when cards fit, they stay flat with no overlap. */
+  availWidth?: number;
 }
 
 type ExitCustom = ReadonlySet<string>;
+
+const FLAT_GAP_PX = 4;
 
 /**
  * How much each card overlaps the one before it, as a share of a card's width. Hands start fairly tight and
@@ -34,6 +38,17 @@ export function handOverlap(count: number, hidden: boolean): number {
   if (hidden) return 0.75;
   if (count <= 3) return 0.5;
   return Math.min(0.72, 0.5 + (count - 3) * 0.037);
+}
+
+/**
+ * Overlap for a full-width docked hand: 0 (flat side-by-side) whenever every card fits inside `avail` pixels,
+ * tightening smoothly only once the hand outgrows the available space beside the action bar.
+ */
+export function dockedHandOverlap(count: number, cardPx: number, avail: number): number {
+  if (count <= 1 || cardPx <= 0 || avail <= 0) return 0;
+  if (count * cardPx <= avail) return 0;
+  const needed = 1 - (avail - cardPx) / ((count - 1) * cardPx);
+  return Math.min(0.72, Math.max(0, needed));
 }
 
 /** The overlap a spread hand uses: loose, but tightened just enough to fit `avail` pixels. */
@@ -47,8 +62,8 @@ const CLOSE_DELAY_MS = 160;
 const SPREAD_SECONDS = 0.2;
 
 /**
- * A hand of cards, fanned so each overlaps the last, that animates its changes: a drawn card slides in from the
- * deck, a played or installed card lifts out toward the table, a discarded
+ * A hand of cards that sits flat when room allows and fans/overlaps when cramped, animating its changes:
+ * a drawn card slides in from the deck, a played or installed card lifts out toward the table, a discarded
  * card drops away, and the rest close the gap.
  * Memoized: the table re-renders whenever a card is selected, and a hand only
  * needs to when its own props change.
@@ -64,16 +79,46 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   discardedIds,
   docked = false,
   position = 'bottom',
+  availWidth,
 }) => {
   const glow = side === 'corp' ? 'rgb(var(--corp-400) / 0.55)' : 'rgb(var(--runner-500) / 0.55)';
   const animationsOn = useAnimationsEnabled();
-  const overlap = handOverlap(cards.length, !canSee);
 
-  // Your own hand spreads out while the pointer is over it (or after a tap on touch screens), over the board
+  // Your own hand spreads out while the pointer is over it (or after a tap on touch screens) when cards overlap
   const wrapRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
   const [spread, setSpread] = useState<{ left: number; top: number; shift: number; overlap: number } | null>(null);
-  const canSpread = canSee && cards.length > 1;
+  const [measuredCardPx, setMeasuredCardPx] = useState(0);
+
+  // Track rendered card width (responds to viewport height & Normal/Large card size toggles) without reading overlap.
+  useEffect(() => {
+    if (!docked) return;
+    const wrap = wrapRef.current;
+    const first = wrap?.querySelector<HTMLElement>('[data-hand-card]');
+    if (!first) return;
+    const update = () => {
+      const w = first.getBoundingClientRect().width;
+      if (w > 0) setMeasuredCardPx(prev => (Math.abs(prev - w) > 0.5 ? w : prev));
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(first);
+    return () => ro.disconnect();
+  }, [docked, cards.length]);
+
+  const overlap =
+    docked && canSee
+      ? availWidth && measuredCardPx > 0
+        ? dockedHandOverlap(cards.length, measuredCardPx, availWidth)
+        : 0
+      : handOverlap(cards.length, !canSee);
+  const flatGap =
+    docked &&
+    canSee &&
+    overlap === 0 &&
+    (!availWidth || measuredCardPx === 0 || cards.length <= 1 || cards.length * measuredCardPx + (cards.length - 1) * FLAT_GAP_PX <= availWidth);
+  const canSpread = canSee && cards.length > 1 && (!docked || overlap > 0.06);
 
   const open = useCallback(() => {
     window.clearTimeout(closeTimer.current);
@@ -82,7 +127,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     const first = wrap.querySelector<HTMLElement>('[data-hand-card]');
     const cardPx = first ? first.getBoundingClientRect().width : 0;
     const rect = (first?.parentElement ?? wrap).getBoundingClientRect();
-    // Stay inside this tabletop column, so the spread opens leftward and never covers the sidebar controls or log
+    // Stay inside this tabletop column so the spread never covers the sidebar controls or log
     const board = wrap.closest('main, section')?.getBoundingClientRect();
     const minLeft = (board?.left ?? 0) + 6;
     const maxRight = (board?.right ?? window.innerWidth) - 6;
@@ -98,8 +143,11 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     closeTimer.current = window.setTimeout(() => setSpread(null), CLOSE_DELAY_MS);
   }, []);
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
-  // A hand that changes while spread (a card played) closes; so does a tap anywhere else
+  // A hand that changes while spread (a card played) or no longer needs spreading closes
   useEffect(() => setSpread(null), [cards.length]);
+  useEffect(() => {
+    if (!canSpread) setSpread(null);
+  }, [canSpread]);
   // The spread also closes on where the pointer is, not only on its own mouseleave: a pointer that leaves within
   // tens of ms of the spread opening gets no mouseout (the node under it is replaced as the cards slide apart)
   const isSpread = spread !== null;
@@ -145,6 +193,10 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   );
 
   const duration = animationsOn ? SPREAD_SECONDS : 0;
+  const flatHoverLift =
+    docked && canSee && !canSpread
+      ? `${position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'} transition-transform`
+      : undefined;
 
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
@@ -152,7 +204,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
         ref={wrapRef}
         data-testid={`hand-${side}`}
         data-spread={spread ? 'open' : undefined}
-        className={`hand-fan relative flex min-w-0 px-1 ${docked ? 'py-0.5' : 'pt-2 pb-1'}`}
+        className={`hand-fan relative flex min-w-0 px-1 ${docked ? 'py-0.5' : 'pt-2 pb-1'} ${flatGap ? 'gap-1' : ''}`}
         style={{ ['--hand-overlap' as string]: overlap, opacity: spread ? 0 : undefined }}
         onMouseEnter={canSpread ? open : undefined}
         onMouseLeave={canSpread ? close : undefined}
@@ -177,7 +229,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
               data-hand-card
               custom={discardedIds}
               // isolate: a card's type icons stay in its own layer, under the next card in the fan until hovered
-              className="relative isolate shrink-0 rounded-[2px]"
+              className={`relative isolate shrink-0 rounded-[2px] ${flatHoverLift ? 'hover:z-10' : ''}`}
               initial={{ opacity: 0, x: 40, y: -24, scale: 0.8, boxShadow: `0 0 0px ${glow}` }}
               animate={{
                 opacity: 1,
@@ -196,7 +248,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
               exit="leave"
               transition={{ duration: 0.3, ease: 'easeOut', layout: { duration: 0.25 }, boxShadow: { duration: 0.7 } }}
             >
-              {cardView(card)}
+              {flatHoverLift ? <div className={flatHoverLift}>{cardView(card)}</div> : cardView(card)}
             </motion.div>
           ))}
         </AnimatePresence>
@@ -264,6 +316,29 @@ export function DockedHandBar({
 }) {
   const isCorp = side === 'corp';
   const overLimit = cards.length > handSizeLimit;
+  const dockRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [handAvail, setHandAvail] = useState<number | undefined>(undefined);
+  const hasActions = Boolean(actions);
+
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const measure = () => {
+      const innerW = dock.clientWidth - 20; // px-2.5 horizontal padding
+      const stacked = typeof window !== 'undefined' && window.innerWidth < 768;
+      const actionsW = !stacked && hasActions && actionsRef.current ? actionsRef.current.getBoundingClientRect().width : 0;
+      const next = actionsW > 0 ? Math.max(160, innerW - actionsW - 20) : Math.max(160, innerW - 8);
+      setHandAvail(prev => (prev !== undefined && Math.abs(prev - next) <= 2 ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(dock);
+    if (actionsRef.current) ro.observe(actionsRef.current);
+    return () => ro.disconnect();
+  }, [hasActions]);
+
   const handLabel = (
     <div
       className={`flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider font-mono leading-none ${
@@ -281,6 +356,7 @@ export function DockedHandBar({
 
   return (
     <div
+      ref={dockRef}
       data-testid={`hand-dock-${side}`}
       className={`hand-dock shrink-0 w-full flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-1.5 px-2.5 py-1.5 rounded-[2px] border shadow-lg ${
         isCorp
@@ -290,7 +366,7 @@ export function DockedHandBar({
     >
       <div className="min-w-0 flex flex-col items-start gap-0.5 shrink-0">
         {handLabel}
-        <div className="min-w-0 flex items-center justify-start overflow-x-auto overflow-y-hidden">
+        <div className="min-w-0 flex items-center justify-start">
           {cards.length === 0 ? (
             <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
               No cards in hand
@@ -307,16 +383,19 @@ export function DockedHandBar({
               discardedIds={discardedIds}
               docked
               position={position}
+              availWidth={handAvail}
             />
           )}
         </div>
       </div>
       <div className="flex-1 min-w-0 flex justify-end">
-        {actions ?? (
-          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
-            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover hand to fan · click to select' : 'Click card to select'}
-          </span>
-        )}
+        <div ref={actionsRef} className="shrink-0 max-w-full">
+          {actions ?? (
+            <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
+              {cards.length === 0 ? 'Hand empty' : isSelectable ? 'Click card to select' : 'Hover card to inspect'}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

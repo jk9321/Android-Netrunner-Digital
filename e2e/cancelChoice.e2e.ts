@@ -68,18 +68,14 @@ test('board clicks install a selected Corp card directly onto a server column', 
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
   await expect(page.getByText('Corp Actions (3 Clicks):')).toBeVisible({ timeout: 30_000 });
 
-  // Select an ice or upgrade/asset/agenda in HQ via the spread hand
+  // Select an ice or upgrade/asset/agenda in HQ directly from the flat hand dock
   const pickInstallableInHq = async (requireBoardServer = false): Promise<boolean> => {
-    const box = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
-    await page.mouse.move(box.x + 20, box.y + 30, { steps: 4 });
-    const spread = page.getByTestId('hand-corp-spread');
-    await expect(spread).toBeVisible();
-    const n = await spread.locator('> *').count();
+    const cards = page.getByTestId('hand-corp').locator('[data-hand-card]');
+    const n = await cards.count();
     for (let i = 0; i < n; i++) {
-      await spread.locator('> *').nth(i).click();
+      await cards.nth(i).click();
       if (await page.getByTestId('install-options').count()) {
         if (!requireBoardServer || (await page.locator('#corp-board [data-server-target="true"]').count()) > 0) {
-          // Move pointer off the hand so the spread closes cleanly before board clicks
           await page.mouse.move(10, 10);
           return true;
         }

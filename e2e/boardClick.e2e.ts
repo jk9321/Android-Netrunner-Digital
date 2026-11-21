@@ -30,14 +30,7 @@ test('board clicks pick hand cards for the end-of-turn discard', async ({ page }
   const panel = page.getByTestId('prompt-panel');
   await expect(panel).toContainText(/discard/i, { timeout: 30_000 });
 
-  await expect(page.locator('[data-testid="hand-runner"] [data-board-target="true"]')).toHaveCount(7);
-  // Hover the hand so it spreads, then click its cards as a player would
-  const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
-  await page.mouse.move(box.x + 20, box.y - 80);
-  await page.mouse.move(box.x + 20, box.y + 30, { steps: 4 });
-  const spread = page.getByTestId('hand-runner-spread');
-  await expect(spread).toBeVisible();
-  const targets = spread.locator('[data-board-target="true"]');
+  const targets = page.locator('[data-testid="hand-runner"] [data-board-target="true"]');
   await expect(targets).toHaveCount(7);
   await targets.nth(0).click();
   await expect(panel).toContainText('Selected 1');

@@ -1,7 +1,22 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-// Your hand overlaps to save room and spreads out under the pointer; the computer's hand stays tight
-test('own hand spreads on hover and closes when the pointer leaves', async ({ page }) => {
+/** Seeds a large Runner grip on the Runner's turn so the docked hand compresses beside the action bar and spreads on hover. */
+async function seedLargeGrip(page: Page, count = 15) {
+  await page.evaluate(target => {
+    const key = 'netrunner.savedGame.v1';
+    const saved = JSON.parse(window.localStorage.getItem(key)!);
+    const runner = saved.state.runner;
+    while (runner.grip.length < target && runner.stack.length > 0) {
+      runner.grip.push(runner.stack.pop());
+    }
+    window.localStorage.setItem(key, JSON.stringify(saved));
+  }, count);
+  await page.reload();
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 30_000 });
+}
+
+// A normal-sized hand sits flat with no overlap; a cramped large hand compresses to stay clear of actions and spreads on hover
+test('own hand stays flat when cards fit, spreads on hover when cramped, and closes when the pointer leaves', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', err => errors.push(err.message));
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
@@ -11,7 +26,23 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
-  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+
+  // Normal 5-card hand fits flat beside the action bar: no spread portal opens on hover
+  const flatBox = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
+  await page.mouse.move(flatBox.x + flatBox.width / 2, flatBox.y + flatBox.height / 2);
+  await page.waitForTimeout(250);
+  await expect(page.getByTestId('hand-runner-spread')).toHaveCount(0);
+
+  // The computer's hand has no spread
+  const corp = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
+  await page.mouse.move(corp.x + corp.width / 2, corp.y + corp.height / 2);
+  await page.waitForTimeout(250);
+  await expect(page.getByTestId('hand-corp-spread')).toHaveCount(0);
+
+  // Seed a 15-card hand that outgrows the space beside the action bar and must compress
+  await page.mouse.move(5, 5);
+  await seedLargeGrip(page, 15);
 
   const hand = page.getByTestId('hand-runner');
   const cards = hand.locator('[data-hand-card]');
@@ -20,8 +51,7 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
     return boxes[boxes.length - 1].right - boxes[0].left;
   };
   const tight = await width();
-  const count = await cards.count();
-  expect(count).toBeGreaterThan(3);
+  expect(await cards.count()).toBe(15);
 
   const box = (await cards.first().boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -35,16 +65,10 @@ test('own hand spreads on hover and closes when the pointer leaves', async ({ pa
   await page.mouse.move(box.x + box.width / 2, box.y - 150, { steps: 5 });
   await page.mouse.move(5, 5, { steps: 5 });
   await expect(spread).toHaveCount(0);
-
-  // The computer's hand has no spread
-  const corp = (await page.getByTestId('hand-corp').locator('[data-hand-card]').first().boundingBox())!;
-  await page.mouse.move(corp.x + corp.width / 2, corp.y + corp.height / 2);
-  await page.waitForTimeout(400);
-  await expect(page.getByTestId('hand-corp-spread')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-// The spread stays inside its own board section, so it never covers the zoom view or the log
+// The spread stays inside its own board section, so it never covers the sidebar controls or log
 test('a spread hand stays within its board', async ({ page }) => {
   await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
   await page.setViewportSize({ width: 1366, height: 768 });
@@ -53,7 +77,8 @@ test('a spread hand stays within its board', async ({ page }) => {
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
-  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+  await seedLargeGrip(page, 15);
 
   const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
   await page.mouse.move(box.x + 20, box.y - 80);
@@ -75,8 +100,9 @@ test('the hover popout waits for the spread to finish', async ({ page }) => {
   // Dispatch clicks directly so the pointer doesn't rest over a newly drawn card before the hover check
   await page.getByTestId('start-game').dispatchEvent('click');
   await page.getByRole('button', { name: 'Keep hand' }).dispatchEvent('click', undefined, { timeout: 30_000 });
-  // Wait for the Runner's own turn, so the hand doesn't change (a draw closes the spread) mid-test
   await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+  await page.mouse.move(5, 5);
+  await seedLargeGrip(page, 15);
   await expect(page.getByTestId('card-popout')).toHaveCount(0);
 
   // Time the spread and the hover popout in the page itself, so a slow CI runner can't
@@ -115,9 +141,9 @@ test('clicking a card in the spread hand keeps the spread', async ({ page }) => 
   await page.getByTestId('opponent-ai-corp').click();
   await page.getByTestId('start-game').click();
   await page.getByRole('button', { name: 'Keep hand' }).click({ timeout: 30_000 });
-  await expect(page.getByTestId('runner-credits')).toBeVisible({ timeout: 60_000 });
-  const gainCredit = page.getByRole('button', { name: '+1 Credit' });
-  await expect(gainCredit).toBeEnabled({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
+  await page.mouse.move(5, 5);
+  await seedLargeGrip(page, 15);
 
   const box = (await page.getByTestId('hand-runner').locator('[data-hand-card]').first().boundingBox())!;
   await page.mouse.move(box.x + 20, box.y - 80);
