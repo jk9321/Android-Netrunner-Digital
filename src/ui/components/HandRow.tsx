@@ -316,28 +316,24 @@ export function DockedHandBar({
 }) {
   const isCorp = side === 'corp';
   const overLimit = cards.length > handSizeLimit;
-  const dockRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
+  const handSlotRef = useRef<HTMLDivElement>(null);
   const [handAvail, setHandAvail] = useState<number | undefined>(undefined);
-  const hasActions = Boolean(actions);
 
+  // handSlotRef is `md:flex-1 min-w-0` beside the `shrink-0` action panel, so its clientWidth is always
+  // the exact room available for the hand without ever letting a large hand crush the action buttons.
   useEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
+    const slot = handSlotRef.current;
+    if (!slot) return;
     const measure = () => {
-      const innerW = dock.clientWidth - 20; // px-2.5 horizontal padding
-      const stacked = typeof window !== 'undefined' && window.innerWidth < 768;
-      const actionsW = !stacked && hasActions && actionsRef.current ? actionsRef.current.getBoundingClientRect().width : 0;
-      const next = actionsW > 0 ? Math.max(160, innerW - actionsW - 20) : Math.max(160, innerW - 8);
+      const next = Math.max(120, Math.floor(slot.clientWidth) - 8); // HandRow px-1 horizontal padding
       setHandAvail(prev => (prev !== undefined && Math.abs(prev - next) <= 2 ? prev : next));
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
-    ro.observe(dock);
-    if (actionsRef.current) ro.observe(actionsRef.current);
+    ro.observe(slot);
     return () => ro.disconnect();
-  }, [hasActions]);
+  }, []);
 
   const handLabel = (
     <div
@@ -356,7 +352,6 @@ export function DockedHandBar({
 
   return (
     <div
-      ref={dockRef}
       data-testid={`hand-dock-${side}`}
       className={`hand-dock shrink-0 w-full flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-1.5 px-2.5 py-1.5 rounded-[2px] border shadow-lg ${
         isCorp
@@ -364,9 +359,9 @@ export function DockedHandBar({
           : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
       }`}
     >
-      <div className="min-w-0 flex flex-col items-start gap-0.5 shrink-0">
+      <div ref={handSlotRef} className="w-full md:w-auto md:flex-1 min-w-0 flex flex-col items-start gap-0.5">
         {handLabel}
-        <div className="min-w-0 flex items-center justify-start">
+        <div className="min-w-0 max-w-full flex items-center justify-start">
           {cards.length === 0 ? (
             <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
               No cards in hand
@@ -388,14 +383,12 @@ export function DockedHandBar({
           )}
         </div>
       </div>
-      <div className="flex-1 min-w-0 flex justify-end">
-        <div ref={actionsRef} className="shrink-0 max-w-full">
-          {actions ?? (
-            <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
-              {cards.length === 0 ? 'Hand empty' : isSelectable ? 'Click card to select' : 'Hover card to inspect'}
-            </span>
-          )}
-        </div>
+      <div className="shrink-0 max-w-full ml-auto flex justify-end">
+        {actions ?? (
+          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
+            {cards.length === 0 ? 'Hand empty' : isSelectable ? 'Click card to select' : 'Hover card to inspect'}
+          </span>
+        )}
       </div>
     </div>
   );
