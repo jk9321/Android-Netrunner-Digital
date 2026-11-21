@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CardInstance, SideCode, activePrompt, cardDef, getCardScript, virusCountersInPlay } from '../../core';
+import { CardInstance, SideCode, activePrompt, cardDef, getCardScript, installedIce, trashableFirst, virusCountersInPlay } from '../../core';
+import { playableHostZones } from '../../core/engine/actions/install';
 import type { GameController } from '../useGameController';
 import type { GameConfig } from '../savedGame';
 import { canSeeCorpSecrets, canSeeRunnerSecrets } from '../viewer';
 import { ZoomContext, createZoomStore } from '../components/ZoomPanel';
 import { AbilityBar } from '../components/AbilityBar';
-import { CreditHoldBar } from '../components/CreditHoldBar';
+import { CreditHoldBar, payingCards } from '../components/CreditHoldBar';
 import { CorpActions, RunnerActions, useRunnerInstallFlow } from '../components/ActionBars';
 import { GameMenuDrawer } from '../components/GameMenuDrawer';
 import { GameOverlays, canAnswerActivePrompt } from '../components/GameOverlays';
@@ -127,6 +128,16 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
     }
   }, [openSheet, selectedCardId]);
 
+  // Escape closes slide-out menu drawer
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
+
   const corpHandVisible = canSeeCorpSecrets(viewer);
   const runnerHandVisible = canSeeRunnerSecrets(viewer);
   // In Open Table, show whichever side is currently active in the thumb cockpit
@@ -144,13 +155,38 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
   const corpOnBottom = viewer === 'corp' && (viewMode !== 'hotseat' || flipHotseatBoards);
 
-  // Legal board actions drive both the ⚡n fallback chip and the direct card glow borders
+  // Legal board actions drive both the fallback abilities chip and the direct card glow borders
   const corpLegal = useMemo(() => (corpCanAct ? legalFor(seat, 'corp') : []), [corpCanAct, seat]);
   const runnerLegal = useMemo(() => (runnerCanAct ? legalFor(seat, 'runner') : []), [runnerCanAct, seat]);
   const hostedRunnerActions = useMemo(
     () => (runnerCanAct ? hostedCardActions(gameState, runnerLegal) : []),
     [runnerCanAct, gameState, runnerLegal],
   );
+  // Hosted Runner programs that fit only after trashing installed programs (rules 8.5.6c)
+  const hostedNeedingRoomIds = useMemo(() => {
+    if (!runnerCanAct || activePlayer !== 'runner') return new Set<string>();
+    const ids = new Set<string>();
+    for (const card of playableHostZones(gameState).flat()) {
+      if (hostedRunnerActions.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === card.instanceId)) continue;
+      const trojan = Boolean(getCardScript(card.cardCode)?.installsOnIce);
+      const all = trashableFirst(gameState, card, null).map(c => c.instanceId);
+      const ice = trojan ? installedIce(gameState)[0]?.instanceId : undefined;
+      if (
+        all.length > 0 &&
+        (!trojan || !!ice) &&
+        seat.can({
+          type: 'INSTALL_CARD',
+          player: 'runner',
+          cardInstanceId: card.instanceId,
+          trashFirst: all,
+          ...(ice ? { hostInstanceId: ice } : {}),
+        })
+      ) {
+        ids.add(card.instanceId);
+      }
+    }
+    return ids;
+  }, [runnerCanAct, activePlayer, gameState, hostedRunnerActions, seat]);
 
   const actionableCardIds = useMemo(() => {
     const ids = new Set<string>();
@@ -168,34 +204,38 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
     for (const a of runnerLegal) {
       if (a.type === 'USE_ABILITY') ids.add(a.cardInstanceId);
     }
-    if (hostedRunnerActions.length > 0) {
-      const playableHosted = new Set(
-        hostedRunnerActions
+    if (hostedRunnerActions.length > 0 || hostedNeedingRoomIds.size > 0) {
+      const playableHosted = new Set([
+        ...hostedRunnerActions
           .filter(a => a.type === 'PLAY_OPERATION_OR_EVENT' || a.type === 'INSTALL_CARD')
           .map(a => a.cardInstanceId),
-      );
+        ...hostedNeedingRoomIds,
+      ]);
       for (const host of [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources]) {
         if (host.hostedCards?.some(h => playableHosted.has(h.instanceId))) ids.add(host.instanceId);
       }
     }
     return ids;
-  }, [corpLegal, runnerLegal, hostedRunnerActions, runner.rig.programs, runner.rig.hardware, runner.rig.resources]);
+  }, [corpLegal, runnerLegal, hostedRunnerActions, hostedNeedingRoomIds, runner.rig.programs, runner.rig.hardware, runner.rig.resources]);
 
   const corpAbilities = corpLegal.filter(a => a.type === 'USE_ABILITY' || a.type === 'TRASH_RESOURCE').length;
-  const runnerAbilities = runnerLegal.filter(a => a.type === 'USE_ABILITY').length + hostedRunnerActions.length;
+  const runnerAbilities =
+    runnerLegal.filter(a => a.type === 'USE_ABILITY').length +
+    hostedRunnerActions.length +
+    hostedNeedingRoomIds.size;
   const abilityCount = corpAbilities + runnerAbilities + (runnerFlow.makingRoom || runnerFlow.pickingHost ? 1 : 0);
 
-  const hasPayingCredits = (side: SideCode) => {
-    const installed: CardInstance[] =
-      side === 'runner'
-        ? [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources]
-        : Object.values(corp.servers).flatMap(s => [...s.root, ...s.ice]).filter(c => c.isRezzed);
-    return installed.some(c => {
-      const s = getCardScript(c.cardCode);
-      return (c.tokens?.credit ?? 0) > 0 && !!(s?.recurringCredits || s?.paysDuringRuns || s?.paysFor);
-    });
-  };
-  const hasCreditHolds = !seat.cancel && ((corpCanAct && hasPayingCredits('corp')) || (runnerCanAct && hasPayingCredits('runner')));
+  const hasCreditHolds =
+    !seat.cancel &&
+    ((corpCanAct && payingCards(gameState, 'corp').length > 0) ||
+      (runnerCanAct && payingCards(gameState, 'runner').length > 0));
+  const corpCanPurgeZeroVirus =
+    corpCanAct &&
+    activePlayer === 'corp' &&
+    virusCountersInPlay(gameState) === 0 &&
+    seat.can({ type: 'PURGE_VIRUS', player: 'corp' });
+  const hasExtraOptions = hasCreditHolds || corpCanPurgeZeroVirus;
+  const handoffActive = Boolean(ctl.handoffTo);
 
   const hasUnreadLog = openSheet !== 'log' && gameState.log.length > seenLogCount;
   const showHotseatFlip = !online && !humanSide;
@@ -322,6 +362,8 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         state={gameState}
         side={cockpitSide}
         canAct={cockpitCanAct}
+        corpCanAct={corpCanAct}
+        runnerCanAct={runnerCanAct}
         handCards={handCards}
         handSizeLimit={handSizeLimit}
         selectedCardId={selectedCardId}
@@ -331,7 +373,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         handExpanded={handExpanded}
         onHandExpandedChange={setHandExpanded}
         abilityCount={abilityCount}
-        hasCreditHolds={hasCreditHolds}
+        hasExtraOptions={hasExtraOptions}
         onOpenAbilities={() => setOpenSheet('abilities')}
         onOpenLog={() => {
           setSeenLogCount(gameState.log.length);
@@ -349,7 +391,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
 
       {/* Bottom Sheet: Searchable Game Log */}
       <MobileBottomSheet
-        open={openSheet === 'log'}
+        open={!handoffActive && openSheet === 'log'}
         title="SYS.TRACE // GAME LOG"
         subtitle={`${gameState.log.length} events`}
         accentClass="border-slate-600"
@@ -364,18 +406,19 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
 
       {/* Bottom Sheet: Usable Abilities, Credit Holds & Runner MU/Host Pickers */}
       <MobileBottomSheet
-        open={openSheet === 'abilities'}
+        open={!handoffActive && openSheet === 'abilities'}
         title="CARD ABILITIES & OPTIONS"
         accentClass="border-amber-500/80"
         onClose={() => {
           runnerFlow.setMakingRoom(null);
+          runnerFlow.setPendingTrash(null);
           runnerFlow.setPickingHost(null);
           setOpenSheet(null);
         }}
         testId="mobile-abilities-sheet"
       >
         <div className="space-y-3">
-          {corpCanAct && (
+          {activePlayer === 'corp' && corpCanAct && (
             <CorpActions
               state={gameState}
               selectedCard={selectedCard}
@@ -398,7 +441,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
             />
           )}
           {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
-          {corpCanAct && activePlayer === 'corp' && virusCountersInPlay(gameState) === 0 && seat.can({ type: 'PURGE_VIRUS', player: 'corp' }) && (
+          {corpCanPurgeZeroVirus && (
             <button
               type="button"
               onClick={async () => {
@@ -418,7 +461,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
               Purge Virus Counters (3 Clicks)
             </button>
           )}
-          {runnerCanAct && (
+          {activePlayer === 'runner' && runnerCanAct && (
             <RunnerActions
               state={gameState}
               selectedCard={selectedCard}
@@ -447,20 +490,22 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
 
       {/* Bottom Sheet: Corp Install Server Picker */}
       <MobileBottomSheet
-        open={openSheet === 'corp-install' && !!selectedCard && corpCanAct}
+        open={!handoffActive && openSheet === 'corp-install' && !!selectedCard && activePlayer === 'corp' && corpCanAct}
         title={selectedCard ? `Install ${cardDef(selectedCard).title}` : 'Install'}
         subtitle="Pick a server below, or tap Peek to check the board"
         accentClass="border-cyan-500/80"
         peeking={corpInstallPeeking}
         onTogglePeek={() => setCorpInstallPeeking(p => !p)}
         peekLabel="Servers"
+        keepMountedWhilePeeking
+        zIndexClass="z-[50]"
         onClose={() => {
           setCorpInstallPeeking(false);
           setOpenSheet(null);
         }}
         testId="mobile-corp-install-sheet"
       >
-        {corpCanAct && (
+        {activePlayer === 'corp' && corpCanAct && (
           <CorpActions
             state={gameState}
             selectedCard={selectedCard}
@@ -476,33 +521,42 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
       </MobileBottomSheet>
 
       {/* Tap-to-Act Card Sheet (board cards & identities) */}
-      <MobileCardSheet
-        state={gameState}
-        cardId={activeCardId}
-        viewer={viewer}
-        corpCanAct={corpCanAct}
-        runnerCanAct={runnerCanAct}
-        onAction={handleAction}
-        onClose={() => setActiveCardId(null)}
-        onSelectCardId={nextId => setActiveCardId(nextId)}
-        onOpenFullZoom={card => setInspectedCard(card)}
-      />
+      {!handoffActive && (
+        <MobileCardSheet
+          state={gameState}
+          cardId={activeCardId}
+          viewer={viewer}
+          corpCanAct={corpCanAct}
+          runnerCanAct={runnerCanAct}
+          onAction={handleAction}
+          onClose={() => setActiveCardId(null)}
+          onSelectCardId={nextId => setActiveCardId(nextId)}
+          onOpenFullZoom={card => setInspectedCard(card)}
+          onMakeRoomForHosted={hostedCardId => {
+            runnerFlow.setPendingTrash(null);
+            runnerFlow.setMakingRoom(hostedCardId);
+            setOpenSheet('abilities');
+          }}
+        />
+      )}
 
       {/* Tap-to-Act Server Sheet (Run button, pile browse, ordered ice/root list) */}
-      <MobileServerSheet
-        state={gameState}
-        serverId={activeServerId}
-        viewer={viewer}
-        runnerCanAct={runnerCanAct}
-        actionableCardIds={actionableCardIds}
-        onAction={handleAction}
-        onSelectCard={openCardSheet}
-        onOpenZone={setZone}
-        onClose={() => setActiveServerId(null)}
-      />
+      {!handoffActive && (
+        <MobileServerSheet
+          state={gameState}
+          serverId={activeServerId}
+          viewer={viewer}
+          runnerCanAct={runnerCanAct}
+          actionableCardIds={actionableCardIds}
+          onAction={handleAction}
+          onSelectCard={openCardSheet}
+          onOpenZone={setZone}
+          onClose={() => setActiveServerId(null)}
+        />
+      )}
 
       {/* Slide-out Settings / Menu Drawer (slides from left to match top-left menu trigger) */}
-      {menuOpen && (
+      {menuOpen && !handoffActive && (
         <GameMenuDrawer
           side="left"
           state={gameState}
@@ -557,15 +611,15 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         />
       )}
 
-      {/* Peekable Active Run Sheet (pauses cleanly while a mid-run PromptSheet is open) */}
+      {/* Peekable Active Run Sheet (pauses cleanly while a mid-run PromptSheet or HandoffScreen is open) */}
       <MobileRunSheet
         ctl={ctl}
-        hidden={ended || (!!activePrompt(gameState) && canAnswerActivePrompt(ctl))}
+        hidden={ended || handoffActive || (!!activePrompt(gameState) && canAnswerActivePrompt(ctl))}
         onInspectCard={setInspectedCard}
       />
 
       {/* Peekable Decision / Prompt Sheet (or slim waiting pill when opponent decides) */}
-      <MobilePromptSheet ctl={ctl} ended={ended} onInspectCard={setInspectedCard} />
+      <MobilePromptSheet ctl={ctl} ended={ended || handoffActive} onInspectCard={setInspectedCard} />
 
       {/* Shared Overlays (ZoneViewer, Handoff, GameOver, CardZoomModal; Run/Prompt/Accessed handled natively above) */}
       <GameOverlays

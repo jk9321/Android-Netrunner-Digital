@@ -620,7 +620,7 @@ function GameScreen({
             </aside>
           </div>
 
-          {isTabletTouch && (
+          {isTabletTouch && !ctl.handoffTo && (
             <MobileCardSheet
               state={gameState}
               cardId={tabletCardId}
@@ -634,7 +634,7 @@ function GameScreen({
             />
           )}
 
-          {isPortraitTabletTouch && (
+          {isPortraitTabletTouch && !ctl.handoffTo && (
             <>
               <MobileRunSheet
                 ctl={ctl}

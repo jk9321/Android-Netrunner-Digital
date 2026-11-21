@@ -99,7 +99,7 @@ const MobileIceStrip: React.FC<{
   const boardTarget = useBoardCardTarget(ice.instanceId);
   const highlight = usePromptHighlight(ice.instanceId);
   const corpVisible = canSeeCorpSecrets(viewer);
-  const knownToViewer = ice.isRezzed || corpVisible || Boolean(ice.runnerKnows);
+  const knownToViewer = ice.isRezzed || Boolean(ice.faceUp) || corpVisible || Boolean(ice.runnerKnows);
   const def = knownToViewer ? cardDef(ice) : null;
   const subtypes = ice.isRezzed ? iceSubtypes(ice, state) : [];
   const liveStr = ice.isRezzed ? iceStrength(state, ice) : null;
@@ -155,18 +155,13 @@ const MobileIceStrip: React.FC<{
         </span>
       </div>
 
-      <div className="flex items-center gap-0.5 shrink-0 font-bold">
-        {!ice.isRezzed && !corpVisible && ice.runnerKnows && (
-          <span className="px-1 rounded bg-slate-800 text-amber-300 text-[9px]">Seen</span>
+      <div className="flex items-center gap-0.5 shrink-0 font-bold text-[9px]">
+        {!ice.isRezzed && !ice.faceUp && !corpVisible && ice.runnerKnows && (
+          <span className="px-1 rounded bg-slate-800 text-amber-300">Seen</span>
         )}
-        {ice.advancementCounters > 0 && (
-          <span className="px-1 rounded bg-amber-950/90 border border-amber-600/70 text-amber-200 text-[9px] inline-flex items-center gap-0.5">
-            <AdvancementIcon className="w-2.5 h-2.5 text-amber-400" />
-            {ice.advancementCounters}
-          </span>
-        )}
+        <CardTokenBadges card={ice} knownToViewer={knownToViewer} />
         {hostedCount > 0 && (
-          <span className="px-1 rounded bg-pink-950/90 border border-pink-600/70 text-pink-200 text-[9px]">
+          <span className="px-1 rounded bg-pink-950/90 border border-pink-600/70 text-pink-200">
             +{hostedCount}
           </span>
         )}

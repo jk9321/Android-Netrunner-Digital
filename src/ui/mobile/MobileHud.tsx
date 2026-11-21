@@ -33,7 +33,10 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   compact = false,
 }) => {
   const { corp, runner, activePlayer, turnNumber, winner } = state;
-  const activeClicks = activePlayer === 'corp' ? `${corp.clicks}/3` : `${runner.clicks}/4`;
+  const activeClicks =
+    activePlayer === 'corp'
+      ? `${corp.clicks}/${corp.maxClicks}`
+      : `${runner.clicks}/${runner.maxClicks}`;
   const onlineConnected = online?.status === 'open';
 
   return (

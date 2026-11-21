@@ -10,7 +10,7 @@ interface CreditHoldBarProps {
 }
 
 /** Cards whose hosted credits payments can draw on (recurring, "spend during runs", restricted credits). */
-function payingCards(state: GameState, side: SideCode) {
+export function payingCards(state: GameState, side: SideCode) {
   const installed: CardInstance[] =
     side === 'runner'
       ? [...state.runner.rig.programs, ...state.runner.rig.hardware, ...state.runner.rig.resources]

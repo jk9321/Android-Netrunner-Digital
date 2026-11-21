@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, ChevronDown, ChevronUp, Eye, Layers, Play, Plus, ScrollText, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Eye, Layers, Play, Plus, ScrollText, Trash2, X } from 'lucide-react';
 import {
   CardInstance,
   GameAction,
@@ -15,14 +15,16 @@ import { runnerInstallCost } from '../../core/engine/actions/install';
 import { playCost } from '../../core/engine/actions/play';
 import { CreditIcon, Credits, TagIcon, VirusIcon } from '../components/CreditIcon';
 import { WindowBar } from '../components/WindowBar';
-import { showConfirm } from '../components/Dialog';
-import { useSeat } from '../seat';
+import { legalFor, useSeat } from '../seat';
 import type { RunnerInstallFlow } from '../components/ActionBars';
 
 interface MobileThumbCockpitProps {
   state: GameState;
   side: SideCode | null;
   canAct: boolean;
+  /** Passed separately so Open Table renders WindowBar for whichever side holds priority. */
+  corpCanAct?: boolean;
+  runnerCanAct?: boolean;
   handCards: CardInstance[];
   handSizeLimit: number;
   selectedCardId: string | null;
@@ -33,8 +35,8 @@ interface MobileThumbCockpitProps {
   onHandExpandedChange: (expanded: boolean) => void;
   /** Number of currently available card abilities / hosted actions / resource trashes. */
   abilityCount: number;
-  /** True when the player has hosted/recurring credit toggles available in the options sheet. */
-  hasCreditHolds?: boolean;
+  /** True when extra options (credit holds or 0-virus Purge) are available in the options sheet. */
+  hasExtraOptions?: boolean;
   onOpenAbilities: () => void;
   onOpenLog: () => void;
   hasUnreadLog: boolean;
@@ -58,6 +60,8 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
   state,
   side,
   canAct,
+  corpCanAct,
+  runnerCanAct,
   handCards,
   handSizeLimit,
   selectedCardId,
@@ -67,7 +71,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
   handExpanded,
   onHandExpandedChange,
   abilityCount,
-  hasCreditHolds = false,
+  hasExtraOptions = false,
   onOpenAbilities,
   onOpenLog,
   hasUnreadLog,
@@ -78,6 +82,8 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
 }) => {
   const seat = useSeat();
   const isCorp = side === 'corp';
+  const showCorpWindow = corpCanAct ?? (side === 'corp' && canAct);
+  const showRunnerWindow = runnerCanAct ?? (side === 'runner' && canAct);
   const isActiveTurn = side !== null && state.activePlayer === side && canAct;
   const startingCorpTurn = isCorp && state.turnStep?.kind === 'corp_turn_start';
   const selectedCard = selectedCardId ? handCards.find(c => c.instanceId === selectedCardId) : undefined;
@@ -96,7 +102,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
     (side === 'corp' && !startingCorpTurn && state.corp.clicks === 0) ||
     (side === 'runner' && state.runner.clicks === 0);
 
-  // Selected card action computation (mirrors ActionBars without duplicating engine logic)
+  // Selected card action computation (mirrors ActionBars via seat legality)
   const selectedAction = (() => {
     if (!selectedCard || !side || !isActiveTurn) return null;
     const def = cardDef(selectedCard);
@@ -115,18 +121,38 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
           onSelectCard(null);
           onHandExpandedChange(false);
         },
+        onTrashFirst: null as (() => void) | null,
       };
     }
 
     if (side === 'corp') {
+      const canInstallDirectly = legalFor(seat, 'corp').some(
+        a => a.type === 'INSTALL_CARD' && a.cardInstanceId === selectedCard.instanceId,
+      );
+      const canInstallWithTrash =
+        !canInstallDirectly &&
+        Object.values(state.corp.servers).some(s => {
+          const cards = trashableFirst(state, selectedCard, s.id);
+          return (
+            cards.length > 0 &&
+            seat.can({
+              type: 'INSTALL_CARD',
+              player: 'corp',
+              cardInstanceId: selectedCard.instanceId,
+              targetServerId: s.id,
+              trashFirst: cards.map(c => c.instanceId),
+            })
+          );
+        });
       return {
         label: 'Install…',
         cost: null,
-        disabled: state.corp.clicks === 0,
+        disabled: !canInstallDirectly && !canInstallWithTrash,
         onClick: () => {
           onHandExpandedChange(false);
           onOpenCorpInstall();
         },
+        onTrashFirst: null as (() => void) | null,
       };
     }
 
@@ -137,11 +163,18 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
     const canNormal = onIce ? installedIce(state).some(i => seat.can({ ...normalAction, hostInstanceId: i.instanceId })) : seat.can(normalAction);
     const allTrashable = trashableFirst(state, selectedCard, null).map(c => c.instanceId);
     const firstIce = onIce ? installedIce(state)[0]?.instanceId : undefined;
-    const needRoom =
-      !canNormal &&
+    const canMakeRoom =
       allTrashable.length > 0 &&
       (!onIce || !!firstIce) &&
       seat.can({ ...normalAction, trashFirst: allTrashable, ...(firstIce ? { hostInstanceId: firstIce } : {}) });
+    const needRoom = !canNormal && canMakeRoom;
+
+    const openMakeRoom = () => {
+      runnerFlow.setPendingTrash(null);
+      runnerFlow.setMakingRoom(selectedCard.instanceId);
+      onHandExpandedChange(false);
+      onOpenAbilities();
+    };
 
     return {
       label: needRoom ? 'Free MU…' : onIce ? 'Install on Ice…' : 'Install',
@@ -149,12 +182,11 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
       disabled: !canNormal && !needRoom,
       onClick: () => {
         if (needRoom) {
-          runnerFlow.setMakingRoom(selectedCard.instanceId);
-          onHandExpandedChange(false);
-          onOpenAbilities();
+          openMakeRoom();
           return;
         }
         if (onIce) {
+          runnerFlow.setPendingTrash(null);
           runnerFlow.setPickingHost(selectedCard.instanceId);
           onHandExpandedChange(false);
           onOpenAbilities();
@@ -164,6 +196,8 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
         onSelectCard(null);
         onHandExpandedChange(false);
       },
+      // Voluntary trash-first replacement when MU is already free (rules 8.5.6c)
+      onTrashFirst: canNormal && canMakeRoom ? openMakeRoom : null,
     };
   })();
 
@@ -211,21 +245,34 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
               <Eye className="w-3.5 h-3.5 text-amber-400" /> Info
             </button>
             {selectedAction && (
-              <button
-                type="button"
-                disabled={selectedAction.disabled}
-                onClick={selectedAction.onClick}
-                data-testid="mobile-play-selected"
-                className="h-10 px-3 rounded-[2px] bg-gradient-to-b from-amber-400 to-amber-500 text-black font-bold text-xs border border-amber-300 inline-flex items-center gap-1 disabled:opacity-40"
-              >
-                {selectedAction.label === 'Play' ? <Play className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                <span>{selectedAction.label}</span>
-                {selectedAction.cost !== null && (
-                  <span>
-                    (<Credits amount={selectedAction.cost} />)
-                  </span>
+              <>
+                <button
+                  type="button"
+                  disabled={selectedAction.disabled}
+                  onClick={selectedAction.onClick}
+                  data-testid="mobile-play-selected"
+                  className="h-10 px-3 rounded-[2px] bg-gradient-to-b from-amber-400 to-amber-500 text-black font-bold text-xs border border-amber-300 inline-flex items-center gap-1 disabled:opacity-40"
+                >
+                  {selectedAction.label === 'Play' ? <Play className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>{selectedAction.label}</span>
+                  {selectedAction.cost !== null && (
+                    <span>
+                      (<Credits amount={selectedAction.cost} />)
+                    </span>
+                  )}
+                </button>
+                {selectedAction.onTrashFirst && (
+                  <button
+                    type="button"
+                    onClick={selectedAction.onTrashFirst}
+                    title="Trash installed programs first"
+                    aria-label="Install after trashing installed programs"
+                    className="h-10 px-2 rounded-[2px] bg-amber-950/90 active:bg-amber-900 border border-amber-500/80 text-amber-200 font-bold text-xs inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
-              </button>
+              </>
             )}
             <button
               type="button"
@@ -242,10 +289,11 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
         </div>
       )}
 
-      {/* Paid-ability priority window banner (empty:hidden so it takes 0px outside priority windows) */}
-      {side && canAct && (
-        <div className="px-2 py-1 border-b border-slate-800/80 bg-[#0b111d] empty:hidden">
-          <WindowBar state={state} side={side} onAction={onAction} />
+      {/* Paid-ability priority window banner (renders for both sides in Open Table; empty:hidden outside priority windows) */}
+      {(showCorpWindow || showRunnerWindow) && (
+        <div className="px-2 py-1 border-b border-slate-800/80 bg-[#0b111d] flex flex-col gap-1 empty:hidden">
+          {showCorpWindow && <WindowBar state={state} side="corp" onAction={onAction} />}
+          {showRunnerWindow && <WindowBar state={state} side="runner" onAction={onAction} />}
         </div>
       )}
 
@@ -282,18 +330,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
             {side === 'corp' && virusCountersInPlay(state) > 0 && (
               <button
                 type="button"
-                onClick={async () => {
-                  if (
-                    virusCountersInPlay(state) === 0 &&
-                    !(await showConfirm('There are no virus counters to purge. Spend 3 clicks anyway?', {
-                      title: 'Nothing to purge',
-                      confirmLabel: 'Purge anyway',
-                      danger: true,
-                    }))
-                  )
-                    return;
-                  onAction({ type: 'PURGE_VIRUS', player: 'corp' });
-                }}
+                onClick={() => onAction({ type: 'PURGE_VIRUS', player: 'corp' })}
                 disabled={!seat.can({ type: 'PURGE_VIRUS', player: 'corp' })}
                 className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
               >
@@ -313,17 +350,17 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
           </div>
         )}
 
-        {/* Fallback Abilities / Options Chip (shown when legal abilities, hosted actions, or credit holds exist) */}
-        {(abilityCount > 0 || hasCreditHolds) && (
+        {/* Fallback Abilities / Options Chip (shown when abilities, hosted actions, credit holds, or 0-virus Purge exist) */}
+        {(abilityCount > 0 || hasExtraOptions) && (
           <button
             type="button"
             onClick={onOpenAbilities}
             data-testid="mobile-abilities-chip"
             className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border border-amber-500/80 bg-amber-950/60 active:bg-amber-900/70 text-amber-200 text-xs font-bold inline-flex items-center gap-1 shrink-0`}
-            title="View usable card abilities and credit holds"
+            title="View usable card abilities and extra actions"
           >
             <Play className="w-3.5 h-3.5 text-amber-300 fill-amber-300/25" />
-            <span>{abilityCount > 0 ? abilityCount : '¢'}</span>
+            <span>{abilityCount > 0 ? abilityCount : '···'}</span>
           </button>
         )}
 

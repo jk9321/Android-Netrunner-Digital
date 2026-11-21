@@ -37,10 +37,13 @@ export const MobilePromptSheet: React.FC<MobilePromptSheetProps> = ({
   // Opponent's decision: non-blocking top pill so the board stays unobstructed
   if (!prompt || !canAnswer) {
     const side = waitingFor ?? prompt?.side;
+    const topOffset = gameState.activeRun
+      ? 'top-[calc(env(safe-area-inset-top)+6.75rem)]'
+      : 'top-[calc(env(safe-area-inset-top)+3.25rem)]';
     return (
       <div
         data-testid="mobile-prompt-waiting"
-        className="fixed inset-x-3 top-[calc(env(safe-area-inset-top)+3.25rem)] z-[50] bg-[#0a101b]/95 border border-slate-700 rounded-[4px] px-3 py-2 text-xs font-mono text-slate-300 shadow-xl text-center backdrop-blur-md"
+        className={`fixed inset-x-3 ${topOffset} z-[50] bg-[#0a101b]/95 border border-slate-700 rounded-[4px] px-3 py-2 text-xs font-mono text-slate-300 shadow-xl text-center backdrop-blur-md`}
       >
         Waiting on the {side === 'corp' ? 'Corp' : 'Runner'} to decide…
       </div>

@@ -7,9 +7,12 @@ import {
   cardDef,
   findCardAnywhere,
   getCardScript,
+  installedIce,
   isHidden,
   rezCostOf,
+  trashableFirst,
 } from '../../core';
+import { playableHostZones } from '../../core/engine/actions/install';
 import { getCardImageUrl } from '../../data/cards';
 import { cardPositionLabel, typeLine } from '../cardLabels';
 import { cardTextHtml } from '../cardText';
@@ -31,6 +34,8 @@ interface MobileCardSheetProps {
   onClose: () => void;
   onSelectCardId: (nextId: string) => void;
   onOpenFullZoom: (card: CardInstance) => void;
+  /** Opens the Runner MU-replacement picker for a hosted program that needs room (rules 8.5.6c). */
+  onMakeRoomForHosted?: (hostedCardId: string) => void;
 }
 
 /**
@@ -48,6 +53,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
   onClose,
   onSelectCardId,
   onOpenFullZoom,
+  onMakeRoomForHosted,
 }) => {
   const seat = useSeat();
   const card = cardId ? findCardAnywhere(state, cardId) ?? null : null;
@@ -98,6 +104,33 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
       )
     : [];
 
+  // Hosted Runner programs on this card that only fit after trashing installed programs (rules 8.5.6c)
+  const playableHostedSet =
+    runnerCanAct && onMakeRoomForHosted
+      ? new Set(playableHostZones(state).flat().map(h => h.instanceId))
+      : null;
+  const hostedNeedingRoom =
+    playableHostedSet && playableHostedSet.size > 0
+      ? (card.hostedCards ?? []).filter(h => {
+          if (!playableHostedSet.has(h.instanceId)) return false;
+          if (hostedPlayActions.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === h.instanceId)) return false;
+          const trojan = Boolean(getCardScript(h.cardCode)?.installsOnIce);
+          const all = trashableFirst(state, h, null).map(c => c.instanceId);
+          const ice = trojan ? installedIce(state)[0]?.instanceId : undefined;
+          return (
+            all.length > 0 &&
+            (!trojan || !!ice) &&
+            seat.can({
+              type: 'INSTALL_CARD',
+              player: 'runner',
+              cardInstanceId: h.instanceId,
+              trashFirst: all,
+              ...(ice ? { hostInstanceId: ice } : {}),
+            })
+          );
+        })
+      : [];
+
   // Runner trojans hosted on this Corp ice
   const trojansOnThis = [
     ...state.runner.rig.programs,
@@ -122,6 +155,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
       trashResAction ||
       abilityActions.length > 0 ||
       hostedPlayActions.length > 0 ||
+      hostedNeedingRoom.length > 0 ||
       runServerAction,
   );
 
@@ -229,9 +263,14 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
         if (action.type !== 'PLAY_OPERATION_OR_EVENT' && action.type !== 'INSTALL_CARD') return null;
         const hosted = findCardAnywhere(state, action.cardInstanceId);
         if (!hosted) return null;
+        const hostIce =
+          action.type === 'INSTALL_CARD' && action.hostInstanceId
+            ? findCardAnywhere(state, action.hostInstanceId)
+            : undefined;
+        const targetPos = hostIce ? cardPositionLabel(state, hostIce) : null;
         return (
           <button
-            key={`${action.type}-${action.cardInstanceId}`}
+            key={`${action.type}-${action.cardInstanceId}-${action.type === 'INSTALL_CARD' ? (action.hostInstanceId ?? '') : ''}`}
             type="button"
             onClick={() => {
               onAction(action);
@@ -239,13 +278,30 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
             }}
             className="w-full min-h-[44px] px-3 py-2 rounded-[3px] bg-pink-950/80 active:bg-pink-900 border border-pink-600 text-pink-100 font-bold text-xs flex items-center justify-center gap-1.5"
           >
-            <Play className="w-4 h-4 text-pink-400" />
-            <span>
+            <Play className="w-4 h-4 text-pink-400 shrink-0" />
+            <span className="truncate">
               {action.type === 'PLAY_OPERATION_OR_EVENT' ? 'Play' : 'Install'} hosted {cardDef(hosted).title}
+              {targetPos ? ` on ${targetPos}` : ''}
             </span>
           </button>
         );
       })}
+
+      {/* Hosted programs needing MU replacement (rules 8.5.6c) */}
+      {hostedNeedingRoom.map(hosted => (
+        <button
+          key={`make-room-${hosted.instanceId}`}
+          type="button"
+          onClick={() => {
+            onClose();
+            onMakeRoomForHosted?.(hosted.instanceId);
+          }}
+          className="w-full min-h-[44px] px-3 py-2 rounded-[3px] bg-amber-950/80 active:bg-amber-900 border border-amber-500 text-amber-100 font-bold text-xs flex items-center justify-center gap-1.5"
+        >
+          <Play className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="truncate">Free MU to install {cardDef(hosted).title}…</span>
+        </button>
+      ))}
 
       {/* Corp Trash Tagged Resource */}
       {trashResAction && (
@@ -283,6 +339,8 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
     </div>
   ) : undefined;
 
+  const hostedCardsHiddenFromViewer = Boolean(getCardScript(card.cardCode)?.hostedFaceDown) && !canSeeRunnerSecrets(viewer);
+
   return (
     <MobileBottomSheet
       open
@@ -313,9 +371,9 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
           <div className="flex items-center gap-3 p-3 rounded-[3px] border border-slate-800 bg-slate-950/70">
             <Shield className="w-8 h-8 text-slate-500 shrink-0" />
             <div>
-              <div className="font-bold text-slate-200">Unrezzed Corp Card</div>
+              <div className="font-bold text-slate-200">{isCorpCard ? 'Unrezzed Corp Card' : 'Facedown Card'}</div>
               <div className="text-slate-400 mt-0.5">
-                {position ? `${position} — ` : ''}Hidden until rezzed or accessed.
+                {position ? `${position} — ` : ''}Hidden until revealed or accessed.
               </div>
             </div>
           </div>
@@ -331,6 +389,23 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
                   {n} {kind}
                 </span>
               ))}
+            </div>
+          )}
+          {trojansOnThis.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hosted on this ice</div>
+              <div className="flex flex-wrap gap-1.5">
+                {trojansOnThis.map(h => (
+                  <button
+                    key={h.instanceId}
+                    type="button"
+                    onClick={() => onSelectCardId(h.instanceId)}
+                    className="px-2 py-1.5 rounded-[2px] border border-pink-700/80 bg-pink-950/50 active:bg-pink-900 text-pink-100 text-xs font-bold"
+                  >
+                    {isHidden(h) ? 'Facedown hosted card' : cardDef(h).title}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -403,8 +478,19 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
             <div className="space-y-1.5">
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hosted on this card</div>
               <div className="flex flex-wrap gap-1.5">
-                {[...(card.hostedCards ?? []), ...trojansOnThis].map(h => {
-                  const hHidden = isHidden(h);
+                {(card.hostedCards ?? []).map(h => {
+                  const hHidden = isHidden(h) || hostedCardsHiddenFromViewer;
+                  if (hHidden) {
+                    return (
+                      <span
+                        key={h.instanceId}
+                        data-testid="mobile-hosted-hidden"
+                        className="px-2 py-1.5 rounded-[2px] border border-slate-700 border-dashed bg-slate-950 text-slate-400 text-xs font-bold"
+                      >
+                        Facedown hosted card
+                      </span>
+                    );
+                  }
                   return (
                     <button
                       key={h.instanceId}
@@ -412,10 +498,20 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
                       onClick={() => onSelectCardId(h.instanceId)}
                       className="px-2 py-1.5 rounded-[2px] border border-slate-700 bg-slate-900 active:bg-slate-800 text-slate-200 text-xs font-bold"
                     >
-                      {hHidden ? 'Facedown hosted card' : cardDef(h).title}
+                      {cardDef(h).title}
                     </button>
                   );
                 })}
+                {trojansOnThis.map(h => (
+                  <button
+                    key={h.instanceId}
+                    type="button"
+                    onClick={() => onSelectCardId(h.instanceId)}
+                    className="px-2 py-1.5 rounded-[2px] border border-pink-700/80 bg-pink-950/50 active:bg-pink-900 text-pink-100 text-xs font-bold"
+                  >
+                    {isHidden(h) ? 'Facedown hosted card' : cardDef(h).title}
+                  </button>
+                ))}
               </div>
             </div>
           )}

@@ -681,4 +681,107 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
     expect(html).toContain('flex-row');
     expect(html).toContain('h-[34px]');
   });
+
+  it('MobileCardSheet masks Read-Write Share facedown hosted cards from Corp while showing them to Runner', () => {
+    const state = newGame(9090);
+    const secretGripCard = state.runner.grip[0];
+    const rws = {
+      instanceId: 'rws-test-1',
+      cardCode: '36022', // Read-Write Share (hostedFaceDown: true)
+      isRezzed: true,
+      advancementCounters: 0,
+      tokens: {},
+      hostedCardIds: [],
+      hostedCards: [secretGripCard],
+    };
+    state.runner.rig.programs.push(rws);
+
+    const corpCtl = ctlFromState(state, 'corp');
+    const corpRwsId = corpCtl.gameState.runner.rig.programs.find(p => p.cardCode === '36022')!.instanceId;
+    const corpHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={corpCtl.seat}>
+        <MobileCardSheet
+          state={corpCtl.gameState}
+          cardId={corpRwsId}
+          viewer="corp"
+          corpCanAct
+          runnerCanAct={false}
+          onAction={() => {}}
+          onClose={() => {}}
+          onSelectCardId={() => {}}
+          onOpenFullZoom={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(corpHtml).toContain('data-testid="mobile-hosted-hidden"');
+    expect(corpHtml).toContain('Facedown hosted card');
+    expect(corpHtml).not.toContain(cardDef(secretGripCard).title);
+
+    const runnerCtl = ctlFromState(state, 'runner');
+    const runnerRwsId = runnerCtl.gameState.runner.rig.programs.find(p => p.cardCode === '36022')!.instanceId;
+    const runnerHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={runnerCtl.seat}>
+        <MobileCardSheet
+          state={runnerCtl.gameState}
+          cardId={runnerRwsId}
+          viewer="runner"
+          corpCanAct={false}
+          runnerCanAct
+          onAction={() => {}}
+          onClose={() => {}}
+          onSelectCardId={() => {}}
+          onOpenFullZoom={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(runnerHtml).toContain(cardDef(secretGripCard).title);
+    expect(runnerHtml).not.toContain('data-testid="mobile-hosted-hidden"');
+  });
+
+  it('MobileThumbCockpit renders non-active side WindowBar Pass button in Open Table priority windows', () => {
+    const state = newGame(9191);
+    // Corp is active player, but Runner holds priority in an outside-run window
+    state.priority = {
+      step: 'corp_action',
+      holder: 'runner',
+      received: true,
+      intent: { type: 'END_TURN', player: 'corp' },
+    };
+    const openCtl = ctlFromState(state, 'both');
+    const idleFlow = {
+      makingRoom: null,
+      setMakingRoom: () => {},
+      pendingTrash: null,
+      setPendingTrash: () => {},
+      pickingHost: null,
+      setPickingHost: () => {},
+    };
+    const html = renderToStaticMarkup(
+      <SeatContext.Provider value={openCtl.seat}>
+        <MobileThumbCockpit
+          state={openCtl.gameState}
+          side="corp"
+          canAct
+          corpCanAct
+          runnerCanAct
+          handCards={openCtl.gameState.corp.hq}
+          handSizeLimit={openCtl.gameState.corp.handSizeLimit}
+          selectedCardId={null}
+          onSelectCard={() => {}}
+          onInspect={() => {}}
+          onAction={() => {}}
+          handExpanded={false}
+          onHandExpandedChange={() => {}}
+          abilityCount={0}
+          onOpenAbilities={() => {}}
+          onOpenLog={() => {}}
+          hasUnreadLog={false}
+          onOpenCorpInstall={() => {}}
+          runnerFlow={idleFlow}
+          aiThinking={false}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(html).toContain('data-testid="window-pass-runner"');
+  });
 });

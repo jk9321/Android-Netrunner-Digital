@@ -133,7 +133,7 @@ export const MobileServerSheet: React.FC<MobileServerSheetProps> = ({
           ) : (
             <div className="space-y-1.5">
               {iceApproachOrder.map(({ ice, pos }) => {
-                const known = ice.isRezzed || corpVisible || Boolean(ice.runnerKnows);
+                const known = ice.isRezzed || Boolean(ice.faceUp) || corpVisible || Boolean(ice.runnerKnows);
                 const def = known ? cardDef(ice) : null;
                 const subtypes = ice.isRezzed ? iceSubtypes(ice, state) : [];
                 const str = ice.isRezzed ? iceStrength(state, ice) : null;

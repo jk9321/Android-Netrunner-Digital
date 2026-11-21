@@ -32,7 +32,10 @@ function shortHostTag(state: GameState, card: CardInstance, viewer: Viewer): str
     const idx = server.ice.findIndex(i => i.instanceId === card.hostedOnId);
     const ice = server.ice[idx];
     const srv = server.id === 'archives' ? 'Arch' : server.id === 'rd' ? 'R&D' : server.id === 'hq' ? 'HQ' : server.name.replace(/^Remote\s+/i, 'R');
-    const name = ice && (ice.isRezzed || canSeeCorpSecrets(viewer)) ? cardDef(ice).title : `#${idx + 1}`;
+    const name =
+      ice && (ice.isRezzed || ice.faceUp || ice.runnerKnows || canSeeCorpSecrets(viewer))
+        ? cardDef(ice).title
+        : `#${idx + 1}`;
     return `on ${srv} ${name}`;
   }
   const host = findCardAnywhere(state, card.hostedOnId);
