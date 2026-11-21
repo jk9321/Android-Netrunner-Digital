@@ -25,6 +25,7 @@ import { canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { GameOverlays, canAnswerActivePrompt, promptPanelPropsFromController, runOverlayPropsFromController } from './ui/components/GameOverlays';
 import { PromptPanel, isPromptDockable } from './ui/components/PromptPanel';
 import { RunOverlay } from './ui/components/RunOverlay';
+import { AccessedPanel } from './ui/components/AccessedPanel';
 import { showAlert, showConfirm } from './ui/components/Dialog';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
@@ -478,7 +479,7 @@ function GameScreen({
               </main>
             </ZoomContext.Provider>
 
-            {/* Slim, steady-width sidebar: pickers, installed abilities, runs/prompts above a full-height LogFeed */}
+            {/* Slim, steady-width sidebar: pickers, installed abilities, runs/prompts, accessed cards above a full-height LogFeed */}
             <aside className="contents lg:flex lg:w-72 xl:w-80 shrink-0 flex-col gap-2 min-h-0">
               {promptDocked ? (
                 <PromptPanel
@@ -509,33 +510,51 @@ function GameScreen({
                   </div>
                 </>
               ) : (
-                <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-                  {activePlayer === 'corp' && corpCanAct && (
-                    <CorpActions
-                      state={gameState}
-                      selectedCard={selectedCard}
-                      onAction={handleAction}
+                <>
+                  {isDesktop && ctl.accessed.length > 0 && !ctl.handoffTo && (
+                    <AccessedPanel
+                      cards={ctl.accessed}
                       onInspect={setInspectedCard}
-                      section={corpDockActions ? 'sidebar' : 'all'}
+                      onClose={ctl.clearAccessed}
+                      docked
                     />
                   )}
-                  {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
-                  {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
-                  {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
-                  {activePlayer === 'runner' && runnerCanAct && (
-                    <RunnerActions
-                      state={gameState}
-                      selectedCard={selectedCard}
-                      onAction={handleAction}
-                      onInspect={setInspectedCard}
-                      section={runnerDockActions ? 'sidebar' : 'all'}
-                      runnerFlow={runnerFlow}
-                    />
-                  )}
-                  {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
-                  {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
-                  {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
-                </div>
+                  <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+                    {activePlayer === 'corp' && corpCanAct && (
+                      <CorpActions
+                        state={gameState}
+                        selectedCard={selectedCard}
+                        onAction={handleAction}
+                        onInspect={setInspectedCard}
+                        section={corpDockActions ? 'sidebar' : 'all'}
+                      />
+                    )}
+                    {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
+                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
+                    {activePlayer === 'runner' && runnerCanAct && (
+                      <RunnerActions
+                        state={gameState}
+                        selectedCard={selectedCard}
+                        onAction={handleAction}
+                        onInspect={setInspectedCard}
+                        section={runnerDockActions ? 'sidebar' : 'all'}
+                        runnerFlow={runnerFlow}
+                      />
+                    )}
+                    {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
+                    {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                    {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
+                  </div>
+                </>
+              )}
+              {sidebarDocked && isDesktop && ctl.accessed.length > 0 && !ctl.handoffTo && (
+                <AccessedPanel
+                  cards={ctl.accessed}
+                  onInspect={setInspectedCard}
+                  onClose={ctl.clearAccessed}
+                  docked
+                />
               )}
               <LogFeed
                 logs={gameState.log}
@@ -562,6 +581,7 @@ function GameScreen({
             onToggleRunDock={isDesktop ? () => setRunPoppedOut(false) : undefined}
             hidePromptPanel={promptDocked}
             onTogglePromptDock={promptDockable ? () => setPromptPoppedOutId(null) : undefined}
+            hideAccessedPanel={isDesktop && ctl.accessed.length > 0 && !ctl.handoffTo}
           />
         </div>
       </SeatContext.Provider>

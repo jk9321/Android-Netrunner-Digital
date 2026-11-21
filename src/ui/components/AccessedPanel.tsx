@@ -10,11 +10,14 @@ export function AccessedPanel({
   cards,
   onInspect,
   onClose,
+  docked = false,
 }: {
   /** As the viewer saw them: a card with no code (an R&D access seen by the Corp, rules 7.1.2) shows face down. */
   cards: AccessedCard[];
   onInspect: (card: CardInstance) => void;
   onClose: () => void;
+  /** Render inline inside the desktop right sidebar instead of floating over the board. */
+  docked?: boolean;
 }) {
   const prefersReduced = shouldReduceMotion();
   // Rules 7.1.5a: only cards with a trash cost can be trashed on access. Explains a
@@ -26,10 +29,14 @@ export function AccessedPanel({
   });
   return (
     <motion.div
-      initial={prefersReduced ? false : { opacity: 0, scale: 0.95, y: 6 }}
+      initial={prefersReduced ? false : { opacity: 0, scale: docked ? 0.98 : 0.95, y: 6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={prefersReduced ? { duration: 0 } : { duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed left-4 bottom-6 z-40 w-72 max-w-[calc(100vw-2rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono"
+      className={
+        docked
+          ? 'shrink-0 w-full bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-2.5 shadow-lg font-mono'
+          : 'fixed right-3 bottom-3 z-40 w-72 max-w-[calc(100vw-1.5rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono'
+      }
       data-testid="accessed-panel"
     >
       <div className="flex items-center justify-between mb-2">

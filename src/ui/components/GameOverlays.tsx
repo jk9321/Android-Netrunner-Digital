@@ -32,6 +32,8 @@ interface GameOverlaysProps {
   hidePromptPanel?: boolean;
   /** Re-dock a popped-out dockable PromptPanel back into the desktop sidebar. */
   onTogglePromptDock?: () => void;
+  /** True while AccessedPanel is rendered docked inside the desktop sidebar. */
+  hideAccessedPanel?: boolean;
 }
 
 /** Whether the viewer at this screen can answer the active prompt right now. */
@@ -107,6 +109,7 @@ export function GameOverlays({
   onToggleRunDock,
   hidePromptPanel = false,
   onTogglePromptDock,
+  hideAccessedPanel = false,
 }: GameOverlaysProps) {
   const {
     gameState,
@@ -142,7 +145,7 @@ export function GameOverlays({
 
       {!handoffTo && <CardFates fates={fates} />}
 
-      {accessed.length > 0 && !handoffTo && (
+      {!hideAccessedPanel && accessed.length > 0 && !handoffTo && (
         <AccessedPanel cards={accessed} onInspect={onInspectCard} onClose={clearAccessed} />
       )}
 
