@@ -133,7 +133,15 @@ export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hos
     // Desktop: single row alongside aside, programs in front, then hardware and resources sized to their contents.
     // Mobile (< sm): hardware and resources stack so neither gets squeezed on narrow screens.
     <div className="flex gap-2 min-w-0">
-      {aside && <div className="flex flex-col items-center gap-1.5 shrink-0">{aside}</div>}
+      {aside && (
+        <div className="flex flex-col gap-0.5 shrink-0">
+          {/* Match the Programs row heading + border/padding so the identity card top aligns flush with the Programs cards */}
+          <div className="text-[11px] font-mono font-bold uppercase tracking-wider invisible select-none" aria-hidden="true">
+            &nbsp;
+          </div>
+          <div className="flex flex-col items-center gap-3 pt-[5px]">{aside}</div>
+        </div>
+      )}
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
         <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
