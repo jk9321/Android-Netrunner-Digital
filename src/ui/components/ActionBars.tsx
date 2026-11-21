@@ -169,18 +169,18 @@ export function CorpActions(props: ActionBarProps) {
   );
 
   const basicRow = (
-    <div className="grid grid-cols-3 gap-1.5 w-full">
+    <div className="flex flex-wrap items-stretch gap-1.5 w-full">
       <button
         onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
         disabled={!seat.can({ type: 'GAIN_CREDIT', player: 'corp' })}
-        className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
+        className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" /> +1 Credit
       </button>
       <button
         onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
         disabled={!seat.can({ type: 'DRAW_CARD', player: 'corp' })}
-        className="px-1.5 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
+        className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <Layers className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> Draw Card
       </button>
@@ -199,7 +199,7 @@ export function CorpActions(props: ActionBarProps) {
           onAction({ type: 'PURGE_VIRUS', player: 'corp' });
         }}
         disabled={!seat.can({ type: 'PURGE_VIRUS', player: 'corp' })}
-        className="px-1 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap active:translate-y-[1px] active:border-b-[1px]"
+        className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap active:translate-y-[1px] active:border-b-[1px]"
         title="Spend 3 clicks to remove every virus counter"
       >
         <VirusIcon className="w-[17px] h-[17px] text-lime-400 shrink-0" />
@@ -405,18 +405,18 @@ export function RunnerActions(props: ActionBarProps) {
   const splitTrash = !!installable && canNormalInstall && canMakeRoom;
 
   const basicRow = (
-    <div className={`grid gap-1.5 w-full ${runner.tags > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+    <div className="flex flex-wrap items-stretch gap-1.5 w-full">
       <button
         onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'runner' })}
         disabled={runner.clicks < 1}
-        className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
+        className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" /> +1 Credit
       </button>
       <button
         onClick={() => onAction({ type: 'DRAW_CARD', player: 'runner' })}
         disabled={runner.clicks < 1}
-        className="px-2 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
+        className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <Layers className="w-3.5 h-3.5 text-pink-400 shrink-0" /> Draw Card
       </button>
@@ -424,7 +424,7 @@ export function RunnerActions(props: ActionBarProps) {
         <button
           onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
           disabled={!seat.can({ type: 'REMOVE_TAG', player: 'runner' })}
-          className="px-1.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
+          className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
           title="Spend 1 click and 2 credits to remove 1 tag"
         >
           <TagIcon className="w-[16px] h-[16px] text-red-400 shrink-0" />

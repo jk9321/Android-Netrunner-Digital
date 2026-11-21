@@ -288,18 +288,15 @@ export function DockedHandBar({
           : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
       }`}
     >
-      {actions ? (
-        <div className="flex-1 min-w-0">{actions}</div>
-      ) : (
-        <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
-          {handLabel}
-          <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">
-            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover to fan · click to select' : 'Click to select'}
+      <div className="flex-1 min-w-0">
+        {actions ?? (
+          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono">
+            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover hand to fan · click to select' : 'Click card to select'}
           </span>
-        </div>
-      )}
+        )}
+      </div>
       <div className="min-w-0 flex flex-col items-end gap-0.5 ml-auto shrink-0">
-        {actions && handLabel}
+        {handLabel}
         <div className="min-w-0 flex items-center justify-end overflow-x-auto overflow-y-hidden">
           {cards.length === 0 ? (
             <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
