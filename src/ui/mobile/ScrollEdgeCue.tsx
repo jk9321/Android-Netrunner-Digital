@@ -80,15 +80,15 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
         }
         const rect = node.getBoundingClientRect();
         if (axis === 'x') {
-          if (dir === 'end' && (!canEnd || rect.left < box.right - 20)) {
+          if (dir === 'end' && (!canEnd || rect.right <= box.right + 8 || rect.left <= box.left + 8)) {
             pendingOffscreenRef.current.delete(id);
-          } else if (dir === 'start' && (!canStart || rect.right > box.left + 20)) {
+          } else if (dir === 'start' && (!canStart || rect.left >= box.left - 8 || rect.right >= box.right - 8)) {
             pendingOffscreenRef.current.delete(id);
           }
         } else {
-          if (dir === 'end' && (!canEnd || rect.top < box.bottom - 14)) {
+          if (dir === 'end' && (!canEnd || rect.bottom <= box.bottom + 8 || rect.top <= box.top + 8)) {
             pendingOffscreenRef.current.delete(id);
-          } else if (dir === 'start' && (!canStart || rect.bottom > box.top + 14)) {
+          } else if (dir === 'start' && (!canStart || rect.top >= box.top - 8 || rect.bottom >= box.bottom - 8)) {
             pendingOffscreenRef.current.delete(id);
           }
         }
