@@ -196,6 +196,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
 
   const duration = animationsOn ? SPREAD_SECONDS : 0;
   const flatDockCards = docked && canSee && !canSpread;
+  // Don't let Framer Motion record a pre-measurement overlap=0 FLIP snapshot on mount.
+  const layoutReady = !docked || !canSee || (availWidth !== undefined && measuredCardPx > 0);
 
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
@@ -231,7 +233,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
             return (
               <motion.div
                 key={card.instanceId}
-                layout
+                layout={layoutReady}
                 data-hand-card
                 custom={discardedIds}
                 // isolate: a card's type icons stay in its own layer, under the next card in the fan until hovered
