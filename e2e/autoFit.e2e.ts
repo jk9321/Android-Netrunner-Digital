@@ -47,8 +47,11 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   // not at its start (a local stress run read the fitted size there and failed 1 of 60)
   const gliding = () =>
     page.locator('[data-testid=auto-fit-area]').evaluateAll(els => els.some(el => el.getAnimations().length > 0));
-  // (the glide starts a frame after the click, so both are checked together)
-  await expect.poll(async () => (await overflowing()) && !(await gliding())).toBe(true); // too cramped without auto fit
+  // Turning auto fit off clears inline --card-w overrides on the next animation frame: wait until
+  // every area has dropped its override, finished any glide, and genuinely overflows at full Large size
+  const cleared = () =>
+    page.locator('[data-testid=auto-fit-area]').evaluateAll(els => els.every(el => !el.style.getPropertyValue('--card-w')));
+  await expect.poll(async () => (await cleared()) && (await overflowing()) && !(await gliding())).toBe(true); // too cramped without auto fit
   const unfit = await cardWidth();
 
   // The shrink glides: sizes between the start and the end are seen on the way. Sampled inside
