@@ -32,6 +32,8 @@ import { useAnimationsEnabled } from './ui/animations';
 import { useFlipHotseatBoards } from './ui/boardFlip';
 import { GameStateContext } from './ui/liveValues';
 import { stopMusic, updateMusic } from './ui/music';
+import { MobileGameShell } from './ui/mobile/MobileGameShell';
+import { isMobileViewport, useViewportMode } from './ui/mobile/useViewportMode';
 
 /** What the app shows: the start screen (maybe joining from an invite link), a local game, or an online one. */
 type Screen = { kind: 'start'; joinCode: string | null } | { kind: 'local'; config: GameConfig } | { kind: 'online'; session: OnlineSession };
@@ -231,6 +233,8 @@ function GameScreen({
     online,
   } = ctl;
 
+  const viewportMode = useViewportMode();
+  const isMobile = isMobileViewport(viewportMode);
   const isDesktop = useIsDesktop();
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [runPoppedOut, setRunPoppedOut] = useState(false);
@@ -414,6 +418,18 @@ function GameScreen({
   return (
     <GameStateContext.Provider value={gameState}>
       <SeatContext.Provider value={seat}>
+        {isMobile ? (
+          <MobileGameShell
+            ctl={ctl}
+            config={config}
+            onNewGame={onNewGame}
+            onRematch={onRematch}
+            onConcede={concede}
+            onLeave={leaveGame}
+            onViewMode={changeViewMode}
+            shiftSide={shiftSide}
+          />
+        ) : (
         <div
           className="min-h-screen lg:h-screen lg:overflow-hidden text-slate-100 flex flex-col font-mono selection:bg-cyber-neonYellow selection:text-black"
         >
@@ -610,6 +626,7 @@ function GameScreen({
             hideAccessedPanel={accessedDocked}
           />
         </div>
+        )}
       </SeatContext.Provider>
     </GameStateContext.Provider>
   );

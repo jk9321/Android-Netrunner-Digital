@@ -1,0 +1,19 @@
+{
+  "name": "STACK // HEAP — Netrunner",
+  "short_name": "STACK // HEAP",
+  "description": "Android: Netrunner digital tabletop (Null Signal Games rules)",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06090e",
+  "theme_color": "#06090e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -28,7 +28,7 @@ function files(dir: string, deep: boolean): string[] {
 
 // The online client (src/net: the online table and the lobby calls) is screen code too: it holds only the seat's view.
 // src/net/protocol.ts is shared with the game server (types and the action sanitizer, no engine calls) and is not listed.
-const screen = [...files('src/ui/components', true), ...files('src/ui', false), ...files('src/net', true).filter(f => !f.endsWith('protocol.ts')), 'src/App.tsx'].map(p =>
+const screen = [...files('src/ui/components', true), ...files('src/ui/mobile', true), ...files('src/ui', false), ...files('src/net', true).filter(f => !f.endsWith('protocol.ts')), 'src/App.tsx'].map(p =>
   relative(ROOT, join(ROOT, p)),
 );
 
@@ -37,6 +37,7 @@ describe('UI boundary: only the table runs the engine', () => {
     expect(screen).toContain('src/App.tsx');
     expect(screen).toContain('src/ui/useGameController.ts');
     expect(screen).toContain('src/ui/components/ActionBars.tsx');
+    expect(screen).toContain('src/ui/mobile/MobileGameShell.tsx');
     expect(screen).toContain('src/ui/useOnlineController.ts');
     expect(screen).toContain('src/net/client.ts');
     expect(screen).toContain(ALLOWED);
