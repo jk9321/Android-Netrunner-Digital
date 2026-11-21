@@ -6,7 +6,7 @@ import { CardView } from './CardView';
 import { Keyword } from './Keyword';
 import { labelKeyword } from '../glossary';
 
-const SIZE = { sm: 'w-28 h-40', md: 'w-36 h-52', lg: 'w-44 h-64', fit: 'card-fit' } as const;
+const SIZE = { sm: 'w-28 h-40', md: 'w-36 h-52', lg: 'w-44 h-64', fit: 'card-fit', 'fit-sm': 'card-fit-sm' } as const;
 
 interface PileProps {
   label: string;
@@ -26,7 +26,7 @@ interface PileProps {
 
 /** A deck or discard pile drawn as a card on the table, with its count. */
 export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 'sm', onClick, onInspect, testId, hideLabel, seenCount }) => (
-  <div className="flex flex-col items-center gap-1 shrink-0">
+  <div className="flex flex-col items-center gap-0.5 shrink-0">
     <button
       type="button"
       onClick={e => {
@@ -39,7 +39,7 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
       className={`relative ${SIZE[size]} rounded-[2px] ${onClick ? 'cursor-pointer hover:scale-105' : 'cursor-default'} transition-transform`}
     >
       {count === 0 ? (
-        <div className="w-full h-full rounded-[2px] border border-dashed border-slate-700 flex items-center justify-center text-[11px] text-slate-600 uppercase tracking-wider">
+        <div className="w-full h-full rounded-[2px] border border-dashed border-slate-700 flex items-center justify-center text-[10px] text-slate-600 uppercase tracking-wider">
           Empty
         </div>
       ) : topCard ? (
@@ -53,7 +53,11 @@ export const Pile: React.FC<PileProps> = ({ label, count, side, topCard, size = 
         />
       )}
       {count > 0 && (
-        <span className="absolute -top-2 -right-2 min-w-[1.5rem] h-6 px-1 rounded-full bg-black/90 border border-slate-500 text-xs font-bold text-slate-100 flex items-center justify-center z-20">
+        <span
+          className={`absolute -top-2 -right-2 px-1 rounded-full bg-black/90 border border-slate-500 font-bold text-slate-100 flex items-center justify-center z-20 ${
+            size === 'fit-sm' ? 'min-w-[1.25rem] h-5 text-[11px]' : 'min-w-[1.5rem] h-6 text-xs'
+          }`}
+        >
           {count}
         </span>
       )}

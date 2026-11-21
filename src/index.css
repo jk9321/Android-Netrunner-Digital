@@ -321,12 +321,26 @@
 :root[data-card-size='large'] {
   --card-w: clamp(65px, 12vh, 220px);
 }
+/* Docked visible hand strip: slightly slimmer than full board cards to save vertical room, scaling with Large */
+.hand-dock {
+  --card-w: clamp(46px, 7.6vh, 138px);
+  --card-h: calc(var(--card-w) * 1.4);
+}
+:root[data-card-size='large'] .hand-dock {
+  --card-w: clamp(60px, 10.2vh, 180px);
+}
 @media (max-width: 640px) {
   :root {
     --card-w: clamp(68px, 20vw, 96px);
   }
   :root[data-card-size='large'] {
     --card-w: clamp(86px, 26vw, 120px);
+  }
+  .hand-dock {
+    --card-w: clamp(62px, 18vw, 88px);
+  }
+  :root[data-card-size='large'] .hand-dock {
+    --card-w: clamp(78px, 24vw, 112px);
   }
 }
 .card-fit {

@@ -42,7 +42,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
     ? Math.min(330, vw - 16)
     : isCompactViewport
       ? Math.min(400, vw - 16)
-      : Math.min(620, vw - 24);
+      : Math.min(580, vw - 24);
 
   useLayoutEffect(() => {
     if (!targetRect) return;
@@ -138,6 +138,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
   const popoutContent = (
     <div
       ref={boxRef}
+      data-testid="card-popout"
       onClick={onClose ? e => e.stopPropagation() : undefined}
       style={{
         position: 'fixed',

@@ -1,12 +1,9 @@
 import { useMemo, useRef } from 'react';
-import { CardInstance, GameState, cardDef, findCardAnywhere, knownInHand } from '../../core';
+import { CardInstance, GameState, cardDef, findCardAnywhere } from '../../core';
 import { canSeeCorpSecrets, canSeeRunnerSecrets, Viewer } from '../viewer';
 import { AutoFitArea } from './AutoFitArea';
 import { CardView } from './CardView';
-import { HandRow } from './HandRow';
 import { breakerTypes } from './IceTypeIcons';
-import { Keyword } from './Keyword';
-import { KnownInHandButton } from './KnownInHandButton';
 import { Pile } from './Pile';
 import { RigView } from './RigView';
 import { SectorRimTrace } from './SectorRimTrace';
@@ -16,25 +13,17 @@ import type { ZoneId } from './ZoneViewer';
 interface RunnerBoardProps {
   gameState: GameState;
   viewer: Viewer;
-  runnerCanAct: boolean;
-  selectedCardId: string | null;
-  onSelectCard: (instanceId: string | null) => void;
   onInspectCard: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
-  discardedIds: ReadonlySet<string>;
   isShiftActive: boolean;
 }
 
-/** Runner sector (bottom half of the tabletop): RigView, Stack/Heap piles, Grip hand, and SideStrip. */
+/** Runner sector (bottom half of the tabletop): full-width RigView with Stack/Heap piles and SideStrip. */
 export function RunnerBoard({
   gameState,
   viewer,
-  runnerCanAct,
-  selectedCardId,
-  onSelectCard,
   onInspectCard,
   onOpenZone,
-  discardedIds,
   isShiftActive,
 }: RunnerBoardProps) {
   const runnerTabRef = useRef<HTMLDivElement>(null);
@@ -68,24 +57,25 @@ export function RunnerBoard({
         aside={
           <>
             <CardView card={runner.identity} size="fit" notInstalled onInspect={onInspectCard} />
-            <div />
-            <Pile
-              label="Stack"
-              count={runner.stack.length}
-              side="runner"
-              size="fit"
-              onClick={gameState.winner ? () => onOpenZone('stack') : undefined}
-              testId="pile-stack"
-            />
-            <Pile
-              label="Heap"
-              count={runner.heap.length}
-              side="runner"
-              topCard={runner.heap[runner.heap.length - 1]}
-              size="fit"
-              onClick={() => onOpenZone('heap')}
-              testId="pile-heap"
-            />
+            <div className="flex items-start gap-1.5">
+              <Pile
+                label="Stack"
+                count={runner.stack.length}
+                side="runner"
+                size="fit-sm"
+                onClick={gameState.winner ? () => onOpenZone('stack') : undefined}
+                testId="pile-stack"
+              />
+              <Pile
+                label="Heap"
+                count={runner.heap.length}
+                side="runner"
+                topCard={runner.heap[runner.heap.length - 1]}
+                size="fit-sm"
+                onClick={() => onOpenZone('heap')}
+                testId="pile-heap"
+              />
+            </div>
           </>
         }
       />
@@ -109,31 +99,12 @@ export function RunnerBoard({
         id="runner-board"
         className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
       >
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
-          {/* Runner Rig (Installed Programs, Hardware, Resources) */}
-          <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
-            {rigView}
-          </AutoFitArea>
-          {/* Runner Grip Hand: beside the rig on wide screens */}
-          <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
-            <div className="flex items-center gap-2 text-[12px] text-pink-400 font-bold uppercase tracking-wider">
-              <span><Keyword id="grip">Grip</Keyword> Hand (<Keyword id="hand-size">{runner.grip.length} / {runner.handSizeLimit}</Keyword>)</span>
-              {!canSeeRunnerSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'runner').length} onOpen={() => onOpenZone('known-grip')} />}
-            </div>
-            <HandRow
-              cards={runner.grip}
-              side="runner"
-              canSee={canSeeRunnerSecrets(viewer)}
-              isSelectable={activePlayer === 'runner' && runnerCanAct}
-              selectedCardId={selectedCardId}
-              onSelect={onSelectCard}
-              onInspect={onInspectCard}
-              discardedIds={discardedIds}
-            />
-          </div>
-        </div>
+        {/* Runner Rig (Installed Programs, Hardware, Resources) */}
+        <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
+          {rigView}
+        </AutoFitArea>
 
-        <SideStrip side="runner" state={gameState} onInspect={onInspectCard} onOpenZone={onOpenZone} />
+        <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />
       </section>
     </div>
   );

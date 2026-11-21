@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { CardView } from './CardView';
+import { Keyword } from './Keyword';
 import { animationsEnabled, useAnimationsEnabled } from '../animations';
 import { holdHover } from '../hoverHold';
 
@@ -17,6 +18,10 @@ interface HandRowProps {
   onInspect?: (card: CardInstance) => void;
   /** Instance ids now in the heap or Archives, so a card that left the hand that way drops instead of lifting. */
   discardedIds: ReadonlySet<string>;
+  /** Rendered in a full-width top/bottom hand dock (applies .hand-dock sizing to the spread portal too). */
+  docked?: boolean;
+  /** Dock edge: top-docked Corp cards nudge downward on hover so they stay clear of the header. */
+  position?: 'top' | 'bottom';
 }
 
 type ExitCustom = ReadonlySet<string>;
@@ -57,6 +62,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   onSelect,
   onInspect,
   discardedIds,
+  docked = false,
+  position = 'bottom',
 }) => {
   const glow = side === 'corp' ? 'rgb(var(--corp-400) / 0.55)' : 'rgb(var(--runner-500) / 0.55)';
   const animationsOn = useAnimationsEnabled();
@@ -75,8 +82,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     const first = wrap.querySelector<HTMLElement>('[data-hand-card]');
     const cardPx = first ? first.getBoundingClientRect().width : 0;
     const rect = (first?.parentElement ?? wrap).getBoundingClientRect();
-    // Stay inside this hand's own board section, so it opens leftward and never covers the zoom view or the log
-    const board = wrap.closest('section')?.getBoundingClientRect();
+    // Stay inside this tabletop column, so the spread opens leftward and never covers the sidebar controls or log
+    const board = wrap.closest('main, section')?.getBoundingClientRect();
     const minLeft = (board?.left ?? 0) + 6;
     const maxRight = (board?.right ?? window.innerWidth) - 6;
     const o = spreadOverlap(cards.length, cardPx, maxRight - minLeft);
@@ -145,7 +152,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
         ref={wrapRef}
         data-testid={`hand-${side}`}
         data-spread={spread ? 'open' : undefined}
-        className="hand-fan relative flex min-w-0 pt-2 pb-1 px-1"
+        className={`hand-fan relative flex min-w-0 px-1 ${docked ? 'py-0.5' : 'pt-2 pb-1'}`}
         style={{ ['--hand-overlap' as string]: overlap, opacity: spread ? 0 : undefined }}
         onMouseEnter={canSpread ? open : undefined}
         onMouseLeave={canSpread ? close : undefined}
@@ -199,7 +206,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
           <motion.div
             data-hand-spread
             data-testid={`hand-${side}-spread`}
-            className="hand-fan fixed z-40 flex pt-2 pb-1 px-1"
+            className={`hand-fan ${docked ? 'hand-dock ' : ''}fixed z-40 flex px-1 ${docked ? 'py-0.5' : 'pt-2 pb-1'}`}
             style={{ left: spread.left, top: spread.top, ['--hand-overlap' as string]: overlap }}
             initial={{ x: 0 }}
             animate={{ x: spread.shift }}
@@ -210,7 +217,9 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
             {cards.map(card => (
               <motion.div
                 key={card.instanceId}
-                className="relative isolate shrink-0 rounded-[2px] hover:z-10 hover:-translate-y-1 transition-transform"
+                className={`relative isolate shrink-0 rounded-[2px] hover:z-10 ${
+                  position === 'top' ? 'hover:translate-y-1.5' : 'hover:-translate-y-1.5'
+                } transition-transform`}
                 initial={{ ['--hand-overlap' as string]: overlap }}
                 animate={{ ['--hand-overlap' as string]: spread.overlap }}
                 transition={{ duration }}
@@ -224,3 +233,80 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
     </MotionConfig>
   );
 });
+
+/**
+ * Full-width hand dock placed directly above the Corp board (when playing Corp) or below the Runner board
+ * (when playing Runner), freeing the full horizontal width of servers and the rig.
+ */
+export function DockedHandBar({
+  side,
+  cards,
+  handSizeLimit,
+  isSelectable,
+  selectedCardId,
+  onSelect,
+  onInspect,
+  discardedIds,
+  position,
+}: {
+  side: SideCode;
+  cards: CardInstance[];
+  handSizeLimit: number;
+  isSelectable: boolean;
+  selectedCardId: string | null;
+  onSelect: (instanceId: string) => void;
+  onInspect?: (card: CardInstance) => void;
+  discardedIds: ReadonlySet<string>;
+  position: 'top' | 'bottom';
+}) {
+  const isCorp = side === 'corp';
+  const overLimit = cards.length > handSizeLimit;
+  return (
+    <div
+      data-testid={`hand-dock-${side}`}
+      className={`hand-dock shrink-0 w-full flex items-center justify-between gap-3 px-2.5 py-1 rounded-[2px] border shadow-lg ${
+        isCorp
+          ? 'bg-gradient-to-r from-[#0a131d] to-[#070d14] border-cyan-900/70'
+          : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
+      }`}
+    >
+      <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
+        <div
+          className={`flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider font-mono ${
+            isCorp ? 'text-cyan-400' : 'text-pink-400'
+          }`}
+        >
+          <span>
+            <Keyword id={isCorp ? 'hq' : 'grip'}>{isCorp ? 'HQ' : 'Grip'}</Keyword> Hand
+          </span>
+          <span className={overLimit ? 'text-amber-300' : 'opacity-90'}>
+            (<Keyword id="hand-size">{cards.length} / {handSizeLimit}</Keyword>)
+          </span>
+        </div>
+        <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">
+          {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover to fan · click to select' : 'Click to select'}
+        </span>
+      </div>
+      <div className="min-w-0 flex items-center justify-end overflow-x-auto overflow-y-hidden">
+        {cards.length === 0 ? (
+          <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
+            No cards in hand
+          </div>
+        ) : (
+          <HandRow
+            cards={cards}
+            side={side}
+            canSee
+            isSelectable={isSelectable}
+            selectedCardId={selectedCardId}
+            onSelect={onSelect}
+            onInspect={onInspect}
+            discardedIds={discardedIds}
+            docked
+            position={position}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

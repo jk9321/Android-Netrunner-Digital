@@ -79,36 +79,88 @@ const Row: React.FC<{
   hostLabel?: (card: CardInstance) => string | undefined;
   breaks?: (card: CardInstance) => IceSubtype[];
   className?: string;
+  style?: React.CSSProperties;
+  /** Compact inline chip used when a sibling bucket (Hardware/Resources) has cards and this one is empty. */
+  compactEmpty?: boolean;
   canSeeSecrets?: boolean;
-}> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '', canSeeSecrets }) => (
-  <div className={`min-w-0 flex flex-col gap-0.5 ${className}`}>
-    <div className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase tracking-wider ${color}`}>
-      {icon}
-      <span>
-        {label} ({cards.length})
-      </span>
+}> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '', style, compactEmpty = false, canSeeSecrets }) => {
+  const empty = cards.length === 0;
+  if (empty && compactEmpty) {
+    return (
+      <div className={`shrink-0 flex flex-col gap-0.5 ${className}`} style={style}>
+        <div className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase tracking-wider ${color}`}>
+          {icon}
+          <span>
+            {label} (0)
+          </span>
+        </div>
+        <div className="flex-1 flex items-center justify-center px-3 py-1.5 bg-black/30 rounded-[2px] border border-dashed border-slate-800/80 text-[11px] text-slate-600 italic whitespace-nowrap">
+          None
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`min-w-0 flex flex-col gap-0.5 ${className}`} style={style}>
+      <div className={`flex items-center gap-1 text-[11px] font-mono font-bold uppercase tracking-wider ${color}`}>
+        {icon}
+        <span>
+          {label} ({cards.length})
+        </span>
+      </div>
+      <div
+        data-auto-fit-track={empty ? undefined : ''}
+        className={`flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 overflow-x-auto items-center ${
+          empty ? 'min-h-[2rem]' : ''
+        }`}
+        style={empty ? undefined : { minHeight: 'calc(var(--card-h) + 0.5rem)' }}
+      >
+        {empty ? (
+          <span className="text-[11px] text-slate-600 italic m-auto">None</span>
+        ) : (
+          cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} canSeeSecrets={canSeeSecrets} />)
+        )}
+      </div>
     </div>
-    <div className="flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 overflow-x-auto items-center" style={{ minHeight: 'calc(var(--card-h) + 0.5rem)' }}>
-      {cards.length === 0 ? (
-        <span className="text-[11px] text-slate-600 italic m-auto">None</span>
-      ) : (
-        cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} canSeeSecrets={canSeeSecrets} />)
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
 export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks, canSeeSecrets }) => {
+  const hwCount = rig.hardware.length;
+  const resCount = rig.resources.length;
+  const bothPopulated = hwCount > 0 && resCount > 0;
   return (
-    // Desktop: single row alongside aside, programs in front, then hardware (1/3) and resources (2/3).
-    // Mobile (< sm): hardware and resources get their own rows so hardware is never crammed into a tiny 1/3 slot.
+    // Desktop: single row alongside aside, programs in front, then hardware and resources sized to their contents.
+    // Mobile (< sm): hardware and resources stack so neither gets squeezed on narrow screens.
     <div className="flex gap-2 min-w-0">
-      {aside && <div className="grid grid-cols-2 gap-1.5 shrink-0 content-start">{aside}</div>}
+      {aside && <div className="flex flex-col items-center gap-1.5 shrink-0">{aside}</div>}
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
         <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
-          <Row icon={<HardDrive className="w-3 h-3" />} label="Hardware" color="text-amber-400" cards={rig.hardware} onInspect={onInspectCard} hostLabel={hostLabel} canSeeSecrets={canSeeSecrets} className="w-full sm:flex-1" />
-          <Row icon={<Users className="w-3 h-3" />} label="Resources" color="text-cyber-neonPink" cards={rig.resources} onInspect={onInspectCard} hostLabel={hostLabel} canSeeSecrets={canSeeSecrets} className="w-full sm:flex-[2]" />
+          <Row
+            icon={<HardDrive className="w-3 h-3" />}
+            label="Hardware"
+            color="text-amber-400"
+            cards={rig.hardware}
+            onInspect={onInspectCard}
+            hostLabel={hostLabel}
+            canSeeSecrets={canSeeSecrets}
+            compactEmpty={resCount > 0}
+            className={bothPopulated ? 'w-full sm:basis-0' : hwCount === 0 && resCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
+            style={bothPopulated ? { flexGrow: hwCount } : undefined}
+          />
+          <Row
+            icon={<Users className="w-3 h-3" />}
+            label="Resources"
+            color="text-cyber-neonPink"
+            cards={rig.resources}
+            onInspect={onInspectCard}
+            hostLabel={hostLabel}
+            canSeeSecrets={canSeeSecrets}
+            compactEmpty={hwCount > 0}
+            className={bothPopulated ? 'w-full sm:basis-0' : resCount === 0 && hwCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
+            style={bothPopulated ? { flexGrow: resCount } : undefined}
+          />
         </div>
       </div>
     </div>

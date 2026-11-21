@@ -13,6 +13,8 @@ import { DeckBuilder, DeckViewer } from '../src/ui/components/DeckBuilder';
 import { RunOverlay } from '../src/ui/components/RunOverlay';
 import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel';
 import { ServerColumn } from '../src/ui/components/ServerColumn';
+import { SideStrip } from '../src/ui/components/SideStrip';
+import { DockedHandBar } from '../src/ui/components/HandRow';
 import { CardView } from '../src/ui/components/CardView';
 import { RigView } from '../src/ui/components/RigView';
 import { breakerTypes } from '../src/ui/components/IceTypeIcons';
@@ -392,5 +394,84 @@ describe('UI component smoke renders', () => {
     const corpHtml = renderToStaticMarkup(<RigView rig={state.runner.rig} breaks={breakerTypes} canSeeSecrets={false} />);
     expect(corpHtml.match(/data-testid="breaker-types"/g)?.length).toBe(2);
     expect(corpHtml.match(/data-testid="ice-types"/g)?.length).toBe(1);
+  });
+
+  it('SideStrip omits duplicate pile pills, keeps score pills, and renders opponent mini card-back fan when hidden', () => {
+    const state = newGame();
+    // Runner viewing Corp strip: Corp hand is hidden -> mini card-back fan appears, no R&D/Archives pile pills, Scored stays
+    const corpAsRunner = renderToStaticMarkup(
+      <SideStrip side="corp" state={state} viewer="runner" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(corpAsRunner).toContain('data-testid="hand-corp"');
+    expect(corpAsRunner).toContain('data-opponent-hand="true"');
+    expect(corpAsRunner).toContain('data-testid="zone-corp-score"');
+    expect(corpAsRunner).not.toContain('data-testid="zone-archives"');
+    expect(corpAsRunner).not.toContain('View ID');
+
+    // Corp viewing own strip: hand is docked at top, so no opponent badge in strip
+    const corpAsCorp = renderToStaticMarkup(
+      <SideStrip side="corp" state={state} viewer="corp" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(corpAsCorp).not.toContain('data-opponent-hand="true"');
+
+    // Corp viewing Runner strip: Runner hand is hidden -> mini card-back fan appears, no Heap pill, Stolen stays
+    const runnerAsCorp = renderToStaticMarkup(
+      <SideStrip side="runner" state={state} viewer="corp" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(runnerAsCorp).toContain('data-testid="hand-runner"');
+    expect(runnerAsCorp).toContain('data-opponent-hand="true"');
+    expect(runnerAsCorp).toContain('data-testid="zone-runner-score"');
+    expect(runnerAsCorp).not.toContain('data-testid="zone-heap"');
+  });
+
+  it('DockedHandBar renders top-docked Corp and bottom-docked Runner hands with hand-dock class', () => {
+    const state = newGame();
+    const corpDock = renderToStaticMarkup(
+      <DockedHandBar
+        side="corp"
+        position="top"
+        cards={state.corp.hq}
+        handSizeLimit={state.corp.handSizeLimit}
+        isSelectable
+        selectedCardId={null}
+        onSelect={() => {}}
+        discardedIds={new Set()}
+      />,
+    );
+    expect(corpDock).toContain('data-testid="hand-dock-corp"');
+    expect(corpDock).toContain('hand-dock');
+    expect(corpDock).toContain('data-testid="hand-corp"');
+
+    const runnerDock = renderToStaticMarkup(
+      <DockedHandBar
+        side="runner"
+        position="bottom"
+        cards={state.runner.grip}
+        handSizeLimit={state.runner.handSizeLimit}
+        isSelectable
+        selectedCardId={null}
+        onSelect={() => {}}
+        discardedIds={new Set()}
+      />,
+    );
+    expect(runnerDock).toContain('data-testid="hand-dock-runner"');
+    expect(runnerDock).toContain('data-testid="hand-runner"');
+  });
+
+  it('ServerColumn only reserves sideways-ice minWidth when ice is installed, and RigView exposes auto-fit tracks', () => {
+    const state = newGame();
+    const unicedHtml = renderToStaticMarkup(<ServerColumn server={state.corp.servers.archives} activePlayer="runner" />);
+    expect(unicedHtml).toContain('min-width:calc(var(--card-w) + 0.75rem)');
+
+    const ice = state.corp.hq.pop()!;
+    state.corp.servers.hq.ice.push(ice);
+    const icedHtml = renderToStaticMarkup(<ServerColumn server={state.corp.servers.hq} activePlayer="runner" />);
+    expect(icedHtml).toContain('min-width:calc(var(--card-h) + 0.75rem)');
+
+    // Populated resources with empty hardware: resources exposes data-auto-fit-track while hardware collapses cleanly
+    state.runner.rig.resources.push(state.runner.grip.pop()!);
+    const rigHtml = renderToStaticMarkup(<RigView rig={state.runner.rig} />);
+    expect(rigHtml).toContain('data-auto-fit-track=""');
+    expect(rigHtml).toContain('Hardware (0)');
   });
 });

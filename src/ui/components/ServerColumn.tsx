@@ -163,7 +163,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       data-server-highlighted={isHighlighted || undefined}
       data-server-target={serverTarget ? 'true' : undefined}
       title={serverTarget?.title}
-      style={{ minWidth: 'calc(var(--card-h) + 0.75rem)' }}
+      style={{ minWidth: server.ice.length > 0 ? 'calc(var(--card-h) + 0.75rem)' : 'calc(var(--card-w) + 0.75rem)' }}
       className={`relative shrink-0 flex flex-col items-center gap-1 bg-[#070b12]/80 border rounded-[2px] px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
         isHighlighted
           ? 'prompt-server-target'
@@ -191,7 +191,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
               e.stopPropagation();
               onInitiateRun(server.id);
             }}
-            className="px-1.5 py-px text-[11px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-1 font-bold shrink-0"
+            className="px-1 py-px text-[11px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-0.5 font-bold shrink-0"
             title="Initiate Run on this server"
           >
             <Crosshair className="w-3 h-3" /> Run

@@ -18,6 +18,9 @@ import type { IceSubtype } from '../../core/scripts/types';
 import { shouldReduceMotion } from '../animations';
 import { liveCardModifiers, useLiveGameState } from '../liveValues';
 
+/** Dwell delay before a tabletop card opens its floating hover popout, so passing across a busy board stays calm. */
+export const BOARD_HOVER_DWELL_MS = 220;
+
 function isTouchViewport(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -124,12 +127,16 @@ const CardFace: React.FC<
   useEffect(() => () => window.clearTimeout(holdTimer.current), []);
   const handleMouseEnter = () => {
     window.clearTimeout(holdTimer.current);
-    // A spreading hand slides cards under the pointer: wait for it to settle, then preview the card still under it
+    // Suppress sticky hover popouts from synthesized mouseenter events on touch screens
+    if (Date.now() - lastTouchTime.current < 1000 || isTouchViewport()) return;
+    // A spreading hand slides cards under the pointer, and tabletop cards wait a brief dwell
+    // so brushing the mouse across a busy board doesn't flash floating popouts.
     const held = hoverHoldRemaining();
-    if (held > 0) {
+    const delay = Math.max(held > 0 ? held + 20 : 0, zoom ? BOARD_HOVER_DWELL_MS : 0);
+    if (delay > 0) {
       holdTimer.current = window.setTimeout(() => {
         if (cardRef.current?.matches(':hover')) showHover();
-      }, held + 20);
+      }, delay);
       return;
     }
     showHover();
@@ -306,7 +313,7 @@ const CardOverlays: React.FC<{
       }`}
       // Sideways, the layer is the card's box turned: as wide as the card is tall (140%)
       style={{
-        fontSize: 'min(12cqw, 12px)',
+        fontSize: 'clamp(9.5px, 12cqw, 12px)',
         ...(sideways ? { width: '140cqw', height: '100cqw' } : {}),
         // A neighbour lies over the card's bottom edge: keep the bottom row (type icons, strength, inspect, counters) clear of it
         ...(coveredBottom > 0 ? { paddingBottom: `calc(${coveredBottom * 100}cqw + 0.2em)` } : {}),

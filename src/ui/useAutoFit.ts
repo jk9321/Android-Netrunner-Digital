@@ -53,7 +53,14 @@ export function useAutoFit(ref: RefObject<HTMLElement | null>): void {
         el.appendChild(probe);
         const base = probe.getBoundingClientRect().width;
         el.removeChild(probe);
-        const overflows = () => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+        const tracks = () => el.querySelectorAll<HTMLElement>('[data-auto-fit-track]');
+        const overflows = () => {
+          if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) return true;
+          for (const track of tracks()) {
+            if (track.scrollWidth > track.clientWidth + 1) return true;
+          }
+          return false;
+        };
         if (base > 0) {
           setSize(el, base);
           if (overflows()) {

@@ -15,11 +15,13 @@ import { WindowBar } from './ui/components/WindowBar';
 import { AbilityBar } from './ui/components/AbilityBar';
 import { CreditHoldBar } from './ui/components/CreditHoldBar';
 import { ZoneId, zoneContents } from './ui/components/ZoneViewer';
-import { ZoomContext, ZoomPanel, createZoomStore } from './ui/components/ZoomPanel';
+import { ZoomContext, createZoomStore } from './ui/components/ZoomPanel';
 import { GameHeader } from './ui/components/GameHeader';
 import { CorpActions, RunnerActions } from './ui/components/ActionBars';
 import { CorpBoard } from './ui/components/CorpBoard';
 import { RunnerBoard } from './ui/components/RunnerBoard';
+import { DockedHandBar } from './ui/components/HandRow';
+import { canSeeCorpSecrets, canSeeRunnerSecrets } from './ui/viewer';
 import { GameOverlays, canAnswerActivePrompt, promptPanelPropsFromController, runOverlayPropsFromController } from './ui/components/GameOverlays';
 import { PromptPanel, isPromptDockable } from './ui/components/PromptPanel';
 import { RunOverlay } from './ui/components/RunOverlay';
@@ -369,7 +371,7 @@ function GameScreen({
 
           {/* Main Tabletop */}
           <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 p-2">
-            {/* Cards on the table send their hover to the zoom panel in the side bar */}
+            {/* ZoomContext marks cards inside <main> as tabletop cards (board-click targeting + hover dwell) */}
             <ZoomContext.Provider value={zoomStore}>
               <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
                 {/* Victory Banner */}
@@ -398,39 +400,58 @@ function GameScreen({
                   </div>
                 )}
 
+                {canSeeCorpSecrets(viewer) && (
+                  <DockedHandBar
+                    side="corp"
+                    position="top"
+                    cards={corp.hq}
+                    handSizeLimit={corp.handSizeLimit}
+                    isSelectable={activePlayer === 'corp' && corpCanAct}
+                    selectedCardId={selectedCardId}
+                    onSelect={setSelectedCardId}
+                    onInspect={setInspectedCard}
+                    discardedIds={discardedIds}
+                  />
+                )}
+
                 <CorpBoard
                   gameState={gameState}
                   seat={seat}
                   viewer={viewer}
                   corpCanAct={corpCanAct}
                   runnerCanAct={runnerCanAct}
-                  selectedCardId={selectedCardId}
-                  onSelectCard={setSelectedCardId}
                   onInspectCard={setInspectedCard}
                   onOpenZone={setZone}
                   onAction={handleAction}
-                  discardedIds={discardedIds}
                   isShiftActive={shiftSide === 'corp'}
                 />
 
                 <RunnerBoard
                   gameState={gameState}
                   viewer={viewer}
-                  runnerCanAct={runnerCanAct}
-                  selectedCardId={selectedCardId}
-                  onSelectCard={setSelectedCardId}
                   onInspectCard={setInspectedCard}
                   onOpenZone={setZone}
-                  discardedIds={discardedIds}
                   isShiftActive={shiftSide === 'runner'}
                 />
+
+                {canSeeRunnerSecrets(viewer) && (
+                  <DockedHandBar
+                    side="runner"
+                    position="bottom"
+                    cards={runner.grip}
+                    handSizeLimit={runner.handSizeLimit}
+                    isSelectable={activePlayer === 'runner' && runnerCanAct}
+                    selectedCardId={selectedCardId}
+                    onSelect={setSelectedCardId}
+                    onInspect={setInspectedCard}
+                    discardedIds={discardedIds}
+                  />
+                )}
               </main>
             </ZoomContext.Provider>
 
-            {/* Side bar: during desktop runs or board/run prompts, the active panel replaces ZoomPanel + turn actions while LogFeed stays visible below */}
-            <aside
-              className={`contents lg:flex ${sidebarDocked ? 'lg:w-96 2xl:w-[26rem]' : 'lg:w-80 2xl:w-96'} shrink-0 flex-col gap-2 min-h-0`}
-            >
+            {/* Slim, steady-width sidebar: actions/runs/prompts above a full-height LogFeed (card previews float on hover dwell) */}
+            <aside className="contents lg:flex lg:w-72 xl:w-80 shrink-0 flex-col gap-2 min-h-0">
               {promptDocked ? (
                 <PromptPanel
                   {...promptPanelPropsFromController(ctl, setInspectedCard)}
@@ -460,23 +481,18 @@ function GameScreen({
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="hidden lg:block shrink-0">
-                    <ZoomPanel store={zoomStore} state={gameState} onInspect={setInspectedCard} />
-                  </div>
-                  <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[40vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
-                    {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
-                    {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
-                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
-                    {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
-                    {activePlayer === 'runner' && runnerCanAct && (
-                      <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
-                    )}
-                    {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
-                    {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
-                    {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
-                  </div>
-                </>
+                <div className="sticky bottom-0 z-20 lg:static bg-[#06090d]/95 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none py-1 lg:py-0 shrink-0 lg:max-h-[52vh] overflow-y-auto flex flex-col gap-2 empty:hidden">
+                  {activePlayer === 'corp' && corpCanAct && <CorpActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />}
+                  {corpCanAct && <WindowBar state={gameState} side="corp" onAction={handleAction} />}
+                  {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                  {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
+                  {activePlayer === 'runner' && runnerCanAct && (
+                    <RunnerActions state={gameState} selectedCard={selectedCard} onAction={handleAction} onInspect={setInspectedCard} />
+                  )}
+                  {runnerCanAct && <WindowBar state={gameState} side="runner" onAction={handleAction} />}
+                  {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                  {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
+                </div>
               )}
               <LogFeed
                 logs={gameState.log}

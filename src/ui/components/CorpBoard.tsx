@@ -1,12 +1,9 @@
 import { useMemo, useRef } from 'react';
-import { CardInstance, GameAction, GameState, iceSubtypes, knownInHand, knownInRd } from '../../core';
+import { CardInstance, GameAction, GameState, iceSubtypes, knownInRd } from '../../core';
 import type { Seat } from '../seatLegality';
-import { canSeeCorpSecrets, canSeeRunnerSecrets, Viewer } from '../viewer';
+import { canSeeRunnerSecrets, Viewer } from '../viewer';
 import { AutoFitArea } from './AutoFitArea';
 import { CardView } from './CardView';
-import { HandRow } from './HandRow';
-import { Keyword } from './Keyword';
-import { KnownInHandButton } from './KnownInHandButton';
 import { Pile } from './Pile';
 import { SectorRimTrace } from './SectorRimTrace';
 import { ServerColumn } from './ServerColumn';
@@ -22,28 +19,22 @@ interface CorpBoardProps {
   viewer: Viewer;
   corpCanAct: boolean;
   runnerCanAct: boolean;
-  selectedCardId: string | null;
-  onSelectCard: (instanceId: string | null) => void;
   onInspectCard: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
   onAction: (action: GameAction) => void;
-  discardedIds: ReadonlySet<string>;
   isShiftActive: boolean;
 }
 
-/** Corp sector (top half of the tabletop): SideStrip, central & remote servers, and HQ hand. */
+/** Corp sector (top half of the tabletop): SideStrip and central & remote servers at full width. */
 export function CorpBoard({
   gameState,
   seat,
   viewer,
   corpCanAct,
   runnerCanAct,
-  selectedCardId,
-  onSelectCard,
   onInspectCard,
   onOpenZone,
   onAction,
-  discardedIds,
   isShiftActive,
 }: CorpBoardProps) {
   const corpTabRef = useRef<HTMLDivElement>(null);
@@ -148,31 +139,12 @@ export function CorpBoard({
         id="corp-board"
         className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
       >
-        <SideStrip side="corp" state={gameState} onInspect={onInspectCard} onOpenZone={onOpenZone} />
+        <SideStrip side="corp" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />
 
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 min-w-0">
-          {/* Servers Grid */}
-          <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
-            {serversView}
-          </AutoFitArea>
-          {/* Corp HQ Hand: beside the servers on wide screens */}
-          <div className="min-w-0 lg:max-w-[45%] shrink-0 flex flex-col items-end overflow-x-auto overflow-y-hidden">
-            <div className="flex items-center gap-2 text-[12px] text-cyan-400 font-bold uppercase tracking-wider">
-              <span><Keyword id="hq">HQ</Keyword> Hand (<Keyword id="hand-size">{corp.hq.length} / {corp.handSizeLimit}</Keyword>)</span>
-              {!canSeeCorpSecrets(viewer) && <KnownInHandButton count={knownInHand(gameState, 'corp').length} onOpen={() => onOpenZone('known-hq')} />}
-            </div>
-            <HandRow
-              cards={corp.hq}
-              side="corp"
-              canSee={canSeeCorpSecrets(viewer)}
-              isSelectable={activePlayer === 'corp' && corpCanAct}
-              selectedCardId={selectedCardId}
-              onSelect={onSelectCard}
-              onInspect={onInspectCard}
-              discardedIds={discardedIds}
-            />
-          </div>
-        </div>
+        {/* Servers Grid */}
+        <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
+          {serversView}
+        </AutoFitArea>
       </section>
     </div>
   );
