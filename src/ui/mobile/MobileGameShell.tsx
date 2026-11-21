@@ -1,11 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CardInstance, SideCode, cardDef, getCardScript, virusCountersInPlay } from '../../core';
 import type { GameController } from '../useGameController';
 import type { GameConfig } from '../savedGame';
 import { canSeeCorpSecrets, canSeeRunnerSecrets } from '../viewer';
 import { ZoomContext, createZoomStore } from '../components/ZoomPanel';
-import { CorpBoard } from '../components/CorpBoard';
-import { RunnerBoard } from '../components/RunnerBoard';
 import { AbilityBar } from '../components/AbilityBar';
 import { CreditHoldBar } from '../components/CreditHoldBar';
 import { CorpActions, RunnerActions, useRunnerInstallFlow } from '../components/ActionBars';
@@ -25,6 +23,10 @@ import { flipHotseatBoardsEnabled, setFlipHotseatBoardsEnabled } from '../boardF
 import { MobileBottomSheet } from './MobileBottomSheet';
 import { MobileTopBar } from './MobileHud';
 import { MobileThumbCockpit } from './MobileThumbCockpit';
+import { MobileCorpBoard } from './MobileCorpBoard';
+import { MobileRunnerBoard } from './MobileRunnerBoard';
+import { MobileCardSheet } from './MobileCardSheet';
+import { MobileServerSheet } from './MobileServerSheet';
 
 interface MobileGameShellProps {
   ctl: GameController;
@@ -39,8 +41,8 @@ interface MobileGameShellProps {
 
 /**
  * Isolated phone shell (`< 768px`): zero-vertical-scroll 100dvh viewport, compact top HUD,
- * mirrored dual-half board stage, fixed bottom thumb cockpit with Peeking Hand Tray, and
- * bottom sheets for Log, Abilities, and Install/MU pickers.
+ * mirrored dual-half mobile board stage (28px ice strips + tight rig tiles), tap-to-act card
+ * and server sheets, fixed bottom thumb cockpit with Peeking Hand Tray, and Log/Abilities sheets.
  */
 export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   ctl,
@@ -75,6 +77,8 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
 
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [activeServerId, setActiveServerId] = useState<string | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -100,6 +104,8 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   useEffect(() => {
     zoomStore.clear();
     setInspectedCard(null);
+    setActiveCardId(null);
+    setActiveServerId(null);
     setZone(null);
     setHandExpanded(false);
     setOpenSheet(null);
@@ -131,19 +137,46 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
   const corpOnBottom = viewer === 'corp' && (viewMode !== 'hotseat' || flipHotseatBoards);
 
-  // Count usable card abilities / hosted actions / resource trashes for the ⚡n fallback chip
-  const corpAbilities = corpCanAct
-    ? legalFor(seat, 'corp').filter(a => a.type === 'USE_ABILITY' || a.type === 'TRASH_RESOURCE').length
-    : 0;
-  const runnerLegal = runnerCanAct ? legalFor(seat, 'runner') : [];
-  const runnerAbilities = runnerCanAct
-    ? runnerLegal.filter(a => a.type === 'USE_ABILITY').length +
-      hostedCardActions(gameState, runnerLegal).length
-    : 0;
-  const abilityCount =
-    (corpCanAct ? corpAbilities : 0) +
-    (runnerCanAct ? runnerAbilities : 0) +
-    (runnerFlow.makingRoom || runnerFlow.pickingHost ? 1 : 0);
+  // Legal board actions drive both the ⚡n fallback chip and the direct card glow borders
+  const corpLegal = useMemo(() => (corpCanAct ? legalFor(seat, 'corp') : []), [corpCanAct, seat]);
+  const runnerLegal = useMemo(() => (runnerCanAct ? legalFor(seat, 'runner') : []), [runnerCanAct, seat]);
+  const hostedRunnerActions = useMemo(
+    () => (runnerCanAct ? hostedCardActions(gameState, runnerLegal) : []),
+    [runnerCanAct, gameState, runnerLegal],
+  );
+
+  const actionableCardIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of corpLegal) {
+      if (
+        a.type === 'REZ_CARD' ||
+        a.type === 'ADVANCE_CARD' ||
+        a.type === 'SCORE_AGENDA' ||
+        a.type === 'USE_ABILITY' ||
+        a.type === 'TRASH_RESOURCE'
+      ) {
+        ids.add(a.cardInstanceId);
+      }
+    }
+    for (const a of runnerLegal) {
+      if (a.type === 'USE_ABILITY') ids.add(a.cardInstanceId);
+    }
+    if (hostedRunnerActions.length > 0) {
+      const playableHosted = new Set(
+        hostedRunnerActions
+          .filter(a => a.type === 'PLAY_OPERATION_OR_EVENT' || a.type === 'INSTALL_CARD')
+          .map(a => a.cardInstanceId),
+      );
+      for (const host of [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources]) {
+        if (host.hostedCards?.some(h => playableHosted.has(h.instanceId))) ids.add(host.instanceId);
+      }
+    }
+    return ids;
+  }, [corpLegal, runnerLegal, hostedRunnerActions, runner.rig.programs, runner.rig.hardware, runner.rig.resources]);
+
+  const corpAbilities = corpLegal.filter(a => a.type === 'USE_ABILITY' || a.type === 'TRASH_RESOURCE').length;
+  const runnerAbilities = runnerLegal.filter(a => a.type === 'USE_ABILITY').length + hostedRunnerActions.length;
+  const abilityCount = corpAbilities + runnerAbilities + (runnerFlow.makingRoom || runnerFlow.pickingHost ? 1 : 0);
 
   const hasPayingCredits = (side: SideCode) => {
     const installed: CardInstance[] =
@@ -160,32 +193,43 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   const hasUnreadLog = openSheet !== 'log' && gameState.log.length > seenLogCount;
   const showHotseatFlip = !online && !humanSide;
 
+  const openCardSheet = (card: CardInstance) => {
+    setHandExpanded(false);
+    setActiveServerId(null);
+    setActiveCardId(card.instanceId);
+  };
+
+  const openServerSheet = (serverId: string) => {
+    setHandExpanded(false);
+    setActiveCardId(null);
+    setActiveServerId(serverId);
+  };
+
   const corpBoardEl = (
-    <div className="flex-[55] min-h-0 min-w-0 flex flex-col">
-      <CorpBoard
+    <div className={`flex-[54] min-h-0 min-w-0 flex flex-col rounded-[3px] transition-shadow ${shiftSide === 'corp' ? 'ring-1 ring-cyan-400/80' : ''}`}>
+      <MobileCorpBoard
         gameState={gameState}
         seat={seat}
         viewer={viewer}
-        corpCanAct={corpCanAct}
         runnerCanAct={runnerCanAct}
-        onInspectCard={setInspectedCard}
-        onOpenZone={setZone}
-        onAction={handleAction}
-        isShiftActive={shiftSide === 'corp'}
+        actionableCardIds={actionableCardIds}
         mirrored={corpOnBottom}
+        onTapCard={openCardSheet}
+        onTapServer={openServerSheet}
+        onOpenZone={setZone}
       />
     </div>
   );
 
   const runnerBoardEl = (
-    <div className="flex-[45] min-h-0 min-w-0 flex flex-col overflow-y-auto">
-      <RunnerBoard
+    <div className={`flex-[46] min-h-0 min-w-0 flex flex-col rounded-[3px] transition-shadow ${shiftSide === 'runner' ? 'ring-1 ring-pink-400/80' : ''}`}>
+      <MobileRunnerBoard
         gameState={gameState}
         viewer={viewer}
-        onInspectCard={setInspectedCard}
-        onOpenZone={setZone}
-        isShiftActive={shiftSide === 'runner'}
+        actionableCardIds={actionableCardIds}
         mirrored={corpOnBottom}
+        onTapCard={openCardSheet}
+        onOpenZone={setZone}
       />
     </div>
   );
@@ -239,7 +283,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
           onClick={() => {
             if (handExpanded) setHandExpanded(false);
           }}
-          className="flex-1 min-h-0 min-w-0 flex flex-col gap-1.5 p-1.5 overflow-hidden"
+          className="flex-1 min-h-0 min-w-0 flex flex-col gap-1 p-1 overflow-hidden"
         >
           {corpOnBottom ? (
             <>
@@ -411,6 +455,32 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
           />
         )}
       </MobileBottomSheet>
+
+      {/* Tap-to-Act Card Sheet (board cards & identities) */}
+      <MobileCardSheet
+        state={gameState}
+        cardId={activeCardId}
+        viewer={viewer}
+        corpCanAct={corpCanAct}
+        runnerCanAct={runnerCanAct}
+        onAction={handleAction}
+        onClose={() => setActiveCardId(null)}
+        onSelectCardId={nextId => setActiveCardId(nextId)}
+        onOpenFullZoom={card => setInspectedCard(card)}
+      />
+
+      {/* Tap-to-Act Server Sheet (Run button, pile browse, ordered ice/root list) */}
+      <MobileServerSheet
+        state={gameState}
+        serverId={activeServerId}
+        viewer={viewer}
+        runnerCanAct={runnerCanAct}
+        actionableCardIds={actionableCardIds}
+        onAction={handleAction}
+        onSelectCard={openCardSheet}
+        onOpenZone={setZone}
+        onClose={() => setActiveServerId(null)}
+      />
 
       {/* Slide-out Settings / Menu Drawer */}
       {menuOpen && (

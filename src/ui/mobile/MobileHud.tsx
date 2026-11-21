@@ -138,16 +138,19 @@ interface MobileSideStatusProps {
   edge: 'top' | 'bottom';
   state: GameState;
   viewer: Viewer;
+  /** True when the side's identity currently has a legal paid/click ability. */
+  idActionable?: boolean;
   onInspect: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
 }
 
-/** Ultra-compact 1-row player status strip for mobile halves (ID, credits, MU/tags/BP, opponent hand, discard pile). */
+/** Ultra-compact 1-row player status strip for mobile halves (ID, credits, MU/tags/BP, opponent hand, Stack/Heap/Archives). */
 export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
   side,
   edge,
   state,
   viewer,
+  idActionable = false,
   onInspect,
   onOpenZone,
 }) => {
@@ -160,6 +163,7 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
   const handLimit = player.handSizeLimit;
   const knownCount = showOppHand ? knownInHand(state, side).length : 0;
   const archivesCount = corp.archives.faceUp.length + corp.archives.faceDown.length;
+  const isTurn = !state.winner && state.activePlayer === side;
 
   const borderClass =
     edge === 'top'
@@ -177,15 +181,24 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
       <button
         type="button"
         onClick={() => onInspect(player.identity)}
-        className="flex items-center gap-1 min-w-0 text-left"
+        className={`flex items-center gap-1 min-w-0 text-left rounded-[2px] px-1 -mx-1 ${
+          idActionable ? 'ring-1 ring-amber-400/90 bg-amber-950/40' : ''
+        }`}
         title={`Inspect ${cardDef(player.identity).title}`}
       >
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+            isTurn ? (isCorp ? 'bg-cyan-400 animate-pulse' : 'bg-pink-400 animate-pulse') : 'bg-slate-700'
+          }`}
+          aria-hidden="true"
+        />
         <span className={`font-cyber font-bold text-[10px] shrink-0 ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`}>
           {isCorp ? 'CORP' : 'RUN'}
         </span>
-        <span className="text-slate-200 font-semibold truncate max-w-[7.5rem]">
+        <span className="text-slate-200 font-semibold truncate max-w-[6.75rem]">
           {cardDef(player.identity).title}
         </span>
+        {idActionable && <span className="text-amber-300 text-[10px] font-bold shrink-0">⚡</span>}
       </button>
 
       <div className="flex items-center gap-1 shrink-0">
@@ -255,9 +268,23 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
           </button>
         )}
 
+        {/* Runner Stack Count (browsable once game ends) */}
+        {!isCorp && (
+          <button
+            type="button"
+            data-testid="pile-stack"
+            onClick={state.winner ? () => onOpenZone('stack') : undefined}
+            className="px-1.5 h-6 inline-flex items-center rounded-[2px] border border-slate-800 bg-slate-950 text-slate-400 font-semibold"
+            title={`Stack: ${runner.stack.length} cards`}
+          >
+            Stk {runner.stack.length}
+          </button>
+        )}
+
         {/* Quick Discard Pile Link */}
         <button
           type="button"
+          data-testid={isCorp ? 'pile-archives' : 'pile-heap'}
           onClick={() => onOpenZone(isCorp ? 'archives' : 'heap')}
           className="px-1.5 h-6 inline-flex items-center rounded-[2px] border border-slate-700 bg-slate-900 text-slate-300 font-semibold"
           title={isCorp ? 'Browse Archives' : 'Browse Heap'}

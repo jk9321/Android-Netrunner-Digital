@@ -18,8 +18,12 @@ import { detectViewportMode, isMobileViewport } from '../src/ui/mobile/useViewpo
 import { MobileBottomSheet } from '../src/ui/mobile/MobileBottomSheet';
 import { MobileSideStatus, MobileTopBar } from '../src/ui/mobile/MobileHud';
 import { MobileThumbCockpit } from '../src/ui/mobile/MobileThumbCockpit';
+import { MobileCorpBoard } from '../src/ui/mobile/MobileCorpBoard';
+import { MobileRunnerBoard } from '../src/ui/mobile/MobileRunnerBoard';
+import { MobileCardSheet } from '../src/ui/mobile/MobileCardSheet';
+import { MobileServerSheet } from '../src/ui/mobile/MobileServerSheet';
 import { MobileGameShell } from '../src/ui/mobile/MobileGameShell';
-import { newGame, startRunnerTurn } from './helpers';
+import { installForTest, newGame, startRunnerTurn } from './helpers';
 
 const corpStarter = STARTER_DECKS.find(d => d.side === 'corp')!;
 const runnerStarter = STARTER_DECKS.find(d => d.side === 'runner')!;
@@ -369,5 +373,174 @@ describe('MobileGameShell smoke & secret safety', () => {
     for (const card of realState.runner.grip) {
       expect(html).not.toContain(cardDef(card).title);
     }
+  });
+});
+
+describe('Phase 2 compact mobile boards & tap-to-act sheets', () => {
+  it('MobileCorpBoard renders compact 28px ice strips and hides unrezzed titles from Runner', () => {
+    const state = newGame(2026);
+    const iceId = installForTest(state, 'ice', 'remote1', 'ice');
+    const agendaId = installForTest(state, 'agenda', 'remote1', 'root');
+    const realIce = state.corp.servers.remote1.ice.find(c => c.instanceId === iceId)!;
+    const realAgenda = state.corp.servers.remote1.root.find(c => c.instanceId === agendaId)!;
+    startRunnerTurn(state);
+
+    const table = new LocalTable(state, null, { confirm: async () => true, alert: () => {} });
+    const runnerSeat = table.seatFor('runner');
+    const runnerHtml = renderToStaticMarkup(
+      <MobileCorpBoard
+        gameState={runnerSeat.state}
+        seat={runnerSeat}
+        viewer="runner"
+        runnerCanAct
+        actionableCardIds={new Set()}
+        mirrored={false}
+        onTapCard={() => {}}
+        onTapServer={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(runnerHtml).toContain('data-testid="mobile-corp-board"');
+    expect(runnerHtml).toContain('min-h-[28px]');
+    expect(runnerHtml).toContain('min-w-[82px]');
+    expect(runnerHtml).toContain('Unrezzed');
+    expect(runnerHtml).toContain('Face-down');
+    expect(runnerHtml).not.toContain(cardDef(realIce).title);
+    expect(runnerHtml).not.toContain(cardDef(realAgenda).title);
+
+    // Corp sees its own unrezzed cards and gets actionable ⚡ indicators
+    const corpSeat = table.seatFor('corp');
+    const corpHtml = renderToStaticMarkup(
+      <MobileCorpBoard
+        gameState={corpSeat.state}
+        seat={corpSeat}
+        viewer="corp"
+        runnerCanAct={false}
+        actionableCardIds={new Set([corpSeat.state.corp.servers.remote1.ice[0].instanceId])}
+        mirrored
+        onTapCard={() => {}}
+        onTapServer={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(corpHtml).toContain(cardDef(realIce).title);
+    expect(corpHtml).toContain(cardDef(realAgenda).title);
+  });
+
+  it('MobileRunnerBoard renders Programs/Support rows and mirrors Programs toward Corp ice', () => {
+    const state = newGame(3030);
+    const prog = state.runner.stack.find(c => cardDef(c).type_code === 'program')!;
+    const hw = state.runner.stack.find(c => cardDef(c).type_code === 'hardware')!;
+    state.runner.rig.programs.push(prog);
+    state.runner.rig.hardware.push(hw);
+
+    const normalHtml = renderToStaticMarkup(
+      <MobileRunnerBoard
+        gameState={state}
+        viewer="runner"
+        actionableCardIds={new Set([prog.instanceId])}
+        mirrored={false}
+        onTapCard={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(normalHtml).toContain('data-testid="mobile-runner-board"');
+    expect(normalHtml).toContain(cardDef(prog).title);
+    expect(normalHtml).toContain(cardDef(hw).title);
+    expect(normalHtml.indexOf('mobile-rig-programs')).toBeLessThan(normalHtml.indexOf('mobile-rig-support'));
+
+    const mirroredHtml = renderToStaticMarkup(
+      <MobileRunnerBoard
+        gameState={state}
+        viewer="corp"
+        actionableCardIds={new Set()}
+        mirrored
+        onTapCard={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(mirroredHtml.indexOf('mobile-rig-support')).toBeLessThan(mirroredHtml.indexOf('mobile-rig-programs'));
+  });
+
+  it('MobileCardSheet hides unrezzed Corp secrets from Runner while offering Run shortcut, and shows Advance/Rez to Corp', () => {
+    const state = newGame(4040);
+    const agendaId = installForTest(state, 'agenda', 'remote1', 'root');
+    const realAgenda = state.corp.servers.remote1.root.find(c => c.instanceId === agendaId)!;
+
+    // Corp turn: Corp taps its own unrezzed agenda and sees Advance button + real title
+    const corpTable = new LocalTable(state, null, { confirm: async () => true, alert: () => {} });
+    const corpSeat = corpTable.seatFor('corp');
+    const corpAgendaId = corpSeat.state.corp.servers.remote1.root[0].instanceId;
+    const corpSheetHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={corpSeat}>
+        <MobileCardSheet
+          state={corpSeat.state}
+          cardId={corpAgendaId}
+          viewer="corp"
+          corpCanAct
+          runnerCanAct={false}
+          onAction={() => {}}
+          onClose={() => {}}
+          onSelectCardId={() => {}}
+          onOpenFullZoom={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(corpSheetHtml).toContain('data-testid="mobile-card-sheet"');
+    expect(corpSheetHtml).toContain(cardDef(realAgenda).title);
+    expect(corpSheetHtml).toContain('data-testid="mobile-action-advance"');
+
+    // Runner turn: Runner taps that unrezzed root card — title MUST NOT leak, Run shortcut offered
+    startRunnerTurn(state);
+    const runnerTable = new LocalTable(state, null, { confirm: async () => true, alert: () => {} });
+    const runnerSeat = runnerTable.seatFor('runner');
+    const runnerAgendaId = runnerSeat.state.corp.servers.remote1.root[0].instanceId;
+    const runnerSheetHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={runnerSeat}>
+        <MobileCardSheet
+          state={runnerSeat.state}
+          cardId={runnerAgendaId}
+          viewer="runner"
+          corpCanAct={false}
+          runnerCanAct
+          onAction={() => {}}
+          onClose={() => {}}
+          onSelectCardId={() => {}}
+          onOpenFullZoom={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(runnerSheetHtml).toContain('Unrezzed Corp Card');
+    expect(runnerSheetHtml).toContain('data-testid="mobile-action-run-server"');
+    expect(runnerSheetHtml).not.toContain(cardDef(realAgenda).title);
+  });
+
+  it('MobileServerSheet renders Run button and hides unrezzed ice titles from Runner', () => {
+    const state = newGame(5050);
+    const iceId = installForTest(state, 'ice', 'rd', 'ice');
+    const realIce = state.corp.servers.rd.ice.find(c => c.instanceId === iceId)!;
+    startRunnerTurn(state);
+
+    const table = new LocalTable(state, null, { confirm: async () => true, alert: () => {} });
+    const runnerSeat = table.seatFor('runner');
+    const html = renderToStaticMarkup(
+      <SeatContext.Provider value={runnerSeat}>
+        <MobileServerSheet
+          state={runnerSeat.state}
+          serverId="rd"
+          viewer="runner"
+          runnerCanAct
+          actionableCardIds={new Set()}
+          onAction={() => {}}
+          onSelectCard={() => {}}
+          onOpenZone={() => {}}
+          onClose={() => {}}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(html).toContain('data-testid="mobile-server-sheet"');
+    expect(html).toContain('data-testid="mobile-run-rd"');
+    expect(html).toContain('Unrezzed Ice');
+    expect(html).not.toContain(cardDef(realIce).title);
   });
 });
