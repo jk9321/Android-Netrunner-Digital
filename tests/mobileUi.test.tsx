@@ -658,4 +658,27 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
     expect(html).toContain('data-testid="mobile-accessed-hidden"');
     expect(html).toContain('R&amp;D Card (hidden)');
   });
+
+  it('MobileGameShell switches to side-by-side compact layout in landscape mode', () => {
+    const { ctl } = makeController('runner', { runnerTurn: true });
+    const html = renderToStaticMarkup(
+      <GameStateContext.Provider value={ctl.gameState}>
+        <SeatContext.Provider value={ctl.seat}>
+          <MobileGameShell
+            ctl={ctl}
+            config={{ seed: 12345, corpDeck: corpStarter, runnerDeck: runnerStarter, ai: null, difficulty: 'normal' }}
+            onNewGame={() => {}}
+            onConcede={() => {}}
+            onLeave={() => {}}
+            onViewMode={() => {}}
+            shiftSide={null}
+            landscape
+          />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(html).toContain('data-layout="landscape"');
+    expect(html).toContain('flex-row');
+    expect(html).toContain('h-[34px]');
+  });
 });

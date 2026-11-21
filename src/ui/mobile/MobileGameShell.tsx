@@ -40,12 +40,15 @@ interface MobileGameShellProps {
   onLeave: () => void;
   onViewMode: (mode: GameController['viewMode']) => void;
   shiftSide: SideCode | null;
+  /** True on short phone landscape viewports: places Corp and Runner side-by-side to preserve vertical height. */
+  landscape?: boolean;
 }
 
 /**
- * Isolated phone shell (`< 768px`): zero-vertical-scroll 100dvh viewport, compact top HUD,
- * mirrored dual-half mobile board stage (28px ice strips + tight rig tiles), tap-to-act card
- * and server sheets, fixed bottom thumb cockpit with Peeking Hand Tray, and Log/Abilities sheets.
+ * Isolated phone shell (`< 768px` or short phone landscape): zero-vertical-scroll 100dvh viewport,
+ * compact top HUD, mirrored dual-half mobile board stage (28px ice strips + tight rig tiles),
+ * tap-to-act card and server sheets, fixed bottom thumb cockpit with Peeking Hand Tray, and
+ * peekable Run/Prompt/Log/Abilities sheets.
  */
 export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   ctl,
@@ -56,6 +59,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   onLeave,
   onViewMode,
   shiftSide,
+  landscape = false,
 }) => {
   const {
     seat,
@@ -240,6 +244,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
   return (
     <div
       data-testid="mobile-game-shell"
+      data-layout={landscape ? 'landscape' : 'portrait'}
       className="h-[100dvh] w-full overflow-hidden flex flex-col bg-[#06090e] text-slate-100 font-mono selection:bg-cyber-neonYellow selection:text-black"
     >
       <MobileTopBar
@@ -250,6 +255,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         onStops={setStops}
         onOpenMenu={() => setMenuOpen(true)}
         onOpenZone={z => setZone(curr => (curr === z ? null : z))}
+        compact={landscape}
       />
 
       {/* Compact Victory Banner */}
@@ -280,15 +286,15 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         </div>
       )}
 
-      {/* Dual-Half Tabletop Stage (mirrored so your side sits directly above your thumb cockpit) */}
+      {/* Dual-Half Tabletop Stage (stacked in portrait, side-by-side in short phone landscape) */}
       <ZoomContext.Provider value={zoomStore}>
         <main
           onClick={() => {
             if (handExpanded) setHandExpanded(false);
           }}
-          className="flex-1 min-h-0 min-w-0 flex flex-col gap-1 p-1 overflow-hidden"
+          className={`flex-1 min-h-0 min-w-0 flex ${landscape ? 'flex-row' : 'flex-col'} gap-1 p-1 overflow-hidden`}
         >
-          {corpOnBottom ? (
+          {corpOnBottom && !landscape ? (
             <>
               {runnerBoardEl}
               {corpBoardEl}
@@ -338,6 +344,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         }}
         runnerFlow={runnerFlow}
         aiThinking={aiThinking}
+        compact={landscape}
       />
 
       {/* Bottom Sheet: Searchable Game Log */}

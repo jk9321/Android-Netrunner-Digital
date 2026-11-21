@@ -6,9 +6,11 @@ import { displayRoomCode } from '../../net/protocol';
 
 const panel = 'w-full max-w-md bg-[#090d15] border border-slate-700 rounded-[2px] shadow-2xl p-6 text-center space-y-4';
 const primary =
-  'px-6 py-2.5 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-sm inline-flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]';
+  'min-h-[44px] px-6 py-2.5 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-sm inline-flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]';
 const secondary =
-  'px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-sm inline-flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]';
+  'min-h-[44px] px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-sm inline-flex items-center justify-center gap-2 active:translate-y-[1px] active:border-b-[1px]';
+const screenShell =
+  'min-h-[100dvh] text-slate-100 font-mono flex flex-col items-center px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))]';
 
 function Title() {
   return (
@@ -37,7 +39,7 @@ export function WaitingRoom({ code, connected, onCancel }: { code: string; conne
     }
   };
   return (
-    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-10" data-testid="waiting-room">
+    <div className={screenShell} data-testid="waiting-room">
       <Title />
       <div className={panel}>
         <p className="text-xs uppercase tracking-wider text-slate-400 font-bold">Game code</p>
@@ -80,7 +82,7 @@ export function WaitingRoom({ code, connected, onCancel }: { code: string; conne
  */
 export function ConnectingScreen({ onLeave }: { onLeave: () => void }) {
   return (
-    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-10" data-testid="online-connecting">
+    <div className={screenShell} data-testid="online-connecting">
       <Title />
       <div className={panel}>
         <p className="text-sm text-slate-200 flex items-center justify-center gap-2">
@@ -108,7 +110,7 @@ const NOTICES: Record<NoticeStatus, { title: string; text: string }> = {
 export function OnlineNotice({ status, onTakeOver, onLeave }: { status: NoticeStatus; onTakeOver: () => void; onLeave: () => void }) {
   const n = NOTICES[status];
   return (
-    <div className="min-h-screen text-slate-100 font-mono flex flex-col items-center px-4 py-10" data-testid={`online-${status}`}>
+    <div className={screenShell} data-testid={`online-${status}`}>
       <Title />
       <div className={panel}>
         <div className="flex justify-center text-amber-300">

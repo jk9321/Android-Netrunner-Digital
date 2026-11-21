@@ -17,6 +17,8 @@ interface MobileTopBarProps {
   onStops: (level: PersonStops) => void;
   onOpenMenu: () => void;
   onOpenZone: (zone: ZoneId) => void;
+  /** Trimmer vertical chrome for short phone landscape viewports. */
+  compact?: boolean;
 }
 
 /** Slim top bar (~44px + safe-area-top) for the mobile app shell: menu, scores, turn/clicks, stops, online indicator. */
@@ -28,6 +30,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   onStops,
   onOpenMenu,
   onOpenZone,
+  compact = false,
 }) => {
   const { corp, runner, activePlayer, turnNumber, winner } = state;
   const activeClicks = activePlayer === 'corp' ? `${corp.clicks}/3` : `${runner.clicks}/4`;
@@ -38,14 +41,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
       data-testid="mobile-top-bar"
       className="shrink-0 pt-[env(safe-area-inset-top)] bg-gradient-to-b from-[#0d121c] to-[#06090e] border-b border-slate-800 shadow-lg z-30"
     >
-      <div className="h-11 px-2 flex items-center justify-between gap-1.5">
+      <div className={`${compact ? 'h-9' : 'h-11'} px-2 flex items-center justify-between gap-1.5`}>
         {/* Menu Trigger */}
         <button
           type="button"
           onClick={onOpenMenu}
           aria-label="Open game menu"
           data-testid="mobile-menu-button"
-          className="h-9 w-9 shrink-0 flex items-center justify-center rounded-[2px] bg-slate-900 active:bg-slate-800 border border-slate-700 text-slate-200"
+          className={`${compact ? 'h-7 w-8' : 'h-9 w-9'} shrink-0 flex items-center justify-center rounded-[2px] bg-slate-900 active:bg-slate-800 border border-slate-700 text-slate-200`}
         >
           <Menu className="w-4 h-4" />
         </button>

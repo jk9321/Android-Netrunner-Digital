@@ -42,6 +42,8 @@ interface MobileThumbCockpitProps {
   onOpenCorpInstall: () => void;
   runnerFlow: RunnerInstallFlow;
   aiThinking: boolean;
+  /** Trimmer vertical chrome for short phone landscape viewports. */
+  compact?: boolean;
 }
 
 const isPlayableType = (card: CardInstance | undefined) => !!card && ['operation', 'event'].includes(cardDef(card).type_code);
@@ -49,7 +51,7 @@ const isPlayableType = (card: CardInstance | undefined) => !!card && ['operation
 /**
  * Fixed bottom thumb cockpit for mobile phones:
  * 1. Contextual Play/Install bar when a hand card is selected
- * 2. 44px Action Pill Strip (+1¢, Draw, Purge/Untag, ⚡n abilities chip, Log, End Turn)
+ * 2. 44px Action Pill Strip (+1¢, Draw, Purge/Untag, abilities chip, Log, End Turn)
  * 3. Peeking Hand Tray (~56px tucked showing titles + costs, expands smoothly upward on tap)
  */
 export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
@@ -72,6 +74,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
   onOpenCorpInstall,
   runnerFlow,
   aiThinking,
+  compact = false,
 }) => {
   const seat = useSeat();
   const isCorp = side === 'corp';
@@ -246,15 +249,15 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
         </div>
       )}
 
-      {/* Action Pill Strip (44px thumb buttons) */}
-      <div className="px-2 py-1.5 flex items-center gap-1.5 overflow-x-auto">
+      {/* Action Pill Strip (44px thumb buttons in portrait, 36px in short landscape) */}
+      <div className={`px-2 ${compact ? 'py-1' : 'py-1.5'} flex items-center gap-1.5 overflow-x-auto`}>
         {isActiveTurn && side ? (
           <>
             <button
               type="button"
               onClick={() => onAction({ type: 'GAIN_CREDIT', player: side })}
               disabled={!seat.can({ type: 'GAIN_CREDIT', player: side })}
-              className={`h-11 px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
+              className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
             >
               <CreditIcon className="w-3.5 h-3.5 text-amber-400" /> +1
             </button>
@@ -262,7 +265,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
               type="button"
               onClick={() => onAction({ type: 'DRAW_CARD', player: side })}
               disabled={!seat.can({ type: 'DRAW_CARD', player: side })}
-              className={`h-11 px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
+              className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
             >
               <Layers className={`w-3.5 h-3.5 ${isCorp ? 'text-cyan-400' : 'text-pink-400'}`} /> Draw
             </button>
@@ -271,7 +274,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                 type="button"
                 onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
                 disabled={!seat.can({ type: 'REMOVE_TAG', player: 'runner' })}
-                className="h-11 px-2.5 rounded-[3px] border border-red-600/80 bg-red-950/80 text-red-200 text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40"
+                className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border border-red-600/80 bg-red-950/80 text-red-200 text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40`}
               >
                 <TagIcon className="w-3.5 h-3.5 text-red-400" /> Untag
               </button>
@@ -292,7 +295,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                   onAction({ type: 'PURGE_VIRUS', player: 'corp' });
                 }}
                 disabled={!seat.can({ type: 'PURGE_VIRUS', player: 'corp' })}
-                className={`h-11 px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
+                className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 disabled:opacity-40 ${accentBtn}`}
               >
                 <VirusIcon className="w-4 h-4 text-lime-400" /> Purge
               </button>
@@ -316,7 +319,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
             type="button"
             onClick={onOpenAbilities}
             data-testid="mobile-abilities-chip"
-            className="h-11 px-2.5 rounded-[3px] border border-amber-500/80 bg-amber-950/60 active:bg-amber-900/70 text-amber-200 text-xs font-bold inline-flex items-center gap-1 shrink-0"
+            className={`${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border border-amber-500/80 bg-amber-950/60 active:bg-amber-900/70 text-amber-200 text-xs font-bold inline-flex items-center gap-1 shrink-0`}
             title="View usable card abilities and credit holds"
           >
             <Play className="w-3.5 h-3.5 text-amber-300 fill-amber-300/25" />
@@ -329,7 +332,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
           type="button"
           onClick={onOpenLog}
           data-testid="mobile-log-chip"
-          className="relative h-11 px-2.5 rounded-[3px] border border-slate-700 bg-slate-900 active:bg-slate-800 text-slate-200 text-xs font-bold inline-flex items-center gap-1 shrink-0"
+          className={`relative ${compact ? 'h-9' : 'h-11'} px-2.5 rounded-[3px] border border-slate-700 bg-slate-900 active:bg-slate-800 text-slate-200 text-xs font-bold inline-flex items-center gap-1 shrink-0`}
           title="Open game log"
         >
           <ScrollText className="w-3.5 h-3.5 text-slate-400" />
@@ -344,7 +347,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
             onClick={() => onAction(endTurnAction)}
             disabled={!seat.can(endTurnAction)}
             data-testid="end-turn"
-            className={`ml-auto h-11 px-3 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 shadow disabled:opacity-40 ${endBtn} ${
+            className={`ml-auto ${compact ? 'h-9' : 'h-11'} px-3 rounded-[3px] border text-xs font-bold inline-flex items-center gap-1 shrink-0 shadow disabled:opacity-40 ${endBtn} ${
               zeroClicks ? (isCorp ? 'end-turn-pulse end-turn-corp' : 'end-turn-pulse end-turn-runner') : ''
             }`}
           >
@@ -420,7 +423,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                     data-hand-card
                     onClick={() => handleCardTap(card)}
                     className={`snap-start shrink-0 w-[104px] ${
-                      handExpanded ? 'h-[98px]' : 'h-[42px]'
+                      handExpanded ? 'h-[98px]' : compact ? 'h-[34px]' : 'h-[42px]'
                     } p-1.5 rounded-[3px] border text-left flex flex-col justify-between transition-all ${
                       selected
                         ? 'border-amber-400 ring-1 ring-amber-400 -translate-y-1 bg-[#1b1609]'

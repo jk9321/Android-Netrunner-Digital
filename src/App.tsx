@@ -33,7 +33,10 @@ import { useFlipHotseatBoards } from './ui/boardFlip';
 import { GameStateContext } from './ui/liveValues';
 import { stopMusic, updateMusic } from './ui/music';
 import { MobileGameShell } from './ui/mobile/MobileGameShell';
-import { isMobileViewport, useViewportMode } from './ui/mobile/useViewportMode';
+import { MobileCardSheet } from './ui/mobile/MobileCardSheet';
+import { MobileRunSheet } from './ui/mobile/MobileRunSheet';
+import { MobilePromptSheet } from './ui/mobile/MobilePromptSheet';
+import { isMobileViewport, useIsTouchDevice, useViewportMode } from './ui/mobile/useViewportMode';
 
 /** What the app shows: the start screen (maybe joining from an invite link), a local game, or an online one. */
 type Screen = { kind: 'start'; joinCode: string | null } | { kind: 'local'; config: GameConfig } | { kind: 'online'; session: OnlineSession };
@@ -235,18 +238,23 @@ function GameScreen({
 
   const viewportMode = useViewportMode();
   const isMobile = isMobileViewport(viewportMode);
+  const isTouchDevice = useIsTouchDevice();
   const isDesktop = useIsDesktop();
+  const isTabletTouch = !isMobile && isTouchDevice;
+  const isPortraitTabletTouch = viewportMode === 'tablet' && isTouchDevice;
   const [gameOverHidden, setGameOverHidden] = useState(false);
   const [runPoppedOut, setRunPoppedOut] = useState(false);
   const [promptPoppedOutId, setPromptPoppedOutId] = useState<string | null>(null);
   const [zoomStore] = useState(createZoomStore);
   const [inspectedCard, setInspectedCard] = useState<CardInstance | null>(null);
+  const [tabletCardId, setTabletCardId] = useState<string | null>(null);
   const [zone, setZone] = useState<ZoneId | null>(null);
   const zoneView = zone ? zoneContents(zone, gameState, viewer) : null;
   // A new viewer at the screen (pass and play hands over): nothing the last one was looking at stays up
   useEffect(() => {
     zoomStore.clear();
     setInspectedCard(null);
+    setTabletCardId(null);
     setZone(null);
   }, [viewer, zoomStore]);
 
@@ -389,6 +397,11 @@ function GameScreen({
     />
   );
 
+  const handleBoardInspect = (card: CardInstance) => {
+    if (isTabletTouch) setTabletCardId(card.instanceId);
+    else setInspectedCard(card);
+  };
+
   const corpBoardEl = (
     <CorpBoard
       gameState={gameState}
@@ -396,7 +409,7 @@ function GameScreen({
       viewer={viewer}
       corpCanAct={corpCanAct}
       runnerCanAct={runnerCanAct}
-      onInspectCard={setInspectedCard}
+      onInspectCard={handleBoardInspect}
       onOpenZone={setZone}
       onAction={handleAction}
       isShiftActive={shiftSide === 'corp'}
@@ -408,7 +421,7 @@ function GameScreen({
     <RunnerBoard
       gameState={gameState}
       viewer={viewer}
-      onInspectCard={setInspectedCard}
+      onInspectCard={handleBoardInspect}
       onOpenZone={setZone}
       isShiftActive={shiftSide === 'runner'}
       mirrored={corpOnBottom}
@@ -428,6 +441,7 @@ function GameScreen({
             onLeave={leaveGame}
             onViewMode={changeViewMode}
             shiftSide={shiftSide}
+            landscape={viewportMode === 'mobile-landscape'}
           />
         ) : (
         <div
@@ -606,6 +620,31 @@ function GameScreen({
             </aside>
           </div>
 
+          {isTabletTouch && (
+            <MobileCardSheet
+              state={gameState}
+              cardId={tabletCardId}
+              viewer={viewer}
+              corpCanAct={corpCanAct}
+              runnerCanAct={runnerCanAct}
+              onAction={handleAction}
+              onClose={() => setTabletCardId(null)}
+              onSelectCardId={setTabletCardId}
+              onOpenFullZoom={setInspectedCard}
+            />
+          )}
+
+          {isPortraitTabletTouch && (
+            <>
+              <MobileRunSheet
+                ctl={ctl}
+                hidden={ended || (!!pendingPrompt && canAnswerActivePrompt(ctl))}
+                onInspectCard={setInspectedCard}
+              />
+              <MobilePromptSheet ctl={ctl} ended={ended} onInspectCard={setInspectedCard} />
+            </>
+          )}
+
           <GameOverlays
             ctl={ctl}
             ended={ended}
@@ -619,9 +658,9 @@ function GameScreen({
             onGameOverHiddenChange={setGameOverHidden}
             onNewGame={onNewGame}
             onRematch={onRematch}
-            hideRunOverlay={runDocked || promptDocked}
+            hideRunOverlay={runDocked || promptDocked || isPortraitTabletTouch}
             onToggleRunDock={isDesktop ? () => setRunPoppedOut(false) : undefined}
-            hidePromptPanel={promptDocked}
+            hidePromptPanel={promptDocked || isPortraitTabletTouch}
             onTogglePromptDock={promptDockable ? () => setPromptPoppedOutId(null) : undefined}
             hideAccessedPanel={accessedDocked}
           />

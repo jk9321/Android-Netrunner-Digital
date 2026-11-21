@@ -293,7 +293,7 @@ export const DeckPicker: React.FC<DeckPickerProps> = ({
           : [];
 
   return (
-    <div className="min-h-screen relative text-slate-100 font-mono flex flex-col items-center px-4 py-6">
+    <div className="min-h-[100dvh] relative text-slate-100 font-mono flex flex-col items-center px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       {/* What's new sits on the right; it renders nothing on beta builds (main only, Jeff 2026-11-17), so beta's picker looks the same */}
       <div className="w-full flex justify-between items-center gap-2 mb-3 sm:mb-0 sm:w-auto sm:absolute sm:top-4 sm:inset-x-4 sm:pointer-events-none">
         <div className="flex items-center gap-2 sm:pointer-events-auto">
