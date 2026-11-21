@@ -23,9 +23,11 @@ interface CorpBoardProps {
   onOpenZone: (zone: ZoneId) => void;
   onAction: (action: GameAction) => void;
   isShiftActive: boolean;
+  /** True when Corp sits on the bottom half of the tabletop (ice grows upward toward Runner, SideStrip sits along the bottom edge). */
+  mirrored?: boolean;
 }
 
-/** Corp sector (top half of the tabletop): SideStrip and central & remote servers at full width. */
+/** Corp sector: SideStrip and central & remote servers at full width. */
 export function CorpBoard({
   gameState,
   seat,
@@ -36,6 +38,7 @@ export function CorpBoard({
   onOpenZone,
   onAction,
   isShiftActive,
+  mirrored = false,
 }: CorpBoardProps) {
   const corpTabRef = useRef<HTMLDivElement>(null);
   const corpChassisRef = useRef<HTMLElement>(null);
@@ -59,6 +62,7 @@ export function CorpBoard({
             server={server}
             activePlayer={activePlayer}
             perspective={viewer}
+            mirrored={mirrored}
             run={activeRun?.server === server.id ? activeRun : null}
             onInitiateRun={
               runnerCanAct
@@ -121,7 +125,7 @@ export function CorpBoard({
           />
         )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, seat, viewer, corpCanAct, runnerCanAct],
+    [gameState, seat, viewer, corpCanAct, runnerCanAct, mirrored],
   );
 
   return (
@@ -139,12 +143,14 @@ export function CorpBoard({
         id="corp-board"
         className={`${activePlayer === 'corp' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-cyan-900/60 rounded-[2px] rounded-tl-none hud-frame hud-corp p-2 shadow-2xl relative w-full min-w-0`}
       >
-        <SideStrip side="corp" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />
+        {!mirrored && <SideStrip side="corp" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
 
         {/* Servers Grid */}
         <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
           {serversView}
         </AutoFitArea>
+
+        {mirrored && <SideStrip side="corp" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
       </section>
     </div>
   );

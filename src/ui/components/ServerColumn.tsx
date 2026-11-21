@@ -45,6 +45,8 @@ interface ServerColumnProps {
   hostedOnIce?: (ice: CardInstance) => CardInstance[];
   /** The ice's subtypes (barrier, code gate, sentry), shown as icons when the viewer can see the ice. */
   iceTypes?: (ice: CardInstance) => IceSubtype[];
+  /** True when the Corp board sits on the bottom half: ice grows upward toward the Runner and the root/header sit along the bottom. */
+  mirrored?: boolean;
 }
 
 
@@ -121,6 +123,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
   anchor,
   hostedOnIce = () => [],
   iceTypes = () => [],
+  mirrored = false,
 }) => {
   const canCorpPeek = perspective !== 'runner';
   const gameState = useLiveGameState();
@@ -147,6 +150,175 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       : undefined;
   const iceLabel = run ? ICE_PHASE_LABEL[run.phase] : undefined;
   const atRoot = run !== null && (run.phase === 'approach_server' || run.phase === 'access');
+  // Visual top-to-bottom ice order: outermost always faces the Runner across the center line
+  const orderedIce = mirrored ? [...server.ice].reverse() : server.ice;
+
+  const headerEl = (
+    <div className="flex items-center justify-between gap-1 w-full text-[12px] font-mono">
+      <span className="font-bold text-cyber-neonCyan flex items-center gap-1 truncate" title={server.name}>
+        <Database className="w-3 h-3 text-cyan-400 shrink-0" />
+        <span className="truncate">{server.name}</span>
+      </span>
+      {activePlayer === 'runner' && onInitiateRun && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onInitiateRun(server.id);
+          }}
+          className="px-1 py-px text-[11px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-0.5 font-bold shrink-0"
+          title="Initiate Run on this server"
+        >
+          <Crosshair className="w-3 h-3" /> Run
+        </button>
+      )}
+    </div>
+  );
+
+  const rootEl = (
+    <div
+      className={`relative flex gap-1 flex-nowrap justify-center items-start w-full rounded-[2px] transition-colors ${
+        atRoot ? 'bg-pink-500/10 ring-1 ring-cyber-neonPink/60' : ''
+      }`}
+    >
+      {atRoot && (
+        <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-cyber-neonPink text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap pointer-events-none">
+          {run?.phase === 'access' ? 'Breaching' : 'Approaching'}
+        </span>
+      )}
+      {anchor &&
+        (serverTarget ? (
+          <div
+            className="contents"
+            onClickCapture={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              hoverPromptServer(null);
+              serverTarget.onClick();
+            }}
+          >
+            {anchor}
+          </div>
+        ) : (
+          anchor
+        ))}
+      {server.root.length === 0 && !anchor ? (
+        <div className="card-fit rounded-[2px] border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
+          Empty
+        </div>
+      ) : (
+        server.root.map((card) => (
+          <div key={card.instanceId} className="relative">
+            <CardView
+              card={card}
+              isFaceDown={!card.isRezzed && !card.faceUp}
+              canPeek={canCorpPeek || !!card.runnerKnows}
+              seen={!canCorpPeek && !!card.runnerKnows && !card.isRezzed && !card.faceUp}
+              size="fit"
+              onInspect={onInspectCard}
+              actions={<>
+              {canRez(card) && onRezCard && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRezCard(card.instanceId);
+                  }}
+                  className={smallButton}
+                >
+                  <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(card)})
+                </button>
+              )}
+              {canAdvance(card) && onAdvanceCard && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAdvanceCard(card.instanceId, server.id);
+                  }}
+                  className={smallButton}
+                >
+                  <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({card.advancementCounters}
+                  {cardDef(card).advancement_cost ? `/${cardDef(card).advancement_cost}` : ''})
+                </button>
+              )}
+              {canScore(card) && onScoreCard && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onScoreCard(card.instanceId);
+                  }}
+                  className={smallButton}
+                >
+                  <AgendaDiamondIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
+                </button>
+              )}
+              </>}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const iceEl = orderedIce.length > 0 && (
+    <div className="flex flex-col gap-1 items-center" title={`${orderedIce.length} ice`}>
+      {orderedIce.map((iceCard, i) => (
+        <IceSlot
+          key={iceCard.instanceId}
+          overlap={i > 0 ? iceOverlap(orderedIce.length) : 0}
+          ice={iceCard}
+          hosted={hostedOnIce(iceCard)}
+          atRunner={runIceId === iceCard.instanceId}
+        >
+          {/* Ice lies sideways, as on the table; the zoom panel shows it upright */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90">
+            <CardView
+              card={iceCard}
+              isFaceDown={!iceCard.isRezzed && !iceCard.faceUp}
+              canPeek={canCorpPeek || !!iceCard.runnerKnows}
+              seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed && !iceCard.faceUp}
+              size="fit"
+              sideways
+              // The next ice in the stack lies over this one's bottom edge
+              coveredBottom={i + 1 < orderedIce.length ? iceOverlap(orderedIce.length) : 0}
+              onInspect={onInspectCard}
+              // Unrezzed ice keeps its type secret from the Runner
+              typeIcons={iceCard.isRezzed || iceCard.faceUp || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
+              tag={hostedOnIce(iceCard).length > 0 ? <HostedTag ice={iceCard} hosted={hostedOnIce(iceCard)} /> : undefined}
+              actions={<>
+            {canRez(iceCard) && onRezCard && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRezCard(iceCard.instanceId);
+                }}
+                className={smallButton}
+                title={`Rez ${cardDef(iceCard).title} for ${gameState ? rezCostOf(gameState, iceCard) : cardDef(iceCard).cost || 0} credits`}
+              >
+                <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(iceCard)})
+              </button>
+            )}
+            {canAdvance(iceCard) && onAdvanceCard && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAdvanceCard(iceCard.instanceId, server.id);
+                }}
+                className={smallButton}
+              >
+                <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({iceCard.advancementCounters})
+              </button>
+            )}
+              </>}
+            />
+          </div>
+          {runIceId === iceCard.instanceId && iceLabel && (
+            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[10px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
+              {iceLabel}
+            </div>
+          )}
+        </IceSlot>
+      ))}
+    </div>
+  );
 
   return (
     <div
@@ -164,7 +336,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
       data-server-target={serverTarget ? 'true' : undefined}
       title={serverTarget?.title}
       style={{ minWidth: server.ice.length > 0 ? 'calc(var(--card-h) + 0.75rem)' : 'calc(var(--card-w) + 0.75rem)' }}
-      className={`relative shrink-0 flex flex-col items-center gap-1 bg-[#070b12]/80 border rounded-[2px] px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
+      className={`${mirrored ? 'mt-auto ' : ''}relative shrink-0 flex flex-col items-center gap-1 bg-[#070b12]/80 border rounded-[2px] px-1.5 pt-1 pb-1.5 transition-all duration-200 shadow-lg ${
         isHighlighted
           ? 'prompt-server-target'
           : serverTarget
@@ -179,170 +351,18 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
           <Crosshair className="w-3 h-3" /> Run target
         </div>
       )}
-      {/* Server Header */}
-      <div className="flex items-center justify-between gap-1 w-full text-[12px] font-mono">
-        <span className="font-bold text-cyber-neonCyan flex items-center gap-1 truncate" title={server.name}>
-          <Database className="w-3 h-3 text-cyan-400 shrink-0" />
-          <span className="truncate">{server.name}</span>
-        </span>
-        {activePlayer === 'runner' && onInitiateRun && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInitiateRun(server.id);
-            }}
-            className="px-1 py-px text-[11px] bg-pink-950/60 text-pink-400 hover:bg-cyber-neonPink hover:text-white rounded border border-pink-500 transition-colors flex items-center gap-0.5 font-bold shrink-0"
-            title="Initiate Run on this server"
-          >
-            <Crosshair className="w-3 h-3" /> Run
-          </button>
-        )}
-      </div>
-
-      {/* Server Root on the Corp's side: the central's own card, then assets, agendas and upgrades side by side */}
-      <div
-        className={`relative flex gap-1 flex-nowrap justify-center items-start w-full rounded-[2px] transition-colors ${
-          atRoot ? 'bg-pink-500/10 ring-1 ring-cyber-neonPink/60' : ''
-        }`}
-      >
-        {atRoot && (
-          <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-cyber-neonPink text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap pointer-events-none">
-            {run?.phase === 'access' ? 'Breaching' : 'Approaching'}
-          </span>
-        )}
-        {anchor &&
-          (serverTarget ? (
-            <div
-              className="contents"
-              onClickCapture={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                hoverPromptServer(null);
-                serverTarget.onClick();
-              }}
-            >
-              {anchor}
-            </div>
-          ) : (
-            anchor
-          ))}
-        {server.root.length === 0 && !anchor ? (
-          <div className="card-fit rounded-[2px] border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
-            Empty
-          </div>
-        ) : (
-          server.root.map((card) => (
-            <div key={card.instanceId} className="relative">
-              <CardView
-                card={card}
-                isFaceDown={!card.isRezzed && !card.faceUp}
-                canPeek={canCorpPeek || !!card.runnerKnows}
-                seen={!canCorpPeek && !!card.runnerKnows && !card.isRezzed && !card.faceUp}
-                size="fit"
-                onInspect={onInspectCard}
-                actions={<>
-                {canRez(card) && onRezCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRezCard(card.instanceId);
-                    }}
-                    className={smallButton}
-                  >
-                    <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(card)})
-                  </button>
-                )}
-                {canAdvance(card) && onAdvanceCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvanceCard(card.instanceId, server.id);
-                    }}
-                    className={smallButton}
-                  >
-                    <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({card.advancementCounters}
-                    {cardDef(card).advancement_cost ? `/${cardDef(card).advancement_cost}` : ''})
-                  </button>
-                )}
-                {canScore(card) && onScoreCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onScoreCard(card.instanceId);
-                    }}
-                    className={smallButton}
-                  >
-                    <AgendaDiamondIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Score
-                  </button>
-                )}
-                </>}
-              />
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Protecting Ice, on the Runner's side of the root: innermost at the top, outermost at the bottom */}
-      {server.ice.length > 0 && (
-        <div className="flex flex-col gap-1 items-center" title={`${server.ice.length} ice`}>
-          {server.ice.map((iceCard, i) => (
-            <IceSlot
-              key={iceCard.instanceId}
-              overlap={i > 0 ? iceOverlap(server.ice.length) : 0}
-              ice={iceCard}
-              hosted={hostedOnIce(iceCard)}
-              atRunner={runIceId === iceCard.instanceId}
-            >
-              {/* Ice lies sideways, as on the table; the zoom panel shows it upright */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90">
-                <CardView
-                  card={iceCard}
-                  isFaceDown={!iceCard.isRezzed && !iceCard.faceUp}
-                  canPeek={canCorpPeek || !!iceCard.runnerKnows}
-                  seen={!canCorpPeek && !!iceCard.runnerKnows && !iceCard.isRezzed && !iceCard.faceUp}
-                  size="fit"
-                  sideways
-                  // The next ice in the stack lies over this one's bottom edge
-                  coveredBottom={i + 1 < server.ice.length ? iceOverlap(server.ice.length) : 0}
-                  onInspect={onInspectCard}
-                  // Unrezzed ice keeps its type secret from the Runner
-                  typeIcons={iceCard.isRezzed || iceCard.faceUp || canCorpPeek || iceCard.runnerKnows ? iceTypes(iceCard) : []}
-                  tag={hostedOnIce(iceCard).length > 0 ? <HostedTag ice={iceCard} hosted={hostedOnIce(iceCard)} /> : undefined}
-                  actions={<>
-                {canRez(iceCard) && onRezCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRezCard(iceCard.instanceId);
-                    }}
-                    className={smallButton}
-                    title={`Rez ${cardDef(iceCard).title} for ${gameState ? rezCostOf(gameState, iceCard) : cardDef(iceCard).cost || 0} credits`}
-                  >
-                    <RezIcon className="w-[1.1em] h-[1.1em] text-amber-400" /> Rez ({renderRezCost(iceCard)})
-                  </button>
-                )}
-                {canAdvance(iceCard) && onAdvanceCard && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvanceCard(iceCard.instanceId, server.id);
-                    }}
-                    className={smallButton}
-                  >
-                    <ChevronsUp className="w-[1.1em] h-[1.1em] text-amber-400" /> Adv ({iceCard.advancementCounters})
-                  </button>
-                )}
-                  </>}
-                />
-              </div>
-              {runIceId === iceCard.instanceId && iceLabel && (
-                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-1.5 rounded-full bg-amber-400 text-black text-[10px] font-bold font-mono uppercase tracking-wider shadow whitespace-nowrap pointer-events-none">
-                  {iceLabel}
-                </div>
-              )}
-            </IceSlot>
-          ))}
-        </div>
+      {mirrored ? (
+        <>
+          {iceEl}
+          {rootEl}
+          {headerEl}
+        </>
+      ) : (
+        <>
+          {headerEl}
+          {rootEl}
+          {iceEl}
+        </>
       )}
     </div>
   );

@@ -17,6 +17,8 @@ import { SideStrip } from '../src/ui/components/SideStrip';
 import { DockedHandBar } from '../src/ui/components/HandRow';
 import { CorpActions, RunnerActions } from '../src/ui/components/ActionBars';
 import { AccessedPanel } from '../src/ui/components/AccessedPanel';
+import { AudioFxControls } from '../src/ui/components/GameSettingsControls';
+import { flipHotseatBoardsEnabled, setFlipHotseatBoardsEnabled } from '../src/ui/boardFlip';
 import { CardView } from '../src/ui/components/CardView';
 import { RigView } from '../src/ui/components/RigView';
 import { breakerTypes } from '../src/ui/components/IceTypeIcons';
@@ -545,5 +547,64 @@ describe('UI component smoke renders', () => {
     expect(dockedAccessed).toContain('data-testid="accessed-panel"');
     expect(dockedAccessed).toContain('lg:order-2');
     expect(dockedAccessed).not.toContain('fixed right-3 bottom-3');
+  });
+
+  it('mirrors ServerColumn and RigView for Corp-on-bottom view and persists the hotseat flip toggle', () => {
+    const state = newGame();
+    const innerIce = { ...state.corp.hq.pop()!, cardCode: '30072', isRezzed: true };
+    const outerIce = { ...state.corp.hq.pop()!, cardCode: '30073', isRezzed: true };
+    state.corp.servers.hq.ice.push(innerIce, outerIce);
+
+    const mirroredServer = renderToStaticMarkup(
+      <ServerColumn server={state.corp.servers.hq} activePlayer="corp" perspective="corp" mirrored />,
+    );
+    expect(mirroredServer).toContain('mt-auto');
+    // Outermost ice (30073) renders above innermost ice (30072), and ice renders above the server header
+    expect(mirroredServer.indexOf('30073')).toBeGreaterThan(-1);
+    expect(mirroredServer.indexOf('30072')).toBeGreaterThan(-1);
+    expect(mirroredServer.indexOf('30073')).toBeLessThan(mirroredServer.indexOf('30072'));
+    expect(mirroredServer.indexOf('2 ice')).toBeLessThan(mirroredServer.indexOf('>HQ<'));
+
+    const mirroredRig = renderToStaticMarkup(<RigView rig={state.runner.rig} mirrored />);
+    expect(mirroredRig.indexOf('Hardware (0)')).toBeLessThan(mirroredRig.indexOf('Programs (0)'));
+
+    expect(flipHotseatBoardsEnabled()).toBe(true);
+    setFlipHotseatBoardsEnabled(false);
+    expect(flipHotseatBoardsEnabled()).toBe(false);
+    setFlipHotseatBoardsEnabled(true);
+    expect(flipHotseatBoardsEnabled()).toBe(true);
+
+    const withFlipHtml = renderToStaticMarkup(
+      <AudioFxControls
+        variant="desktop"
+        sound
+        onSoundChange={() => {}}
+        music
+        onMusicChange={() => {}}
+        musicVol={0.5}
+        onMusicVolChange={() => {}}
+        animations
+        onAnimationsChange={() => {}}
+        flipHotseatBoards
+        onFlipHotseatBoardsChange={() => {}}
+      />,
+    );
+    expect(withFlipHtml).toContain('Flip boards at turn end');
+    expect(withFlipHtml).toContain('data-testid="setting-flip-hotseat"');
+
+    const withoutFlipHtml = renderToStaticMarkup(
+      <AudioFxControls
+        variant="desktop"
+        sound
+        onSoundChange={() => {}}
+        music
+        onMusicChange={() => {}}
+        musicVol={0.5}
+        onMusicVolChange={() => {}}
+        animations
+        onAnimationsChange={() => {}}
+      />,
+    );
+    expect(withoutFlipHtml).not.toContain('Flip boards at turn end');
   });
 });

@@ -202,9 +202,12 @@ interface AudioFxControlsProps {
   onMusicVolChange: (volume: number) => void;
   animations: boolean;
   onAnimationsChange: (enabled: boolean) => void;
+  /** Shown in local two-player (hotseat) games: flip boards so the active player sits on the bottom. */
+  flipHotseatBoards?: boolean;
+  onFlipHotseatBoardsChange?: (enabled: boolean) => void;
 }
 
-/** Sound effects, music mute/volume, and animation toggle shared between the desktop settings popover and mobile drawer. */
+/** Sound effects, music mute/volume, animation toggle, and hotseat board-flip toggle shared between desktop settings and mobile drawer. */
 export function AudioFxControls({
   variant,
   sound,
@@ -215,6 +218,8 @@ export function AudioFxControls({
   onMusicVolChange,
   animations,
   onAnimationsChange,
+  flipHotseatBoards,
+  onFlipHotseatBoardsChange,
 }: AudioFxControlsProps) {
   const desktop = variant === 'desktop';
   const labelClass = desktop
@@ -277,6 +282,21 @@ export function AudioFxControls({
         />
         <span>Disable animations</span>
       </label>
+      {flipHotseatBoards !== undefined && onFlipHotseatBoardsChange && (
+        <label
+          className={labelClass}
+          title="Pass & play: put the active player's board on the bottom each turn"
+        >
+          <input
+            type="checkbox"
+            checked={flipHotseatBoards}
+            onChange={e => onFlipHotseatBoardsChange(e.target.checked)}
+            className={checkboxClass}
+            data-testid={desktop ? 'setting-flip-hotseat' : undefined}
+          />
+          <span>Flip boards at turn end</span>
+        </label>
+      )}
     </>
   );
 }

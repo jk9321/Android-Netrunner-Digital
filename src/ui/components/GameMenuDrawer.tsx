@@ -30,6 +30,8 @@ interface GameMenuDrawerProps {
   onMusicVolChange: (volume: number) => void;
   animations: boolean;
   onAnimationsChange: (enabled: boolean) => void;
+  flipHotseatBoards?: boolean;
+  onFlipHotseatBoardsChange?: (enabled: boolean) => void;
   onConcede: () => void;
   onLeave: () => void;
   onClose: () => void;
@@ -56,6 +58,8 @@ export function GameMenuDrawer({
   onMusicVolChange,
   animations,
   onAnimationsChange,
+  flipHotseatBoards,
+  onFlipHotseatBoardsChange,
   onConcede,
   onLeave,
   onClose,
@@ -132,6 +136,8 @@ export function GameMenuDrawer({
               onMusicVolChange={onMusicVolChange}
               animations={animations}
               onAnimationsChange={onAnimationsChange}
+              flipHotseatBoards={flipHotseatBoards}
+              onFlipHotseatBoardsChange={onFlipHotseatBoardsChange}
             />
           </div>
         </div>

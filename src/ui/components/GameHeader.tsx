@@ -9,6 +9,7 @@ import { ViewMode } from '../viewer';
 import { setSoundEnabled, soundEnabled } from '../sound';
 import { musicEnabled, setMusicEnabled, musicVolume, setMusicVolume } from '../music';
 import { animationsEnabled, setAnimationsEnabled } from '../animations';
+import { flipHotseatBoardsEnabled, setFlipHotseatBoardsEnabled } from '../boardFlip';
 import { CardSize, isAutoFitOn, savedCardSize, setAutoFit, setCardSize } from '../cardSize';
 import { PhaseTracker } from './PhaseTracker';
 import { BugReportButton } from './BugReportButton';
@@ -58,6 +59,7 @@ export function GameHeader({
   const [music, setMusic] = useState(musicEnabled);
   const [musicVol, setMusicVol] = useState(musicVolume);
   const [animations, setAnimations] = useState(animationsEnabled);
+  const [flipHotseatBoards, setFlipHotseatBoards] = useState(flipHotseatBoardsEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
@@ -89,6 +91,11 @@ export function GameHeader({
     setAnimationsEnabled(nextAnim);
     setAnimations(nextAnim);
   };
+  const handleFlipHotseatChange = (nextFlip: boolean) => {
+    setFlipHotseatBoardsEnabled(nextFlip);
+    setFlipHotseatBoards(nextFlip);
+  };
+  const showHotseatFlip = !online && !humanSide;
 
   const aiSide = config?.ai ?? null;
   const ended = !!state.winner || !!online?.over;
@@ -297,6 +304,8 @@ export function GameHeader({
                 onMusicVolChange={handleMusicVolChange}
                 animations={animations}
                 onAnimationsChange={handleAnimationsChange}
+                flipHotseatBoards={showHotseatFlip ? flipHotseatBoards : undefined}
+                onFlipHotseatBoardsChange={showHotseatFlip ? handleFlipHotseatChange : undefined}
               />
             </div>,
             document.body,
@@ -342,6 +351,8 @@ export function GameHeader({
           onMusicVolChange={handleMusicVolChange}
           animations={animations}
           onAnimationsChange={handleAnimationsChange}
+          flipHotseatBoards={showHotseatFlip ? flipHotseatBoards : undefined}
+          onFlipHotseatBoardsChange={showHotseatFlip ? handleFlipHotseatChange : undefined}
           onConcede={onConcede}
           onLeave={onLeave}
           onClose={() => setMobileMenuOpen(false)}

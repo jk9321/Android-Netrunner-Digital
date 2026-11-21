@@ -16,15 +16,18 @@ interface RunnerBoardProps {
   onInspectCard: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
   isShiftActive: boolean;
+  /** True when Runner sits on the top half of the tabletop (SideStrip along the top edge, Programs facing Corp ice below). */
+  mirrored?: boolean;
 }
 
-/** Runner sector (bottom half of the tabletop): full-width RigView with Stack/Heap piles and SideStrip. */
+/** Runner sector: full-width RigView with Stack/Heap piles and SideStrip. */
 export function RunnerBoard({
   gameState,
   viewer,
   onInspectCard,
   onOpenZone,
   isShiftActive,
+  mirrored = false,
 }: RunnerBoardProps) {
   const runnerTabRef = useRef<HTMLDivElement>(null);
   const runnerChassisRef = useRef<HTMLElement>(null);
@@ -54,6 +57,7 @@ export function RunnerBoard({
         hostLabel={iceHostLabel}
         breaks={breakerTypes}
         canSeeSecrets={canSeeRunnerSecrets(viewer)}
+        mirrored={mirrored}
         aside={
           <>
             <CardView card={runner.identity} size="fit" notInstalled onInspect={onInspectCard} />
@@ -81,7 +85,7 @@ export function RunnerBoard({
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameState, viewer],
+    [gameState, viewer, mirrored],
   );
 
   return (
@@ -99,12 +103,14 @@ export function RunnerBoard({
         id="runner-board"
         className={`${activePlayer === 'runner' && !winner ? 'turn-active ' : ''}flex-1 min-h-0 flex flex-col gap-1.5 bg-gradient-to-b from-[#0d141e] to-[#080c13] border border-pink-900/60 rounded-[2px] rounded-tl-none hud-frame hud-runner p-2 shadow-2xl relative w-full min-w-0`}
       >
+        {mirrored && <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
+
         {/* Runner Rig (Installed Programs, Hardware, Resources) */}
         <AutoFitArea className="flex-1 min-w-0 min-h-0 overflow-auto">
           {rigView}
         </AutoFitArea>
 
-        <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />
+        {!mirrored && <SideStrip side="runner" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
       </section>
     </div>
   );

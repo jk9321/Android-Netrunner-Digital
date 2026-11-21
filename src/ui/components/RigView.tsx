@@ -18,6 +18,8 @@ interface RigViewProps {
   breaks?: (card: CardInstance) => IceSubtype[];
   /** May the viewer see cards hosted facedown (Read-Write Share)? */
   canSeeSecrets?: boolean;
+  /** True when the Runner board sits on the top half: Hardware/Resources on top, Programs along the bottom facing Corp ice. */
+  mirrored?: boolean;
 }
 
 /** An installed card, with any cards hosted faceup on it (Bling, Madani, Detente) tucked beneath. */
@@ -125,17 +127,48 @@ const Row: React.FC<{
   );
 };
 
-export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks, canSeeSecrets }) => {
+export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hostLabel, breaks, canSeeSecrets, mirrored = false }) => {
   const hwCount = rig.hardware.length;
   const resCount = rig.resources.length;
   const bothPopulated = hwCount > 0 && resCount > 0;
+  const programsRow = (
+    <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
+  );
+  const hwResRow = (
+    <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
+      <Row
+        icon={<HardDrive className="w-3 h-3" />}
+        label="Hardware"
+        color="text-amber-400"
+        cards={rig.hardware}
+        onInspect={onInspectCard}
+        hostLabel={hostLabel}
+        canSeeSecrets={canSeeSecrets}
+        compactEmpty={resCount > 0}
+        className={bothPopulated ? 'w-full sm:basis-0' : hwCount === 0 && resCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
+        style={bothPopulated ? { flexGrow: hwCount } : undefined}
+      />
+      <Row
+        icon={<Users className="w-3 h-3" />}
+        label="Resources"
+        color="text-cyber-neonPink"
+        cards={rig.resources}
+        onInspect={onInspectCard}
+        hostLabel={hostLabel}
+        canSeeSecrets={canSeeSecrets}
+        compactEmpty={hwCount > 0}
+        className={bothPopulated ? 'w-full sm:basis-0' : resCount === 0 && hwCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
+        style={bothPopulated ? { flexGrow: resCount } : undefined}
+      />
+    </div>
+  );
   return (
-    // Desktop: single row alongside aside, programs in front, then hardware and resources sized to their contents.
+    // Desktop: single row alongside aside, programs nearest the center line facing Corp ice, then hardware and resources sized to their contents.
     // Mobile (< sm): hardware and resources stack so neither gets squeezed on narrow screens.
     <div className="flex gap-2 min-w-0">
       {aside && (
         <div className="flex flex-col gap-0.5 shrink-0">
-          {/* Match the Programs row heading + border/padding so the identity card top aligns flush with the Programs cards */}
+          {/* Match the top row heading + border/padding so the identity card top aligns flush with the top row cards */}
           <div className="text-[11px] font-mono font-bold uppercase tracking-wider invisible select-none" aria-hidden="true">
             &nbsp;
           </div>
@@ -143,33 +176,17 @@ export const RigView: React.FC<RigViewProps> = ({ rig, onInspectCard, aside, hos
         </div>
       )}
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <Row icon={<Cpu className="w-3 h-3" />} label="Programs" color="text-cyber-neonCyan" cards={rig.programs} onInspect={onInspectCard} hostLabel={hostLabel} breaks={breaks} canSeeSecrets={canSeeSecrets} />
-        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 min-w-0">
-          <Row
-            icon={<HardDrive className="w-3 h-3" />}
-            label="Hardware"
-            color="text-amber-400"
-            cards={rig.hardware}
-            onInspect={onInspectCard}
-            hostLabel={hostLabel}
-            canSeeSecrets={canSeeSecrets}
-            compactEmpty={resCount > 0}
-            className={bothPopulated ? 'w-full sm:basis-0' : hwCount === 0 && resCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
-            style={bothPopulated ? { flexGrow: hwCount } : undefined}
-          />
-          <Row
-            icon={<Users className="w-3 h-3" />}
-            label="Resources"
-            color="text-cyber-neonPink"
-            cards={rig.resources}
-            onInspect={onInspectCard}
-            hostLabel={hostLabel}
-            canSeeSecrets={canSeeSecrets}
-            compactEmpty={hwCount > 0}
-            className={bothPopulated ? 'w-full sm:basis-0' : resCount === 0 && hwCount > 0 ? 'w-full sm:w-auto' : 'w-full sm:flex-1'}
-            style={bothPopulated ? { flexGrow: resCount } : undefined}
-          />
-        </div>
+        {mirrored ? (
+          <>
+            {hwResRow}
+            {programsRow}
+          </>
+        ) : (
+          <>
+            {programsRow}
+            {hwResRow}
+          </>
+        )}
       </div>
     </div>
   );

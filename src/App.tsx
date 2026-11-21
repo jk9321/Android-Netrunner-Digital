@@ -29,6 +29,7 @@ import { AccessedPanel } from './ui/components/AccessedPanel';
 import { showAlert, showConfirm } from './ui/components/Dialog';
 import { MotionConfig } from 'framer-motion';
 import { useAnimationsEnabled } from './ui/animations';
+import { useFlipHotseatBoards } from './ui/boardFlip';
 import { GameStateContext } from './ui/liveValues';
 import { stopMusic, updateMusic } from './ui/music';
 
@@ -341,10 +342,13 @@ function GameScreen({
 
   const selectedCard = [...corp.hq, ...runner.grip].find(c => c.instanceId === selectedCardId);
   const runnerFlow = useRunnerInstallFlow(activePlayer === 'runner' && runnerCanAct);
+  const flipHotseatBoards = useFlipHotseatBoards();
   const corpHandDocked = canSeeCorpSecrets(viewer);
   const runnerHandDocked = canSeeRunnerSecrets(viewer);
   // Open Table shows both hands at once (Corp top, Runner bottom); single-seat & hotseat keep your hand at the bottom.
   const bothHandsVisible = corpHandDocked && runnerHandDocked;
+  // Put your own board on the bottom above your hand; hotseat follows the "Flip boards at turn end" setting.
+  const corpOnBottom = viewer === 'corp' && (viewMode !== 'hotseat' || flipHotseatBoards);
   const corpDockActions = !sidebarDocked && corpHandDocked && activePlayer === 'corp' && corpCanAct;
   const runnerDockActions = !sidebarDocked && runnerHandDocked && activePlayer === 'runner' && runnerCanAct;
   const accessedDocked = isDesktop && ctl.accessed.length > 0 && !ctl.handoffTo;
@@ -378,6 +382,32 @@ function GameScreen({
           />
         ) : undefined
       }
+    />
+  );
+
+  const corpBoardEl = (
+    <CorpBoard
+      gameState={gameState}
+      seat={seat}
+      viewer={viewer}
+      corpCanAct={corpCanAct}
+      runnerCanAct={runnerCanAct}
+      onInspectCard={setInspectedCard}
+      onOpenZone={setZone}
+      onAction={handleAction}
+      isShiftActive={shiftSide === 'corp'}
+      mirrored={corpOnBottom}
+    />
+  );
+
+  const runnerBoardEl = (
+    <RunnerBoard
+      gameState={gameState}
+      viewer={viewer}
+      onInspectCard={setInspectedCard}
+      onOpenZone={setZone}
+      isShiftActive={shiftSide === 'runner'}
+      mirrored={corpOnBottom}
     />
   );
 
@@ -436,25 +466,17 @@ function GameScreen({
 
                 {bothHandsVisible && corpHandBar('top')}
 
-                <CorpBoard
-                  gameState={gameState}
-                  seat={seat}
-                  viewer={viewer}
-                  corpCanAct={corpCanAct}
-                  runnerCanAct={runnerCanAct}
-                  onInspectCard={setInspectedCard}
-                  onOpenZone={setZone}
-                  onAction={handleAction}
-                  isShiftActive={shiftSide === 'corp'}
-                />
-
-                <RunnerBoard
-                  gameState={gameState}
-                  viewer={viewer}
-                  onInspectCard={setInspectedCard}
-                  onOpenZone={setZone}
-                  isShiftActive={shiftSide === 'runner'}
-                />
+                {corpOnBottom ? (
+                  <>
+                    {runnerBoardEl}
+                    {corpBoardEl}
+                  </>
+                ) : (
+                  <>
+                    {corpBoardEl}
+                    {runnerBoardEl}
+                  </>
+                )}
 
                 {corpHandDocked && !bothHandsVisible && corpHandBar('bottom')}
 
