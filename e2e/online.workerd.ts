@@ -122,15 +122,20 @@ test('host, join by link, a turn each, reload, concede', async ({ browser }) => 
   await expect(host.getByTestId('online-code')).toBeVisible({ timeout: 30_000 });
   await expect(host.getByTestId('waiting-room')).toHaveCount(0);
 
-  // Before the end each player sees the other's hand as card backs only
-  const backs = (page: Page, side: 'corp' | 'runner') => page.getByTestId(`hand-${side}`).locator('img[alt="Card back"]');
+  // Before the end each player sees the other's hand as a fan of blank backs only (the opponent's hand badge,
+  // SideStrip.tsx): one per card, no card image and so no face
+  const hidden = (page: Page, side: 'corp' | 'runner') => page.locator(`[data-testid="hand-${side}"][data-opponent-hand="true"]`);
+  const faces = (page: Page, side: 'corp' | 'runner') => page.getByTestId(`hand-${side}`).locator('img');
   const handCards = (page: Page, side: 'corp' | 'runner') => page.getByTestId(`hand-${side}`).locator('[data-hand-card]');
+  const backs = (page: Page, side: 'corp' | 'runner') => page.getByTestId(`hand-${side}`).locator('img[alt="Card back"]');
+  await expect(hidden(host, 'runner')).toHaveCount(1);
+  await expect(hidden(guest2, 'corp')).toHaveCount(1);
   const grip = await handCards(host, 'runner').count();
   const hq = await handCards(guest2, 'corp').count();
   expect(grip).toBeGreaterThan(0);
   expect(hq).toBeGreaterThan(0);
-  await expect(backs(host, 'runner')).toHaveCount(grip);
-  await expect(backs(guest2, 'corp')).toHaveCount(hq);
+  await expect(faces(host, 'runner')).toHaveCount(0);
+  await expect(faces(guest2, 'corp')).toHaveCount(0);
 
   // The Corp concedes (with a confirm); both see the result
   await host.getByTestId('forfeit').click();
@@ -138,10 +143,12 @@ test('host, join by link, a turn each, reload, concede', async ({ browser }) => 
   await expect(host.getByTestId('game-over')).toContainText('YOU LOSE', { timeout: 30_000 });
   await expect(guest2.getByTestId('game-over')).toContainText('YOU WIN', { timeout: 30_000 });
   // The final table (chunk 2d, rule 1.7.1): each player now sees the other's hand face up
+  await expect(hidden(host, 'runner')).toHaveCount(0, { timeout: 30_000 });
   await expect(handCards(host, 'runner')).toHaveCount(grip, { timeout: 30_000 });
-  await expect(backs(host, 'runner')).toHaveCount(0, { timeout: 30_000 });
+  await expect(backs(host, 'runner')).toHaveCount(0);
+  await expect(hidden(guest2, 'corp')).toHaveCount(0, { timeout: 30_000 });
   await expect(handCards(guest2, 'corp')).toHaveCount(hq, { timeout: 30_000 });
-  await expect(backs(guest2, 'corp')).toHaveCount(0, { timeout: 30_000 });
+  await expect(backs(guest2, 'corp')).toHaveCount(0);
   // The session is gone: a reload lands on the start screen
   await guest2.reload();
   await expect(guest2.getByTestId('mode-online')).toBeVisible();
