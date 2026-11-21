@@ -142,14 +142,15 @@ test('mobile Corp mirrored board: tall ice stack scrolls cleanly and new off-scr
     corp.servers.hq.ice = hqIce;
     const r1Card = corp.rd.pop();
     if (r1Card) Object.assign(r1Card, { cardCode: '30070', isRezzed: false, faceUp: false });
-    corp.servers.remote1 = {
-      id: 'remote1',
-      name: 'Remote 1',
+    corp.remoteCounter = 1;
+    corp.servers['remote-1'] = {
+      id: 'remote-1',
+      name: 'Remote Server 1',
       isRemote: true,
       ice: [],
       root: r1Card ? [r1Card] : [],
     };
-    // Ensure HQ has an installable asset so Corp can create Remote 2 off-screen
+    // Ensure HQ has an installable asset so Corp can create Remote Server 2 off-screen
     if (corp.hq[0]) Object.assign(corp.hq[0], { cardCode: '30070' });
     corp.clicks = 3;
     window.localStorage.setItem(key, JSON.stringify(saved));
@@ -184,13 +185,13 @@ test('mobile Corp mirrored board: tall ice stack scrolls cleanly and new off-scr
     innermostVisibleAtBottom: true,
   });
 
-  // Creating a new remote off-screen (Remote 2 = 5th column on 390px screen) lights the right edge alert bar
+  // Creating a new remote off-screen (Remote Server 2 = 5th column on 390px screen) lights the right edge alert bar
   await page.locator('[data-testid="hand-corp"] [data-hand-card]').first().click();
   await page.getByTestId('mobile-play-selected').click();
   await expect(page.getByTestId('mobile-corp-install-sheet')).toBeVisible();
   await page.getByRole('button', { name: /New remote/i }).click();
 
-  await expect(page.getByTestId('server-remote2')).toBeAttached();
+  await expect(page.getByTestId('server-remote-2')).toBeAttached();
   const rightEdge = page.getByTestId('mobile-corp-servers-edge-end');
   await expect(rightEdge).toBeVisible();
   await expect(rightEdge).toHaveAttribute('data-alert', 'true');

@@ -298,7 +298,7 @@ const MobileServerColumn: React.FC<{
         ? 'R&D'
         : server.id === 'hq'
           ? 'HQ'
-          : server.name.replace(/^Remote\s+/i, 'R');
+          : server.name.replace(/^Remote\s+(?:Server\s+)?/i, 'R');
 
   const pileCount =
     server.id === 'archives'
