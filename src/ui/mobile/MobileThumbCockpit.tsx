@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, ChevronDown, ChevronUp, Eye, Layers, Plus, ScrollText, X, Zap } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Eye, Layers, Play, Plus, ScrollText, X } from 'lucide-react';
 import {
   CardInstance,
   GameAction,
@@ -215,7 +215,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
                 data-testid="mobile-play-selected"
                 className="h-10 px-3 rounded-[2px] bg-gradient-to-b from-amber-400 to-amber-500 text-black font-bold text-xs border border-amber-300 inline-flex items-center gap-1 disabled:opacity-40"
               >
-                {selectedAction.label === 'Play' ? <Zap className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                {selectedAction.label === 'Play' ? <Play className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                 <span>{selectedAction.label}</span>
                 {selectedAction.cost !== null && (
                   <span>
@@ -319,7 +319,7 @@ export const MobileThumbCockpit: React.FC<MobileThumbCockpitProps> = ({
             className="h-11 px-2.5 rounded-[3px] border border-amber-500/80 bg-amber-950/60 active:bg-amber-900/70 text-amber-200 text-xs font-bold inline-flex items-center gap-1 shrink-0"
             title="View usable card abilities and credit holds"
           >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <Play className="w-3.5 h-3.5 text-amber-300 fill-amber-300/25" />
             <span>{abilityCount > 0 ? abilityCount : '¢'}</span>
           </button>
         )}

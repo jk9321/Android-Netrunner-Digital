@@ -1,5 +1,5 @@
 import React from 'react';
-import { FastForward, Hand, Menu, SkipForward, Wifi, WifiOff } from 'lucide-react';
+import { FastForward, Hand, Menu, Play, SkipForward, Wifi, WifiOff } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef, knownInHand } from '../../core';
 import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from '../components/CreditIcon';
 import { StatTumbler } from '../components/StatTumbler';
@@ -198,7 +198,7 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
         <span className="text-slate-200 font-semibold truncate max-w-[6.75rem]">
           {cardDef(player.identity).title}
         </span>
-        {idActionable && <span className="text-amber-300 text-[10px] font-bold shrink-0">⚡</span>}
+        {idActionable && <Play className="w-2.5 h-2.5 text-amber-400 fill-amber-400/30 shrink-0" />}
       </button>
 
       <div className="flex items-center gap-1 shrink-0">

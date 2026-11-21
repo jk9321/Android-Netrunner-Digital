@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { Flag, LogOut, X } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
+import { shouldReduceMotion } from '../animations';
 import { liveStateFor, savedTableFor } from '../bugReport';
 import { CardSize } from '../cardSize';
 import { GameConfig } from '../savedGame';
@@ -32,6 +34,8 @@ interface GameMenuDrawerProps {
   onAnimationsChange: (enabled: boolean) => void;
   flipHotseatBoards?: boolean;
   onFlipHotseatBoardsChange?: (enabled: boolean) => void;
+  /** Which viewport edge the drawer slides out from (matches the menu button edge). */
+  side?: 'left' | 'right';
   onConcede: () => void;
   onLeave: () => void;
   onClose: () => void;
@@ -60,20 +64,30 @@ export function GameMenuDrawer({
   onAnimationsChange,
   flipHotseatBoards,
   onFlipHotseatBoardsChange,
+  side = 'right',
   onConcede,
   onLeave,
   onClose,
 }: GameMenuDrawerProps) {
+  const prefersReduced = shouldReduceMotion();
+  const isLeft = side === 'left';
+
   return createPortal(
-    <div
-      className="fixed inset-0 z-[9990] lg:hidden flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
+    <motion.div
+      initial={prefersReduced ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={prefersReduced ? { duration: 0 } : { duration: 0.16 }}
+      className={`fixed inset-0 z-[9990] lg:hidden flex ${isLeft ? 'justify-start' : 'justify-end'} bg-black/70 backdrop-blur-sm`}
       onClick={onClose}
       data-testid="mobile-menu-backdrop"
     >
-      <div
+      <motion.div
+        initial={prefersReduced ? false : { x: isLeft ? '-100%' : '100%' }}
+        animate={{ x: 0 }}
+        transition={prefersReduced ? { duration: 0 } : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         onClick={e => e.stopPropagation()}
         data-testid="mobile-menu-drawer"
-        className="w-80 max-w-[86vw] h-[100dvh] bg-[#090d15] border-l border-cyan-800/60 shadow-2xl flex flex-col justify-between overflow-y-auto p-4 font-mono text-xs text-slate-200 animate-in slide-in-from-right duration-200"
+        className={`w-80 max-w-[86vw] h-[100dvh] bg-[#090d15] ${isLeft ? 'border-r' : 'border-l'} border-cyan-800/60 shadow-2xl flex flex-col justify-between overflow-y-auto p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] font-mono text-xs text-slate-200`}
       >
         <div className="space-y-4">
           {/* Drawer Header */}
@@ -177,8 +191,8 @@ export function GameMenuDrawer({
             </button>
           </div>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body,
   );
 }

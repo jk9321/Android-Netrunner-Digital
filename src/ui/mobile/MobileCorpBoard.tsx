@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Shield, Zap } from 'lucide-react';
+import { Eye, Play, Shield } from 'lucide-react';
 import {
   CardInstance,
   GameState,
@@ -12,6 +12,7 @@ import {
 } from '../../core';
 import type { Seat } from '../seatLegality';
 import { canSeeCorpSecrets, canSeeRunnerSecrets, Viewer } from '../viewer';
+import { AdvancementIcon, AgendaIcon, CreditIcon, PowerIcon, VirusIcon } from '../components/CreditIcon';
 import { IceTypeIcons } from '../components/IceTypeIcons';
 import {
   useBoardCardTarget,
@@ -36,23 +37,54 @@ interface MobileCorpBoardProps {
   onOpenZone: (zone: ZoneId) => void;
 }
 
-/** Compact counter badges rendered inline on mobile root/ice tiles. */
-function cardTokenSummary(card: CardInstance, knownToViewer: boolean): string[] {
-  const badges: string[] = [];
-  if (card.advancementCounters > 0) {
-    const def = knownToViewer ? cardDef(card) : null;
-    badges.push(
-      def?.type_code === 'agenda' && def.advancement_cost
-        ? `${card.advancementCounters}/${def.advancement_cost}`
-        : `${card.advancementCounters}adv`,
-    );
-  }
+/** Compact counter badges matching desktop counter iconography on mobile root/ice tiles. */
+function CardTokenBadges({ card, knownToViewer }: { card: CardInstance; knownToViewer: boolean }) {
+  const def = knownToViewer ? cardDef(card) : null;
   const tokens = card.tokens ?? {};
-  if ((tokens.credit ?? 0) > 0) badges.push(`${tokens.credit}¢`);
-  if ((tokens.virus ?? 0) > 0) badges.push(`${tokens.virus}v`);
-  if ((tokens.power ?? 0) > 0) badges.push(`${tokens.power}p`);
-  if ((tokens.agenda ?? 0) > 0) badges.push(`${tokens.agenda}a`);
-  return badges;
+  const hasAny =
+    card.advancementCounters > 0 ||
+    (tokens.credit ?? 0) > 0 ||
+    (tokens.virus ?? 0) > 0 ||
+    (tokens.power ?? 0) > 0 ||
+    (tokens.agenda ?? 0) > 0;
+  if (!hasAny) return null;
+
+  return (
+    <>
+      {card.advancementCounters > 0 && (
+        <span className="px-1 rounded bg-amber-950/90 border border-amber-600/70 text-amber-200 inline-flex items-center gap-0.5">
+          <AdvancementIcon className="w-2.5 h-2.5 text-amber-400" />
+          {def?.type_code === 'agenda' && def.advancement_cost
+            ? `${card.advancementCounters}/${def.advancement_cost}`
+            : card.advancementCounters}
+        </span>
+      )}
+      {(tokens.credit ?? 0) > 0 && (
+        <span className="px-1 rounded bg-amber-950/80 border border-amber-700/70 text-amber-200 inline-flex items-center gap-0.5">
+          <CreditIcon className="w-2.5 h-2.5 text-amber-400" />
+          {tokens.credit}
+        </span>
+      )}
+      {(tokens.virus ?? 0) > 0 && (
+        <span className="px-1 rounded bg-lime-950/90 border border-lime-700/70 text-lime-200 inline-flex items-center gap-0.5">
+          <VirusIcon className="w-2.5 h-2.5 text-lime-400" />
+          {tokens.virus}
+        </span>
+      )}
+      {(tokens.power ?? 0) > 0 && (
+        <span className="px-1 rounded bg-purple-950/90 border border-purple-600/70 text-purple-200 inline-flex items-center gap-0.5">
+          <PowerIcon className="w-2.5 h-2.5 text-purple-300" />
+          {tokens.power}
+        </span>
+      )}
+      {(tokens.agenda ?? 0) > 0 && (
+        <span className="px-1 rounded bg-cyan-950/90 border border-cyan-600/70 text-cyan-200 inline-flex items-center gap-0.5">
+          <AgendaIcon className="w-2.5 h-2.5 text-cyan-300" />
+          {tokens.agenda}
+        </span>
+      )}
+    </>
+  );
 }
 
 const MobileIceStrip: React.FC<{
@@ -128,7 +160,8 @@ const MobileIceStrip: React.FC<{
           <span className="px-1 rounded bg-slate-800 text-amber-300 text-[9px]">Seen</span>
         )}
         {ice.advancementCounters > 0 && (
-          <span className="px-1 rounded bg-amber-950/90 border border-amber-600/70 text-amber-200 text-[9px]">
+          <span className="px-1 rounded bg-amber-950/90 border border-amber-600/70 text-amber-200 text-[9px] inline-flex items-center gap-0.5">
+            <AdvancementIcon className="w-2.5 h-2.5 text-amber-400" />
             {ice.advancementCounters}
           </span>
         )}
@@ -155,7 +188,7 @@ const MobileIceStrip: React.FC<{
             {rez}¢
           </span>
         )}
-        {isActionable && <Zap className="w-2.5 h-2.5 text-amber-400 shrink-0" />}
+        {isActionable && <Play className="w-2.5 h-2.5 text-amber-400 fill-amber-400/30 shrink-0" />}
       </div>
     </button>
   );
@@ -172,7 +205,13 @@ const MobileRootTile: React.FC<{
   const corpVisible = canSeeCorpSecrets(viewer);
   const knownToViewer = card.isRezzed || Boolean(card.faceUp) || corpVisible || Boolean(card.runnerKnows);
   const def = knownToViewer ? cardDef(card) : null;
-  const badges = cardTokenSummary(card, knownToViewer);
+  const tokens = card.tokens ?? {};
+  const hasCounters =
+    card.advancementCounters > 0 ||
+    (tokens.credit ?? 0) > 0 ||
+    (tokens.virus ?? 0) > 0 ||
+    (tokens.power ?? 0) > 0 ||
+    (tokens.agenda ?? 0) > 0;
 
   const ringClass = boardTarget
     ? 'border-amber-400 ring-2 ring-amber-400/90 bg-amber-950/50 animate-pulse'
@@ -213,9 +252,9 @@ const MobileRootTile: React.FC<{
         >
           {def ? def.title : 'Face-down'}
         </span>
-        {isActionable && <Zap className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />}
+        {isActionable && <Play className="w-2.5 h-2.5 text-amber-400 fill-amber-400/30 shrink-0 mt-0.5" />}
       </div>
-      {(badges.length > 0 || (!card.isRezzed && !corpVisible && card.runnerKnows) || (def && !card.isRezzed && corpVisible)) && (
+      {(hasCounters || (!card.isRezzed && !corpVisible && card.runnerKnows) || (def && !card.isRezzed && corpVisible)) && (
         <div className="flex items-center flex-wrap gap-1 text-[9px] font-bold">
           {!card.isRezzed && !corpVisible && card.runnerKnows && (
             <span className="px-1 rounded bg-slate-800 text-amber-300">Seen</span>
@@ -223,11 +262,7 @@ const MobileRootTile: React.FC<{
           {!card.isRezzed && corpVisible && def && (
             <span className="text-slate-400 capitalize">{def.type_code}</span>
           )}
-          {badges.map(b => (
-            <span key={b} className="px-1 rounded bg-amber-950/80 border border-amber-700/70 text-amber-200">
-              {b}
-            </span>
-          ))}
+          <CardTokenBadges card={card} knownToViewer={knownToViewer} />
         </div>
       )}
     </button>

@@ -482,9 +482,10 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         onClose={() => setActiveServerId(null)}
       />
 
-      {/* Slide-out Settings / Menu Drawer */}
+      {/* Slide-out Settings / Menu Drawer (slides from left to match top-left menu trigger) */}
       {menuOpen && (
         <GameMenuDrawer
+          side="left"
           state={gameState}
           config={config}
           online={online}

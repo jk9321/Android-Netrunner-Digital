@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap } from 'lucide-react';
+import { Play } from 'lucide-react';
 import {
   CardInstance,
   GameState,
@@ -8,6 +8,7 @@ import {
   findCardAnywhere,
 } from '../../core';
 import { canSeeCorpSecrets, Viewer } from '../viewer';
+import { CreditIcon, PowerIcon, VirusIcon } from '../components/CreditIcon';
 import { IceTypeIcons, breakerTypes } from '../components/IceTypeIcons';
 import { useBoardCardTarget, usePromptHighlight } from '../promptHighlight';
 import type { ZoneId } from '../components/ZoneViewer';
@@ -20,16 +21,6 @@ interface MobileRunnerBoardProps {
   mirrored: boolean;
   onTapCard: (card: CardInstance) => void;
   onOpenZone: (zone: ZoneId) => void;
-}
-
-function rigTokenBadges(card: CardInstance): string[] {
-  const out: string[] = [];
-  const t = card.tokens ?? {};
-  if ((t.credit ?? 0) > 0) out.push(`${t.credit}¢`);
-  if ((t.virus ?? 0) > 0) out.push(`${t.virus}v`);
-  if ((t.power ?? 0) > 0) out.push(`${t.power}p`);
-  if ((card.hostedCards?.length ?? 0) > 0) out.push(`+${card.hostedCards!.length}`);
-  return out;
 }
 
 function shortHostTag(state: GameState, card: CardInstance, viewer: Viewer): string | null {
@@ -63,7 +54,7 @@ const MobileRigTile: React.FC<{
   const liveStr = kind === 'program' && def.strength !== undefined ? breakerStrength(state, card) : null;
   const printedStr = def.strength ?? null;
   const strChanged = liveStr !== null && printedStr !== null && liveStr !== printedStr;
-  const tokens = rigTokenBadges(card);
+  const t = card.tokens ?? {};
   const hostTag = shortHostTag(state, card, viewer);
 
   const kindTone =
@@ -100,7 +91,7 @@ const MobileRigTile: React.FC<{
     >
       <div className="flex items-start justify-between gap-1">
         <span className="font-bold text-slate-100 line-clamp-2">{def.title}</span>
-        {isActionable && <Zap className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />}
+        {isActionable && <Play className="w-2.5 h-2.5 text-amber-400 fill-amber-400/30 shrink-0 mt-0.5" />}
       </div>
 
       <div className="flex items-center flex-wrap gap-1 text-[9px] font-bold">
@@ -126,11 +117,29 @@ const MobileRigTile: React.FC<{
             {kind === 'hardware' ? 'HW' : 'RES'}
           </span>
         )}
-        {tokens.map(tok => (
-          <span key={tok} className="px-1 rounded bg-amber-950/80 border border-amber-700/70 text-amber-200">
-            {tok}
+        {(t.credit ?? 0) > 0 && (
+          <span className="px-1 rounded bg-amber-950/80 border border-amber-700/70 text-amber-200 inline-flex items-center gap-0.5">
+            <CreditIcon className="w-2.5 h-2.5 text-amber-400" />
+            {t.credit}
           </span>
-        ))}
+        )}
+        {(t.virus ?? 0) > 0 && (
+          <span className="px-1 rounded bg-lime-950/90 border border-lime-700/70 text-lime-200 inline-flex items-center gap-0.5">
+            <VirusIcon className="w-2.5 h-2.5 text-lime-400" />
+            {t.virus}
+          </span>
+        )}
+        {(t.power ?? 0) > 0 && (
+          <span className="px-1 rounded bg-purple-950/90 border border-purple-600/70 text-purple-200 inline-flex items-center gap-0.5">
+            <PowerIcon className="w-2.5 h-2.5 text-purple-300" />
+            {t.power}
+          </span>
+        )}
+        {(card.hostedCards?.length ?? 0) > 0 && (
+          <span className="px-1 rounded bg-slate-900 border border-slate-700 text-slate-200">
+            +{card.hostedCards!.length}
+          </span>
+        )}
       </div>
 
       {hostTag && <div className="text-[9px] text-slate-400 truncate">{hostTag}</div>}

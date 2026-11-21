@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Eye, Flame, FolderOpen, Shield, Zap } from 'lucide-react';
+import { ChevronRight, Crosshair, Eye, FolderOpen, Play, Shield } from 'lucide-react';
 import {
   CardInstance,
   GameAction,
@@ -106,7 +106,7 @@ export const MobileServerSheet: React.FC<MobileServerSheetProps> = ({
             }}
             className="flex-1 min-w-[150px] h-11 px-4 rounded-[3px] bg-gradient-to-b from-pink-600 to-pink-700 text-white font-bold text-xs border border-pink-400 inline-flex items-center justify-center gap-1.5 shadow"
           >
-            <Flame className="w-4 h-4" /> Run {server.name}
+            <Crosshair className="w-4 h-4" /> Run {server.name}
           </button>
         )}
       </div>
@@ -176,7 +176,7 @@ export const MobileServerSheet: React.FC<MobileServerSheetProps> = ({
                           Str {str}
                         </span>
                       )}
-                      {actionable && <Zap className="w-3.5 h-3.5 text-amber-400" />}
+                      {actionable && <Play className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />}
                       <ChevronRight className="w-4 h-4 text-slate-500" />
                     </div>
                   </button>
@@ -227,7 +227,7 @@ export const MobileServerSheet: React.FC<MobileServerSheetProps> = ({
                           {card.advancementCounters} adv
                         </span>
                       )}
-                      {actionable && <Zap className="w-3.5 h-3.5 text-amber-400" />}
+                      {actionable && <Play className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />}
                       <ChevronRight className="w-4 h-4 text-slate-500" />
                     </div>
                   </button>

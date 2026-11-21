@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpCircle, Eye, Flame, Maximize2, Play, Shield, Trash2, Trophy, Zap } from 'lucide-react';
+import { ChevronsUp, Crosshair, Maximize2, Play, Shield, Trash2 } from 'lucide-react';
 import {
   CardInstance,
   GameAction,
@@ -17,7 +17,8 @@ import { liveCardModifiers } from '../liveValues';
 import { hostedCardActions } from '../legal';
 import { legalFor, useSeat } from '../seat';
 import { canSeeCorpSecrets, canSeeRunnerSecrets, Viewer } from '../viewer';
-import { ClickIcon, Credits, renderSymbols } from '../components/CreditIcon';
+import { AgendaDiamondIcon, ClickIcon, Credits, renderSymbols } from '../components/CreditIcon';
+import { RezIcon } from '../components/ServerColumn';
 import { MobileBottomSheet } from './MobileBottomSheet';
 
 interface MobileCardSheetProps {
@@ -152,7 +153,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
               }}
               className="flex-1 min-w-[130px] h-11 px-3 rounded-[3px] bg-gradient-to-b from-emerald-500 to-emerald-600 text-black font-bold text-xs border border-emerald-300 inline-flex items-center justify-center gap-1.5"
             >
-              <Trophy className="w-4 h-4" /> Score Agenda
+              <AgendaDiamondIcon className="w-4 h-4" /> Score Agenda
             </button>
           )}
           {rezAction && (
@@ -165,7 +166,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
               }}
               className="flex-1 min-w-[120px] h-11 px-3 rounded-[3px] bg-gradient-to-b from-cyan-500 to-cyan-600 text-black font-bold text-xs border border-cyan-300 inline-flex items-center justify-center gap-1.5"
             >
-              <Eye className="w-4 h-4" />
+              <RezIcon className="w-4 h-4" />
               <span>Rez</span>
               <span>
                 (<Credits amount={rezCostOf(state, card)} />)
@@ -182,7 +183,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
               }}
               className="flex-1 min-w-[140px] h-11 px-3 rounded-[3px] bg-amber-950/90 active:bg-amber-900 border border-amber-500 text-amber-200 font-bold text-xs inline-flex items-center justify-center gap-1.5"
             >
-              <ArrowUpCircle className="w-4 h-4 text-amber-400" />
+              <ChevronsUp className="w-4 h-4 text-amber-400" />
               <span>Advance</span>
               <span className="inline-flex items-center gap-0.5 text-amber-300">
                 (<ClickIcon className="w-3 h-3" />+<Credits amount={1} />)
@@ -214,7 +215,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
             }}
             className="w-full min-h-[44px] px-3 py-2 rounded-[3px] bg-amber-950/75 active:bg-amber-900 border border-amber-500/80 text-amber-100 font-bold text-xs text-left flex items-center gap-2"
           >
-            <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <Play className="w-4 h-4 text-amber-300 shrink-0" />
             <span className="flex-1 leading-snug">
               {renderSymbols(ability.label)}
               {warning && <span className="block text-[11px] font-normal text-amber-300 mt-0.5">{warning}</span>}
@@ -276,7 +277,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
           }}
           className="w-full h-11 px-3 rounded-[3px] bg-gradient-to-b from-pink-600 to-pink-700 text-white font-bold text-xs border border-pink-400 inline-flex items-center justify-center gap-1.5"
         >
-          <Flame className="w-4 h-4" /> Run {corpServer.name}
+          <Crosshair className="w-4 h-4" /> Run {corpServer.name}
         </button>
       )}
     </div>
