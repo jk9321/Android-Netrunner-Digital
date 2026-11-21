@@ -388,7 +388,7 @@ const MobileServerColumn: React.FC<{
     <div
       data-testid={`server-${server.id}`}
       data-scroll-item-id={server.id}
-      className={`snap-start h-full min-h-0 overflow-hidden flex-1 min-w-[82px] flex flex-col gap-1 p-1 rounded-[3px] border bg-[#080f18]/90 ${
+      className={`h-full min-h-0 overflow-hidden flex-1 min-w-[82px] flex flex-col gap-1 p-1 rounded-[3px] border bg-[#080f18]/90 ${
         serverTarget || serverHovered
           ? 'border-amber-400 ring-1 ring-amber-400/70'
           : isRunTarget
@@ -398,13 +398,14 @@ const MobileServerColumn: React.FC<{
     >
       {!mirrored && serverHeader}
       {/* Note: never put justify-end on an overflow-y-auto flex column — it overflows above scrollTop=0 unreachably.
-          Putting mt-auto on the inner stack anchors to bottom when it fits and scrolls cleanly from 0 when taller. */}
+          Putting mt-auto on the inner stack anchors to bottom when it fits and scrolls cleanly from 0 when taller.
+          Use overflow-x-hidden + overscroll-y-contain (never overscroll-contain) so horizontal swipes chain to the parent server row. */}
       <ScrollEdgeContainer
         axis="y"
         tone="corp"
         itemSignatures={columnItemSigs}
         className="flex-1"
-        scrollClassName="flex flex-col overflow-y-auto overscroll-contain"
+        scrollClassName="flex flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain"
         testId={`mobile-server-scroll-${server.id}`}
       >
         <div className={`flex flex-col gap-1 shrink-0 ${mirrored ? 'mt-auto' : ''}`}>
@@ -492,7 +493,7 @@ export const MobileCorpBoard: React.FC<MobileCorpBoardProps> = ({
         tone="corp"
         itemSignatures={serverItemSigs}
         className="flex-1"
-        scrollClassName="flex items-stretch gap-1 p-1 overflow-x-auto overflow-y-hidden snap-x overscroll-x-contain"
+        scrollClassName="flex items-stretch gap-1 p-1 overflow-x-auto overflow-y-hidden overscroll-x-contain"
         testId="mobile-corp-servers"
       >
         {servers.map(server => (

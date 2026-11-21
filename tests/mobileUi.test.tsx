@@ -432,6 +432,8 @@ describe('Phase 2 compact mobile boards & tap-to-act sheets', () => {
     expect(corpHtml).toContain('data-testid="mobile-server-scroll-remote1"');
     expect(corpHtml).toContain('mt-auto');
     expect(corpHtml).not.toContain('justify-end');
+    expect(corpHtml).toContain('overscroll-y-contain');
+    expect(corpHtml).not.toContain('overscroll-contain');
   });
 
   it('MobileRunnerBoard renders Programs/Support rows and mirrors Programs toward Corp ice', () => {

@@ -236,7 +236,7 @@ export const MobileRunnerBoard: React.FC<MobileRunnerBoardProps> = ({
         tone="runner"
         itemSignatures={rigItemSigs}
         className="flex-1"
-        scrollClassName="overflow-y-auto overscroll-contain p-1.5 flex flex-col gap-1.5"
+        scrollClassName="overflow-x-hidden overflow-y-auto overscroll-y-contain p-1.5 flex flex-col gap-1.5"
         testId="mobile-runner-rig"
       >
         {isEmpty ? (
