@@ -235,8 +235,8 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
 });
 
 /**
- * Full-width hand dock placed directly above the Corp board (when playing Corp) or below the Runner board
- * (when playing Runner), freeing the full horizontal width of servers and the rig.
+ * Full-width hand dock placed at the bottom of the tabletop for single-seat / hotseat play (and at the top
+ * for Corp only in Open Table mode when both hands are visible), with the hand on the left and actions on the right.
  */
 export function DockedHandBar({
   side,
@@ -259,7 +259,7 @@ export function DockedHandBar({
   onInspect?: (card: CardInstance) => void;
   discardedIds: ReadonlySet<string>;
   position: 'top' | 'bottom';
-  /** Common click actions + Play/Install + End Turn placed right beside the hand on this side's turn. */
+  /** Common click actions + Play/Install + End Turn placed on the right side of the dock beside the sidebar. */
   actions?: React.ReactNode;
 }) {
   const isCorp = side === 'corp';
@@ -288,16 +288,9 @@ export function DockedHandBar({
           : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
       }`}
     >
-      <div className="flex-1 min-w-0">
-        {actions ?? (
-          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono">
-            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover hand to fan · click to select' : 'Click card to select'}
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 flex flex-col items-end gap-0.5 ml-auto shrink-0">
+      <div className="min-w-0 flex flex-col items-start gap-0.5 shrink-0">
         {handLabel}
-        <div className="min-w-0 flex items-center justify-end overflow-x-auto overflow-y-hidden">
+        <div className="min-w-0 flex items-center justify-start overflow-x-auto overflow-y-hidden">
           {cards.length === 0 ? (
             <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
               No cards in hand
@@ -317,6 +310,13 @@ export function DockedHandBar({
             />
           )}
         </div>
+      </div>
+      <div className="flex-1 min-w-0 flex justify-end">
+        {actions ?? (
+          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
+            {cards.length === 0 ? 'Hand empty' : cards.length > 1 ? 'Hover hand to fan · click to select' : 'Click card to select'}
+          </span>
+        )}
       </div>
     </div>
   );

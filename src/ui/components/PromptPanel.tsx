@@ -63,6 +63,8 @@ export interface PromptPanelProps {
   onToggleDock?: () => void;
   /** Active run metadata shown as a slim context banner when a prompt docks over an active run. */
   runContext?: { serverName: string; phase: string };
+  /** Extra layout classes applied to the docked container (e.g., sidebar flex ordering). */
+  className?: string;
 }
 
 /**
@@ -80,6 +82,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
   docked = false,
   onToggleDock,
   runContext,
+  className = '',
 }) => {
   const prompt = activePrompt(state);
   const seat = useSeat();
@@ -652,7 +655,7 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     return (
       <div
         data-testid="prompt-panel"
-        className={`shrink min-h-[min(56vh,calc(100%-7.5rem))] flex flex-col bg-[#090d15] border-2 ${accent} rounded-[2px] shadow-2xl font-mono overflow-hidden`}
+        className={`shrink min-h-[min(48vh,calc(100%-8rem))] flex flex-col bg-[#090d15] border-2 ${accent} rounded-[2px] shadow-2xl font-mono overflow-hidden ${className}`}
       >
         {runContext && (
           <div className="px-3 py-1 bg-[#140a16] border-b border-pink-900/50 flex items-center justify-between gap-2 text-[11px] font-mono shrink-0">

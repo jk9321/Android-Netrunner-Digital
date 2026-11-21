@@ -44,6 +44,8 @@ export interface RunOverlayProps {
   docked?: boolean;
   /** Toggle between sidebar-docked mode and floating pop-out mode. */
   onToggleDock?: () => void;
+  /** Extra layout classes applied to the docked container (e.g., sidebar flex ordering). */
+  className?: string;
 }
 
 /**
@@ -87,6 +89,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   onAction,
   docked = false,
   onToggleDock,
+  className = '',
 }) => {
   const seat = useSeat();
   useRezWindowBoardTargets(state, rezCards, onRez);
@@ -320,7 +323,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
     return (
       <div
         data-testid="run-overlay"
-        className="shrink min-h-[min(56vh,calc(100%-7.5rem))] flex flex-col bg-[#090d15] border-2 border-cyber-neonPink rounded-[2px] shadow-2xl font-mono overflow-hidden"
+        className={`shrink min-h-[min(48vh,calc(100%-8rem))] flex flex-col bg-[#090d15] border-2 border-cyber-neonPink rounded-[2px] shadow-2xl font-mono overflow-hidden ${className}`}
       >
         <div className="px-3 py-2 border-b border-pink-900/50 bg-[#0c121d] shrink-0 space-y-1.5">
           <div className="flex items-center justify-between gap-2">

@@ -16,6 +16,7 @@ import { ServerColumn } from '../src/ui/components/ServerColumn';
 import { SideStrip } from '../src/ui/components/SideStrip';
 import { DockedHandBar } from '../src/ui/components/HandRow';
 import { CorpActions, RunnerActions } from '../src/ui/components/ActionBars';
+import { AccessedPanel } from '../src/ui/components/AccessedPanel';
 import { CardView } from '../src/ui/components/CardView';
 import { RigView } from '../src/ui/components/RigView';
 import { breakerTypes } from '../src/ui/components/IceTypeIcons';
@@ -512,5 +513,37 @@ describe('UI component smoke renders', () => {
       </SeatContext.Provider>,
     );
     expect(runnerSidebarEmpty).toBe('');
+
+    const dockedWithActions = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <DockedHandBar
+          side="runner"
+          position="bottom"
+          cards={state.runner.grip}
+          handSizeLimit={state.runner.handSizeLimit}
+          isSelectable
+          selectedCardId={null}
+          onSelect={() => {}}
+          discardedIds={new Set()}
+          actions={<RunnerActions state={state} selectedCard={undefined} onAction={() => {}} section="dock" />}
+        />
+      </SeatContext.Provider>,
+    );
+    expect(dockedWithActions.indexOf('data-testid="hand-runner"')).toBeLessThan(
+      dockedWithActions.indexOf('data-testid="runner-dock-actions"'),
+    );
+
+    const dockedAccessed = renderToStaticMarkup(
+      <AccessedPanel
+        cards={[{ code: '30001' }]}
+        onInspect={() => {}}
+        onClose={() => {}}
+        docked
+        className="lg:order-2"
+      />,
+    );
+    expect(dockedAccessed).toContain('data-testid="accessed-panel"');
+    expect(dockedAccessed).toContain('lg:order-2');
+    expect(dockedAccessed).not.toContain('fixed right-3 bottom-3');
   });
 });

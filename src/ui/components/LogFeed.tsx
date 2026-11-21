@@ -50,11 +50,47 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
       })
     : logs;
 
+  const pinnedToBottomRef = useRef(true);
+  const lastHeightRef = useRef<number | null>(null);
+
+  // Track whether the user is reading at the bottom; ignore scroll events caused by container resizes.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    lastHeightRef.current = list.clientHeight;
+    const onScroll = () => {
+      if (lastHeightRef.current !== null && list.clientHeight !== lastHeightRef.current) return;
+      pinnedToBottomRef.current = list.scrollHeight - list.scrollTop - list.clientHeight <= 24;
+    };
+    list.addEventListener('scroll', onScroll, { passive: true });
+    return () => list.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // When bottom panels appear or grow and shrink the log above them, stay anchored on the newest entry.
+  useEffect(() => {
+    if (isFiltering || typeof ResizeObserver === 'undefined') return;
+    const list = listRef.current;
+    if (!list) return;
+    lastHeightRef.current = list.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const nextHeight = list.clientHeight;
+      if (nextHeight !== lastHeightRef.current) {
+        lastHeightRef.current = nextHeight;
+        if (pinnedToBottomRef.current) {
+          list.scrollTop = list.scrollHeight;
+        }
+      }
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [isFiltering]);
+
   // Keep the newest entry in view by scrolling the log box itself when new logs arrive (only when not searching).
   useEffect(() => {
     if (isFiltering) return;
     const list = listRef.current;
     if (!list) return;
+    pinnedToBottomRef.current = true;
     const behavior = shouldReduceMotion() ? 'instant' : 'smooth';
     list.scrollTo({ top: list.scrollHeight, behavior });
     const timer = setTimeout(() => {

@@ -11,6 +11,7 @@ export function AccessedPanel({
   onInspect,
   onClose,
   docked = false,
+  className = '',
 }: {
   /** As the viewer saw them: a card with no code (an R&D access seen by the Corp, rules 7.1.2) shows face down. */
   cards: AccessedCard[];
@@ -18,6 +19,8 @@ export function AccessedPanel({
   onClose: () => void;
   /** Render inline inside the desktop right sidebar instead of floating over the board. */
   docked?: boolean;
+  /** Extra layout classes (e.g., sidebar flex ordering). */
+  className?: string;
 }) {
   const prefersReduced = shouldReduceMotion();
   // Rules 7.1.5a: only cards with a trash cost can be trashed on access. Explains a
@@ -34,8 +37,8 @@ export function AccessedPanel({
       transition={prefersReduced ? { duration: 0 } : { duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
       className={
         docked
-          ? 'shrink-0 w-full bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-2.5 shadow-lg font-mono'
-          : 'fixed right-3 bottom-3 z-40 w-72 max-w-[calc(100vw-1.5rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono'
+          ? `shrink-0 w-full bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-2.5 shadow-lg font-mono ${className}`
+          : `fixed right-3 bottom-3 z-40 w-72 max-w-[calc(100vw-1.5rem)] bg-[#090d15]/95 border border-pink-700/80 rounded-[2px] p-3 shadow-2xl font-mono ${className}`
       }
       data-testid="accessed-panel"
     >

@@ -210,10 +210,10 @@ export function CorpActions(props: ActionBarProps) {
 
   if (section === 'dock') {
     return (
-      <div className="flex flex-col gap-1.5 min-w-0 max-w-[30rem]" data-testid="corp-dock-actions">
-        <span className="text-xs font-bold text-cyan-400 font-mono uppercase leading-none">Corp Actions ({corp.clicks} Clicks):</span>
+      <div className="flex flex-col items-end gap-1.5 min-w-0 w-full max-w-[30rem]" data-testid="corp-dock-actions">
+        <span className="text-xs font-bold text-cyan-400 font-mono uppercase leading-none text-right">Corp Actions ({corp.clicks} Clicks):</span>
         {basicRow}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center justify-end gap-1.5 flex-wrap w-full">
           <PlayButton {...props} side="corp" />
           <InspectSelectedButton side="corp" selectedCard={selectedCard} onInspect={onInspect} />
           {endTurnButton}
@@ -489,10 +489,10 @@ export function RunnerActions(props: ActionBarProps) {
 
   if (section === 'dock') {
     return (
-      <div className="flex flex-col gap-1.5 min-w-0 max-w-[32rem]" data-testid="runner-dock-actions">
-        <span className="text-xs font-bold text-pink-400 font-mono uppercase leading-none">Runner Actions ({runner.clicks} Clicks):</span>
+      <div className="flex flex-col items-end gap-1.5 min-w-0 w-full max-w-[32rem]" data-testid="runner-dock-actions">
+        <span className="text-xs font-bold text-pink-400 font-mono uppercase leading-none text-right">Runner Actions ({runner.clicks} Clicks):</span>
         {basicRow}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center justify-end gap-1.5 flex-wrap w-full">
           <PlayButton {...props} side="runner" />
           {installButton}
           <InspectSelectedButton side="runner" selectedCard={selectedCard} onInspect={onInspect} />
