@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { CardInstance, SideCode } from '../../core/types/card';
@@ -6,6 +6,8 @@ import { CardView } from './CardView';
 import { Keyword } from './Keyword';
 import { animationsEnabled, useAnimationsEnabled } from '../animations';
 import { holdHover } from '../hoverHold';
+
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 interface HandRowProps {
   cards: CardInstance[];
@@ -91,7 +93,7 @@ export const HandRow: React.FC<HandRowProps> = React.memo(({
   const [measuredCardPx, setMeasuredCardPx] = useState(0);
 
   // Track rendered card width (responds to viewport height & Normal/Large card size toggles) without reading overlap.
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     if (!docked) return;
     const wrap = wrapRef.current;
     const first = wrap?.querySelector<HTMLElement>('[data-hand-card]');
@@ -321,7 +323,7 @@ export function DockedHandBar({
 
   // handSlotRef is `md:flex-1 min-w-0` beside the `shrink-0` action panel, so its clientWidth is always
   // the exact room available for the hand without ever letting a large hand crush the action buttons.
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     const slot = handSlotRef.current;
     if (!slot) return;
     const measure = () => {
