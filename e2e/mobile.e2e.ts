@@ -211,6 +211,67 @@ test('mobile Corp mirrored board: tall ice stack scrolls cleanly and new off-scr
   await context.close();
 });
 
+test('mobile run sheet highlights bottom edge when a matching icebreaker sits off-screen', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 620 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.route(/^https?:\/\/(?!localhost)/, route => route.abort());
+
+  await page.goto('/');
+  await page.getByTestId('mode-computer').click();
+  await page.getByTestId('opponent-ai-corp').click();
+  await page.getByTestId('start-game').click();
+
+  await expect(page.getByTestId('mobile-prompt-sheet')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Keep hand' }).click();
+  await expect(page.getByTestId('end-turn')).toBeVisible({ timeout: 60_000 });
+
+  // Seed rezzed Karunā (30047, Sentry) on HQ and 4 non-matching breakers above Carmen (30015, Killer)
+  await page.evaluate(() => {
+    const key = 'netrunner.savedGame.v1';
+    const saved = JSON.parse(window.localStorage.getItem(key)!);
+    const st = saved.state;
+    const ice = st.corp.rd.pop();
+    Object.assign(ice, { cardCode: '30047', isRezzed: true, faceUp: true });
+    st.corp.servers.hq.ice = [ice];
+    const codes = ['30006', '30026', '30006', '30026', '30015'];
+    st.runner.rig.programs = codes.map((code, idx) => {
+      const c = st.runner.stack.pop();
+      Object.assign(c, { cardCode: code, isRezzed: true, faceUp: true, instanceId: `e2e-brk-${idx}` });
+      return c;
+    });
+    st.runner.credits = 10;
+    st.runner.clicks = 4;
+    window.localStorage.setItem(key, JSON.stringify(saved));
+  });
+  await page.reload();
+  await expect(page.getByTestId('mobile-corp-board')).toBeVisible({ timeout: 30_000 });
+
+  // Run HQ -> Corp AI passes approach on already-rezzed Karunā -> encounter opens with Carmen below the fold
+  await page.getByTestId('mobile-server-hq').click();
+  await page.getByTestId('mobile-run-hq').click();
+  await expect(page.getByTestId('mobile-run-sheet')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 30_000 });
+
+  const bottomEdge = page.getByTestId('run-overlay-scroll-edge-end');
+  await expect(bottomEdge).toBeVisible();
+  await expect(bottomEdge).toHaveAttribute('data-alert', 'true');
+
+  // Scrolling down reveals the matching Killer breaker and clears the bottom-edge alert
+  await page.evaluate(() => {
+    const scroller = document.querySelector('[data-testid="run-overlay-scroll"]') as HTMLElement | null;
+    if (scroller) {
+      scroller.scrollTop = scroller.scrollHeight;
+      scroller.dispatchEvent(new Event('scroll'));
+    }
+  });
+  await expect(bottomEdge).toHaveCount(0);
+
+  expect(errors).toEqual([]);
+  await context.close();
+});
+
 test('mobile landscape phone renders side-by-side boards without page overflow', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();

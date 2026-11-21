@@ -1,19 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameState } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
 import { cardDef } from '../../data/cards';
-import { GameAction, findCardAnywhere, getCardScript, iceStrength, iceSubtypes, rezCostOf } from '../../core';
-import { useSeat } from '../seat';
+import {
+  GameAction,
+  encounteredIce,
+  findCardAnywhere,
+  getCardScript,
+  iceStrength,
+  iceSubtypes,
+  installedIcebreakers,
+  rezCostOf,
+} from '../../core';
+import { legalFor, useSeat } from '../seat';
 import { EncounterPanel } from './EncounterPanel';
 import { ArrowRight, LogOut, CheckCircle2, ShieldAlert, Play, ExternalLink, PanelRight, Eye } from 'lucide-react';
 import { Credits } from './CreditIcon';
+import { breakerTypes } from './IceTypeIcons';
 import { RezIcon } from './ServerColumn';
 import { FloatingPanel } from './FloatingPanel';
 import { Keyword } from './Keyword';
+import { ScrollEdgeContainer } from './ScrollEdgeCue';
 import { cardTextHtml } from '../cardText';
 import { runCreditPools } from '../liveValues';
 import { type BoardCardTarget, clearBoardTargets, setBoardTargets } from '../promptHighlight';
+
+const EMPTY_SCROLL_SIGNATURES: ReadonlyMap<string, string> = new Map();
 
 /** The glossary entry that explains each run phase. */
 const PHASE_KEYWORD: Record<string, string> = {
@@ -94,6 +107,28 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
   const seat = useSeat();
   useRezWindowBoardTargets(state, rezCards, onRez);
   const { activeRun } = state;
+  // Highlight edge of the docked run panel whenever an installed icebreaker matching the current ice sits off-screen
+  const matchingBreakerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!runnerControls || !activeRun?.encounter) return ids;
+    if (!activeRun.encounter.broken.some(b => !b)) return ids;
+    const ice = encounteredIce(state);
+    if (!ice) return ids;
+    const iceTypes = iceSubtypes(ice, state);
+    const runnerLegal = legalFor(seat, 'runner');
+    for (const breaker of installedIcebreakers(state)) {
+      const hasAction = runnerLegal.some(
+        a =>
+          (a.type === 'BREAK_SUBROUTINE' || a.type === 'BOOST_BREAKER') &&
+          a.breakerInstanceId === breaker.instanceId,
+      );
+      if (hasAction || breakerTypes(breaker).some(t => iceTypes.includes(t))) {
+        ids.add(`breaker-${breaker.instanceId}`);
+      }
+    }
+    return ids;
+  }, [runnerControls, activeRun, state, seat]);
+
   if (!activeRun) return null;
 
   const server = state.corp.servers[activeRun.server];
@@ -352,7 +387,15 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           {statusBadges}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+        <ScrollEdgeContainer
+          axis="y"
+          tone="runner"
+          itemSignatures={EMPTY_SCROLL_SIGNATURES}
+          highlightOffscreenIds={matchingBreakerIds}
+          className="flex-1"
+          scrollClassName="overflow-x-hidden overflow-y-auto overscroll-y-contain p-2.5 space-y-2"
+          testId="run-overlay-scroll"
+        >
           {currentIce ? (
             <div className="bg-[#080d14] p-2.5 rounded-[2px] border border-slate-800">{iceSummaryText}</div>
           ) : (
@@ -360,7 +403,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           )}
 
           <EncounterPanel state={state} onAction={onAction} readOnly={!runnerControls} compact />
-        </div>
+        </ScrollEdgeContainer>
 
         <div className="p-2 border-t border-pink-900/50 bg-[#070a11] flex flex-wrap items-center gap-1.5 shrink-0">
           {actionButtons}

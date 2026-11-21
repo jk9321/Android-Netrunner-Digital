@@ -183,7 +183,11 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
             const hasEnoughStrength = bStr >= targetStrength;
             return (
               // Buttons wrap within their own column on desktop, and stack cleanly under the breaker name on narrow screens or when sidebar-docked
-              <div key={breaker.instanceId} className={`flex flex-col ${compact ? 'border-t border-slate-800/80 pt-1.5' : 'sm:flex-row sm:gap-1.5'} items-start gap-1`}>
+              <div
+                key={breaker.instanceId}
+                data-scroll-item-id={`breaker-${breaker.instanceId}`}
+                className={`flex flex-col ${compact ? 'border-t border-slate-800/80 pt-1.5' : 'sm:flex-row sm:gap-1.5'} items-start gap-1`}
+              >
                 <span className={`text-[12px] font-mono text-slate-400 w-full ${compact ? '' : 'sm:w-40 sm:min-h-[28px]'} shrink-0 min-h-[24px] flex items-center gap-1.5 min-w-0`}>
                   {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
                   <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />

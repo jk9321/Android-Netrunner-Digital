@@ -4,6 +4,8 @@ interface ScrollEdgeContainerProps {
   axis: 'x' | 'y';
   /** Map of child `data-scroll-item-id` -> change signature; added/updated items off-screen glow that edge until scrolled into view. */
   itemSignatures: ReadonlyMap<string, string>;
+  /** Optional item IDs that actively glow whenever they sit off-screen (even on initial mount), e.g. a matching icebreaker during an encounter. */
+  highlightOffscreenIds?: ReadonlySet<string>;
   /** Passive edge bar accent matching the owning board half. */
   tone: 'corp' | 'runner';
   /** Classes for the outer relative container (flex/size layout). */
@@ -39,11 +41,12 @@ function findScrollItem(root: HTMLElement, id: string): HTMLElement | null {
 
 /**
  * Scrollable container with subtle passive overflow edge cues and a bright pulsing
- * highlight bar whenever a new or updated item lands off-screen until the player scrolls to it.
+ * highlight bar whenever a new/updated item or a highlighted target sits off-screen.
  */
 export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
   axis,
   itemSignatures,
+  highlightOffscreenIds,
   tone,
   className = '',
   scrollClassName = '',
@@ -53,11 +56,18 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevSigsRef = useRef<Map<string, string> | null>(null);
   const pendingOffscreenRef = useRef<Map<string, 'start' | 'end'>>(new Map());
+  const highlightRef = useRef<ReadonlySet<string> | undefined>(highlightOffscreenIds);
+  highlightRef.current = highlightOffscreenIds;
   const [edges, setEdges] = useState<EdgeState>(INITIAL_EDGES);
 
   const sigKey = useMemo(
     () => Array.from(itemSignatures.entries(), ([k, v]) => `${k}=${v}`).join('|'),
     [itemSignatures],
+  );
+
+  const highlightKey = useMemo(
+    () => (highlightOffscreenIds && highlightOffscreenIds.size > 0 ? Array.from(highlightOffscreenIds).sort().join('|') : ''),
+    [highlightOffscreenIds],
   );
 
   const measure = useCallback(() => {
@@ -70,8 +80,9 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
         ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2
         : el.scrollTop + el.clientHeight < el.scrollHeight - 2;
 
+    const box = el.getBoundingClientRect();
+
     if (pendingOffscreenRef.current.size > 0) {
-      const box = el.getBoundingClientRect();
       for (const [id, dir] of Array.from(pendingOffscreenRef.current.entries())) {
         const node = findScrollItem(el, id);
         if (!node) {
@@ -100,6 +111,23 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
     for (const dir of pendingOffscreenRef.current.values()) {
       if (dir === 'start' && canStart) alertStart = true;
       if (dir === 'end' && canEnd) alertEnd = true;
+    }
+
+    // Active off-screen highlights (e.g. matching breaker during an encounter)
+    const activeHighlights = highlightRef.current;
+    if (activeHighlights && activeHighlights.size > 0 && (canStart || canEnd)) {
+      for (const id of activeHighlights) {
+        const node = findScrollItem(el, id);
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        if (axis === 'x') {
+          if (canEnd && rect.right > box.right + 8 && rect.left > box.left + 8) alertEnd = true;
+          if (canStart && rect.left < box.left - 8 && rect.right < box.right - 8) alertStart = true;
+        } else {
+          if (canEnd && rect.bottom > box.bottom + 8 && rect.top > box.top + 8) alertEnd = true;
+          if (canStart && rect.top < box.top - 8 && rect.bottom < box.bottom - 8) alertStart = true;
+        }
+      }
     }
 
     setEdges(prev =>
@@ -159,14 +187,27 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sigKey, axis, measure]);
 
-  // Re-measure on container resize (e.g. hand tray expand/collapse, device rotation)
+  // Re-measure whenever active off-screen highlight targets change (e.g. new encounter or all subroutines broken)
+  useEffect(() => {
+    if (typeof requestAnimationFrame === 'function') {
+      const raf = requestAnimationFrame(measure);
+      return () => cancelAnimationFrame(raf);
+    }
+    measure();
+    return undefined;
+  }, [highlightKey, measure]);
+
+  // Re-measure on container or inner content resize (e.g. hand tray expand/collapse, encounter panel mount)
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => measure());
     ro.observe(el);
+    for (const child of Array.from(el.children)) {
+      ro.observe(child);
+    }
     return () => ro.disconnect();
-  }, [measure]);
+  }, [measure, sigKey, highlightKey]);
 
   const passiveBar = tone === 'corp' ? 'bg-cyan-400/50' : 'bg-pink-400/50';
   const passiveFade = tone === 'corp' ? 'from-[#060c14]/90' : 'from-[#0d070c]/90';

@@ -22,7 +22,7 @@ import {
 } from '../promptHighlight';
 import type { ZoneId } from '../components/ZoneViewer';
 import { MobileSideStatus } from './MobileHud';
-import { ScrollEdgeContainer } from './ScrollEdgeCue';
+import { ScrollEdgeContainer } from '../components/ScrollEdgeCue';
 
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
 

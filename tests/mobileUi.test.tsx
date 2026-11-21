@@ -793,9 +793,9 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
 
   it('MobileThumbCockpit renders ice and breaker subtype icons on tucked hand strips', () => {
     const state = newGame(4242);
-    // Put Palisade (Barrier ice, 30072) in HQ and Cleaver (Fracter breaker, 30004) in Grip
+    // Put Palisade (Barrier ice, 30072) in HQ and Cleaver (Fracter breaker, 30006) in Grip
     state.corp.hq[0].cardCode = '30072';
-    state.runner.grip[0].cardCode = '30004';
+    state.runner.grip[0].cardCode = '30006';
     const idleFlow = {
       makingRoom: null,
       setMakingRoom: () => {},
