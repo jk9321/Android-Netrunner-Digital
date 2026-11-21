@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Play } from 'lucide-react';
 import {
   CardInstance,
@@ -13,6 +13,7 @@ import { IceTypeIcons, breakerTypes } from '../components/IceTypeIcons';
 import { useBoardCardTarget, usePromptHighlight } from '../promptHighlight';
 import type { ZoneId } from '../components/ZoneViewer';
 import { MobileSideStatus } from './MobileHud';
+import { ScrollEdgeContainer } from './ScrollEdgeCue';
 
 interface MobileRunnerBoardProps {
   gameState: GameState;
@@ -82,6 +83,7 @@ const MobileRigTile: React.FC<{
       type="button"
       data-testid={`mobile-rig-${card.instanceId}`}
       data-card-id={card.instanceId}
+      data-scroll-item-id={card.instanceId}
       onClick={e => {
         e.stopPropagation();
         if (boardTarget) {
@@ -214,6 +216,14 @@ export const MobileRunnerBoard: React.FC<MobileRunnerBoardProps> = ({
     </div>
   );
 
+  const rigItemSigs = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of programs) map.set(c.instanceId, '1');
+    for (const c of hardware) map.set(c.instanceId, '1');
+    for (const c of resources) map.set(c.instanceId, '1');
+    return map;
+  }, [programs, hardware, resources]);
+
   return (
     <section
       id="runner-board"
@@ -221,7 +231,14 @@ export const MobileRunnerBoard: React.FC<MobileRunnerBoardProps> = ({
       className="flex-[46] min-h-0 min-w-0 flex flex-col bg-[#0d070c] border border-pink-950/90 rounded-[3px] overflow-hidden"
     >
       {mirrored && statusBar}
-      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1.5">
+      <ScrollEdgeContainer
+        axis="y"
+        tone="runner"
+        itemSignatures={rigItemSigs}
+        className="flex-1"
+        scrollClassName="overflow-y-auto overscroll-contain p-1.5 flex flex-col gap-1.5"
+        testId="mobile-runner-rig"
+      >
         {isEmpty ? (
           <div className="flex-1 flex items-center justify-center text-[11px] text-slate-500 italic">
             No rig cards installed
@@ -237,7 +254,7 @@ export const MobileRunnerBoard: React.FC<MobileRunnerBoardProps> = ({
             {hwResBand}
           </>
         )}
-      </div>
+      </ScrollEdgeContainer>
       {!mirrored && statusBar}
     </section>
   );

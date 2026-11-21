@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Eye, Play, Shield } from 'lucide-react';
 import {
   CardInstance,
@@ -22,6 +22,7 @@ import {
 } from '../promptHighlight';
 import type { ZoneId } from '../components/ZoneViewer';
 import { MobileSideStatus } from './MobileHud';
+import { ScrollEdgeContainer } from './ScrollEdgeCue';
 
 const CENTRAL_ORDER = ['hq', 'rd', 'archives'];
 
@@ -126,6 +127,7 @@ const MobileIceStrip: React.FC<{
       type="button"
       data-testid={`mobile-ice-${ice.instanceId}`}
       data-card-id={ice.instanceId}
+      data-scroll-item-id={ice.instanceId}
       onClick={e => {
         e.stopPropagation();
         if (boardTarget) {
@@ -134,7 +136,7 @@ const MobileIceStrip: React.FC<{
         }
         onTap();
       }}
-      className={`w-full min-h-[28px] px-1.5 py-0.5 rounded-[2px] border text-left flex items-center justify-between gap-1 text-[10px] leading-tight transition-colors ${ringClass}`}
+      className={`w-full shrink-0 min-h-[26px] px-1 py-0.5 rounded-[2px] border text-left flex items-center justify-between gap-0.5 text-[9.5px] leading-tight transition-colors ${ringClass}`}
     >
       <div className="min-w-0 flex items-center gap-1 flex-1">
         {isActiveEncounter && <span className="text-pink-400 font-bold shrink-0">▶</span>}
@@ -225,6 +227,7 @@ const MobileRootTile: React.FC<{
       type="button"
       data-testid={`mobile-root-${card.instanceId}`}
       data-card-id={card.instanceId}
+      data-scroll-item-id={card.instanceId}
       onClick={e => {
         e.stopPropagation();
         if (boardTarget) {
@@ -233,7 +236,7 @@ const MobileRootTile: React.FC<{
         }
         onTap();
       }}
-      className={`w-full min-h-[38px] px-1.5 py-1 rounded-[3px] border text-left flex flex-col justify-between gap-0.5 text-[10px] leading-tight transition-colors ${ringClass}`}
+      className={`w-full shrink-0 min-h-[36px] px-1.5 py-1 rounded-[3px] border text-left flex flex-col justify-between gap-0.5 text-[10px] leading-tight transition-colors ${ringClass}`}
     >
       <div className="flex items-start justify-between gap-1">
         <span
@@ -313,78 +316,79 @@ const MobileServerColumn: React.FC<{
     ? [...server.ice].map((ice, idx) => ({ ice, idx })).reverse()
     : server.ice.map((ice, idx) => ({ ice, idx }));
 
-  const headerAndRoot = (
-    <div className="flex flex-col gap-1 shrink-0">
-      <button
-        type="button"
-        data-testid={`mobile-server-${server.id}`}
-        onClick={e => {
-          e.stopPropagation();
-          if (serverTarget) {
-            serverTarget.onClick();
-            return;
-          }
-          onTapServer(server.id);
-        }}
-        className={`w-full min-h-[28px] px-1.5 py-1 rounded-[2px] border text-[10px] font-bold flex items-center justify-between gap-1 transition-colors ${
-          serverTarget
-            ? 'border-amber-400 bg-amber-950/60 text-amber-200 ring-1 ring-amber-400'
-            : isRunTarget
-              ? 'border-pink-500 bg-pink-950/70 text-pink-200'
-              : canRun
-                ? 'border-cyan-700/90 bg-[#0d1d2d] text-cyan-200 active:bg-cyan-950'
-                : 'border-slate-700/80 bg-[#0c1420] text-slate-200'
-        }`}
-      >
-        <span className="truncate font-cyber tracking-wide">
-          {shortName}
-          {pileCount !== null && <span className="ml-1 font-mono text-slate-400 font-normal">{pileCount}</span>}
-        </span>
-        <span className="flex items-center gap-0.5 shrink-0">
-          {rdSeen > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-300" title={`${rdSeen} known in R&D`}>
-              <Eye className="w-2.5 h-2.5" />
-              {rdSeen}
-            </span>
-          )}
-          {canRun && <span className="px-1 rounded bg-pink-950/90 border border-pink-600/80 text-pink-300 text-[8.5px]">RUN</span>}
-        </span>
-      </button>
-
-      {server.root.map(card => (
-        <MobileRootTile
-          key={card.instanceId}
-          card={card}
-          viewer={viewer}
-          isActionable={actionableCardIds.has(card.instanceId)}
-          onTap={() => onTapCard(card)}
-        />
-      ))}
-    </div>
+  const serverHeader = (
+    <button
+      type="button"
+      data-testid={`mobile-server-${server.id}`}
+      onClick={e => {
+        e.stopPropagation();
+        if (serverTarget) {
+          serverTarget.onClick();
+          return;
+        }
+        onTapServer(server.id);
+      }}
+      className={`w-full shrink-0 min-h-[26px] px-1.5 py-1 rounded-[2px] border text-[10px] font-bold flex items-center justify-between gap-1 transition-colors ${
+        serverTarget
+          ? 'border-amber-400 bg-amber-950/60 text-amber-200 ring-1 ring-amber-400'
+          : isRunTarget
+            ? 'border-pink-500 bg-pink-950/70 text-pink-200'
+            : canRun
+              ? 'border-cyan-700/90 bg-[#0d1d2d] text-cyan-200 active:bg-cyan-950'
+              : 'border-slate-700/80 bg-[#0c1420] text-slate-200'
+      }`}
+    >
+      <span className="truncate font-cyber tracking-wide">
+        {shortName}
+        {pileCount !== null && <span className="ml-1 font-mono text-slate-400 font-normal">{pileCount}</span>}
+      </span>
+      <span className="flex items-center gap-0.5 shrink-0">
+        {rdSeen > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-300" title={`${rdSeen} known in R&D`}>
+            <Eye className="w-2.5 h-2.5" />
+            {rdSeen}
+          </span>
+        )}
+        {canRun && <span className="px-1 rounded bg-pink-950/90 border border-pink-600/80 text-pink-300 text-[8.5px]">RUN</span>}
+      </span>
+    </button>
   );
 
-  const iceStack =
-    orderedIce.length > 0 ? (
-      <div className={`flex flex-col gap-1 ${mirrored ? 'mt-auto' : ''}`}>
-        {orderedIce.map(({ ice }) => (
-          <MobileIceStrip
-            key={ice.instanceId}
-            ice={ice}
-            state={state}
-            viewer={viewer}
-            isActiveEncounter={runIceId === ice.instanceId}
-            isActionable={actionableCardIds.has(ice.instanceId)}
-            hostedCount={hostedByIceId.get(ice.instanceId) ?? 0}
-            onTap={() => onTapCard(ice)}
-          />
-        ))}
-      </div>
-    ) : null;
+  const rootTiles = server.root.map(card => (
+    <MobileRootTile
+      key={card.instanceId}
+      card={card}
+      viewer={viewer}
+      isActionable={actionableCardIds.has(card.instanceId)}
+      onTap={() => onTapCard(card)}
+    />
+  ));
+
+  const iceStrips = orderedIce.map(({ ice }) => (
+    <MobileIceStrip
+      key={ice.instanceId}
+      ice={ice}
+      state={state}
+      viewer={viewer}
+      isActiveEncounter={runIceId === ice.instanceId}
+      isActionable={actionableCardIds.has(ice.instanceId)}
+      hostedCount={hostedByIceId.get(ice.instanceId) ?? 0}
+      onTap={() => onTapCard(ice)}
+    />
+  ));
+
+  const columnItemSigs = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ice of server.ice) map.set(ice.instanceId, '1');
+    for (const card of server.root) map.set(card.instanceId, '1');
+    return map;
+  }, [server.ice, server.root]);
 
   return (
     <div
       data-testid={`server-${server.id}`}
-      className={`snap-start flex-1 min-w-[82px] flex flex-col gap-1 p-1 rounded-[3px] border bg-[#080f18]/90 ${
+      data-scroll-item-id={server.id}
+      className={`snap-start h-full min-h-0 overflow-hidden flex-1 min-w-[82px] flex flex-col gap-1 p-1 rounded-[3px] border bg-[#080f18]/90 ${
         serverTarget || serverHovered
           ? 'border-amber-400 ring-1 ring-amber-400/70'
           : isRunTarget
@@ -392,24 +396,39 @@ const MobileServerColumn: React.FC<{
             : 'border-cyan-950/90'
       }`}
     >
-      {mirrored ? (
-        <>
-          <div className="flex-1 min-h-0 flex flex-col justify-end gap-1 overflow-y-auto">{iceStack}</div>
-          {headerAndRoot}
-        </>
-      ) : (
-        <>
-          {headerAndRoot}
-          <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-y-auto">{iceStack}</div>
-        </>
-      )}
+      {!mirrored && serverHeader}
+      {/* Note: never put justify-end on an overflow-y-auto flex column — it overflows above scrollTop=0 unreachably.
+          Putting mt-auto on the inner stack anchors to bottom when it fits and scrolls cleanly from 0 when taller. */}
+      <ScrollEdgeContainer
+        axis="y"
+        tone="corp"
+        itemSignatures={columnItemSigs}
+        className="flex-1"
+        scrollClassName="flex flex-col overflow-y-auto overscroll-contain"
+        testId={`mobile-server-scroll-${server.id}`}
+      >
+        <div className={`flex flex-col gap-1 shrink-0 ${mirrored ? 'mt-auto' : ''}`}>
+          {mirrored ? (
+            <>
+              {iceStrips}
+              {rootTiles}
+            </>
+          ) : (
+            <>
+              {rootTiles}
+              {iceStrips}
+            </>
+          )}
+        </div>
+      </ScrollEdgeContainer>
+      {mirrored && serverHeader}
     </div>
   );
 };
 
 /**
  * Compact mobile Corp tabletop half: 1-row status strip + tight server columns (~82px min,
- * so Archives + R&D + HQ + 1 Remote fit with zero horizontal scroll on phones) with 28px ice strips.
+ * so Archives + R&D + HQ + 1 Remote fit with zero horizontal scroll on phones) with 26px ice strips.
  */
 export const MobileCorpBoard: React.FC<MobileCorpBoardProps> = ({
   gameState,
@@ -423,9 +442,25 @@ export const MobileCorpBoard: React.FC<MobileCorpBoardProps> = ({
   onOpenZone,
 }) => {
   const { corp, runner } = gameState;
-  const servers = Object.values(corp.servers).sort(
-    (a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id),
+  const servers = useMemo(
+    () =>
+      Object.values(corp.servers).sort(
+        (a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id),
+      ),
+    [corp.servers],
   );
+
+  // Track both newly created servers AND cards installed into an already-offscreen server
+  const serverItemSigs = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of servers) {
+      map.set(
+        s.id,
+        `${s.ice.map(i => i.instanceId).join(',')}|${s.root.map(r => r.instanceId).join(',')}`,
+      );
+    }
+    return map;
+  }, [servers]);
 
   // Count Runner trojans/hosted cards sitting on each piece of Corp ice
   const hostedByIceId = new Map<string, number>();
@@ -452,7 +487,14 @@ export const MobileCorpBoard: React.FC<MobileCorpBoardProps> = ({
       className="flex-[54] min-h-0 min-w-0 flex flex-col bg-[#060c14] border border-cyan-950/90 rounded-[3px] overflow-hidden"
     >
       {!mirrored && statusBar}
-      <div className="flex-1 min-h-0 flex items-stretch gap-1 p-1 overflow-x-auto snap-x">
+      <ScrollEdgeContainer
+        axis="x"
+        tone="corp"
+        itemSignatures={serverItemSigs}
+        className="flex-1"
+        scrollClassName="flex items-stretch gap-1 p-1 overflow-x-auto overflow-y-hidden snap-x overscroll-x-contain"
+        testId="mobile-corp-servers"
+      >
         {servers.map(server => (
           <MobileServerColumn
             key={server.id}
@@ -470,7 +512,7 @@ export const MobileCorpBoard: React.FC<MobileCorpBoardProps> = ({
             onTapServer={onTapServer}
           />
         ))}
-      </div>
+      </ScrollEdgeContainer>
       {mirrored && statusBar}
     </section>
   );

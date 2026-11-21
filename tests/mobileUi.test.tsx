@@ -404,14 +404,15 @@ describe('Phase 2 compact mobile boards & tap-to-act sheets', () => {
       />,
     );
     expect(runnerHtml).toContain('data-testid="mobile-corp-board"');
-    expect(runnerHtml).toContain('min-h-[28px]');
+    expect(runnerHtml).toContain('data-testid="mobile-corp-servers"');
+    expect(runnerHtml).toContain('min-h-[26px]');
     expect(runnerHtml).toContain('min-w-[82px]');
     expect(runnerHtml).toContain('Unrezzed');
     expect(runnerHtml).toContain('Face-down');
     expect(runnerHtml).not.toContain(cardDef(realIce).title);
     expect(runnerHtml).not.toContain(cardDef(realAgenda).title);
 
-    // Corp sees its own unrezzed cards and gets actionable ⚡ indicators
+    // Corp sees its own unrezzed cards and gets actionable indicators, with mt-auto (never justify-end) on mirrored scroll body
     const corpSeat = table.seatFor('corp');
     const corpHtml = renderToStaticMarkup(
       <MobileCorpBoard
@@ -428,6 +429,9 @@ describe('Phase 2 compact mobile boards & tap-to-act sheets', () => {
     );
     expect(corpHtml).toContain(cardDef(realIce).title);
     expect(corpHtml).toContain(cardDef(realAgenda).title);
+    expect(corpHtml).toContain('data-testid="mobile-server-scroll-remote1"');
+    expect(corpHtml).toContain('mt-auto');
+    expect(corpHtml).not.toContain('justify-end');
   });
 
   it('MobileRunnerBoard renders Programs/Support rows and mirrors Programs toward Corp ice', () => {
