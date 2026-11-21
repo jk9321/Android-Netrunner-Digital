@@ -18,6 +18,21 @@ test('auto fit shrinks cards to avoid scrolling and can be switched off', async 
   // (a local stress run failed 2 of 60 that way, with each check landing in a fresh glide)
   await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 60_000 });
 
+  // Populate a 3-ice HQ stack so Large cards without Auto fit genuinely overflow even with the spacious layout
+  await page.evaluate(() => {
+    const key = 'netrunner.savedGame.v1';
+    const saved = JSON.parse(window.localStorage.getItem(key)!);
+    const corp = saved.state.corp;
+    while (corp.servers.hq.ice.length < 3 && corp.rd.length > 0) {
+      const ice = corp.rd.pop();
+      Object.assign(ice, { cardCode: '30072', isRezzed: true, faceUp: true });
+      corp.servers.hq.ice.push(ice);
+    }
+    window.localStorage.setItem(key, JSON.stringify(saved));
+  });
+  await page.reload();
+  await expect(page.getByRole('button', { name: '+1 Credit' })).toBeEnabled({ timeout: 30_000 });
+
   const size = page.getByTestId('card-size');
   await size.getByRole('button', { name: 'Large' }).click();
   const cardWidth = () => page.locator('[data-testid=auto-fit-area] .card-fit').first().evaluate(el => el.getBoundingClientRect().width);
