@@ -54,7 +54,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Deck legality: `validateDeck` in `src/core/deckValidation.ts`; formats and ban lists in `src/core/formats.ts` (Casual/Startup/Standard; Eternal is out of scope).
 
 ## New card set process (Standard sets, newest first, on beta)
-When (Jeff 2026-11-16): new sets resume AFTER Stage D and the Runner rework, alongside tuning, so per-card AI is not written in the pre-Stage-D format.
+When (Jeff 2026-11-22, replaces "alongside tuning"): after the Runner rework, SET - ROUND - SET - ROUND until all wanted cards are in. The next set is scripted on its own branch during a learned round and merges to beta only at a round boundary; then the baselines are re-run and the next round starts from the earlier learned numbers. Early-round win rates don't compare across card-pool changes; one or two final rounds with every set in give the real read. Then the level-ups (wider search, work budget, hold-count cap; Corp and Runner together), each followed by a short re-learn round.
 1. Pull card data and image links from NetrunnerDB.
 2. Add new keywords to the hover tooltips.
 3. Implement every card with its own unit test (plus liveValue/revealInHand); check errata.
@@ -63,7 +63,7 @@ When (Jeff 2026-11-16): new sets resume AFTER Stage D and the Runner rework, alo
 4. AI data: one entry per card in `src/ai/cards/<set>.ts`; re-tag older cards that interact. Ice that gains subroutines when encountered (Starlit Knight) needs a `gainsOnEncounter` entry, or the Runner AI prices the run against the printed subroutines only.
 5. Startup/Standard legality and ban lists.
 6. Make the AI use the new cards and identities: sample real NetrunnerDB decks (test-only), run `scripts/deck-playability.ts`, add one beta picker deck per new identity. Check optional "you may X now for Y later" prompts.
-7. Balance with AI self-play, in the tuning phase: Corp 50 ± 5%.
+7. Balance with AI self-play, read in the final rounds with every set in: Corp 50 ± 5%.
 
 ## UI
 - No scanlines and no dot grid, ever.
