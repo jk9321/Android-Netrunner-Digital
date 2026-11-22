@@ -21,6 +21,14 @@ export interface UpdateEntry {
  */
 export const UPDATES: UpdateEntry[] = [
   {
+    id: '2026-11-21-ui-update',
+    date: 'November 21, 2026',
+    title: 'UI Update',
+    items: [
+      { text: 'Updated UI for desktop and mobile' },
+    ],
+  },
+  {
     id: '2026-11-20-corp-ai-rules-ui',
     date: 'November 20, 2026',
     title: 'Stronger Corp AI and rules fixes',
