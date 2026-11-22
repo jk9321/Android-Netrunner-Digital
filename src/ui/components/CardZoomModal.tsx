@@ -4,7 +4,7 @@ import { CardInstance } from '../../core/types/card';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { X, Shield, Trash2, AlertCircle } from 'lucide-react';
-import { cardTextHtml } from '../cardText';
+import { cardTextHtml, flavorTextHtml } from '../cardText';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { Keyword } from './Keyword';
 import { AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
@@ -178,9 +178,10 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
 
           {/* Flavor Text */}
           {def.flavor && (
-            <div className="text-xs text-slate-400 italic border-t border-slate-900 pt-2.5 sm:pt-3">
-              "{def.flavor}"
-            </div>
+            <div
+              className="text-xs text-slate-400 italic border-t border-slate-900 pt-2.5 sm:pt-3 [&_em]:not-italic [&_em]:text-slate-200 [&_strong]:not-italic [&_strong]:font-semibold [&_strong]:text-slate-300"
+              dangerouslySetInnerHTML={{ __html: flavorTextHtml(def.flavor) }}
+            />
           )}
         </div>
       </div>

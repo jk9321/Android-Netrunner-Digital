@@ -34,3 +34,16 @@ export function cardTextHtml(text: string): string {
     .replace(/\[[a-z-]+\]/g, token => SYMBOLS[token] ?? token)
     .replace(/\n/g, '<br />');
 }
+
+/**
+ * NetrunnerDB flavor text (with its <em>/<strong> emphasis and line breaks) as safe HTML
+ * for dangerouslySetInnerHTML, without annotating rules keywords inside flavor quotes.
+ */
+export function flavorTextHtml(flavor: string): string {
+  return flavor
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/&lt;(\/?(?:em|strong))&gt;/gi, '<$1>')
+    .replace(/\n/g, '<br />');
+}

@@ -5,7 +5,7 @@ import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { Shield, Trash2, AlertCircle, Lock, X } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
-import { cardTextHtml } from '../cardText';
+import { cardTextHtml, flavorTextHtml } from '../cardText';
 import { AdvancementIcon, AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
 import { liveCardModifiers, useLiveGameState } from '../liveValues';
 
@@ -128,9 +128,10 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
       {/* Flavor Text */}
       {def.flavor && (
-        <div className="mt-2 text-[11px] text-slate-400 italic border-t border-slate-900 pt-2 leading-relaxed">
-          "{def.flavor}"
-        </div>
+        <div
+          className="mt-2 text-[11px] text-slate-400 italic border-t border-slate-900 pt-2 leading-relaxed [&_em]:not-italic [&_em]:text-slate-200 [&_strong]:not-italic [&_strong]:font-semibold [&_strong]:text-slate-300"
+          dangerouslySetInnerHTML={{ __html: flavorTextHtml(def.flavor) }}
+        />
       )}
     </>
   );
