@@ -527,16 +527,19 @@ describe('AI code health (audit guards)', () => {
   // beta 6e254bee; measured on the merged tree: corp/ 4,068, src/ai 16,085, at the caps)
   // Then + 7 in src/ai/cards (ai-foaf-click-money, V-C checkpoint hunt finding 1: liberation.ts, Friend of a Friend's
   // clickMoney entry + 1 and its comment + 6; corp/ unchanged): corp/ 4,068, src/ai 16,092
-  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,092 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money)', () => {
+  // Then + 70 in corp/ (ai-hr-install-steps, Jeff 2026-11-22 Humanoid Resources: corp/hqSteps.ts, Q0a the Corp's own HQ
+  // steps, 65 with its comment, and core.ts's call + 5) and + 14 in incomeLine.ts (freeOperationPick, M1's net read on a
+  // prompt answer): corp/ 4,138, src/ai 16,176
+  it('keeps src/ai/corp at or under 4,138 lines and src/ai at or under 16,176 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-hr-install-steps)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(4068);
+    expect(corp).toBeLessThanOrEqual(4138);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16092);
+    expect(all).toBeLessThanOrEqual(16176);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
-    expect(4068 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16092 - all).toBeLessThanOrEqual(SLACK);
+    expect(4138 - corp).toBeLessThanOrEqual(SLACK);
+    expect(16176 - all).toBeLessThanOrEqual(SLACK);
   });
 });

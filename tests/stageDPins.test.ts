@@ -113,11 +113,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
 
   // D3, install prompts (Part B): the prompt was declined though a legal install existed. Expected (D3): it installs a
   // card, and its target is place(card, ...)[0]
-  for (const [n, m, source] of [
-    [49, 219, 'Humanoid Resources'],
-    [50, 252, 'Top-Down Solutions'],
+  // #49 #219 passes since ai-hr-install-steps (corp/hqSteps.ts: the deciding Corp answers an HQ install pick with the
+  // order's first install it does not put behind). #50 #252 stays known-failing: with 1 credit the order puts both ice
+  // behind (not paid for) and leaves Project Ingatan out (freeInstallOrder takes no agenda), so the fallback declines
+  for (const [n, m, source, pinned] of [
+    [49, 219, 'Humanoid Resources', false],
+    [50, 252, 'Top-Down Solutions', true],
   ] as const) {
-    it.fails(`D3 #${n} #${m}: the ${source} install prompt is not declined`, { timeout: T }, () => {
+    (pinned ? it.fails : it)(`D3 #${n} #${m}: the ${source} install prompt is not declined`, { timeout: T }, () => {
       const { s } = at(n, m);
       const p = s.pendingPrompts[0] as unknown as { kind: string; candidateIds: string[]; message: string };
       expect(p.kind).toBe('effect_cards');

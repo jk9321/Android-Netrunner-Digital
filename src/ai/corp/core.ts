@@ -8,6 +8,7 @@ import { note, tally, unsunk } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
 import { lineStep, scoreInTwoPick } from './placement';
+import { hqStepAnswer } from './hqSteps';
 
 /**
  * Step 4 Stage B1 (spec-step4-corp-core.md 1.2, 1.3): the Corp's decision pipeline, Q0 to Q7, one function for the
@@ -101,6 +102,10 @@ function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action
   // Corp's own pick stands while it keeps the score (keepsScore), the line's action is played otherwise
   const score = ctx.counted ? scoreNowPlan(view) : null;
   if (score && activePrompt(view)) return { action: score.first, note: true };
+  // Q0a. The Corp's own HQ steps (corp/hqSteps.ts): an install picked from HQ and its server, or an operation played from
+  // HQ, by an effect that spends no click; the deciding Corp only, the rollouts keep the fallback's answers
+  const hqStep = ctx.counted && activePrompt(view) ? hqStepAnswer(view) : null;
+  if (hqStep) return { action: hqStep, note: false };
   // Q0. A prompt
   if (activePrompt(view)) return { action: answerPrompt(view, 'corp', undefined, ctx.synergy), note: false };
   const legal = getLegalActions(state, 'corp');

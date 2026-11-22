@@ -39,11 +39,15 @@ function derezzed(before: GameState, after: GameState): boolean {
 
 /** Each legal econ operation with what it nets this turn (credits plus known turn-start income). */
 function options(state: GameState, legal: GameAction[]): Option[] {
+  return nets(state, legal.flatMap(a => (a.type === 'PLAY_OPERATION_OR_EVENT' ? [{ action: a, cardInstanceId: a.cardInstanceId }] : [])));
+}
+
+/** Each play (a main-phase action, or a prompt answer that plays the card) of an econ operation in HQ with what it nets. */
+function nets(state: GameState, plays: { action: GameAction; cardInstanceId: string }[]): Option[] {
   const out: Option[] = [];
   const before = worth(state);
-  for (const a of legal) {
-    if (a.type !== 'PLAY_OPERATION_OR_EVENT') continue;
-    const card = state.corp.hq.find(c => c.instanceId === a.cardInstanceId);
+  for (const { action: a, cardInstanceId } of plays) {
+    const card = state.corp.hq.find(c => c.instanceId === cardInstanceId);
     if (!card || !((cardSynergy(cardDef(card)).gives?.econ ?? 0) > 0)) continue;
     const after = played(state, a);
     if (!after) continue;
@@ -91,4 +95,14 @@ export function moneyPick(state: GameState, own?: GameAction | null): GameAction
   const ranked = ops.map(o => ({ o, first: enables(o) })).sort((a, b) => Number(b.first) - Number(a.first) || b.o.net - a.o.net);
   tally('money', 'ops');
   return ranked[0].o.action;
+}
+
+/**
+ * An operation played from HQ by a card's effect, no click spent (Humanoid Resources: "you may play 1 operation from HQ";
+ * corp/hqSteps.ts): M1's net read on each answer that plays one, the econ operation that nets the most credits, or null
+ * (none nets credits, or each pays with something credits do not count: left to the fallback).
+ */
+export function freeOperationPick(state: GameState, plays: { action: GameAction; cardInstanceId: string }[]): string | null {
+  const ops = nets(state, plays).sort((a, b) => b.net - a.net);
+  return ops.length ? plays.find(p => p.action === ops[0].action)!.cardInstanceId : null;
 }
