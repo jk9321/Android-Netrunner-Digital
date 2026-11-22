@@ -160,9 +160,9 @@ export function VirusIcon({ className = DEFAULT_CLASS, title = 'virus counter' }
 
 export function PowerIcon({ className = DEFAULT_CLASS, title = 'power counter' }: { className?: string; title?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} role="img" aria-label={title}>
+    <svg viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" className={className} role="img" aria-label={title}>
       <title>{title}</title>
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+      <path d="M12 2L22 12L12 22L2 12L12 2ZM12 8.2L8.2 12L12 15.8L15.8 12L12 8.2Z" />
     </svg>
   );
 }
