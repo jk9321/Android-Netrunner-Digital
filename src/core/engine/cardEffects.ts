@@ -548,7 +548,8 @@ export function removeFromGame(state: GameState, card: CardInstance): void {
 /** Draws cards and logs it (for card effects). */
 export function drawForEffect(state: GameState, side: SideCode, count: number, sourceTitle: string): void {
   const drawn = drawCards(state, side, count);
-  addLog(state, side, `${side === 'corp' ? 'Corp' : 'Runner'} drew ${drawn} card(s) (${sourceTitle}).`);
+  // Name the source first: "Runner drew 1 card (Stick and Poke)" read as the card drawn (issue #62)
+  addLog(state, side, `${sourceTitle}: ${side === 'corp' ? 'Corp' : 'Runner'} drew ${drawn} ${drawn === 1 ? 'card' : 'cards'}.`);
 }
 
 /**

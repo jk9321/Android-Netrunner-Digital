@@ -64,7 +64,7 @@ describe('Loaded credits and click abilities', () => {
       s = passTurn(passTurn(s)); // Corp then Runner: a new Corp turn begins
     }
     expect(s.corp.archives.faceUp.map(c => c.instanceId)).toContain(id);
-    expect(s.log.some(l => /drew 1 card\(s\) \(Nico Campaign\)/.test(l.message))).toBe(true);
+    expect(s.log.some(l => /^Nico Campaign: Corp drew 1 card\.$/.test(l.message))).toBe(true);
   });
 
   it('Smartware Distributor stores 3 credits and releases 1 at the start of each Runner turn', () => {
