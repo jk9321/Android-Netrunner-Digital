@@ -21,8 +21,8 @@ export interface BucketRule {
 
 /**
  * Stops changes per seat (a stops change is a stored move: replays need it).
- * The stops toggle is one click per change; a person cycling AUTO/ALL/NONE
- * makes 2-3 changes and gets them back within a few minutes. 5 at once, one
+ * The stops toggle is one click per change; a person switching AUTO/ALL
+ * makes 1-2 changes and gets them back within a few minutes. 5 at once, one
  * back every 60 s (MP coordinator's ruling on review, 2026-11-11; 5 s was
  * about 86,400 rows a day per seat sustained): about 7,200 rows a day per
  * seat at most. See "Daily ceiling" in docs/multiplayer-server.md.

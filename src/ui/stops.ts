@@ -3,17 +3,20 @@ import { readStorage, writeStorage } from './storage';
 
 /**
  * Where a person's game stops for paid ability windows (the top bar's
- * toggle): 'auto' where people usually act, 'full' at every window, 'none'
- * never (the player passes every window of the opponent's). Saved in
+ * toggle): 'auto' where people usually act, 'full' at every window. Saved in
  * localStorage so the choice carries over; the computer always plays at 'ai'.
+ * There is no 'none' for people any more (issue #63, Jeff 2026-11-23): it
+ * passed the Corp's rez windows (rule 6.4.3), and AUTO already skips every
+ * window with nothing to do. A saved 'none' reads as 'auto'. The engine keeps
+ * 'none' in StopLevel so older saved games and bug-report snapshots load.
  */
 const STORAGE_KEY = 'netrunner.stops';
 
-export type PersonStops = Exclude<StopLevel, 'ai'>;
+export type PersonStops = Extract<StopLevel, 'auto' | 'full'>;
 
 export function savedStops(): PersonStops {
   const saved = readStorage(STORAGE_KEY);
-  return saved === 'full' || saved === 'none' ? saved : 'auto';
+  return saved === 'full' ? 'full' : 'auto';
 }
 
 export function saveStops(level: PersonStops): void {
@@ -28,14 +31,9 @@ export const STOP_LABELS: Record<PersonStops, { short: string; title: string }> 
   },
   full: {
     short: 'ALL',
-    title: 'All: your game stops at every paid ability window (rules 9.2.7) so you can use abilities or rez. Click to pass every window.',
-  },
-  none: {
-    short: 'NONE',
-    title:
-      'None: you pass every window in the other player\'s turn and runs, so as the Corp you will not be asked to rez ice during runs. Your own moves still wait for you. Click for auto.',
+    title: 'All: your game stops at every paid ability window (rules 9.2.7) so you can use abilities or rez. Click for auto.',
   },
 };
 
-/** The toggle's order: auto, then every window, then none. */
-export const nextStops = (level: PersonStops): PersonStops => (level === 'auto' ? 'full' : level === 'full' ? 'none' : 'auto');
+/** The toggle: auto and every window. */
+export const nextStops = (level: PersonStops): PersonStops => (level === 'auto' ? 'full' : 'auto');

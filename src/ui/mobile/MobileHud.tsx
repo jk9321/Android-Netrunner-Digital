@@ -1,5 +1,5 @@
 import React from 'react';
-import { FastForward, Hand, Menu, Play, SkipForward, Wifi, WifiOff } from 'lucide-react';
+import { FastForward, Hand, Menu, Play, Wifi, WifiOff } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef, knownInHand } from '../../core';
 import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from '../components/CreditIcon';
 import { StatTumbler } from '../components/StatTumbler';
@@ -119,16 +119,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 ? 'border-amber-500 text-amber-300 animate-pulse'
                 : stops === 'full'
                   ? 'border-cyan-500 text-cyan-300'
-                  : stops === 'none'
-                    ? 'border-amber-700 text-amber-400'
-                    : 'border-slate-700 text-slate-300'
+                  : 'border-slate-700 text-slate-300'
             }`}
           >
             {aiThinking ? (
               <span data-testid="ai-status">AI…</span>
             ) : (
               <>
-                {stops === 'full' ? <Hand className="w-3 h-3" /> : stops === 'none' ? <SkipForward className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+                {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
                 <span>{STOP_LABELS[stops].short}</span>
               </>
             )}

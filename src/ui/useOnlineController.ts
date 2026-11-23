@@ -89,7 +89,7 @@ export function useOnlineController(table: OnlineTable): GameController {
     () =>
       table.onStopsRefused(() => {
         const level = table.seatFor(side).view?.stops?.[side];
-        if (level === 'auto' || level === 'full' || level === 'none') {
+        if (level === 'auto' || level === 'full') {
           setStopsState(level);
           saveStops(level);
         }

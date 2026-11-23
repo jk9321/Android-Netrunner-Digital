@@ -36,13 +36,13 @@ test('play against the computer and resume after a reload', async ({ page }) => 
   await expect(page.getByTestId('runner-credits')).toContainText(String(before + 4));
   await expect(page.getByTestId('card-size').getByRole('button', { name: 'Large' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'End Runner Turn' }).click();
-  // The stops toggle switches between auto-skip and full control of paid ability windows
+  // The stops toggle switches between auto-skip and full control of paid ability windows (no NONE since #63)
   const toggle = page.getByTestId('stops-toggle');
   await expect(toggle).toHaveAttribute('aria-label', 'Stops: auto');
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-label', 'Stops: full');
   await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-label', 'Stops: none');
+  await expect(toggle).toHaveAttribute('aria-label', 'Stops: auto');
 
   // Header score counters open and toggle the Corp / Runner score area viewers
   await page.getByTestId('header-corp-score').click();

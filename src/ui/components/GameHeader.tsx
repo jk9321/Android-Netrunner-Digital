@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FastForward, Flag, Hand, LogOut, Menu, Settings, SkipForward, X } from 'lucide-react';
+import { FastForward, Flag, Hand, LogOut, Menu, Settings, X } from 'lucide-react';
 import { AgendaDiamondIcon } from './CreditIcon';
 import { StatTumbler } from './StatTumbler';
 import { GameState, SideCode } from '../../core';
@@ -159,8 +159,6 @@ export function GameHeader({
                 ? 'border-amber-500 text-amber-300 animate-pulse'
                 : stops === 'full'
                   ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
-                  : stops === 'none'
-                  ? 'border-amber-700 text-amber-400 hover:bg-amber-950/40'
                   : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
             }`}
             title={STOP_LABELS[stops].title}
@@ -170,7 +168,7 @@ export function GameHeader({
               <span data-testid="ai-status">AI THINKING…</span>
             ) : (
               <span className="inline-flex items-center gap-1">
-                {stops === 'full' ? <Hand className="w-3 h-3" /> : stops === 'none' ? <SkipForward className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+                {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
                 <span className="hidden min-[1800px]:inline">STOPS:</span>
                 {STOP_LABELS[stops].short}
               </span>
