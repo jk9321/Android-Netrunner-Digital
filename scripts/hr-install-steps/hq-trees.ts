@@ -249,6 +249,8 @@ export interface Tree {
   GameRunner: any;
   core: any;
   decks: any;
+  /** corp/rezMoney.ts rezMoney (bar line (f), spec-ruling.md 7: the Corp's keep at the Runner's turn). */
+  rezMoney: (s: any) => { keep: number };
   clear: () => void;
 }
 
@@ -256,14 +258,15 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
   const m = (p: string) => import(/* @vite-ignore */ join(dir, 'src', p));
   const mods: any[] = [];
   // One at a time: vite-node never settles concurrent imports of one circular graph
-  for (const p of ['ai/index.ts', 'ai/playout.ts', 'core/index.ts', 'data/decks.ts', 'ai/handValues.ts', 'ai/effectValues.ts', 'ai/valueModel.ts', 'ai/iceValues.ts']) mods.push(await m(p));
-  const [ai, po, core, decks, hv, ev, vm, iv] = mods;
+  for (const p of ['ai/index.ts', 'ai/playout.ts', 'core/index.ts', 'data/decks.ts', 'ai/handValues.ts', 'ai/effectValues.ts', 'ai/valueModel.ts', 'ai/iceValues.ts', 'ai/corp/rezMoney.ts']) mods.push(await m(p));
+  const [ai, po, core, decks, hv, ev, vm, iv, rm] = mods;
   return {
     name,
     createAgent: ai.createAgent,
     GameRunner: po.GameRunner,
     core,
     decks,
+    rezMoney: rm.rezMoney,
     clear: () => {
       hv.clearHandCaches();
       ev.clearDamageThreats();

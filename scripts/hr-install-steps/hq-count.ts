@@ -161,6 +161,8 @@ function rootSummary(t: Tree, s: GameState, server: string | null) {
 interface Cont {
   run: null | { breach: boolean; stolen: number; rootTrashed: string[]; rcr: number; ccr: number; hqGone: string[]; hqAgendaGone: boolean; ended: string };
   turnEnd: { cr: number; hq: number } | null;
+  /** The Runner's next turn as it begins, on the Corp's turn only: the Corp's credits and rezMoney's keep (bar line (f)). */
+  runnerStart?: { cr: number; keep: number };
   /** Corp and Runner points two turn pairs later (turn T0 + 2 starts, or the game's end) */
   cs2: number;
   rs2: number;
@@ -176,13 +178,23 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
   t.clear();
   const none: Cont = { run: null, turnEnd: null, cs2: s0.corp.score, rs2: s0.runner.score, winner: null, T: 0, cs: 0, rs: 0 };
   let s: GameState;
+  let g: any;
   try {
     if (!t.core.isLegalAction(s0, first)) return { ...none, err: 'not legal' };
-    s = t.core.executeAction(structuredClone(s0), first);
+    // An hq tree at a Corp prompt: its own Corp agent plays the first answer, so that Q0a's pick is in its memory for
+    // the server step after it (spec-ruling.md 7a R5: the server step is Q0a's only after Q0a's own pick)
+    if ((HQ_ARMS as string[]).includes(tree) && t.core.activePrompt(s0)?.side === 'corp') {
+      g = new t.GameRunner(structuredClone(s0), agents(t, snaps));
+      g.step();
+      if (key(g.last) !== key(first)) return { ...none, err: 'first differs' };
+      s = g.state;
+    } else {
+      s = t.core.executeAction(structuredClone(s0), first);
+      g = new t.GameRunner(s, agents(t, snaps));
+    }
   } catch (e) {
     return { ...none, err: (e as Error).message.slice(0, 100) };
   }
-  const g = new t.GameRunner(s, agents(t, snaps));
   const runOn = !!s0.activeRun;
   const server = s0.activeRun?.server ?? null;
   const roots0 = new Map((server && s0.corp.servers[server] ? s0.corp.servers[server].root : []).map(c => [c.instanceId, t.core.cardDef(c).title]));
@@ -193,6 +205,10 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
   // The answer itself can carry the run into the breach (Anoetic Void "no": the approach passes, the run succeeds)
   let breach = !!s0.activeRun?.breached || !!s.activeRun?.breached || s.activeRun?.phase === 'access';
   let turnEnd: Cont['turnEnd'] = null;
+  let runnerStart: Cont['runnerStart'];
+  const atRunner = () => {
+    if (!runnerStart && P0 === 'corp' && g.state.activePlayer === 'runner' && !g.state.winner) runnerStart = { cr: g.state.corp.credits, keep: t.rezMoney(g.state).keep };
+  };
   let two: { cs: number; rs: number } | null = null;
   const fin = (x: GameState, why: string) => {
     const gone = hq0.filter(id => !x.corp.hq.some(c => c.instanceId === id));
@@ -218,20 +234,22 @@ function cont(s0: GameState, first: GameAction, snaps: { corp?: Snap; runner?: S
     let prev: GameState = g.state;
     if (runOn && !g.state.activeRun) run = fin(g.state, 'first');
     if (g.state.turnNumber !== T0 || g.state.activePlayer !== P0) turnEnd = { cr: prev.corp.credits, hq: prev.corp.hq.length };
+    atRunner();
     for (let n = 0; n < 6000; n++) {
       if (!two && (g.state.turnNumber >= T0 + 2 || g.state.winner)) two = { cs: g.state.corp.score, rs: g.state.runner.score };
       if (!g.step()) break;
       if (g.state.activeRun?.breached || g.state.activeRun?.phase === 'access') breach = true;
       if (runOn && !run && (!g.state.activeRun || g.state.activeRun.server !== server)) run = fin(g.state, g.state.winner ? 'game' : 'run');
       if (!turnEnd && (g.state.turnNumber !== T0 || g.state.activePlayer !== P0)) turnEnd = { cr: prev.corp.credits, hq: prev.corp.hq.length };
+      atRunner();
       prev = g.state;
     }
   } catch (e) {
-    return { run, turnEnd, cs2: two?.cs ?? g.state.corp.score, rs2: two?.rs ?? g.state.runner.score, winner: g.state.winner ?? null, T: g.state.turnNumber, cs: g.state.corp.score, rs: g.state.runner.score, err: (e as Error).message.slice(0, 100) };
+    return { run, turnEnd, runnerStart, cs2: two?.cs ?? g.state.corp.score, rs2: two?.rs ?? g.state.runner.score, winner: g.state.winner ?? null, T: g.state.turnNumber, cs: g.state.corp.score, rs: g.state.runner.score, err: (e as Error).message.slice(0, 100) };
   }
   if (!turnEnd) turnEnd = { cr: g.state.corp.credits, hq: g.state.corp.hq.length };
   if (!two) two = { cs: g.state.corp.score, rs: g.state.runner.score };
-  return { run, turnEnd, cs2: two.cs, rs2: two.rs, winner: g.state.winner ?? null, T: g.state.turnNumber, cs: g.state.corp.score, rs: g.state.runner.score };
+  return { run, turnEnd, runnerStart, cs2: two.cs, rs2: two.rs, winner: g.state.winner ?? null, T: g.state.turnNumber, cs: g.state.corp.score, rs: g.state.runner.score };
 }
 
 // ------------------------------------------------------------------------------------------------ one decision

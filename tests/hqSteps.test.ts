@@ -224,3 +224,48 @@ describe('Humanoid Resources: the Corp carries out its steps (corp/hqSteps.ts)',
     expect(hqStepAnswer(stepState, null, { source: p.source.instanceId, card: String(p.source.data?.cardId) })).not.toBeNull();
   });
 });
+
+// R7 (red team H4): class prompts no batch Corp deck holds. Each is carried out, its cost paid, and the Corp keeps
+// rez money's keep; these are not shown by the batch (the count's decks never reach them)
+describe('Q0a on class prompts not shown by the batch (spec-ruling.md 7 R7)', () => {
+  const GREASING = '34037';
+  const ACTIVE_POLICING = '34102';
+  const SUDDEN = '34119';
+  /** The Corp's action phase with `op` played from HQ (the rest of HQ as given), R&D topped with `draws`. */
+  function played(op: string, hq: string[], credits: number, draws: string[] = [], setup?: (s: GameState) => void): GameState {
+    const s = newGame(5);
+    s.corp.hq = [createCardInstance(s, op), ...hq.map(c => createCardInstance(s, c))];
+    s.corp.rd = [...draws.map(c => createCardInstance(s, c)), ...s.corp.rd];
+    s.corp.credits = credits;
+    setup?.(s);
+    return play(s, 'corp', s.corp.hq[0].instanceId);
+  }
+  const deciding = (s0: GameState) => answerAll(s0, x => createAgent('corp', 'normal').chooseAction(x));
+
+  it('Greasing the Palm: the ice is installed, paid, and keep holds (not shown by the batch)', { timeout: 60_000 }, () => {
+    const s0 = played(GREASING, [PALISADE], 6);
+    expect(activePrompt(s0)).toMatchObject({ kind: 'effect_cards', source: { cardCode: GREASING } });
+    expect(hqStepAnswer(s0, null, null)).not.toBeNull();
+    const s = deciding(s0);
+    expect(installed(s)).toContain('Palisade');
+    expect(s.corp.credits).toBeGreaterThanOrEqual(rezMoney(s).keep);
+  });
+
+  it('Active Policing: the ice is installed, paid, and keep holds (not shown by the batch)', { timeout: 60_000 }, () => {
+    const s0 = played(ACTIVE_POLICING, [PALISADE], 8, [], s => void (s.runnerLastTurnStoleOrTrashed = true));
+    expect(activePrompt(s0)).toMatchObject({ kind: 'effect_cards', source: { cardCode: ACTIVE_POLICING } });
+    expect(hqStepAnswer(s0, null, null)).not.toBeNull();
+    const s = deciding(s0);
+    expect(installed(s)).toContain('Palisade');
+    expect(s.corp.credits).toBeGreaterThanOrEqual(rezMoney(s).keep);
+  });
+
+  it('Sudden Commandment: Hedge Fund is played from HQ, its cost paid (not shown by the batch)', { timeout: 60_000 }, () => {
+    const s0 = played(SUDDEN, [HEDGE_FUND], 6, [RETRIBUTION, RETRIBUTION]);
+    expect(activePrompt(s0)).toMatchObject({ kind: 'effect_cards', source: { cardCode: SUDDEN } });
+    const credits = s0.corp.credits;
+    const s = deciding(s0);
+    expect(s.corp.archives.faceUp.some(c => c.cardCode === HEDGE_FUND)).toBe(true);
+    expect(s.corp.credits).toBe(credits + 4); // pay 5, gain 9 (rule 1.16.7: the play cost is paid)
+  });
+});
