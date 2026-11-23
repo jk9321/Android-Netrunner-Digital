@@ -7,7 +7,7 @@ import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
 import { HeldLine } from './lines';
-import { FreeInstall, Placement, iceCount, icePaidAt, place, placedInstall, placementAction } from './placement';
+import { FreeInstall, Placement, iceCount, icePaidAt, installCharge, mainStepView, place, placedInstall, placementAction } from './placement';
 import { archivesWantsIce, rezAllowed } from './rez';
 import { advancesAsIce, iceAdvanceValue, isPettyCash, overAdvance, trapAdvanceCap } from './cardRules';
 import { placedCounterWorth } from '../effectValues';
@@ -63,6 +63,8 @@ export interface CandidateOptions {
   freeExhausted: boolean;
   /** A free install outside the main phase (placement.ts FreeInstall): `legal` holds the installs it offers, and the board after one is its own. */
   free?: FreeInstall;
+  /** A free step inside the Corp's main phase (placement.ts PlaceContext.main, mainStepView). */
+  main?: GameState;
 }
 
 const typeOf = (c: CardInstance | undefined) => (c ? cardDef(c).type_code : undefined);
@@ -83,10 +85,9 @@ function resolved(state: GameState, action: GameAction): GameState | null {
   return after;
 }
 
-/** Ice the Corp can install and still rez within keep (rule 8.5.11a: 1 credit per ice already protecting the server). */
+/** Ice the Corp can install and still rez within keep (rule 8.5.11a: 1 credit per ice already protecting the server; under `free`, the prompt's charge). */
 function icePaid(state: GameState, card: CardInstance, a: Install, keep: number, free?: FreeInstall): boolean {
-  const server = a.asNewRemote || !a.targetServerId || free ? null : state.corp.servers[a.targetServerId];
-  return icePaidAt(state, card, server ? server.ice.length : 0, keep);
+  return icePaidAt(state, card, installCharge(state, a, free), keep);
 }
 
 /** The server a just-installed card sits in after `after`. */
@@ -103,11 +104,11 @@ function turnsToScore(state: GameState, agenda: CardInstance, clicksUsed: number
 const legalOr = (state: GameState, a: Install, otherwise: Install): Install => (isLegalAction(state, a) ? a : otherwise);
 
 /** The destinations `place` gives a card's installs: the counted rule's alone where one applies (spec 1.3, authority 3). */
-function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null, free?: FreeInstall): { action: Install; placement: Placement }[] {
+function placedInstalls(state: GameState, card: CardInstance, installs: Install[], held: HeldLine | null, free?: FreeInstall, main?: GameState): { action: Install; placement: Placement }[] {
   const seen = new Map<string, { action: Install; placement: Placement }>();
   const counted: { action: Install; placement: Placement }[] = [];
   for (const from of installs) {
-    const p = place(state, card, { from, held: held ? structuredClone(held) : null, ...(free ? { free } : {}) });
+    const p = place(state, card, { from, held: held ? structuredClone(held) : null, ...(free ? { free } : {}), ...(main ? { main } : {}) });
     if (!p.length) continue;
     const placement = p[0];
     // An asset line (assetCover) is begun from the asset's own install. The ice pair: Q5 (scoreInTwoPick) plays its ice
@@ -248,7 +249,7 @@ export function corpCandidates(state: GameState, legal: GameAction[], opts: Cand
   for (const [id, installs] of installsByCard) {
     const card = corp.hq.find(c => c.instanceId === id);
     if (!card) continue;
-    for (const { action } of placedInstalls(state, card, installs, opts.held, opts.free)) {
+    for (const { action } of placedInstalls(state, card, installs, opts.held, opts.free, opts.main)) {
       const t = typeOf(card);
       if (t === 'ice') iceMove(state, action, card, keep, add, afterOf, opts.free);
       else if (t === 'agenda') {
@@ -349,7 +350,7 @@ const findInstalled = (state: GameState, id: string) => Object.values(state.corp
 /** Lines 2, 6, 8: an ice install at its placement (see the file comment and the tie-break contract, spec 1.3). */
 function iceMove(state: GameState, a: Install, card: CardInstance, keep: number, add: (c: Candidate) => void, afterOf: (a: GameAction) => GameState | null, free?: FreeInstall) {
   const paid = icePaid(state, card, a, keep, free);
-  const cost = (a.asNewRemote || !a.targetServerId || free ? 0 : state.corp.servers[a.targetServerId]?.ice.length ?? 0) + (cardDef(card).cost ?? 0);
+  const cost = installCharge(state, a, free) + (cardDef(card).cost ?? 0);
   const after = afterOf(a);
   if (!after) return;
   const id = idNum(card.instanceId);
@@ -414,15 +415,32 @@ export function freeInstallTarget(state: GameState, card: CardInstance, options:
   return { server: a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId, score: order.length - i };
 }
 
-export function freeInstallOrder(state: GameState, options: string[]): Candidate[] {
-  const free: FreeInstall = a => freeAfter(state, a as Install);
+/**
+ * The order's install moves for a free install from HQ, at `options` (the prompt's servers). `step` (corp/hqSteps.ts,
+ * spec-ruling.md 7 R1 R2): a step that may pay, answered by the deciding Corp holding `held`; inside the main phase the
+ * held line is read there (mainStepView). Without it: Synapse Global's reader, as ruled (no line).
+ */
+export function freeInstallOrder(state: GameState, options: string[], step?: { held: HeldLine | null }): Candidate[] {
+  const free: FreeInstall = memoFree(a => freeAfter(state, a as Install));
+  const main = step ? mainStepView(state) ?? undefined : undefined;
   const legal: GameAction[] = [];
   for (const c of state.corp.hq) {
     if (!['ice', 'asset', 'upgrade'].includes(typeOf(c) ?? '')) continue;
     for (const o of options) legal.push(o === 'new' ? { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: c.instanceId, asNewRemote: true } : { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: c.instanceId, targetServerId: o });
   }
   const where = (a: Install) => (a.asNewRemote || !a.targetServerId ? 'new' : a.targetServerId);
-  return corpCandidates(state, legal, { held: null, freeExhausted: false, free }).filter(c => isInstall(c.action) && options.includes(where(c.action)));
+  return corpCandidates(state, legal, { held: main ? step!.held : null, freeExhausted: false, free, ...(main ? { main } : {}) }).filter(c => isInstall(c.action) && options.includes(where(c.action)));
+}
+
+/** The board after each free install, once per install (the order, its cost key and the fallback all read it). */
+function memoFree(f: FreeInstall): FreeInstall {
+  const seen = new Map<string, GameState | null>();
+  return a => {
+    const i = a as Install;
+    const key = `${i.cardInstanceId}@${i.asNewRemote || !i.targetServerId ? 'new' : i.targetServerId}`;
+    if (!seen.has(key)) seen.set(key, f(a));
+    return seen.get(key)!;
+  };
 }
 
 /** The board after the free install of `a`, answered through the open prompt (the card pick, then its server), or null. */

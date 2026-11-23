@@ -8,7 +8,7 @@ import { note, tally, unsunk } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
 import { moneyPick } from '../incomeLine';
 import { lineStep, scoreInTwoPick } from './placement';
-import { hqStepAnswer } from './hqSteps';
+import { HqPick, hqStepAnswer } from './hqSteps';
 
 /**
  * Step 4 Stage B1 (spec-step4-corp-core.md 1.2, 1.3): the Corp's decision pipeline, Q0 to Q7, one function for the
@@ -28,6 +28,8 @@ import { hqStepAnswer } from './hqSteps';
 export interface CorpMemory {
   /** plan.scoreInTwo (counted scoring C2): the two-turn score line this Corp holds, keyed by game id (corp/lines.ts). */
   heldLine: HeldLine | null;
+  /** Q0a's install pick at the deciding Corp's last decision (corp/hqSteps.ts; spec-ruling.md 7a R5): its server step reads it; any other decision clears it. */
+  hqPick?: HqPick | null;
 }
 
 export interface CorpContext {
@@ -80,6 +82,7 @@ export function corpDecide(state: GameState, ctx: CorpContext, view: GameState =
     return corpDecide(state, ctx, state);
   }
   if (out.held !== undefined) ctx.memory.heldLine = out.held;
+  if (ctx.counted) ctx.memory.hqPick = out.hqPick ?? null;
   if (out.note) ctx.note(out.action);
   return out.action;
 }
@@ -91,7 +94,7 @@ function promptKind(state: GameState): string {
 }
 
 /** One decision read on `view` (the real `state` only for the legal list), its commits returned for corpDecide to make. */
-function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action: GameAction; note: boolean; held?: HeldLine | null } {
+function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action: GameAction; note: boolean; held?: HeldLine | null; hqPick?: HqPick | null } {
   decisionContext(view, 'corp');
   // Q1. plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
   if (ctx.counted) {
@@ -104,8 +107,8 @@ function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action
   if (score && activePrompt(view)) return { action: score.first, note: true };
   // Q0a. The Corp's own HQ steps (corp/hqSteps.ts): an install picked from HQ and its server, or an operation played from
   // HQ, by an effect that spends no click; the deciding Corp only, the rollouts keep the fallback's answers
-  const hqStep = ctx.counted && activePrompt(view) ? hqStepAnswer(view) : null;
-  if (hqStep) return { action: hqStep, note: false };
+  const hqStep = ctx.counted && activePrompt(view) ? hqStepAnswer(view, ctx.memory.heldLine, ctx.memory.hqPick ?? null) : null;
+  if (hqStep) return { action: hqStep.action, note: false, hqPick: hqStep.pick };
   // Q0. A prompt
   if (activePrompt(view)) return { action: answerPrompt(view, 'corp', undefined, ctx.synergy), note: false };
   const legal = getLegalActions(state, 'corp');

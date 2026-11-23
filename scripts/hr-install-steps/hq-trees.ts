@@ -7,18 +7,20 @@
  * fallback's record, the planner's per-candidate trace; no arm widens followChain here). Arms:
  *  - beta, control, source: Q0a (corp/core.ts hqStepAnswer) taken out, so the tree is beta's src plus the
  *    incomeLine.ts `nets` refactor only. `source` plays the g1 base's deals and must match that record (C6: M1 unchanged).
- *  - hq: the branch as built (P, S and O); hqP, hqS, hqO: one part each (P the install pick, S the install step's
- *    server, O the operation pick), the other parts give today's answer. Each hq tree marks a top-level Q0a answer
- *    (`__hqFire`), so a changed decision without one is outside the class.
+ *  - hq: the branch as built (P, S and O); hqPS: the install pair (P the install pick, S the install step's server);
+ *    hqP: the pick alone (the server the fallback's); hqO: the operation pick alone. The other parts give today's
+ *    answer. Since spec-ruling.md 7 R5 the server step is Q0a's only after Q0a's own pick, so S has no arm of its own:
+ *    S is read as hqPS against hqP. Each hq tree marks a top-level Q0a answer (`__hqFire`), so a changed decision
+ *    without one is outside the class.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const ARMS = ['beta', 'control', 'source', 'hq', 'hqP', 'hqS', 'hqO'] as const;
+export const ARMS = ['beta', 'control', 'source', 'hq', 'hqPS', 'hqP', 'hqO'] as const;
 export type Arm = (typeof ARMS)[number];
-export const HQ_ARMS: Arm[] = ['hq', 'hqP', 'hqS', 'hqO'];
-const PARTS: Partial<Record<Arm, string>> = { hq: 'PSO', hqP: 'P', hqS: 'S', hqO: 'O' };
+export const HQ_ARMS: Arm[] = ['hq', 'hqPS', 'hqP', 'hqO'];
+const PARTS: Partial<Record<Arm, string>> = { hq: 'PSO', hqPS: 'PS', hqP: 'P', hqO: 'O' };
 
 type Patch = [file: string, at: string, to: string];
 
@@ -200,10 +202,10 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
       ? ([
           [
             'ai/corp/core.ts',
-            `  if (hqStep) return { action: hqStep, note: false };`,
+            `  if (hqStep) return { action: hqStep.action, note: false, hqPick: hqStep.pick };`,
             `  if (hqStep) {
     (globalThis as any).__hqFire = true;
-    return { action: hqStep, note: false };
+    return { action: hqStep.action, note: false, hqPick: hqStep.pick };
   }`,
           ],
           ['ai/corp/hqSteps.ts', `    if (steps.length > 0) {`, `    if (steps.length > 0) {
@@ -211,7 +213,13 @@ function __answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory,
           ['ai/corp/hqSteps.ts', `    if (prompt.max === 1 && prompt.candidateIds.every(`, `    if (${JSON.stringify(PARTS[arm])}.includes('O') && prompt.max === 1 && prompt.candidateIds.every(`],
           ['ai/corp/hqSteps.ts', `  if (prompt.kind === 'effect_choice' && prompt.source.data?.install) {`, `  if (${JSON.stringify(PARTS[arm])}.includes('S') && prompt.kind === 'effect_choice' && prompt.source.data?.install) {`],
         ] as Patch[])
-      : ([['ai/corp/core.ts', `  const hqStep = ctx.counted && activePrompt(view) ? hqStepAnswer(view) : null;`, `  const hqStep: GameAction | null = null && hqStepAnswer(view);`]] as Patch[])),
+      : ([
+          [
+            'ai/corp/core.ts',
+            `  const hqStep = ctx.counted && activePrompt(view) ? hqStepAnswer(view, ctx.memory.heldLine, ctx.memory.hqPick ?? null) : null;`,
+            `  const hqStep = false as boolean ? hqStepAnswer(view, ctx.memory.heldLine, ctx.memory.hqPick ?? null) : null;`,
+          ],
+        ] as Patch[])),
   ];
 }
 

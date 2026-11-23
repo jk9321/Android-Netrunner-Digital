@@ -2,7 +2,7 @@
  * ai-hr-install-steps (Jeff 2026-11-22, Humanoid Resources): the bar's measure, section 5 of
  * /mnt/project-files/netrunner-ai/hr-install-steps/spec-ruling.md. V-C item 4's count driver
  * (scripts/stage-vc/install-prompt.ts, copied so its record stays as run) with this branch's trees (hq-trees.ts):
- * beta, control and source are the branch's src with Q0a out; hq, hqP, hqS, hqO the branch and its three parts.
+ * beta, control and source are the branch's src with Q0a out; hq, hqPS, hqP, hqO the branch and its parts (hq-trees.ts).
  *
  * Sources: the 221 deals of the g1 base of beta 7fa8b6f, run 45086908053 (hq-deals.json: winner, cr and sc checked against that record),
  * played by `source`; the human files in tests/fixtures/human-games. Every decision is asked of beta, control and the

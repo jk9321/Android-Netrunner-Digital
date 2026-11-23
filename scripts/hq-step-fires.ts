@@ -13,7 +13,7 @@ import { createAgent } from '../src/ai';
 import { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
 import { answerPrompt } from '../src/ai/prompts';
-import { hqStepAnswer } from '../src/ai/corp/hqSteps';
+import { HqPick, hqStepAnswer } from '../src/ai/corp/hqSteps';
 import { valueLoops } from '../src/ai/valueModel';
 
 const corpDecks = ALL_DECKS.filter(d => d.side === 'corp');
@@ -37,14 +37,26 @@ for (const seed of seeds) {
   const changed: Record<string, number> = {};
   const corp: Agent = createAgent('corp', 'normal');
   const own = corp.chooseAction.bind(corp);
+  // Q0a's own pick, for its server step (spec-ruling.md 7 R5); the held line is not read here (a fire count, held: null)
+  let last: HqPick | null = null;
   corp.chooseAction = (state: GameState): GameAction => {
     const p = activePrompt(state);
-    if (p && p.side === 'corp' && 'source' in p) {
-      const mine = hqStepAnswer(state);
-      if (mine) {
+    const step = p && p.side === 'corp' && 'source' in p ? hqStepAnswer(state, null, last) : null;
+    last = step?.pick ?? null;
+    if (p && 'source' in p && step) {
+      const mine = step.action;
+      {
         const key = `${getCardDefinition(p.source.cardCode).title}/${p.source.step}`;
         fires[key] = (fires[key] ?? 0) + 1;
-        if (JSON.stringify(mine) !== JSON.stringify(answerPrompt(state, 'corp', undefined, true))) changed[key] = (changed[key] ?? 0) + 1;
+        const today = answerPrompt(state, 'corp', undefined, true);
+        if (JSON.stringify(mine) !== JSON.stringify(today)) {
+          changed[key] = (changed[key] ?? 0) + 1;
+          if (process.env.SHOW) {
+            const name = (a: GameAction) => { const c = (a as { choice?: { cardInstanceIds?: string[]; optionId?: string } }).choice; return c?.optionId ?? (c?.cardInstanceIds ?? []).map(id => state.corp.hq.find(x => x.instanceId === id)?.cardCode).map(c => (c ? getCardDefinition(c).title : '?')).join('+'); };
+            const servers = Object.values(state.corp.servers).map(v => `${v.id}[${v.ice.length}i ${v.root.map(c => getCardDefinition(c.cardCode).title).join('/')}]`).join(' ');
+            console.log(JSON.stringify({ seed, T: state.turnNumber, key, mine: name(mine), today: name(today), cr: state.corp.credits, hq: state.corp.hq.map(c => getCardDefinition(c.cardCode).title), servers }));
+          }
+        }
       }
     }
     return own(state);

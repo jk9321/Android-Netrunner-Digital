@@ -182,7 +182,7 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
   }
   // Synapse Global: a free install from HQ, judged like the Corp's own install choice; never an agenda,
   // which it would reveal (plan.freeInstallPick, bug report #13)
-  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE) {
+  if (side === 'corp' && (prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && ownCorpReader(prompt) === 'synapse') {
     const servers = [...Object.keys(state.corp.servers), 'new'];
     if (prompt.kind === 'effect_cards' && prompt.source.step === 'pick') {
       const picks = prompt.candidateIds
@@ -198,7 +198,7 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
     if (target) return { ...base, choice: { kind: 'effect_choice', optionId: target.server } };
   }
   // Warm Reception, Janaína: a free install from HQ; ice the Corp can afford first, then an asset or upgrade, never an agenda
-  if (side === 'corp' && prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') {
+  if (side === 'corp' && prompt.kind === 'effect_cards' && ownCorpReader(prompt) === 'affordable') {
     const cards = prompt.candidateIds.map(id => findCardAnywhere(state, id)).filter((c): c is CardInstance => !!c);
     const ice = cards.filter(c => cardDef(c).type_code === 'ice' && (cardDef(c).cost ?? 0) <= state.corp.credits).sort((a, b) => (cardDef(b).cost ?? 0) - (cardDef(a).cost ?? 0));
     const root = cards.filter(c => ['asset', 'upgrade'].includes(cardDef(c).type_code) && (cardDef(c).cost ?? 0) <= state.corp.credits);
@@ -819,6 +819,18 @@ function greedyCards(
 const SCROUNGE = '35004';
 const PEER_REVIEW = '35055';
 const SYNAPSE = '35058';
+
+/**
+ * The Corp's free-install prompts this file answers with a reader of its own (the deciding Corp's too): Synapse Global
+ * ('synapse', freeInstallTarget), and Warm Reception's and Janaína's picks ('affordable'). corp/hqSteps.ts (Q0a) leaves
+ * these to it (spec-ruling.md 7 R4: one reader per prompt). Null: none here.
+ */
+export function ownCorpReader(prompt: Prompt): 'synapse' | 'affordable' | null {
+  if (!('source' in prompt)) return null;
+  if ((prompt.kind === 'effect_cards' || prompt.kind === 'effect_choice') && prompt.source.cardCode === SYNAPSE) return 'synapse';
+  if (prompt.kind === 'effect_cards' && ['34098', '34115'].includes(prompt.source.cardCode) && prompt.source.step === 'pick') return 'affordable';
+  return null;
+}
 
 /** Rezzed ice on the board that `breaker` breaks (all ice for an AI breaker). */
 function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {
