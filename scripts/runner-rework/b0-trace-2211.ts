@@ -347,15 +347,22 @@ async function main() {
 
     console.log(`Cache events at step ${diffStep}: h2h=corp=${recCorp.eventsAtStep.length}, h2h=runner=${recRunner.eventsAtStep.length}`);
 
-    // Compare cache hit/set sequence between the two cells!
+    // Compare cache values between the two cells!
     const m = Math.min(recCorp.eventsAtStep.length, recRunner.eventsAtStep.length);
-    let foundDiff = false;
+    let foundOpDiff = false;
+    let foundValDiff = false;
     for (let i = 0; i < m; i++) {
       const eC = recCorp.eventsAtStep[i];
       const eR = recRunner.eventsAtStep[i];
-      if (eC.op !== eR.op || eC.cache !== eR.cache || eC.key !== eR.key || eC.val !== eR.val) {
-        foundDiff = true;
-        console.log(`\n=== FIRST DIFFERING CACHE EVENT (index ${i} at step ${diffStep}) ===`);
+      if (!foundOpDiff && (eC.op !== eR.op || eC.cache !== eR.cache || eC.key !== eR.key)) {
+        foundOpDiff = true;
+        console.log(`\n=== FIRST DIFFERING CACHE OP (index ${i} at step ${diffStep}) ===`);
+        console.log(`  h2h=corp:   op=${eC.op} graph=${eC.graph} cache=${eC.cache} key=${eC.key} val=${eC.val}`);
+        console.log(`  h2h=runner: op=${eR.op} graph=${eR.graph} cache=${eR.cache} key=${eR.key} val=${eR.val}`);
+      }
+      if (eC.cache !== eR.cache || eC.key !== eR.key || eC.val !== eR.val) {
+        foundValDiff = true;
+        console.log(`\n=== FIRST DIFFERING CACHE VALUE (index ${i} at step ${diffStep}) ===`);
         console.log(`  h2h=corp:   op=${eC.op} graph=${eC.graph} cache=${eC.cache} key=${eC.key} val=${eC.val}`);
         console.log(`              caller=${eC.caller} stack=${eC.stackTop}`);
         const wC = recCorp.writers.get(`${eC.graph}|${eC.cache}|${eC.key}`);
@@ -367,8 +374,8 @@ async function main() {
         break;
       }
     }
-    if (!foundDiff) {
-      console.log('All three instrumented caches had identical event sequences at the differing step! Checking cache sizes / earlier writers...');
+    if (!foundValDiff) {
+      console.log('All four instrumented value caches (threats, buildTargets, iceMeans, deckShares) returned identical VALUES at step ' + diffStep + '!');
       for (const cache of ['threats', 'buildTargets', 'iceMeans', 'deckShares']) {
         const cKeys = [...recCorp.writers.keys()].filter(k => k.includes(`|${cache}|`));
         const rKeys = [...recRunner.writers.keys()].filter(k => k.includes(`|${cache}|`));
