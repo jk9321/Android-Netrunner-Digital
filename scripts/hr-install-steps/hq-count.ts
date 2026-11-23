@@ -4,7 +4,7 @@
  * (scripts/stage-vc/install-prompt.ts, copied so its record stays as run) with this branch's trees (hq-trees.ts):
  * beta, control and source are the branch's src with Q0a out; hq, hqP, hqS, hqO the branch and its three parts.
  *
- * Sources: the 221 deals of the g1 base of beta 7fa8b6f (hq-deals.json: winner, cr and sc checked against that record),
+ * Sources: the 221 deals of the g1 base of beta 7fa8b6f, run 45086908053 (hq-deals.json: winner, cr and sc checked against that record),
  * played by `source`; the human files in tests/fixtures/human-games. Every decision is asked of beta, control and the
  * four hq trees (fresh agents with the copied state, caches cleared, order rotated, timed). Per ask, beside item 4's
  * fields: whether the tree's deciding Corp answered through Q0a (`hq`). A changed decision of an hq tree with no Q0a
