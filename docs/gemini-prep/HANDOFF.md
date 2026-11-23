@@ -37,7 +37,7 @@ Written for Gemini, working in `github.com/jk9321/Android-Netrunner-Digital` wit
 
 **Where outputs go:** commit your notes on the task branch (paths below). A Claude thread copies them into the project folder later. When a brief says "message me", write that message as a file in your notes instead. **Step 0 size cap:** if your step-0 estimate for the whole count is over about 3 hours of runner time or 4 workflow runs, stop after step 0 and write it up; under that, go on with the full count.
 
-**Suggested order:** Task 1 (B0), Task 2 (issues), Task 3 (flags doc), Task 4 (A-log) if there's time. Tasks 2 and 3 can run in parallel with 1.
+**Suggested order:** Task 1 (B0), Task 2 (issues), Task 3 (flags doc), Task 4 (A-log), then Tasks 5 to 7 (added 2026-11-23 afternoon; 5 first, since it's the only one not already partly done).
 
 ---
 
@@ -103,6 +103,59 @@ Written for Gemini, working in `github.com/jk9321/Android-Netrunner-Digital` wit
 If step 0 is under the size cap, run the whole log on the base, the people's files and one NRDB=1 g1 (reuse Task 1's NRDB g1 run if it exists, since it's the same commit). Never touch `src`.
 
 **Done when:** `facts-notes/step0.md`, and if the log ran, `facts-notes/log-note.md` (the tables, where they are thin, which way each reading errs; no picked answer); scripts and fixture committed, checks green, branch pushed.
+
+---
+
+## Task 5. Cache-keys check: can the AI value caches mix the two sides? (write-up only)
+
+**Goal:** found row 90 says self-play shares three per-game value caches between the Corp AI and the Runner AI, filled by whichever side asks first from the board it was given (its own view, or a look-ahead board). A game against a person doesn't share them. The effect on win rate was sized at zero (`ref/shared-caches.md`: 12 of 221 deals take a different path, +0.5 ± 1.0). What is still open is whether each cached value has one owner: does it depend on who asked first, and could one side ever read something only the other side may know? This is parked debt to fix before the first learned round. The task writes the plan for it and builds nothing.
+
+**Read:** `ref/found-row-90.md`, `ref/shared-caches.md`, `ref/count4-count-note.md`, `ref/count4-ruling.md`. Code: `src/ai/effectValues.ts` (the `threats` map at about line 363, `damageThreat`, `boardFactCodes`), `src/ai/valueModel.ts` (`memos`, `mapGames` at about 142-170, `buildTargets`, `iceMeans`), `src/ai/iceValues.ts` (`deckShares`, about line 228), `scripts/cache-audit.ts`, `scripts/cache-bisect.ts`, `scripts/cache-clears.ts`, and the cache table in `docs/ai-priced-quantities.md` (search "cache"). Also grep `src/ai` for every other module-level `new Map` / `new WeakMap`; row 90 names three caches, but there may be more.
+
+**Branch:** `gemini-cache-keys`. **Allowed files:** `docs/gemini-prep/cache-keys.md` (new) and, if you need to measure, new `scripts/runner-rework/cachekeys-*` plus `docs/ai-batch-log.md`. No `src` edits.
+
+**The doc holds:**
+1. **One row per module-level cache in `src/ai`:** its key, what fills it, which side(s) ask it, which board they pass in (real state, a player's view from `src/core/view.ts`, a look-ahead or dealt board), and when it is emptied.
+2. **For each cache, two verdicts with evidence:** (a) whether the value can differ by who asked first. Show a board pair where it does, or the code path that proves it can't. (b) Whether it ever holds hidden information that one side may not know: the Corp's unseen cards, the stack order, or the Runner's grip. Mark it "shown", "ruled out (code path)" or "not checked".
+3. **The fix options** for each cache: a complete key (add the asking side or the view's fingerprint), per-side caches, or no cache. Give the cost of each option, but don't pick one.
+4. If Task 1's Part T found deal 2211's cause, say which cache it was.
+
+**Done when:** the doc is pushed on its branch.
+
+---
+
+## Task 6. Debt 1c, the Runner AI's seen-card memory: refresh the fix brief against today's code (write-up only)
+
+**Background:** the Normal Runner AI keeps a private map of Corp cards it has "seen", and it never forgets them, even when the rules say it should (rule 1.12.3). That is debt 1c in `ref/debts-1c-1h.md`. A full fix brief already exists and has been red-teamed: `ref/runner-seen-brief.md`, with the red team's findings and answers in `ref/runner-seen-red-team.md`. Known-failing pins for it already exist in `tests/runnerPins.test.ts` (D1, D2). **So don't write a new fix plan.** The brief was written on 2026-11-19, and beta has moved since. This task checks that the brief still fits the code, so the builder can start straight from it.
+
+**Read:** `ref/runner-seen-brief.md` (whole), `ref/runner-seen-red-team.md`, `ref/debts-1c-1h.md` (1c), `ref/count1-count-note.md` part D. Code: `src/ai/runnerAI.ts` (`memory`, `remember`), `src/core/engine/actions/run.ts` (`runnerKnows`), `src/core/engine/helpers.ts` (`forgetHiddenCards`, `runnerSawBeforeInstall`), `src/core/engine/actions/install.ts`, `tests/runnerPins.test.ts`.
+
+**Branch:** `gemini-runner-seen-check`. **Allowed files:** `docs/gemini-prep/runner-seen-check.md` (new) only.
+
+**The doc holds:**
+1. Every file:line the brief cites, checked against today's `origin/beta`: still right, moved (give the new line), or changed (say how).
+2. Every reader of the Runner's `memory` today (grep it), including any added since 2026-11-19, and whether the brief covers each one.
+3. The `tests/runnerPins.test.ts` pins for this debt, run on today's beta. For each: does it still fail, and does it fail on its assertion (not a crash or timeout)? Paste the output.
+4. Anything in the brief that no longer holds, as a list. Propose no new design.
+
+**Done when:** the doc is pushed on its branch.
+
+---
+
+## Task 7. Rez toll hole (debts 1e, 1f) and reservedForAgenda's double count (1h): check the pins (write-up only)
+
+**Background:** these three are known Corp AI debts that were accepted at the push to main (`ref/debts-1c-1h.md`). **They already have known-failing pins** in `tests/reviewPins.test.ts`: "Whitespace toll: spendsKept hands rezMoney..." (1e), "Whitespace toll, the decision..." (1f) and "reservedForAgenda, report-48 move 59..." (1h), each written as `it.fails`. So don't add new pins. The task confirms the pins still reproduce each debt for the stated reason, so a later fix has a trustworthy test to turn over.
+
+**Read:** `ref/debts-1c-1h.md` (1e, 1f, 1h), `ref/rez-count-ruling.md` (C1, C2), `ref/placement-review.md` (N6). Code: `src/ai/corp/placement.ts` (`reservedForAgenda`, `scoringShort`), the rez decision code the pins call (follow their imports), `tests/reviewPins.test.ts`.
+
+**Branch:** `gemini-corp-debt-pins`. **Allowed files:** `docs/gemini-prep/corp-debt-pins.md` (new). Change `tests/reviewPins.test.ts` only if a pin no longer reproduces its debt, and then only that pin, keeping it as `it.fails` and asserting the right behaviour.
+
+**For each of the three debts, the doc holds:**
+1. The pin's name, and its output on today's beta. Does it fail, and is that because the wrong value or decision the debt describes is still there, rather than a crash, timeout or setup change? To show it, temporarily change `it.fails` to `it` locally, run it, and paste the assertion message with expected vs actual. Don't commit that change.
+2. Today's code path that produces the wrong number (file:line), checked against the debt's description.
+3. If a pin now passes, or fails for another reason, say so plainly, and fix only the pin as described above.
+
+**Done when:** the doc (and a pin fix, if one was needed) is pushed on its branch, with typecheck, lint and test green.
 
 ---
 
