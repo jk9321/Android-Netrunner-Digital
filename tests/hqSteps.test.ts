@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, createCardInstance, executeAction } from '../src/core';
 import { createAgent } from '../src/ai';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
+import { hqStepAnswer } from '../src/ai/corp/hqSteps';
+import { answerPrompt } from '../src/ai/prompts';
 import { installCorpForTest, newGame } from './helpers';
 
 // Jeff 2026-11-22: "the Corp AI activates Humanoid Resources ... but never carries out the card's steps". Humanoid
@@ -14,6 +16,8 @@ const HUMANOID = '35039';
 const PALISADE = '30072';
 const NICO = '30037';
 const HEDGE_FUND = '30075';
+const ANSEL = '30038'; // ice, rez cost 6
+const OFFWORLD = '30067'; // agenda
 
 /** The Corp has just used Humanoid Resources: HQ holds Palisade, Nico Campaign and Hedge Fund, plus the 3 cards drawn. */
 function afterUse(): GameState {
@@ -51,5 +55,22 @@ describe('Humanoid Resources: the Corp carries out its steps (corp/hqSteps.ts)',
     const rollout = new HeuristicCorpAI({ planner: false });
     const s = answerAll(afterUse(), x => rollout.chooseAction(x));
     expect(installed(s)).toHaveLength(0);
+  });
+
+  // Condition C4 (spec-ruling.md): the install is paid in the board the order prices (freeAfter plays the real answer), so
+  // ice the Corp cannot rez with the money it keeps is behind (candidates.ts iceMove, icePaid) and Q0a leaves the pick to
+  // the fallback. Ansel 1.0 rezzes for 6; the Corp has 4 after Humanoid Resources' gain; the 3 cards drawn are agendas,
+  // which freeInstallOrder leaves out (spec-ruling.md 3.2)
+  it('ice the Corp could install but not rez is behind: the fallback answers', { timeout: 60_000 }, () => {
+    let s = newGame(5);
+    const hr = installCorpForTest(s, HUMANOID, 'remote-1', true);
+    s.corp.hq = [createCardInstance(s, ANSEL)];
+    s.corp.rd.unshift(createCardInstance(s, OFFWORLD), createCardInstance(s, OFFWORLD), createCardInstance(s, OFFWORLD));
+    s.corp.credits = 0;
+    s = executeAction(s, { type: 'USE_ABILITY', player: 'corp', cardInstanceId: hr, abilityIndex: 0 });
+    expect(s.corp.credits).toBe(4);
+    expect(s.pendingPrompts[0]?.kind).toBe('effect_cards');
+    expect(hqStepAnswer(s)).toBeNull();
+    expect(createAgent('corp', 'normal').chooseAction(s)).toEqual(answerPrompt(s, 'corp', undefined, true));
   });
 });

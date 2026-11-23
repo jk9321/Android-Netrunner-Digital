@@ -1,5 +1,6 @@
 import { GameAction, GameState, activePrompt, cardDef, findCardAnywhere } from '../../core';
 import { simulate } from '../prompts';
+import { TurnFlag, turnFlag } from '../../core/engine/cardEffects';
 import { freeInstallOrder } from './candidates';
 import { freeOperationPick } from '../incomeLine';
 
@@ -36,16 +37,24 @@ export function hqStepAnswer(state: GameState): GameAction | null {
         ? next.options.map(o => o.id)
         : null;
     };
-    const steps = prompt.candidateIds.map(id => ({ id, servers: opens(id) })).filter((x): x is { id: string; servers: string[] } => !!x.servers);
+    const isOp = (id: string) => cardDef(findCardAnywhere(state, id)!).type_code === 'operation';
+    // A pick that may also play an operation (Pivot: "play or install 1 card from HQ") is left to the fallback
+    const steps = prompt.candidateIds.some(isOp) ? [] : prompt.candidateIds.map(id => ({ id, servers: opens(id) })).filter((x): x is { id: string; servers: string[] } => !!x.servers);
     if (steps.length > 0) {
       const servers = [...new Set(steps.flatMap(x => x.servers))];
       const pick = freeInstallOrder(state, servers).find(c => !c.behind && c.card && steps.some(x => x.id === c.card));
       return pick?.card ? { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [pick.card] } } : null;
     }
-    // An operation pick: every candidate an operation in HQ
-    if (prompt.max === 1 && prompt.candidateIds.every(id => cardDef(findCardAnywhere(state, id)!).type_code === 'operation')) {
-      const id = freeOperationPick(state, prompt.candidateIds.map(cardInstanceId => ({ cardInstanceId, action: { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [cardInstanceId] } } })));
-      return id ? { ...base, choice: { kind: 'effect_cards', cardInstanceIds: [id] } } : null;
+    // An operation pick: every candidate an operation in HQ, and only the answers the engine counts as a play (its
+    // operations-played turn flag; a pick that trashes or reveals the card is never one)
+    if (prompt.max === 1 && prompt.candidateIds.every(isOp)) {
+      const pick = (id: string): GameAction => ({ ...base, choice: { kind: 'effect_cards', cardInstanceIds: [id] } });
+      const plays = (id: string) => {
+        const after = simulate(state, pick(id));
+        return !!after && turnFlag(after, TurnFlag.operationsPlayed) > turnFlag(state, TurnFlag.operationsPlayed);
+      };
+      const id = freeOperationPick(state, prompt.candidateIds.filter(plays).map(cardInstanceId => ({ cardInstanceId, action: pick(cardInstanceId) })));
+      return id ? pick(id) : null;
     }
     return null;
   }
