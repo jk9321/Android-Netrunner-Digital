@@ -55,6 +55,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 
 ## New card set process (Standard sets, newest first, on beta)
 When (Jeff 2026-11-22, replaces "alongside tuning"): after the Runner rework, SET - ROUND - SET - ROUND until all wanted cards are in. The next set is scripted on its own branch during a learned round and merges to beta only at a round boundary; then the baselines are re-run and the next round starts from the earlier learned numbers. Early-round win rates don't compare across card-pool changes; one or two final rounds with every set in give the real read. Then the level-ups (wider search, work budget, hold-count cap; Corp and Runner together), each followed by a short re-learn round.
+0. Once, before the first new set (Jeff 2026-11-22): generic run/turn flags. Card-specific fields on RunState/CardScript (`meliesServer`, `shredArmed`, `redirectToHq`, ...) move to keyed flags/modifiers (`TurnFlag`, `CardModifiers`); new cards add keys, not fields. FULL review tier (engine). Card facts in one place is the Runner rework's stage R-A.
 1. Pull card data and image links from NetrunnerDB.
 2. Add new keywords to the hover tooltips.
 3. Implement every card with its own unit test (plus liveValue/revealInHand); check errata.
