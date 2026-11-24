@@ -1,7 +1,7 @@
 {
  "base": {
-  "srcTree": "90e1b4f80da3276b7ec9e95360a0037292d9d48a",
-  "betaCommit": "8efbf4f00ab166c4c732b18256b5e4b835262fb9"
+  "srcTree": "fd7831ebe634ce22471a8627b15264f82f739ac2",
+  "betaCommit": "db44e20b17b23d20f387b4d439d5a3e0a5c3e18b"
  },
  "made": "scripts/runner-rework/facts-golden.ts",
  "note": "Golden values for R-A A-move: every reader on one built board per branch; `live` names the readers that differ from the twin (the twin rule). L11: card entries against the engine.",
