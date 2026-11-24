@@ -24,7 +24,7 @@ for (const f of files)
 // Pools as reported: self-play (batch), the NRDB pool, people split by who ran, the issue games
 const poolOf = x => (x.pool === 'human' ? x.sk : x.pool === 'batch' ? 'self' : x.pool);
 const POOLS = ['self', 'nrdb', 'humanRunner', 'humanCorp', 'issues'];
-const PEOPLE = new Set(['humanRunner', 'humanCorp']);
+const PEOPLE = new Set(['humanRunner', 'humanCorp', 'issues']); // the issue games are people's games too (Jeff's reports #58, #59)
 const p = s => console.log(s);
 const fmt = v => (typeof v === 'number' ? String(Math.round(v * 1000) / 1000) : JSON.stringify(v));
 const ex = (x, extra) => `${x.src} T${x.T}${extra ? ': ' + extra : ''}`;
