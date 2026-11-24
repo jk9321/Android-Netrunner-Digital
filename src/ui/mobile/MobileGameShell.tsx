@@ -252,6 +252,15 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
     setActiveServerId(serverId);
   };
 
+  const openZone = (next: ZoneId) => {
+    setHandExpanded(false);
+    setActiveCardId(null);
+    setActiveServerId(null);
+    setOpenSheet(null);
+    setCorpInstallPeeking(false);
+    setZone(curr => (curr === next ? null : next));
+  };
+
   const corpBoardEl = (
     <div className={`flex-[54] min-h-0 min-w-0 flex flex-col rounded-[3px] transition-shadow ${shiftSide === 'corp' ? 'ring-1 ring-cyan-400/80' : ''}`}>
       <MobileCorpBoard
@@ -263,7 +272,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         mirrored={corpOnBottom}
         onTapCard={openCardSheet}
         onTapServer={openServerSheet}
-        onOpenZone={setZone}
+        onOpenZone={openZone}
       />
     </div>
   );
@@ -276,7 +285,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         actionableCardIds={actionableCardIds}
         mirrored={corpOnBottom}
         onTapCard={openCardSheet}
-        onOpenZone={setZone}
+        onOpenZone={openZone}
       />
     </div>
   );
@@ -294,7 +303,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         stops={stops}
         onStops={setStops}
         onOpenMenu={() => setMenuOpen(true)}
-        onOpenZone={z => setZone(curr => (curr === z ? null : z))}
+        onOpenZone={openZone}
         compact={landscape}
       />
 
@@ -550,7 +559,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
           actionableCardIds={actionableCardIds}
           onAction={handleAction}
           onSelectCard={openCardSheet}
-          onOpenZone={setZone}
+          onOpenZone={openZone}
           onClose={() => setActiveServerId(null)}
         />
       )}

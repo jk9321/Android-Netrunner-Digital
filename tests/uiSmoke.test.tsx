@@ -14,6 +14,7 @@ import { RunOverlay } from '../src/ui/components/RunOverlay';
 import { PromptPanel, isPromptDockable } from '../src/ui/components/PromptPanel';
 import { ServerColumn } from '../src/ui/components/ServerColumn';
 import { SideStrip } from '../src/ui/components/SideStrip';
+import { removedCardsForSide, zoneContents } from '../src/ui/components/ZoneViewer';
 import { DockedHandBar } from '../src/ui/components/HandRow';
 import { CorpActions, RunnerActions } from '../src/ui/components/ActionBars';
 import { AccessedPanel } from '../src/ui/components/AccessedPanel';
@@ -632,5 +633,88 @@ describe('UI component smoke renders', () => {
       />,
     );
     expect(selectedHandHtml).toContain('-translate-y-2');
+  });
+
+  it('splits Removed from game counters and zoneContents by side in SideStrip and ZoneViewer', () => {
+    const stripText = (html: string) => html.replace(/<[^>]+>/g, '');
+    const makeCard = (instanceId: string, cardCode: string) => ({
+      instanceId,
+      cardCode,
+      isRezzed: false,
+      advancementCounters: 0,
+      tokens: {},
+      hostedCardIds: [],
+    });
+
+    // Empty: neither side shows a Removed pill and both zones are empty
+    const emptyState = newGame();
+    expect(removedCardsForSide(emptyState, 'corp')).toEqual([]);
+    expect(removedCardsForSide(emptyState, 'runner')).toEqual([]);
+    expect(zoneContents('corp-removed', emptyState)).toEqual({
+      title: 'CORP REMOVED FROM GAME',
+      groups: [{ label: 'Removed Corp cards', cards: [] }],
+    });
+    expect(zoneContents('runner-removed', emptyState)).toEqual({
+      title: 'RUNNER REMOVED FROM GAME',
+      groups: [{ label: 'Removed Runner cards', cards: [] }],
+    });
+    const emptyCorp = renderToStaticMarkup(
+      <SideStrip side="corp" state={emptyState} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    const emptyRunner = renderToStaticMarkup(
+      <SideStrip side="runner" state={emptyState} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(emptyCorp).not.toContain('data-testid="zone-corp-removed"');
+    expect(emptyRunner).not.toContain('data-testid="zone-runner-removed"');
+
+    // Corp-only (Petty Cash + Spin Doctor): Corp strip shows 2, Runner strip hides pill
+    const corpOnly = newGame();
+    const pettyCash = makeCard('rfg-pc', '35081');
+    const spinDoctor = makeCard('rfg-sd', '30053');
+    corpOnly.removedFromGame.push(pettyCash, spinDoctor);
+    expect(zoneContents('corp-removed', corpOnly).groups[0].cards.map(c => c.instanceId)).toEqual(['rfg-pc', 'rfg-sd']);
+    expect(zoneContents('runner-removed', corpOnly).groups[0].cards).toEqual([]);
+    const corpOnlyCorpHtml = renderToStaticMarkup(
+      <SideStrip side="corp" state={corpOnly} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    const corpOnlyRunnerHtml = renderToStaticMarkup(
+      <SideStrip side="runner" state={corpOnly} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(corpOnlyCorpHtml).toContain('data-testid="zone-corp-removed"');
+    expect(stripText(corpOnlyCorpHtml)).toContain('Removed: 2');
+    expect(corpOnlyRunnerHtml).not.toContain('data-testid="zone-runner-removed"');
+
+    // Runner-only (heap cards exiled by Ansel 2.0): Runner strip shows 2, Corp strip hides pill
+    const runnerOnly = newGame();
+    const sureGamble = makeCard('rfg-sg', '30030');
+    const overclock = makeCard('rfg-oc', '30029');
+    runnerOnly.removedFromGame.push(sureGamble, overclock);
+    expect(zoneContents('corp-removed', runnerOnly).groups[0].cards).toEqual([]);
+    expect(zoneContents('runner-removed', runnerOnly).groups[0].cards.map(c => c.instanceId)).toEqual(['rfg-sg', 'rfg-oc']);
+    const runnerOnlyCorpHtml = renderToStaticMarkup(
+      <SideStrip side="corp" state={runnerOnly} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    const runnerOnlyRunnerHtml = renderToStaticMarkup(
+      <SideStrip side="runner" state={runnerOnly} viewer="both" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(runnerOnlyCorpHtml).not.toContain('data-testid="zone-corp-removed"');
+    expect(runnerOnlyRunnerHtml).toContain('data-testid="zone-runner-removed"');
+    expect(stripText(runnerOnlyRunnerHtml)).toContain('Removed: 2');
+
+    // Mixed: GameState.removedFromGame holds both sides, each strip and zone viewer filters to its own side
+    const mixed = newGame();
+    mixed.removedFromGame.push(pettyCash, sureGamble, spinDoctor);
+    expect(zoneContents('corp-removed', mixed).groups[0].cards.map(c => c.instanceId)).toEqual(['rfg-pc', 'rfg-sd']);
+    expect(zoneContents('runner-removed', mixed).groups[0].cards.map(c => c.instanceId)).toEqual(['rfg-sg']);
+    const mixedCorpHtml = renderToStaticMarkup(
+      <SideStrip side="corp" state={mixed} viewer="runner" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    const mixedRunnerHtml = renderToStaticMarkup(
+      <SideStrip side="runner" state={mixed} viewer="corp" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(mixedCorpHtml).toContain('data-testid="zone-corp-removed"');
+    expect(stripText(mixedCorpHtml)).toContain('Removed: 2');
+    expect(mixedRunnerHtml).toContain('data-testid="zone-runner-removed"');
+    expect(stripText(mixedRunnerHtml)).toContain('Removed: 1');
   });
 });
