@@ -81,17 +81,17 @@ export class HeuristicRunnerAI implements Agent {
     return this.mainAction(state, legal);
   }
 
-  /** After a successful run, the Runner has seen every card in that server's root. */
+  /**
+   * Root cards it has seen = the engine's marks (rezzed, faceup, `runnerKnows`; core/view.ts), only those: seen on access (rules 7.2.1; not as a candidate, 7.4.1a; not
+   * on a replaced breach, 6.9.5b, 10.2.2b), new and unknown after HQ, R&D or facedown Archives (1.12.1, 1.12.3) unless seen going in (7.3.1a), kept through a derez (1.12.5).
+   * Entries for cards no longer installed stay as they were (docs/ai-priced-quantities.md, "what the Runner has seen of the Corp's cards"; settled in R-B).
+   */
   private remember(state: GameState) {
-    const run = state.activeRun;
-    const breached = state.runsThisTurn.filter(r => r.successful).map(r => r.server);
-    if (run?.isSuccessful) breached.push(run.server);
-    for (const id of breached) {
-      for (const card of state.corp.servers[id]?.root ?? []) this.memory.set(card.instanceId, card.cardCode);
-    }
-    // Cards it accessed that the Corp then installed during the breach (Poétrï)
     for (const server of Object.values(state.corp.servers)) {
-      for (const card of server.root) if (card.runnerKnows) this.memory.set(card.instanceId, card.cardCode);
+      for (const card of server.root) {
+        if (card.isRezzed || card.faceUp || card.runnerKnows) this.memory.set(card.instanceId, card.cardCode);
+        else this.memory.delete(card.instanceId);
+      }
     }
   }
 
