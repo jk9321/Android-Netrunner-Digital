@@ -18,7 +18,12 @@ const VIC = '36009';
 
 export const VANTAGE_POINT: Record<string, CardAI> = {
   // Chain Reaction
-  '36001': { synergy: { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] }, archivesPayoff: true }, // Chain Reaction: needs a successful Archives run
+  // Chain Reaction: needs a successful Archives run. "Play only if you made a successful run on HQ, R&D, and Archives this turn."
+  '36001': {
+    synergy: { gives: { trash: 2 }, wants: { runs: 2, hq: 1, rd: 1, archives: 1 }, when: ['successfulRun'] },
+    archivesPayoff: true,
+    runFacts: { playsAfterSuccessfulRuns: ['hq', 'rd', 'archives'] },
+  },
   // Take a Dive
   '36002': {
     synergy: { gives: { runs: 1, hq: 0.5, rd: 0.5 } },
@@ -35,7 +40,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     runner: state => perTurn(state, PACE.runs * 0.5, 'runner'),
   },
   // Corsair
-  '36004': { synergy: { gives: { breakers: 1 } } },
+  // "1 credit: The barrier you are encountering gets -3 strength ... Spend credits only from stealth cards to use this ability."
+  '36004': { synergy: { gives: { breakers: 1 } }, runFacts: { breaker: { lowerPerStealthCredit: { strength: 3 } } } },
   // Lampades
   '36005': {
     synergy: { gives: { trash: 1.5 }, wants: { runs: 1 } },
@@ -316,6 +322,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   '36051': { synergy: { gives: { ice: 1, tags: 1, discard: 0.5 } } },
   // Paywall
   // "When the Runner encounters this ice, they lose 1 [credit]" (6.9.3a)
+  // holdFacts Corp-only (the walk): the Runner's price reads no encounter toll but Funhouse's (A-log L3, a B5 item)
   '36052': { synergy: { gives: { ice: 1, denial: 1 } }, holdFacts: { encounter: { loses: 1 } } },
   // Flood the Market
   // "Place 1 advancement counter on that card for each remote server that has a card in its root and is protected by ice."

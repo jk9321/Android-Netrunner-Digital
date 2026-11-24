@@ -13,7 +13,6 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
 import { stealCost } from '../core/engine/actions/run';
-import { spikeKey } from '../core/scripts/liberation/runner/helpers';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -23,6 +22,7 @@ import { actingSide } from './synergy';
 import { CARDS, breachAccessOf } from './cards';
 import { counterWorth } from './counterValues';
 import type { Subroutine } from '../core/scripts/types';
+import type { BoardWhen, FirstIceBypass, IceFits, UseCost } from './cards/types';
 
 /**
  * What the Runner AI knows about runs. It only reads public information:
@@ -44,20 +44,48 @@ export function plannedSubroutines(state: GameState, ice: CardInstance): Subrout
   const gains = CARDS[ice.cardCode]?.gainsOnEncounter?.(state, ice) ?? [];
   return gains.length ? [...subs, ...gains] : subs;
 }
-const MAYFLY = '30032';
-const BANGUN = '35068';
-const HANTU = '35008'; // boosts by spending hosted virus counters (+2 each), not credits
+// Botulus: read by prompts.ts only (its prompt block, R-B's prompt work); the run model reads its entry's holdFacts
 export const BOTULUS = '30004';
-export const TRANQUILIZER = '30017';
+// R-A A-move: the run model reads a card's facts from its entry (cards/types.ts RunFacts), never by its number; these
+// read the vocabulary's conditions, and every price stays where its reader is
+const runFactsOf = (code: string | null | undefined) => (code ? CARDS[code]?.runFacts : undefined);
+const keywordRes = new WeakMap<string[], RegExp>();
+/** The ice fits the card's ability (IceFits): `types` its subtypes when the caller has them. */
+function fitsIce(state: GameState, ice: CardInstance, fits: IceFits | undefined, types?: string[]): boolean {
+  if (!fits) return true;
+  if (fits.subtype && !(types ?? iceSubtypes(ice, state)).includes(fits.subtype)) return false;
+  if (fits.strengthAtMost !== undefined && iceStrength(state, ice) > fits.strengthAtMost) return false;
+  if (fits.keywordAny) {
+    let re = keywordRes.get(fits.keywordAny);
+    if (!re) keywordRes.set(fits.keywordAny, (re = new RegExp(`\\b(${fits.keywordAny.join('|')})\\b`, 'i')));
+    if (!re.test(cardDef(ice).keywords ?? '')) return false;
+  }
+  if (fits.allSubsEndTheRun) {
+    const subs = plannedSubroutines(state, ice);
+    if (!(subs.length > 0 && subs.every(sub => /^end the run\.?$/i.test(sub.label.trim())))) return false;
+  }
+  return true;
+}
+/** The board meets the card's condition (BoardWhen). */
+const meets = (state: GameState, when: BoardWhen | undefined): boolean =>
+  !when || ((when.threatAtLeast === undefined || threatLevel(state) >= when.threatAtLeast) && (when.corpCreditsAtLeast === undefined || state.corp.credits >= when.corpCreditsAtLeast));
+/** The engine's flag name of a once-a-run or once-a-turn use (UseCost.once) for this card. */
+const onceFlag = (flag: string, card: CardInstance): string => flag.replace('<instance>', card.instanceId);
+/** The use's once-a-run or once-a-turn flag is not set yet. */
+const onceFree = (state: GameState, card: CardInstance, once: UseCost['once']): boolean =>
+  !once || (once.per === 'run' ? !state.activeRun?.runFlags?.[onceFlag(once.flag, card)] : turnFlag(state, onceFlag(once.flag, card)) === 0);
 
 /** The Runner's trojans of one kind (Botulus, Tranquilizer) hosted on this ice. */
 export function hostedTrojans(state: GameState, ice: CardInstance, code: string): CardInstance[] {
   return state.runner.rig.programs.filter(c => c.cardCode === code && c.hostedOnId === ice.instanceId);
 }
 
-/** Subroutines Botulus breaks on this ice for free: the virus counters on the Botulus programs it hosts. */
+/** Subroutines hosted counters break on this ice for free (Botulus): the counters its entry's holdFacts.breaksHostSubroutine names (the walk reads it too). */
 export function botulusBreaks(state: GameState, ice: CardInstance): number {
-  return hostedTrojans(state, ice, BOTULUS).reduce((n, c) => n + counters(c, 'virus'), 0);
+  return state.runner.rig.programs.reduce((n, c) => {
+    const breaks = c.hostedOnId === ice.instanceId ? CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine : undefined;
+    return breaks ? n + counters(c, breaks.counter) : n;
+  }, 0);
 }
 
 /** Credits-equivalent cost of letting one subroutine resolve (Infinity: it ends the run). */
@@ -427,18 +455,10 @@ export interface BreakPlan {
 /** A break plan's whole price: its credits and the rest of what it spends, in credits' worth. */
 export const planCost = (plan: BreakPlan): number => plan.credits + plan.value;
 
-/** Liberation breakers the generic plan can't price. */
-export const AUDREY = '34004';
-export const BANNER = '34005';
-export const LOBISOMEM = '34090';
-export const PRESSURE_SPIKE = '34092';
-/** A card trashed from the grip for Audrey's +3 strength, in credits. */
+/** A card trashed from the grip for Audrey's +3 strength, in credits (a price: B5's list, beside counterWorthOf). */
 const AUDREY_DISCARD = 1.5;
-/** Each of Audrey's virus counters, in credits (it gains them only on trashes). */
+/** Each of Audrey's virus counters, in credits (it gains them only on trashes; a price: B5's list, beside counterWorthOf). */
 const AUDREY_COUNTER = 1;
-
-const CORSAIR = '36004';
-const SLAP_VANDAL = '34026';
 
 /**
  * Credits for `boosts` strength boosts: none cost nothing, also for a breaker that cannot boost (Slap Vandal, Umbrella:
@@ -519,20 +539,22 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
   for (const breaker of installedIcebreakers(state)) {
     const script = breakerScript(breaker);
     const strength = breakerStrength(state, breaker);
+    // The breaker's own ways (its entry's runFacts.breaker; R-A A-move): the branch order is part of the plan
+    const facts = runFactsOf(breaker.cardCode)?.breaker;
     // Banner (no break ability): 2 credits and a barrier's subroutines can't end the run; only for barriers whose every subroutine just ends the run
-    if (breaker.cardCode === BANNER) {
-      const subs = plannedSubroutines(state, ice);
-      if (types.includes('barrier') && strength >= iceStr && subs.length > 0 && subs.every(sub => /^end the run\.?$/i.test(sub.label.trim()))) {
-        plans.push({ plan: { breaker, credits: 2, value: 0, boostsNeeded: 0, breakByAbility: true }, spends: {} });
+    if (facts?.noEndRun) {
+      if (strength >= iceStr && fitsIce(state, ice, facts.noEndRun.fits, types)) {
+        plans.push({ plan: { breaker, credits: facts.noEndRun.credits, value: 0, boostsNeeded: 0, breakByAbility: true }, spends: {} });
       }
       continue;
     }
     // Lobisomem on a barrier: X credits and a power counter break X subroutines (rules: its second interface ability)
-    if (breaker.cardCode === LOBISOMEM && script && types.includes('barrier') && counters(breaker, 'power') > 0 && canBreakSubroutinesWith(ice, breaker)) {
+    const byCounter = facts?.breakByCounter;
+    if (byCounter?.creditsPerSubroutine !== undefined && script && fitsIce(state, ice, byCounter.fits, types) && counters(breaker, byCounter.kind) > 0 && canBreakSubroutinesWith(ice, breaker)) {
       const boosts = Math.max(0, Math.ceil((iceStr - strength) / Math.max(1, script.boostAmount(state, breaker))));
-      const credits = boostCredits(state, breaker, boosts) + subCount;
-      const value = 1; // the counter is worth about a credit
-      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, breakByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: 'power', n: 1 } } });
+      const credits = boostCredits(state, breaker, boosts) + subCount * byCounter.creditsPerSubroutine;
+      const value = 1; // the counter is worth about a credit (a price: B5's list, beside counterWorthOf)
+      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, breakByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: byCounter.kind, n: 1 } } });
       continue;
     }
     if (!script || (script.breaks !== 'any' && !types.includes(script.breaks))) continue;
@@ -540,37 +562,40 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
     if (script.canInterface?.(state, breaker, ice)) continue; // Slap Vandal, Living Mural, Umbrella
     // Slap Vandal: "Interface -> 1 credit: Break 1 subroutine on host ice. Use this ability only once per encounter." One
     // subroutine is all it breaks; a plan for more is another breaker's (the Runner tanks the rest, iceCreditNeed BLOCKs)
-    if (breaker.cardCode === SLAP_VANDAL && subCount > 1) continue;
-    if (breaker.cardCode === AUDREY) {
+    if (facts?.breaksPerEncounter !== undefined && subCount > facts.breaksPerEncounter) continue;
+    if (byCounter && byCounter.creditsPerSubroutine === undefined) {
       // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
       const uses = Math.ceil(subCount / script.breakMax);
-      const boosts = Math.max(0, Math.ceil((iceStr - strength) / 3));
-      if (uses > counters(breaker, 'virus') || boosts > (view.gripCards ?? state.runner.grip.length)) continue;
+      const boosts = Math.max(0, Math.ceil((iceStr - strength) / facts!.boostPerGripCard!.strength));
+      if (uses > counters(breaker, byCounter.kind) || boosts > (view.gripCards ?? state.runner.grip.length)) continue;
       // Counters and discards, no credits
       const value = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
-      plans.push({ plan: { breaker, credits: 0, value, boostsNeeded: boosts }, spends: { counters: { cardId: breaker.instanceId, kind: 'virus', n: uses }, gripCards: boosts } });
+      plans.push({ plan: { breaker, credits: 0, value, boostsNeeded: boosts }, spends: { counters: { cardId: breaker.instanceId, kind: byCounter.kind, n: uses }, gripCards: boosts } });
       continue;
     }
-    if (breaker.cardCode === PRESSURE_SPIKE && strength < iceStr && Math.max(state.corp.score, state.runner.score) >= 4 && !state.activeRun?.runFlags?.[spikeKey(breaker)]) {
-      // Pressure Spike at threat 4: +9 for 2 credits once a run
-      const boosts = Math.ceil((iceStr - strength) / 9);
+    const boostOnce = facts?.boostOnce;
+    if (boostOnce && strength < iceStr && meets(state, boostOnce.when) && onceFree(state, breaker, boostOnce.once)) {
+      // Pressure Spike at threat 4: +9 for 2 credits once a run (then on to its plain plan below: no continue)
+      const boosts = Math.ceil((iceStr - strength) / boostOnce.strength);
       if (boosts === 1) {
-        const credits = 2 + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
-        plans.push({ plan: { breaker, credits, value: 0, boostsNeeded: 1, boostByAbility: true }, spends: { oncePerRun: spikeKey(breaker) } });
+        const credits = boostOnce.credits + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
+        plans.push({ plan: { breaker, credits, value: 0, boostsNeeded: 1, boostByAbility: true }, spends: { oncePerRun: onceFlag(boostOnce.once.flag, breaker) } });
       }
     }
-    if (breaker.cardCode === HANTU) {
-      const boosts = Math.max(0, Math.ceil((iceStr - strength) / 2));
-      if (boosts > counters(breaker, 'virus')) continue;
-      // Its boosts spend virus counters (a counter about 1.5 credits' worth), its breaks credits
+    const perCounter = facts?.boostPerCounter;
+    if (perCounter) {
+      // Hantu: boosts by spending hosted virus counters (+2 each), not credits
+      const boosts = Math.max(0, Math.ceil((iceStr - strength) / perCounter.strength));
+      if (boosts > counters(breaker, perCounter.kind)) continue;
+      // Its boosts spend virus counters (a counter about 1.5 credits' worth: a price, B5's list beside counterWorthOf), its breaks credits
       const credits = Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
       const value = boosts * 1.5;
-      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, boostByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: 'virus', n: boosts } } });
+      plans.push({ plan: { breaker, credits, value, boostsNeeded: boosts, boostByAbility: true }, spends: { counters: { cardId: breaker.instanceId, kind: perCounter.kind, n: boosts } } });
       continue;
     }
-    if (breaker.cardCode === CORSAIR) {
+    if (facts?.lowerPerStealthCredit) {
       // Corsair: -3 strength on the barrier per stealth credit (its own ability), then 1 credit a subroutine
-      const lowers = Math.max(0, Math.ceil((iceStr - strength) / 3));
+      const lowers = Math.max(0, Math.ceil((iceStr - strength) / facts.lowerPerStealthCredit.strength));
       if (lowers > runStealthCredits(state)) continue;
       const credits = lowers + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
       plans.push({ plan: { breaker, credits, value: 0, boostsNeeded: lowers, boostByAbility: true }, spends: { stealthCredits: lowers } });
@@ -580,8 +605,8 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
     if (strength < iceStr && amount <= 0) continue;
     const boostsNeeded = Math.max(0, Math.ceil((iceStr - strength) / Math.max(amount, 1)));
     const credits = boostCredits(state, breaker, boostsNeeded) + Math.ceil(subCount / script.breakMax) * script.breakCost(state, breaker);
-    const value = breaker.cardCode === MAYFLY ? 2 : 0; // Mayfly is trashed after the run
-    plans.push({ plan: { breaker, credits, value, boostsNeeded }, spends: breaker.cardCode === MAYFLY ? { trashesBreaker: true } : {} });
+    const value = facts?.trashedWhenRunEnds ? 2 : 0; // Mayfly is trashed after the run (2: a price)
+    plans.push({ plan: { breaker, credits, value, boostsNeeded }, spends: facts?.trashedWhenRunEnds ? { trashesBreaker: true } : {} });
   }
   return plans;
 }
@@ -649,17 +674,16 @@ export function iceCost(state: GameState, ice: CardInstance): number {
   return total(icePrice(state, ice));
 }
 
-const PHYSARUM = '34082';
-
 /**
  * Physarum Entangler on this ice: a credit a subroutine bypasses it on every
- * encounter (rules 6.5.8a), unless it is a barrier. Undefined when none is hosted
- * or the Runner can't pay.
+ * encounter (rules 6.5.8a), unless it is a barrier: its entry's holdFacts.hostBypass, which the walk reads too (R-A
+ * A-move). Undefined when none is hosted or the Runner can't pay (its budget and plan.bypass: the Runner's policy).
  */
 export function physarumCost(state: GameState, ice: CardInstance): number | undefined {
-  if (!plan().bypass || !ice.isRezzed || iceSubtypes(ice, state).includes('barrier')) return undefined;
-  if (!state.runner.rig.programs.some(p => p.cardCode === PHYSARUM && p.hostedOnId === ice.instanceId)) return undefined;
-  const credits = plannedSubroutines(state, ice).length;
+  if (!plan().bypass || !ice.isRezzed) return undefined;
+  const bypass = state.runner.rig.programs.map(p => (p.hostedOnId === ice.instanceId ? CARDS[p.cardCode]?.holdFacts?.hostBypass : undefined)).find(b => b);
+  if (!bypass || iceSubtypes(ice, state).includes(bypass.unlessSubtype)) return undefined;
+  const credits = plannedSubroutines(state, ice).length * bypass.creditsPerSubroutine;
   return credits <= runBudget(state) ? credits : undefined;
 }
 
@@ -705,7 +729,9 @@ function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   const priced = plannedSubroutines(state, ice).map((s, i) => ({ cost: subroutineCost(state, s.label), label: s.label, i })).sort((a, b) => b.cost - a.cost);
   const kept = priced.slice(botulusBreaks(state, ice));
   const subs = kept.map(p => p.cost);
-  const funhouse = ice.cardCode === '30054' ? tagCost(state) : 0; // Funhouse: take a tag or the run ends
+  // Funhouse: take a tag or the run ends. Its entry's holdFacts.encounter (the walk reads it too), in this shape only: the run ends unless N tags, no threat line
+  const toll = CARDS[ice.cardCode]?.holdFacts?.encounter;
+  const funhouse = toll?.toll?.endRun && toll.unless?.tags && toll.threatAtLeast === undefined ? toll.unless.tags * tagCost(state) : 0;
   if (subs.length === 0) return { credits: 0, value: funhouse };
   // The damage the tank lets through, subroutine by subroutine in printed order (rule 9.8.7b: they resolve 1 at a time in order),
   // with the tags given on the way. Each subroutine's own price tests its damage against the grip as it stands, so
@@ -777,8 +803,12 @@ export function iceCreditsAhead(state: GameState): number {
   return inner.reduce((sum, ice) => sum + (ice.isRezzed && !skip.has(ice.instanceId) ? iceCreditNeed(outside, ice) : 0), 0);
 }
 
-const S_DOBRADO = '34012';
-export const ALARM_CLOCK = '34078';
+/** The entry that declares a first-ice option (exactly one each; tests/runnerFacts.test.ts), read when first asked (load order). */
+const firstIceByOption = new Map<FirstIceBypass['option'], FirstIceBypass>();
+function firstIceOf(option: FirstIceBypass['option']): FirstIceBypass | undefined {
+  if (!firstIceByOption.size) for (const e of Object.values(CARDS)) if (e.runFacts?.firstIce) firstIceByOption.set(e.runFacts.firstIce.option, e.runFacts.firstIce);
+  return firstIceByOption.get(option);
+}
 
 /**
  * During a run, the ice further in that the Runner's bypasses will skip (plan.bypass;
@@ -793,8 +823,9 @@ export function bypassesAhead(state: GameState, inner: CardInstance[], encounter
   // Approaching (or just past) rezzed ice not being encountered: counted as encountered, to be safe
   const encounters = (run.runFlags?.encounters ?? 0) + (current?.isRezzed && !encountering ? 1 : 0);
   const options: RunOptions = {
-    bypassFirst: run.eventCode === S_DOBRADO,
-    alarmClock: run.runEffects.some(r => findRigCard(state, r.instanceId)?.cardCode === ALARM_CLOCK),
+    // The run's card (its event, its run effect's card) declares the option in its entry's runFacts.firstIce
+    bypassFirst: runFactsOf(run.eventCode)?.firstIce?.option === 'bypassFirst',
+    alarmClock: run.runEffects.some(r => runFactsOf(findRigCard(state, r.instanceId)?.cardCode)?.firstIce?.option === 'alarmClock'),
   };
   return runBypasses(state, run.server, options, { ice: [...inner].reverse(), encounters }).ids;
 }
@@ -868,7 +899,7 @@ export type RunnerMemory = Map<string, string>;
 /** Corp assets that punish the Runner for accessing or leaving them (the cards an empty-looking remote bluffs with). */
 export function isTrap(code: string): boolean {
   const def = getCardDefinition(code);
-  return def.type_code === 'asset' && /ambush|hostile/i.test(def.keywords ?? '') && code !== '35061'; // Idiosyncresis isn't sprung by access
+  return def.type_code === 'asset' && /ambush|hostile/i.test(def.keywords ?? '') && !runFactsOf(code)?.hostileNotTrap; // Idiosyncresis isn't sprung by access
 }
 
 /**
@@ -1111,11 +1142,11 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     if (card.faceUp && cardDef(card).type_code === 'agenda') {
       // A faceup agenda: a sure steal, public to both sides. Under BANGUN it costs 2 meat damage and a tag;
       // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
-      const bangun = state.corp.identity.cardCode === BANGUN;
-      if (bangun && state.runner.grip.length < 2) return 0;
+      const bangun = runFactsOf(state.corp.identity.cardCode)?.faceupAgendaAccess;
+      if (bangun && state.runner.grip.length < bangun.meatDamage) return 0;
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
-      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, 2, false, grip) + tagCost(state) : 0);
+      value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, bangun.meatDamage, false, grip) + bangun.tags * tagCost(state) : 0);
       continue;
     }
     if (!card.isRezzed && memory?.has(card.instanceId)) {
@@ -1175,6 +1206,8 @@ export interface RunOptions {
   rezTax?: boolean;
   /** Worth (in credits) the run's card adds if the run is successful, beyond the breach. */
   successBonus?: number;
+  /** Cards the run's card draws if the run is successful (Jailbreak): read only by runnerAI.ts scoreMain, priced there; runScore and the planner do not read it. */
+  successDraws?: number;
   /**
    * Credits the Runner gains if the run is successful (Clean Getaway, Transfer of Wealth, Red Team), priced on the
    * credit slide like the credits the run costs (plan.runCreditsSlide; Jeff, 2026-11-05): a broke Runner's 6 credits
@@ -1202,10 +1235,6 @@ export interface RunOptions {
   memory?: RunnerMemory;
 }
 
-const MALANDRAGEM = '34081';
-const LASER_POINTER = '34016';
-const CURUPIRA = '34015';
-const FRANSOFIA_WARD = '35021';
 
 /** The ice on a run the Runner bypasses (rules 6.5.8a: no subroutines resolve), and what the bypasses cost it in credits' worth. */
 export interface Bypasses {
@@ -1232,39 +1261,43 @@ export function runBypasses(state: GameState, serverId: string, options: RunOpti
   const rezzed = outward.filter(ice => ice.isRezzed);
   // The click S-Dobrado or Alarm Clock spends; before the run the play's click is spent too
   const clicks = state.runner.clicks - (ahead ? 0 : 1);
+  // S-Dobrado's run (its policy: the first ice is taken free, even unrezzed before the run, with no saving test), the
+  // numbers from the entry that declares the option (runFacts.firstIce; its first-ice clicks are 0)
+  const sDobrado = options.bypassFirst ? firstIceOf('bypassFirst') : undefined;
   if (options.bypassFirst) {
     if (done === 0) {
       const first = rezzed[0] ?? (ahead ? undefined : outward[0]);
       if (first) out.ids.add(first.instanceId);
     }
     // Threat 4: the second ice encountered, for a click
+    const next = sDobrado?.next;
     const second = done === 0 ? rezzed[1] : done === 1 ? rezzed[0] : undefined;
-    if (second && (done === 1 || rezzed[0]) && threatLevel(state) >= 4 && clicks >= 1 && iceCost(state, second) > runClick(state)) {
+    if (next && second && (done === 1 || rezzed[0]) && meets(state, next.when) && clicks >= next.clicks && iceCost(state, second) > next.clicks * runClick(state)) {
       out.ids.add(second.instanceId);
-      out.price += runClick(state);
+      out.price += next.clicks * runClick(state);
     }
   }
-  // Alarm Clock's run: the first ice encountered, for 2 clicks
-  if (options.alarmClock && done === 0 && rezzed[0] && clicks >= 2 && iceCost(state, rezzed[0]) > 2 * runClick(state)) {
+  // Alarm Clock's run (its policy: a rezzed first ice, the clicks, and the saving test): the first ice encountered, for 2 clicks
+  const alarm = options.alarmClock ? firstIceOf('alarmClock') : undefined;
+  if (alarm && done === 0 && rezzed[0] && clicks >= alarm.clicks && iceCost(state, rezzed[0]) > alarm.clicks * runClick(state)) {
     out.ids.add(rezzed[0].instanceId);
-    out.price += 2 * runClick(state);
+    out.price += alarm.clicks * runClick(state);
   }
+  // Rig bypasses (each card's runFacts.bypass): rig order, programs then resources; of a card's modes the first whose
+  // condition and cost apply (Malandragem's threat-4 mode only when its counter mode does not)
   const uses: { fits: (ice: CardInstance) => boolean; price: number; uses: number }[] = [];
   for (const card of [...state.runner.rig.programs, ...state.runner.rig.resources]) {
-    if (card.cardCode === MALANDRAGEM && counters(card, 'power') > 0 && turnFlag(state, `once:${card.instanceId}:0`) === 0) {
-      uses.push({ fits: ice => iceStrength(state, ice) <= 3, price: counterWorthOf(state, MALANDRAGEM, 'power'), uses: 1 });
-    } else if (card.cardCode === MALANDRAGEM && threatLevel(state) >= 4) {
-      uses.push({ fits: () => true, price: runnerEffect(state, MALANDRAGEM, card) ?? 1, uses: 1 });
-    }
-    if (card.cardCode === LASER_POINTER) {
-      uses.push({ fits: ice => /\b(ap|destroyer|observer)\b/i.test(cardDef(ice).keywords ?? ''), price: runnerEffect(state, LASER_POINTER, card) ?? 2, uses: 1 });
-    }
-    if (card.cardCode === CURUPIRA && counters(card, 'power') >= 3) {
-      uses.push({ fits: ice => iceSubtypes(ice, state).includes('barrier'), price: 3 * counterWorthOf(state, CURUPIRA, 'power'), uses: Math.floor(counters(card, 'power') / 3) });
-    }
-    if (card.cardCode === FRANSOFIA_WARD && state.corp.credits >= 15) {
-      uses.push({ fits: () => true, price: runnerEffect(state, FRANSOFIA_WARD, card) ?? 3, uses: 1 });
-    }
+    const mode = runFactsOf(card.cardCode)?.bypass?.find(
+      m => meets(state, m.when) && (!m.cost.counter || counters(card, m.cost.counter.kind) >= m.cost.counter.n) && onceFree(state, card, m.cost.once)
+    );
+    if (!mode) continue;
+    const counter = mode.cost.counter;
+    // A counter use is priced at its counters' worth (counterWorthOf); a trashed or removed card at its rig worth (runnerEffect:
+    // every such entry has a runner formula, tests/runnerFacts.test.ts; without one the use is not taken)
+    const price = counter ? counter.n * counterWorthOf(state, card.cardCode, counter.kind) : (runnerEffect(state, card.cardCode, card) ?? BLOCK);
+    // Once a run or turn, or used up on use: one use; else as many as the counters pay for (Curupira: 3 a use)
+    const n = counter && !mode.cost.once ? Math.floor(counters(card, counter.kind) / counter.n) : 1;
+    uses.push({ fits: ice => fitsIce(state, ice, mode.fits), price, uses: n });
   }
   for (const use of uses) {
     for (let n = 0; n < use.uses; n++) {
@@ -1491,7 +1524,6 @@ export function runRestWorth(state: GameState, memory?: RunnerMemory, wary?: boo
 }
 
 const CHAIN_REACTION = '36001';
-const CENTRALS = ['hq', 'rd', 'archives'];
 
 /**
  * Chain Reaction (plays only after successful runs on HQ, R&D and Archives
@@ -1501,8 +1533,11 @@ const CENTRALS = ['hq', 'rd', 'archives'];
  * cards as the Runner prices them), less the cheapest Runner card the Corp trashes back.
  */
 export function chainReactionBonus(state: GameState, serverId: string): number {
-  if (!state.runner.grip.some(c => c.cardCode === CHAIN_REACTION) || !CENTRALS.includes(serverId)) return 0;
-  const needed = CENTRALS.filter(id => !state.runsThisTurn.some(r => r.server === id && r.successful));
+  // The card comparison stays: the worth below is the card's own procedure (R-B/B5); its servers are its entry's
+  const card = state.runner.grip.find(c => c.cardCode === CHAIN_REACTION);
+  const centrals = runFactsOf(card?.cardCode)?.playsAfterSuccessfulRuns ?? [];
+  if (!card || !centrals.includes(serverId)) return 0;
+  const needed = centrals.filter(id => !state.runsThisTurn.some(r => r.server === id && r.successful));
   if (!needed.includes(serverId) || state.runner.clicks < needed.length + 1 || state.runner.credits < 1) return 0;
   const installed = Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]);
   const worth = installed

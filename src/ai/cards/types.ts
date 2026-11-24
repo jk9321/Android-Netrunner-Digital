@@ -25,8 +25,12 @@ export interface CorpEffectContext {
 
 /**
  * What a card does at the points of a Runner's turn the hold count walks (Stage D item 1, brief 4.4), as its text says:
- * facts the walk applies to the state it carries (counters, rez flags, tags, credits), never a worth. Read only by the
- * hold count (corp/hold.ts): the Runner's run prices (gainsOnEncounter, runs.ts plannedSubroutines) do not read them.
+ * facts the walk applies to the state it carries (counters, rez flags, tags, credits), never a worth. Read by the hold
+ * count (corp/hold.ts). Since R-A A-move the Runner's run prices (runs.ts, runnerAI.ts) read three of them too, so both
+ * sides read one place: `breaksHostSubroutine` (botulusBreaks, the encounter's Botulus use), `hostBypass` (physarumCost)
+ * and `encounter` in Funhouse's shape only (a toll that ends the run unless N tags, no threat line: plainIcePrice). The
+ * rest stay Corp-only: the Runner's price holds no copy of them (A-log L3: Tranquilizer's `runnerTurnStart.derezHostAt`,
+ * Jaguarundi's, Seraph's and Paywall's `encounter`), so reading them would be a new reading, B5's to rule.
  */
 export interface HoldFacts {
   /** When the Runner's turn begins (rule 5.7.1): counters it places on itself, then a derez of its host ice once it holds this many (Tranquilizer). */
@@ -107,6 +111,49 @@ export interface HoldFacts {
 }
 
 /**
+ * R-A A-move: the condition vocabulary of the Runner's run model (specs/r-a.md; a-move/step1-table.md and its ruling).
+ * Facts only, as the card's text states them: a number, a flag, a named kind; no worth, no function (a credit or click
+ * count is what the text charges). Every price stays in the code that reads the field: runs.ts and runnerAI.ts, and,
+ * through breakPlans, runBypasses, bypassesAhead, iceCost and isTrap, the Corp too.
+ */
+/** Checked on each ice. `keywordAny`: one of these words, whole and in any case, in the ice's printed keywords;
+ * `allSubsEndTheRun`: it has subroutines (plannedSubroutines) and each is exactly "End the run". */
+export interface IceFits { subtype?: 'barrier' | 'code gate' | 'sentry'; strengthAtMost?: number; keywordAny?: string[]; allSubsEndTheRun?: true }
+/** Checked once on the board: the threat level (the higher agenda score), the Corp's credits. */
+export interface BoardWhen { threatAtLeast?: number; corpCreditsAtLeast?: number }
+/** What one use spends or what limits its uses: `n` hosted counters a use (usable while it holds `n`); once a run or a
+ * turn, by the engine's flag name with `<instance>` for the card's instance id (A-log L10); trashed or removed on use. */
+export interface UseCost { counter?: { kind: 'virus' | 'power'; n: number }; once?: { per: 'run' | 'turn'; flag: string }; trashed?: true; removed?: true }
+/** One way a card bypasses an ice it encounters (rules 6.5.8a). */
+export interface Bypass { when?: BoardWhen; fits?: IceFits; cost: UseCost }
+/** An icebreaker's ways of breaking or boosting that the generic plan (boost and break by its script) does not price. */
+export interface BreakerFacts {
+  trashedWhenRunEnds?: true; // Mayfly
+  breaksPerEncounter?: number; // Slap Vandal: 1
+  boostPerCounter?: { kind: 'virus'; strength: number }; // Hantu: a hosted virus counter, +2
+  boostPerGripCard?: { strength: number }; // Audrey v2: a grip card trashed, +3
+  /** A hosted counter breaks: its script's breakMax a counter (Audrey v2), or, with `creditsPerSubroutine`, any number on
+   * an ice that `fits` for that many credits each (Lobisomem on a barrier). */
+  breakByCounter?: { kind: 'virus' | 'power'; fits?: IceFits; creditsPerSubroutine?: number };
+  boostOnce?: { strength: number; credits: number; when: BoardWhen; once: { per: 'run'; flag: string } }; // Pressure Spike: +9 for 2 at threat 4
+  lowerPerStealthCredit?: { strength: number }; // Corsair: -3 a stealth credit
+  noEndRun?: { credits: number; fits: IceFits }; // Banner: the subroutines of an ice that fits cannot end the run
+}
+/** A run whose first encountered ice is bypassed for `clicks` (S-Dobrado's run, Alarm Clock's), `option` the RunOptions
+ * flag that turns it on (one entry each); `next`: while `when` holds, the second ice for `clicks` more (S-Dobrado). */
+export interface FirstIceBypass { option: 'bypassFirst' | 'alarmClock'; clicks: number; next?: { when: BoardWhen; clicks: number } }
+/** Facts the Runner's run model reads (R-A A-move). */
+export interface RunFacts {
+  breaker?: BreakerFacts;
+  bypass?: Bypass[]; // in order: the first whose `when` and cost apply is the card's use (Malandragem's two modes)
+  firstIce?: FirstIceBypass;
+  trojan?: { second: 'adds' | 'idle' }; // a trojan trojanHostValue prices: what a second copy on its host does
+  faceupAgendaAccess?: { meatDamage: number; tags: number }; // identity: accessing a faceup installed agenda (BANGUN)
+  hostileNotTrap?: true; // an ambush/hostile asset that does nothing accessed or left (Idiosyncresis; isTrap)
+  playsAfterSuccessfulRuns?: string[]; // an event playable only after successful runs on these this turn (Chain Reaction)
+}
+
+/**
  * Everything the AI knows about one card's worth, in one place (2026-11-03,
  * from Gemini's CardFacts review). What a card does stays in its engine
  * script; this is only how the AI prices it. Every part is optional.
@@ -157,6 +204,8 @@ export interface CardAI {
   turnIncome?: { credits: number; hosted?: true };
   /** What it does at the points of the Runner's turn the hold count walks (HoldFacts; Stage D item 1). */
   holdFacts?: HoldFacts;
+  /** What it does on a run, as the Runner's run model reads it (RunFacts; R-A A-move). */
+  runFacts?: RunFacts;
   /** Runner card that pays off an Archives run, or turns one into a run on something else (Maintenance Access, Baker):
    * the Corp ices and rezzes Archives only against these, or with an agenda there (rezModel.ts archivesWantsIce). */
   archivesPayoff?: true;

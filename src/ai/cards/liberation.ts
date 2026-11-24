@@ -42,10 +42,14 @@ export const LIBERATION: Record<string, CardAI> = {
   // Audrey v2 (icebreaker)
   '34004': {
     synergy: { gives: { breakers: 1.5, virus: 1 }, wants: { trash: 1.5, discard: 0.5 } },
+    // "Hosted virus counter: Break up to 2 subroutines. Trash 1 card from your grip: +3 strength."
+    runFacts: { breaker: { breakByCounter: { kind: 'virus' }, boostPerGripCard: { strength: 3 } } },
     counters: { virus: () => 1.5 }, // Breaks up to 2 subroutines
   },
   // Banner
-  '34005': { synergy: { gives: { breakers: 1 } } },
+  // "2 credits: Subroutines on the barrier you are encountering cannot end the run for the remainder of this encounter."
+  // The Runner prices it only on a barrier whose every subroutine is "End the run" (runs.ts breakPlans)
+  '34005': { synergy: { gives: { breakers: 1 } }, runFacts: { breaker: { noEndRun: { credits: 2, fits: { subtype: 'barrier', allSubsEndTheRun: true } } } } },
   // Monkeywrench
   '34006': {
     synergy: { gives: { breakers: 0.5 }, wants: { breakers: 1 } },
@@ -97,6 +101,7 @@ export const LIBERATION: Record<string, CardAI> = {
     run: (): RunOptions => {
       return plan().bypass ? { bypassFirst: true } : {};
     },
+    runFacts: { firstIce: { option: 'bypassFirst', clicks: 0, next: { when: { threatAtLeast: 4 }, clicks: 1 } } },
   },
   // Capybara
   '34013': {
@@ -116,6 +121,8 @@ export const LIBERATION: Record<string, CardAI> = {
   '34015': {
     synergy: { gives: { breakers: 1 } },
     counters: { power: () => 1 }, // 3 bypass a barrier
+    // "Whenever you encounter a barrier, you may spend 3 hosted power counters to bypass it."
+    runFacts: { bypass: [{ fits: { subtype: 'barrier' }, cost: { counter: { kind: 'power', n: 3 } } }] },
   },
   // Laser Pointer
   '34016': {
@@ -123,6 +130,8 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1 },
     // Once, a bypass of an AP, destroyer or observer ice
     runner: () => 2,
+    // "Whenever you encounter a piece of AP, destroyer, or observer ice, you may trash this program to bypass that ice."
+    runFacts: { bypass: [{ fits: { keywordAny: ['ap', 'destroyer', 'observer'] }, cost: { trashed: true } }] },
   },
   // Saci
   '34017': {
@@ -182,7 +191,8 @@ export const LIBERATION: Record<string, CardAI> = {
     runner: state => perTurn(state, 0.4 * CLICK, 'runner', 0, Infinity, 1, lock()),
   },
   // Slap Vandal
-  '34026': { synergy: { gives: { breakers: 1 } } },
+  // "Break 1 subroutine on host ice. Use this ability only once per encounter."
+  '34026': { synergy: { gives: { breakers: 1 } }, runFacts: { breaker: { breaksPerEncounter: 1 } } },
   // Umbrella
   '34027': { synergy: { gives: { breakers: 1, draw: 0.5 } } },
   // Beatriz Friere Gonzalez
@@ -233,6 +243,7 @@ export const LIBERATION: Record<string, CardAI> = {
   '34035': {
     synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] },
     // "Threat 4 -> When the Runner encounters this ice, give them 1 tag unless they spend [click]"
+    // Corp-only (the walk): the Runner's price reads no encounter toll but Funhouse's (A-log L3, a B5 item)
     holdFacts: { encounter: { threatAtLeast: 4, toll: { tags: 1 }, unless: { clicks: 1 } } },
   },
   // M.I.C.
@@ -492,6 +503,8 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5 },
     // A free HQ run each turn, with a bypass for 2 clicks
     runner: state => perTurn(state, 0.5 * runSuccess(state, 'hq') * accessWorth(state), 'runner', 0, Infinity, 1, lock()),
+    // "The first time you encounter a piece of ice during that run, you may spend [click][click] to bypass it."
+    runFacts: { firstIce: { option: 'alarmClock', clicks: 2 } },
   },
   // Jeitinho
   '34079': {
@@ -515,6 +528,14 @@ export const LIBERATION: Record<string, CardAI> = {
     // Two bypasses of small ice (or one removal at threat 4)
     runner: (state, code, card) => (card ? counters(card, 'power') : 2) * counterWorthOf(state, code, 'power'),
     counters: { power: () => 2 }, // A bypass of an ice of strength 3 or less
+    // "Once per turn -> ... if its strength is 3 or less, you may remove 1 hosted power counter to bypass it. Threat 4 -> ...
+    // you may remove this program from the game to bypass it." The second only when the first does not apply (runBypasses)
+    runFacts: {
+      bypass: [
+        { fits: { strengthAtMost: 3 }, cost: { counter: { kind: 'power', n: 1 }, once: { per: 'turn', flag: 'once:<instance>:0' } } },
+        { when: { threatAtLeast: 4 }, cost: { removed: true } },
+      ],
+    },
   },
   // Physarum Entangler
   '34082': {
@@ -524,6 +545,7 @@ export const LIBERATION: Record<string, CardAI> = {
     runner: state => perTurn(state, PACE.runs * 0.3 * 1.5, 'runner', 0, 4),
     // "Whenever you encounter host ice, if it is not a barrier, you may pay 1 credit for each subroutine it has. If you do,
     // bypass that ice. When the Corp purges virus counters, trash this program." (6.5.8a)
+    // hostBypass is read by both sides (R-A A-move): the walk, and the Runner's physarumCost (runs.ts); trashedOnPurge Corp-only
     holdFacts: { hostBypass: { creditsPerSubroutine: 1, unlessSubtype: 'barrier' }, trashedOnPurge: true },
   },
   // Amelia Earhart
@@ -587,6 +609,8 @@ export const LIBERATION: Record<string, CardAI> = {
   // Lobisomem (icebreaker)
   '34090': {
     synergy: { gives: { breakers: 1 } },
+    // "X credits, hosted power counter: Break X barrier subroutines."
+    runFacts: { breaker: { breakByCounter: { kind: 'power', fits: { subtype: 'barrier' }, creditsPerSubroutine: 1 } } },
     counters: { power: () => 1.5 }, // Breaks barrier subroutines
   },
   // Muse
@@ -597,7 +621,11 @@ export const LIBERATION: Record<string, CardAI> = {
     runner: state => -0.3 * muWorth(state) + 1,
   },
   // Pressure Spike
-  '34092': { synergy: { gives: { breakers: 1 }, when: ['threat'] } },
+  // "Threat 4 -> 2 credits: +9 strength. Use this ability only once per run." (the flag is the script's spikeKey)
+  '34092': {
+    synergy: { gives: { breakers: 1 }, when: ['threat'] },
+    runFacts: { breaker: { boostOnce: { strength: 9, credits: 2, when: { threatAtLeast: 4 }, once: { per: 'run', flag: 'pressure-spike:<instance>' } } } },
+  },
   // "Pretty" Mary da Silva
   '34093': {
     synergy: { gives: { rd: 1 }, wants: { rd: 1 } },
@@ -730,6 +758,7 @@ export const LIBERATION: Record<string, CardAI> = {
   '34118': {
     synergy: { gives: { ice: 1, damage: 1, tags: 1, denial: 1 } },
     // "When the Runner encounters this ice, they lose 3 [credit] unless they suffer 2 net damage or take 1 tag" (the Runner's choice)
+    // Corp-only (the walk): the Runner's price reads no encounter toll but Funhouse's (A-log L3, a B5 item)
     holdFacts: { encounter: { toll: { loses: 3 }, unless: { netDamage: 2, tags: 1 } } },
   },
   // Sudden Commandment
