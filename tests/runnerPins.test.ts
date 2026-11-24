@@ -43,7 +43,7 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
   // The memory holds its identity anyway, and serverValue reads it (runs.ts serverWorth, the "seen it" branch), so the HQ
   // price moves with which upgrade it really is. Expected: the memory does not hold it, and the price is the same on two
   // boards that differ only by which hidden card is the upgrade.
-  it.fails('D1: after Burner, the HQ price does not depend on the unaccessed upgrade in the root of HQ', () => {
+  it('D1: after Burner, the HQ price does not depend on the unaccessed upgrade in the root of HQ', () => {
     const prices = [
       [MALAPERT, ANOETIC],
       [ANOETIC, MALAPERT],
@@ -73,7 +73,7 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
     expect(findCardAnywhere(afterRun, card)?.runnerKnows).toBe(true); // accessed in the run (7.2.1)
     expect(findCardAnywhere(s, card)?.runnerKnows).toBeFalsy();
   });
-  it.fails('D1 recycled: a card accessed, returned to HQ and installed again facedown is not priced by its identity', () => {
+  it('D1 recycled: a card accessed, returned to HQ and installed again facedown is not priced by its identity', () => {
     const prices = [
       [MALAPERT, ANOETIC],
       [ANOETIC, MALAPERT],
