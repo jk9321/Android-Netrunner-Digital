@@ -858,11 +858,62 @@ class Watch {
       const grip = s.runner.grip.length - after.runner.grip.length;
       const lost = s.runner.credits - after.runner.credits - p.trashCost;
       cand.onTrash = { tags, grip, credits: lost };
+      if (tags > 0) cand.tagSplit = this.tagSplit(s, p, after);
       if (tags > 0 || grip > 0 || lost > 0) return 'costOnTrash';
     } catch {
       /* the copy could not trash it */
     }
     return 'other';
+  }
+
+  /**
+   * The coordinator's ask (17:15Z): what evaluate loses to the tag a trash gives, split into payoutWait's tagged risk (the
+   * Runner's payout cards all read the tagged risk once tags > 0, cardProfiles.ts) and tagsWorth; the rest is named "other".
+   * Each part: evaluate on the board after the trash against the same board with the Runner's tags as before the trash.
+   */
+  tagSplit(s: GameState, p: any, after: GameState) {
+    const untagged = structuredClone(after);
+    untagged.runner.tags = s.runner.tags;
+    const ev = (b: GameState) => {
+      T.clear();
+      return asRunner(b, () => T.evaluate.evaluate(structuredClone(b), 'runner')) as number;
+    };
+    const total = ev(after) - ev(untagged);
+    T.clear();
+    const tags =
+      (asRunner(after, () => T.evaluate.tagsWorth(structuredClone(after), 'runner')) as number) -
+      (asRunner(untagged, () => T.evaluate.tagsWorth(structuredClone(untagged), 'runner')) as number);
+    const risk = T.payoutRisk.PAYOUT_RISK;
+    const saved = risk.runnerTagged;
+    let flat: number;
+    try {
+      risk.runnerTagged = risk.runnerUntagged;
+      flat = ev(after) - ev(untagged);
+    } finally {
+      risk.runnerTagged = saved;
+    }
+    let keep: number | null = null;
+    try {
+      keep = ev(after) - ev(T.core.executeAction(structuredClone(s), { type: 'RESOLVE_PROMPT', player: 'runner', promptId: p.id, choice: { kind: 'access_trash', trash: false } }));
+    } catch {
+      /* no keep answer */
+    }
+    // tagsWorth enters evaluate twice (sideStrength: the Runner's side less it, the Corp's side plus it): -2 x its change
+    return { total: r3(total), payoutWait: r3(total - flat), tagsWorth: r3(-2 * tags), other: r3(flat + 2 * tags), trashMinusKeep: r3(keep) };
+  }
+
+  /** The coordinator's ask (17:15Z), on L13's over boards: the Runner's other moves ranked above 0 (rankMainActions, a fresh Runner with the memory). */
+  alternatives(s: GameState, id: string, memory: Map<string, string>) {
+    T.clear();
+    const r: any = T.createAgent('runner', 'normal');
+    r.memory = new Map(memory);
+    const ranked = safe(() => asRunner(s, () => r.rankMainActions(structuredClone(s))) as { action: any; score: number }[], [] as { action: any; score: number }[]);
+    const isThis = (a: any) => a.type === 'INITIATE_RUN' && a.targetServerId === id;
+    const others = ranked.filter(x => !isThis(x.action) && x.action.type !== 'END_TURN' && x.score > 0);
+    const run = ranked.find(x => isThis(x.action));
+    const label = (a: any) =>
+      `${a.type}${a.targetServerId ? ':' + a.targetServerId : ''}${a.cardInstanceId ? ':' + (safe(() => def(T.core.findCardAnywhere(s, a.cardInstanceId)).title, a.cardInstanceId) as string) : ''}`;
+    return { othersAbove0: others.length, best: others[0] ? { a: label(others[0].action), score: r3(others[0].score) } : null, runScore: r3(run?.score ?? null) };
   }
 
   turnStart(s: GameState) {
@@ -928,6 +979,7 @@ class Watch {
     const l13 = timed('R:L13', () => safe(() => lBioroid(s, id), null));
     T.clear();
     const l14 = timed('R:L14', () => safe(() => trashCandidates(s, id, memory), [] as any[]));
+    if (l13?.over && l13.scoreFinite) l13.alternatives = timed('R:L13alt', () => this.alternatives(s, id, memory));
     this.run = {
       src: this.src,
       pool: this.pool,

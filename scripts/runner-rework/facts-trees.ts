@@ -40,6 +40,8 @@ export interface Tree {
   handValues: any;
   synergy: any;
   iceValues: any;
+  evaluate: any;
+  payoutRisk: any;
   clear: () => void;
 }
 
@@ -83,11 +85,13 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
     'ai/cards/index.ts',
     'ai/pricing.ts',
     'ai/synergy.ts',
+    'ai/evaluate.ts',
+    'ai/payoutRisk.ts',
   ];
   const mods: any[] = [];
   // One at a time: vite-node never settles concurrent imports of one circular graph
   for (const p of files) mods.push(await m(p));
-  const [ai, po, core, decks, hv, ev, vm, iv, runs, hold, rez, ice, effects, cards, pricing, synergy] = mods;
+  const [ai, po, core, decks, hv, ev, vm, iv, runs, hold, rez, ice, effects, cards, pricing, synergy, evaluate, payoutRisk] = mods;
   return {
     name,
     createAgent: ai.createAgent,
@@ -104,6 +108,8 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
     handValues: hv,
     synergy,
     iceValues: iv,
+    evaluate,
+    payoutRisk,
     clear: () => {
       hv.clearHandCaches();
       ev.clearDamageThreats();
