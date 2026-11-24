@@ -391,6 +391,42 @@ let captured: {
   d: { side: "corp" | "runner"; kind: Kind } | null;
 } | null = null;
 /** The board and the agents just before step `j` of tree t's game of `seed` (the game replayed: it is deterministic). */
+/**
+ * The base game replayed on tree t (caches kept across steps, as in a game) up to step `upto`, with the deciding Runner's
+ * memory differences of class `cls` (or "all") set to F's at every step: the action played at `upto`.
+ */
+function replayForced(
+  t: SeenTree,
+  seed: number,
+  upto: number,
+  bMems: Map<string, string>[],
+  fMems: Map<string, string>[],
+  entriesAt: Map<string, Entry>[],
+  cls: string,
+): string {
+  t.clear();
+  resetGlobals(t.tree);
+  const ag = agentsOf(t);
+  const g = new t.GameRunner(dealState(seed), ag);
+  try {
+    for (let j = 0; j <= upto; j++) {
+      const ds = diffMemories(
+        g.state,
+        bMems[j],
+        fMems[j],
+        entriesAt[j] ?? new Map(),
+      ).filter((x) => cls === "all" || x.cls === cls);
+      G[`__seenForce_${t.tree}`] = ds.length ? force(ds) : undefined;
+      if (!g.step()) return "ended";
+      if (j === upto) return key(g.last);
+    }
+    return "ended";
+  } catch (e) {
+    return `error: ${(e as Error).message.slice(0, 80)}`;
+  } finally {
+    resetGlobals(t.tree);
+  }
+}
 function captureAt(t: SeenTree, seed: number, j: number) {
   captured = null;
   playGame(t, seed, { stopAt: j });
@@ -455,7 +491,8 @@ function playGame(
       ? { corp: snapAgent(ag.corp), runner: snapAgent(ag.runner) }
       : null;
     const leaks: any[] = [];
-    if (d?.side === "corp") G[`__seenLeak_${t.tree}`] = leaks;
+    // Reply leaks are logged at every decision (a Runner decision can reach the reply too, through the Corp's answers)
+    if (d) G[`__seenLeak_${t.tree}`] = leaks;
     const n0 = G[`__seenReplyN_${t.tree}`] ?? 0;
     const t0 = performance.now();
     const more = g.step();
@@ -749,6 +786,67 @@ async function deal(
       Object.assign(r, v);
       r.Fdec = fwd(ask(T.pFdec, at.s, at.snaps).a);
       done = v.verdict !== "unattributed";
+      if (!done) {
+        // Not the deciding Runner's own map: the fix in the reply's and the oracle's Runners only (reached from this
+        // decision through the Corp's modelled answers)
+        const frep = ask(T.pFrep, at.s, at.snaps).a;
+        r.Frep = fwd(frep);
+        r.leaks = f.leaks
+          .slice(0, 12)
+          .map((x: any) => ({ ...x, title: title(T.base, x.code) }));
+        r.leakSamples = new Set(f.leaks.map((x: any) => x.k)).size;
+        if (frep === f.fAct) {
+          r.verdict = `reply:${[...new Set(f.leaks.map((x: any) => x.why))].join("+") || "none"}`;
+          done = true;
+        }
+      }
+      if (!done) {
+        // Is F's move reproducible by a fresh ask at all? The F tree with the base agents, then with F's own agents
+        r.pFbase = fwd(ask(T.pF, at.s, at.snaps).a);
+        const atF = captureAt(T.F, rec.seed, f.i);
+        r.pFown = fwd(ask(T.pF, atF.s, atF.snaps).a);
+        r.pBaseFsnaps = fwd(ask(T.pBase, atF.s, atF.snaps).a);
+        r.sameBoard = key(atF.s) === key(at.s);
+        if (r.pFown !== "F") {
+          // F's move is not reproduced by a fresh ask in either tree: it comes from the value caches the game built up
+          // over earlier decisions (keyed by the board, shared by every reader: Corp-side found row 90), whose values
+          // were computed with the deciding Runner's memory of that time. Counterfactual over the history: the base
+          // game replayed on the pBase tree without clearing caches, with one class's differences forced at every
+          // step up to this one; the class whose replay gives F's move here is the cause.
+          const cls = [
+            ...new Set(
+              B.mems
+                .slice(0, f.i + 1)
+                .flatMap((m, j) => [
+                  ...diffMemories(
+                    at.s,
+                    m,
+                    F.mems[j],
+                    entriesAtStep[j] ?? f.entriesAt,
+                  ).map((x) => x.cls),
+                ]),
+            ),
+          ];
+          const hist: Record<string, string> = {};
+          const flips: string[] = [];
+          for (const c of [...cls, "all"]) {
+            const a = replayForced(
+              T.pBase,
+              rec.seed,
+              f.i,
+              B.mems,
+              F.mems,
+              entriesAtStep,
+              c,
+            );
+            hist[c] = fwd(a);
+            if (a === f.fAct && c !== "all") flips.push(c);
+          }
+          r.history = hist;
+          if (flips.length) r.verdict = `cacheHistory:${flips.join("+")}`;
+          else if (hist.all === "F") r.verdict = "cacheHistory:combined";
+        }
+      }
     } else {
       const control = ask(T.pBase, at.s, at.snaps).a;
       const frep = ask(T.pFrep, at.s, at.snaps).a;
