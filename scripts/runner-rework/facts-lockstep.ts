@@ -54,7 +54,7 @@ const RECORD_AT = `  chooseAction(state: GameState): GameAction {
   }`;
 const RECORD_TO = (tree: string) => `  chooseAction(state: GameState): GameAction {
     const __answer = asSide('runner', () => this.decide(state));
-    (globalThis as any).__lkRunner_${tree}?.push(JSON.stringify(__answer));
+    (globalThis as any).__lkRunner_${tree}?.push(String(JSON.stringify(__answer))); // an undefined answer is logged as 'undefined'
     return __answer;
   }`;
 function makeTrees(): Record<Name, string> {
