@@ -799,6 +799,8 @@ async function main() {
           }
         }
 
+        // Source check record (read against the base's deals.json after the run).
+        emit({ kind: 'source', pool: POOL, seed: d.seed, winner: end.winner ?? 'draw', cr: crAtCorpStart, sc: scAtCorpStart });
         const wasQualifying = processGameResult(evalTree, {
           pool: POOL,
           id: `deal:${d.seed}`,

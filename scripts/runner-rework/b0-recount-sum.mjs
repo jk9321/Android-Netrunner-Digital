@@ -24,6 +24,8 @@ const detail = args.includes('--detail');
 const files = args.filter(a => !a.startsWith('--'));
 const games = [];
 const losses = [];
+const sources = [];
+const verifyArg = args.find(a => a.startsWith('--verify='));
 for (const f of files) {
   for (const line of readFileSync(f, 'utf8').split('\n')) {
     const t = line.trim();
@@ -31,6 +33,7 @@ for (const f of files) {
     const o = JSON.parse(t);
     if (o.kind === 'game') games.push(o);
     else if (o.kind === 'loss') losses.push(o);
+    else if (o.kind === 'source') sources.push(o);
   }
 }
 const pct = (n, d) => (d === 0 ? '-' : `${((100 * n) / d).toFixed(1)}%`);
@@ -112,4 +115,11 @@ for (const pool of [...new Set(games.map(g => g.pool))]) {
   const sum = k => ng.reduce((a, g) => a + (g.turnStats?.[k] ?? 0), 0);
   const T = sum('totalRunnerTurns');
   console.log(`\nRule 4 (${ng.length} non-qualifying games, ${T} Runner turns): rc2_tag ${pct(sum('rc2TagTurns'), T)}, dmg_rezzed ${pct(sum('dmgRezzedTurns'), T)}, dmg_deck ${pct(sum('dmgDeckTurns'), T)}, dmg_any ${pct(sum('dmgAnyTurns'), T)}`);
+}
+
+// Source check: every source game against the base's deals.json (winner, cr, sc by seed).
+if (verifyArg) {
+  const base = new Map(JSON.parse(readFileSync(verifyArg.slice(9), 'utf8')).map(d => [d.seed, d]));
+  const bad = sources.filter(s => { const b = base.get(s.seed); return !b || b.winner !== s.winner || JSON.stringify(b.cr) !== JSON.stringify(s.cr) || JSON.stringify(b.sc) !== JSON.stringify(s.sc); });
+  console.log(`\nSource check: ${sources.length - bad.length} of ${sources.length} source games match the base${bad.length ? '; MISMATCH: ' + bad.map(s => s.seed).join(', ') : ''}`);
 }
