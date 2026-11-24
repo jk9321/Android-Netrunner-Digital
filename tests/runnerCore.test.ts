@@ -7,7 +7,7 @@ import { HeuristicRunnerAI, readWriteFullShuffle } from '../src/ai/runnerAI';
 import type { RunnerContext } from '../src/ai/runner/core';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { asSide, plan, pricing } from '../src/ai/pricing';
-import { giveCard, installIceForTest, installProgramForTest, newGame, passTurn, putInHand, runIntoFirstIce, runnerInstall, startRunnerTurn } from './helpers';
+import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, passTurn, putInHand, runIntoFirstIce, runnerInstall, startRunnerTurn } from './helpers';
 
 /**
  * R-B B1 bar 3 (brief netrunner-ai/runner-rework/briefs/b1-core.md rev 1): what one decision of each Runner caller does,
@@ -430,6 +430,80 @@ describe('bar 2: each planted fault changes its input', () => {
   });
 });
 
+/**
+ * Bar 2 (b), the coordinator's ruling of 2026-11-24 23:03Z: for a fault the lockstep's pools cannot show (the count arm,
+ * core-faults.ts `count`, says why), a built state on which the fault does change a rank list, RECORDED ON THE BASE
+ * (ff04f60, with base APIs only: rankMainActions, chooseOffTurn, knownCards, the agent's fields) and equal on the
+ * branch, so the difference between callers the lockstep cannot see is held here. Each fault is simulated as in the
+ * input tests above (the field it changes is set by hand).
+ */
+describe('bar 2 (b): a built state on which each unseen fault changes a rank list (recorded on the base)', () => {
+  type Ranked = { action: GameAction; score: number }[];
+  const listOf = (r: Ranked) => r.map(x => [JSON.stringify(x.action), x.score === -Infinity ? '-Inf' : +x.score.toFixed(6)]);
+  /** Madani hosting a Cleaver: its install ability (1) costs no click, so the loop guard and the free-action floor read it. */
+  const madaniBoard = () => {
+    const [s, madani] = runnerInstall(newGame(), '35028');
+    const id = giveCard(s, 'runner', '30006');
+    const card = s.runner.grip.find(c => c.instanceId === id)!;
+    s.runner.grip = s.runner.grip.filter(c => c !== card);
+    findCardAnywhere(s, madani)!.hostedCards = [card];
+    return s;
+  };
+  it("rolloutGuard: after 6 free plays at this click count, a rollout ranking with the decider's guard lifts the decider's free-action floor", () => {
+    const s = madaniBoard();
+    s.runner.credits = 9;
+    const lists = (shared: boolean) => {
+      const ai = new HeuristicRunnerAI();
+      asSide('runner', () => ai.rankMainActions(s));
+      for (let i = 0; i < 6; i++) ai.notePlayed({ type: 'USE_ABILITY', player: 'runner' } as GameAction);
+      const rollout = new HeuristicRunnerAI({ planner: false });
+      if (shared) (rollout as unknown as { freeActions: unknown }).freeActions = (ai as unknown as { freeActions: unknown }).freeActions;
+      asSide('runner', () => rollout.rankMainActions({ ...s, runner: { ...s.runner, clicks: s.runner.clicks - 1 } }));
+      return listOf(asSide('runner', () => ai.rankMainActions(s)));
+    };
+    const today = lists(false);
+    check('bar2RolloutGuard', today);
+    expect(lists(true)).not.toEqual(today);
+  });
+  it("replyMemory: a reply Runner's map carrying another sample's entry for an R&D card changes its rank list (runs.ts unseenTraps)", () => {
+    const s = newGame(1);
+    startRunnerTurn(s);
+    installCorpForTest(s, '30045', 'remote-1', false);
+    const trap = s.corp.rd.find(c => c.cardCode === '30061')!;
+    const lists = (carried: boolean) => {
+      const ai = new HeuristicRunnerAI({ planner: false });
+      if (carried) ai.knownCards().set(trap.instanceId, trap.cardCode);
+      return listOf(asSide('runner', () => ai.rankMainActions(s)));
+    };
+    const today = lists(false);
+    check('bar2ReplyMemory', today);
+    expect(lists(true)).not.toEqual(today);
+  });
+  it("offTurnHolder: the Normal Runner's off-turn scores with its holder's savingFor, against a fresh holder's", () => {
+    const scores = (saving: string | null) => {
+      const ai = new HeuristicRunnerAI();
+      (ai as unknown as { savingFor: string | null }).savingFor = saving;
+      const got: [string, number][] = [];
+      const scoreMain = P.scoreMain;
+      P.scoreMain = function (this: HeuristicRunnerAI, ...a: unknown[]) {
+        const v = scoreMain.apply(this, a) as number;
+        if (this === ai) got.push([JSON.stringify(a[1]), v]);
+        return v;
+      };
+      let answer: GameAction | null | undefined;
+      try {
+        answer = ai.chooseOffTurn!(offTurnState());
+      } finally {
+        P.scoreMain = scoreMain;
+      }
+      return { answer: JSON.stringify(answer), list: got.map(([a, v]) => [a, v === -Infinity ? '-Inf' : +v.toFixed(6)]) };
+    };
+    const today = scores('hq');
+    check('bar2OffTurnHolder', today);
+    expect(scores(null).list).not.toEqual(today.list);
+  });
+});
+
 // Recorded on the base (beta ff04f60) by this file with RECORD=1, unchanged since
 const RECORDED: Record<string, unknown> = {
   normalMain: {"answer": "{\"type\":\"GAIN_CREDIT\",\"player\":\"runner\"}", "live": 2, "frozen": 12, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 1, "start": 1, "played": 1}, "rollout": {"instances": 1, "remember": 0, "rank": 12, "start": 12, "played": 0}}},
@@ -445,6 +519,9 @@ const RECORDED: Record<string, unknown> = {
   hardCorp: {"answer": "{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"corp\",\"cardInstanceId\":\"inst-14\"}", "live": 55, "frozen": 0, "byRole": {"playout": {"instances": 2, "remember": 28, "rank": 10, "start": 10, "played": 10}}},
   reply: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"corp\",\"cardInstanceId\":\"inst-13\",\"targetServerId\":\"rd\"}", "live": 2, "frozen": 232, "byRole": {"reply.plannerOff": {"instances": 10, "remember": 126, "rank": 50, "start": 50, "played": 50}}},
   oracle: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"corp\",\"cardInstanceId\":\"inst-13\",\"targetServerId\":\"rd\"}", "live": 61, "frozen": 239, "byRole": {"nested.plannerOff": {"instances": 16, "remember": 117, "rank": 92, "start": 92, "played": 49}, "nested.plannerOn": {"instances": 3, "remember": 37, "rank": 15, "start": 15, "played": 15}}},
+  bar2RolloutGuard: [["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-46\"}",3.247935],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"hq\"}",2.36461],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"rd\"}",2.36461],["{\"type\":\"GAIN_CREDIT\",\"player\":\"runner\"}",-0.524186],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-48\"}",-1.396076],["{\"type\":\"DRAW_CARD\",\"player\":\"runner\"}",-1.571263],["{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":0}",-1.79539],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-43\"}",-2.174497],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-45\"}",-3.142751],["{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"runner\",\"cardInstanceId\":\"inst-50\"}",-4.689202],["{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}","-Inf"],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"archives\"}","-Inf"]],
+  bar2ReplyMemory: [["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-46\"}",4.485045],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"remote-1\"}",3.230573],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"hq\"}",1.991889],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"rd\"}",1.991889],["{\"type\":\"GAIN_CREDIT\",\"player\":\"runner\"}",-0.277551],["{\"type\":\"DRAW_CARD\",\"player\":\"runner\"}",-0.845008],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-43\"}",-2.778999],["{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"runner\",\"cardInstanceId\":\"inst-50\"}",-2.982879],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-48\"}",-3.211405],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-45\"}",-3.651142],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"archives\"}","-Inf"]],
+  bar2OffTurnHolder: {"answer":"{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}","list":[["{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}",1.229044]]},
 };
 function check(key: string, got: unknown) {
   if (process.env.RECORD) return void writeFileSync(`node_modules/.cache/runner-core-${key}.json`, JSON.stringify(got));
