@@ -20,15 +20,44 @@
  *    null to delete) when the script sets it: the counterfactual asks (one class's entries taken out, or arm H).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { Tree, loadTree } from '../stage-vc/breaker-once-trees';
+import {
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import { Tree, loadTree } from "../stage-vc/breaker-once-trees";
 
-export const TREES = ['base', 'control', 'F', 'pBase', 'pControl', 'pF', 'pFdec', 'pFrep'] as const;
+export const TREES = [
+  "base",
+  "control",
+  "F",
+  "pBase",
+  "pControl",
+  "pF",
+  "pFdec",
+  "pFrep",
+] as const;
 export type TreeName = (typeof TREES)[number];
-const ARM: Record<TreeName, 'base' | 'F' | 'Fdec' | 'Frep'> = { base: 'base', control: 'base', F: 'F', pBase: 'base', pControl: 'base', pF: 'F', pFdec: 'Fdec', pFrep: 'Frep' };
+const ARM: Record<TreeName, "base" | "F" | "Fdec" | "Frep"> = {
+  base: "base",
+  control: "base",
+  F: "F",
+  pBase: "base",
+  pControl: "base",
+  pF: "F",
+  pFdec: "Fdec",
+  pFrep: "Frep",
+};
 
-export type SeenTree = Tree & { tree: TreeName; reply: any; helpers: any; rdKnowledge: any };
+export type SeenTree = Tree & {
+  tree: TreeName;
+  reply: any;
+  helpers: any;
+  rdKnowledge: any;
+};
 
 type Patch = [file: string, at: string, to: string];
 
@@ -44,10 +73,17 @@ const NEW_BODY = `  private remember(state: GameState) {
 function patches(tree: TreeName): Patch[] {
   const arm = ARM[tree];
   const G = `(globalThis as any)`;
-  const fix = arm === 'F' ? 'true' : arm === 'Fdec' ? '!__reply' : arm === 'Frep' ? '!!__reply' : 'false';
+  const fix =
+    arm === "F"
+      ? "true"
+      : arm === "Fdec"
+        ? "!__reply"
+        : arm === "Frep"
+          ? "!!__reply"
+          : "false";
   return [
     [
-      'ai/runnerAI.ts',
+      "ai/runnerAI.ts",
       NEW_BODY,
       `  private remember(state: GameState) {
     const __reply = (this as any).__reply as number | undefined;
@@ -88,7 +124,7 @@ function patches(tree: TreeName): Patch[] {
   }`,
     ],
     [
-      'ai/runnerAI.ts',
+      "ai/runnerAI.ts",
       '    if ([...state.runner.stack, ...ice, ...root, ...loose].some(c => shown.includes(`"${c.instanceId}"`))) return real();',
       `    if ([...state.runner.stack, ...ice, ...root, ...loose].some(c => shown.includes(\`"\${c.instanceId}"\`))) {
       if (${G}.__seenTop_${tree} === this) ${G}.__seenReal_${tree} = (${G}.__seenReal_${tree} ?? 0) + 1;
@@ -96,38 +132,47 @@ function patches(tree: TreeName): Patch[] {
     }`,
     ],
     [
-      'ai/runnerReply.ts',
+      "ai/runnerReply.ts",
       `        runner: new HeuristicRunnerAI({ synergy, planner: false }),`,
       `        runner: Object.assign(new HeuristicRunnerAI({ synergy, planner: false }), { __reply: (${G}.__seenReplyN_${tree} = (${G}.__seenReplyN_${tree} ?? 0) + 1) }),`,
     ],
     [
-      'ai/runnerReply.ts',
+      "ai/runnerReply.ts",
       `runner: new HeuristicRunnerAI({}) }));`,
       `runner: Object.assign(new HeuristicRunnerAI({}), { __reply: -(${G}.__seenReplyN_${tree} = (${G}.__seenReplyN_${tree} ?? 0) + 1) }) }));`,
     ],
   ];
 }
 
-export async function seenTrees(root: string, want: readonly TreeName[] = TREES): Promise<Record<TreeName, SeenTree>> {
+export async function seenTrees(
+  root: string,
+  want: readonly TreeName[] = TREES,
+): Promise<Record<TreeName, SeenTree>> {
   rmSync(root, { recursive: true, force: true });
   const out: Partial<Record<TreeName, SeenTree>> = {};
   for (const name of want) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
-    cpSync('src', join(dir, 'src'), { recursive: true });
+    cpSync("src", join(dir, "src"), { recursive: true });
     for (const [file, at, to] of patches(name)) {
-      const path = join(dir, 'src', file);
-      const text = readFileSync(path, 'utf8');
+      const path = join(dir, "src", file);
+      const text = readFileSync(path, "utf8");
       const n = text.split(at).length - 1;
-      if (n !== 1) throw new Error(`patch for ${file} matches ${n} times (tree ${name}): ${at.slice(0, 80)}`);
-      writeFileSync(path, text.replace(at, () => to));
+      if (n !== 1)
+        throw new Error(
+          `patch for ${file} matches ${n} times (tree ${name}): ${at.slice(0, 80)}`,
+        );
+      writeFileSync(
+        path,
+        text.replace(at, () => to),
+      );
     }
     const t = (await loadTree(name, dir)) as SeenTree;
-    const m = (p: string) => import(/* @vite-ignore */ join(dir, 'src', p));
+    const m = (p: string) => import(/* @vite-ignore */ join(dir, "src", p));
     t.tree = name;
-    t.reply = await m('ai/runnerReply.ts');
-    t.helpers = await m('core/engine/helpers.ts');
-    t.rdKnowledge = await m('core/engine/rdKnowledge.ts');
+    t.reply = await m("ai/runnerReply.ts");
+    t.helpers = await m("core/engine/helpers.ts");
+    t.rdKnowledge = await m("core/engine/rdKnowledge.ts");
     out[name] = t;
   }
   return out as Record<TreeName, SeenTree>;
