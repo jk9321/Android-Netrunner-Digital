@@ -701,6 +701,12 @@ function arms(s: GameState, id: string, pub: GameState, grip: number, base: Retu
       if (!present.includes(n) && (a.runner !== ctrl[frame].runner || a.holds !== ctrl[frame].holds)) out.leak.push(`${n}:${frame}`);
     }
   }
+  // Rule 5 (step-0 rulings): retry and partial are present on every board, so the absent-fact stop cannot guard them.
+  // For each arm that explains a reading alone (frame aside), whether adding retry or partial to it undoes the agreement
+  out.asideBreaks = {} as Record<string, string[]>;
+  for (const x of ARM_NAMES.filter(n => out.aside[n]))
+    for (const y of ['retryW', 'partialR', 'partialW'].filter(n => ARMS[n] && ARMS[n].fact !== ARMS[x].fact))
+      if (!ask(c, [x, y], true).agree) (out.asideBreaks[y] ??= []).push(x);
   // pairs of the facts present (each fact either way), then all present together, in each frame where no single explains
   const facts = [...new Set(present.map(n => ARMS[n].fact))];
   for (const frame of ['alone', 'aside'] as const) {
