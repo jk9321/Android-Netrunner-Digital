@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance, SideCode } from '../../core/types/card';
 import { GameState } from '../../core/types/state';
-import { RdKnownCard, knownInHand, knownInRd } from '../../core';
+import { RdKnownCard, cardDef, knownInHand, knownInRd } from '../../core';
 import { CardView } from './CardView';
 import { X } from 'lucide-react';
 import { Viewer, canSeeRunnerSecrets } from '../viewer';
@@ -18,7 +18,22 @@ export interface ZoneGroup {
   captions?: string[];
 }
 
-export type ZoneId = 'archives' | 'heap' | 'rd' | 'stack' | 'corp-score' | 'runner-score' | 'removed' | 'known-hq' | 'known-grip';
+export type ZoneId =
+  | 'archives'
+  | 'heap'
+  | 'rd'
+  | 'stack'
+  | 'corp-score'
+  | 'runner-score'
+  | 'corp-removed'
+  | 'runner-removed'
+  | 'known-hq'
+  | 'known-grip';
+
+/** Cards removed from the game belonging to one side, filtered from the shared core pile. */
+export function removedCardsForSide(state: GameState, side: SideCode): CardInstance[] {
+  return state.removedFromGame.filter(card => cardDef(card).side_code === side);
+}
 
 const KNOWN_NOTE = 'A card that left this hand unseen (installed facedown, shuffled away) could be one of these.';
 
@@ -95,8 +110,16 @@ export function zoneContents(zone: ZoneId, state: GameState, viewer?: Viewer): {
       return { title: 'CORP SCORE AREA', groups: [{ label: 'Scored agendas', cards: state.corp.scoreArea }] };
     case 'runner-score':
       return { title: 'RUNNER SCORE AREA', groups: [{ label: 'Stolen agendas', cards: state.runner.scoreArea }] };
-    case 'removed':
-      return { title: 'REMOVED FROM GAME', groups: [{ label: 'Removed', cards: state.removedFromGame }] };
+    case 'corp-removed':
+      return {
+        title: 'CORP REMOVED FROM GAME',
+        groups: [{ label: 'Removed Corp cards', cards: removedCardsForSide(state, 'corp') }],
+      };
+    case 'runner-removed':
+      return {
+        title: 'RUNNER REMOVED FROM GAME',
+        groups: [{ label: 'Removed Runner cards', cards: removedCardsForSide(state, 'runner') }],
+      };
     // Cards seen in the opponent's hand (rules 1.21.3): remembered by name, they stay facedown there
     case 'known-hq':
       return { title: 'SEEN IN HQ', groups: [{ label: 'Seen in HQ', note: KNOWN_NOTE, cards: knownCards(state, 'corp') }] };

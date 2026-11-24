@@ -861,4 +861,120 @@ describe('Phase 3 peekable run/prompt sheets & accessed banner', () => {
     expect(runnerHtml).toContain('data-testid="breaker-types"');
     expect(runnerHtml).toContain('aria-label="Breaks Barrier"');
   });
+
+  it('MobileSideStatus and MobileGameShell split removed-from-game pills by side and hide when 0', () => {
+    const emptyState = newGame(5151);
+    const emptyCtl = ctlFromState(emptyState, 'runner');
+    const emptyShellHtml = renderToStaticMarkup(
+      <GameStateContext.Provider value={emptyCtl.gameState}>
+        <SeatContext.Provider value={emptyCtl.seat}>
+          <MobileGameShell
+            ctl={emptyCtl}
+            config={{ seed: 5151, corpDeck: corpStarter, runnerDeck: runnerStarter, ai: null, difficulty: 'normal' }}
+            onNewGame={() => {}}
+            onConcede={() => {}}
+            onLeave={() => {}}
+            onViewMode={() => {}}
+            shiftSide={null}
+          />
+        </SeatContext.Provider>
+      </GameStateContext.Provider>,
+    );
+    expect(emptyShellHtml).not.toContain('data-testid="zone-corp-removed"');
+    expect(emptyShellHtml).not.toContain('data-testid="zone-runner-removed"');
+
+    // Corp-only removed cards (Petty Cash + Spin Doctor): Corp bar shows 2, Runner bar hides pill
+    const corpOnlyState = newGame(5152);
+    corpOnlyState.removedFromGame.push(
+      { instanceId: 'rfg-pc', cardCode: '35081', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+      { instanceId: 'rfg-sd', cardCode: '30053', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+    );
+    const corpOnlyCtl = ctlFromState(corpOnlyState, 'runner');
+    const corpOnlyCorpHtml = renderToStaticMarkup(
+      <MobileSideStatus
+        side="corp"
+        edge="top"
+        state={corpOnlyCtl.gameState}
+        viewer="runner"
+        onInspect={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    const corpOnlyRunnerHtml = renderToStaticMarkup(
+      <MobileSideStatus
+        side="runner"
+        edge="bottom"
+        state={corpOnlyCtl.gameState}
+        viewer="runner"
+        onInspect={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(corpOnlyCorpHtml).toContain('data-testid="zone-corp-removed"');
+    expect(corpOnlyCorpHtml).toContain('Removed Corp cards: 2');
+    expect(corpOnlyCorpHtml).not.toContain('data-testid="zone-runner-removed"');
+    expect(corpOnlyRunnerHtml).not.toContain('data-testid="zone-runner-removed"');
+    expect(corpOnlyRunnerHtml).not.toContain('data-testid="zone-corp-removed"');
+
+    // Runner-only removed cards (heap cards exiled by Ansel 2.0): Runner bar shows 2, Corp bar hides pill
+    const runnerOnlyState = newGame(5154);
+    runnerOnlyState.removedFromGame.push(
+      { instanceId: 'rfg-sg', cardCode: '30030', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+      { instanceId: 'rfg-oc', cardCode: '30029', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+    );
+    const runnerOnlyCtl = ctlFromState(runnerOnlyState, 'corp');
+    const runnerOnlyCorpHtml = renderToStaticMarkup(
+      <MobileSideStatus
+        side="corp"
+        edge="top"
+        state={runnerOnlyCtl.gameState}
+        viewer="corp"
+        onInspect={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    const runnerOnlyRunnerHtml = renderToStaticMarkup(
+      <MobileSideStatus
+        side="runner"
+        edge="bottom"
+        state={runnerOnlyCtl.gameState}
+        viewer="corp"
+        onInspect={() => {}}
+        onOpenZone={() => {}}
+      />,
+    );
+    expect(runnerOnlyCorpHtml).not.toContain('data-testid="zone-corp-removed"');
+    expect(runnerOnlyRunnerHtml).toContain('data-testid="zone-runner-removed"');
+    expect(runnerOnlyRunnerHtml).toContain('Removed Runner cards: 2');
+
+    // Mixed removed cards (e.g. Corp Petty Cash + Spin Doctor, plus Runner Sure Gamble exiled from heap by Ansel 2.0)
+    const mixedState = newGame(5153);
+    mixedState.removedFromGame.push(
+      { instanceId: 'rfg-pc', cardCode: '35081', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+      { instanceId: 'rfg-sd', cardCode: '30053', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+      { instanceId: 'rfg-sg', cardCode: '30030', isRezzed: false, advancementCounters: 0, tokens: {}, hostedCardIds: [] },
+    );
+    for (const viewer of ['corp', 'runner', 'both'] as const) {
+      const mixedCtl = ctlFromState(mixedState, viewer);
+      const mixedShellHtml = renderToStaticMarkup(
+        <GameStateContext.Provider value={mixedCtl.gameState}>
+          <SeatContext.Provider value={mixedCtl.seat}>
+            <MobileGameShell
+              ctl={mixedCtl}
+              config={{ seed: 5153, corpDeck: corpStarter, runnerDeck: runnerStarter, ai: null, difficulty: 'normal' }}
+              onNewGame={() => {}}
+              onConcede={() => {}}
+              onLeave={() => {}}
+              onViewMode={() => {}}
+              shiftSide={null}
+            />
+          </SeatContext.Provider>
+        </GameStateContext.Provider>,
+      );
+      expect(mixedShellHtml, viewer).toContain('data-testid="zone-corp-removed"');
+      expect(mixedShellHtml, viewer).toContain('Removed Corp cards: 2');
+      expect(mixedShellHtml, viewer).toContain('data-testid="zone-runner-removed"');
+      expect(mixedShellHtml, viewer).toContain('Removed Runner cards: 1');
+    }
+  });
 });

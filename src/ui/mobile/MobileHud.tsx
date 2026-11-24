@@ -1,5 +1,5 @@
 import React from 'react';
-import { FastForward, Hand, Menu, Play, Wifi, WifiOff } from 'lucide-react';
+import { Ban, FastForward, Hand, Menu, Play, Wifi, WifiOff } from 'lucide-react';
 import { CardInstance, GameState, SideCode, cardDef, knownInHand } from '../../core';
 import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditIcon, MuIcon, TagIcon } from '../components/CreditIcon';
 import { StatTumbler } from '../components/StatTumbler';
@@ -7,7 +7,7 @@ import { PersonStops, STOP_LABELS, nextStops } from '../stops';
 import type { OnlineInfo } from '../useOnlineController';
 import { canSeeCorpSecrets, canSeeRunnerSecrets, Viewer } from '../viewer';
 import { runCreditPools } from '../liveValues';
-import type { ZoneId } from '../components/ZoneViewer';
+import { removedCardsForSide, type ZoneId } from '../components/ZoneViewer';
 
 interface MobileTopBarProps {
   state: GameState;
@@ -167,6 +167,7 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
   const handLimit = player.handSizeLimit;
   const knownCount = showOppHand ? knownInHand(state, side).length : 0;
   const archivesCount = corp.archives.faceUp.length + corp.archives.faceDown.length;
+  const removedCount = removedCardsForSide(state, side).length;
   const isTurn = !state.winner && state.activePlayer === side;
 
   const borderClass =
@@ -295,6 +296,21 @@ export const MobileSideStatus: React.FC<MobileSideStatusProps> = ({
         >
           {isCorp ? `Arch ${archivesCount}` : `Heap ${runner.heap.length}`}
         </button>
+
+        {/* Removed from game (when > 0) */}
+        {removedCount > 0 && (
+          <button
+            type="button"
+            data-testid={`zone-${side}-removed`}
+            onClick={() => onOpenZone(isCorp ? 'corp-removed' : 'runner-removed')}
+            className="px-1.5 h-6 inline-flex items-center gap-0.5 rounded-[2px] border border-slate-700 bg-slate-900 text-slate-300 font-semibold"
+            aria-label={isCorp ? 'Browse removed Corp cards' : 'Browse removed Runner cards'}
+            title={isCorp ? `Removed Corp cards: ${removedCount}` : `Removed Runner cards: ${removedCount}`}
+          >
+            <Ban className="w-3 h-3 text-slate-400" />
+            <span>{removedCount}</span>
+          </button>
+        )}
       </div>
     </div>
   );

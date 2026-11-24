@@ -6,7 +6,7 @@ import { AgendaDiamondIcon, BadPublicityIcon, ClickIcon, CoreDamageIcon, CreditI
 import { Keyword } from './Keyword';
 import { KnownInHandButton } from './KnownInHandButton';
 import { labelKeyword } from '../glossary';
-import { ZoneId } from './ZoneViewer';
+import { ZoneId, removedCardsForSide } from './ZoneViewer';
 import { StatTumbler } from './StatTumbler';
 import { runCreditPools } from '../liveValues';
 
@@ -129,6 +129,7 @@ export function SideStrip({
   const nonBpRunnerSources = pools.runner?.sources.filter(s => s.label !== 'bad publicity') ?? [];
   const nonBpBonus = nonBpRunnerSources.reduce((n, s) => n + s.amount, 0);
   const showOppHand = side === 'corp' ? !canSeeCorpSecrets(viewer) : !canSeeRunnerSecrets(viewer);
+  const removedCount = removedCardsForSide(state, side).length;
   const zoneButton = (id: ZoneId, label: string, count: number, icon: React.ReactNode) => (
     <button
       onClick={() => onOpenZone(id)}
@@ -234,8 +235,8 @@ export function SideStrip({
                 <span>Méliès U: {corp.identity.flipped && corp.meliesServer ? `${MELIES_SIDES[corp.meliesServer]} side` : 'side secret'}</span>
               </div>
             )}
-            {state.removedFromGame.length > 0 &&
-              zoneButton('removed', 'Removed', state.removedFromGame.length, <Ban className="w-3.5 h-3.5 text-slate-500" />)}
+            {removedCount > 0 &&
+              zoneButton('corp-removed', 'Removed', removedCount, <Ban className="w-3.5 h-3.5 text-slate-500" />)}
           </>
         ) : (
           <>
@@ -272,6 +273,8 @@ export function SideStrip({
                 onOpenKnown={() => onOpenZone('known-grip')}
               />
             )}
+            {removedCount > 0 &&
+              zoneButton('runner-removed', 'Removed', removedCount, <Ban className="w-3.5 h-3.5 text-slate-500" />)}
           </>
         )}
       </div>
