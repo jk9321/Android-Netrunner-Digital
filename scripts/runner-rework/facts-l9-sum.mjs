@@ -26,6 +26,9 @@ const POOLS = ['self', 'nrdb', 'humanRunner', 'humanCorp', 'issues'];
 const AT = ['turnStart', 'runStart'];
 const PEOPLE = new Set(['humanRunner', 'humanCorp', 'issues']);
 const p = (...a) => console.log(...a);
+// The arms' classes (step-0 rulings, 4): f a fact read in two places, q the two questions differ, m the measurement
+const CLASS = { retry: 'q', loss: 'q', click: 'm' };
+const classOf = arm => CLASS[arm.replace(/[RW]$/, '')] ?? 'f';
 const cell = (n, met, pool) => (met < 10 ? 'not shown' : PEOPLE.has(pool) && n > 0 && n < 10 ? `${n} (thin)` : String(n));
 
 // ---- sources and stops
@@ -101,30 +104,73 @@ for (const frame of ['alone', 'aside']) {
     p(`| ${a} (present / alone / with another) | ${row.join(' | ')} |`);
   }
   // residual
-  const explained = x => (frame === 'aside' && x.arms.control.aside) || Object.values(x.arms[frame]).some(Boolean) || (x.arms[`${frame}Pairs`] ?? []).length > 0 || x.arms[`${frame}CombinedR`] || x.arms[`${frame}CombinedW`];
+  // Ruling 3: agreement only with three or more arms set equal ("combined") counts as left
+  const explained = x => (frame === 'aside' && x.arms.control.aside) || Object.values(x.arms[frame]).some(Boolean) || (x.arms[`${frame}Pairs`] ?? []).length > 0;
   const how = x => {
     if (frame === 'aside' && x.arms.control.aside) return 'policies together';
     const s = Object.entries(x.arms[frame]).filter(([, v]) => v).map(([k]) => k);
     if (s.length) return 'single';
+    // pairs below
     if ((x.arms[`${frame}Pairs`] ?? []).length) return 'pair';
     if (x.arms[`${frame}CombinedR`] || x.arms[`${frame}CombinedW`]) return 'combined';
     return 'unexplained';
   };
   p('');
   p(`### Rule 3, frame "${frame}": what is left`);
-  p('| Pool | where | met | unexplained by L9 | policies together | single arm | pair | combined | left | left / met | rule 3 |');
-  p('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|');
+  // the class of the explanation: a single arm's (any class f/q/m that explains alone; f if an f arm does), a pair's
+  const cls = x => {
+    const singles = Object.entries(x.arms[frame]).filter(([, v]) => v).map(([k]) => classOf(k));
+    if (singles.length) return [...new Set(singles)].sort().join('+');
+    const pairs = (x.arms[`${frame}Pairs`] ?? []).map(q => [...new Set(q.split('+').map(classOf))].sort().join('+'));
+    return [...new Set(pairs)].sort().join(' | ');
+  };
+  p('| Pool | where | met | unexplained by L9 | policies together | single arm (by class) | pair (by class) | three or more only (left) | none (left) | left | left / met | rule 3 |');
+  p('|---|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|');
+  let peopleLeft = 0;
   for (const at of AT)
     for (const pl of POOLS) {
       const m = met(pl, at);
       const xs = withArms.filter(x => poolOf(x) === pl && x.at === at);
       const c = k => xs.filter(x => how(x) === k).length;
-      const left = c('unexplained');
+      const byCls = k => {
+        const t = {};
+        for (const x of xs.filter(y => how(y) === k)) t[cls(x)] = (t[cls(x)] ?? 0) + 1;
+        const n = xs.filter(y => how(y) === k).length;
+        return n ? `${n} (${Object.entries(t).map(([a, b]) => `${a} ${b}`).join(', ')})` : '0';
+      };
+      const left = c('unexplained') + c('combined');
+      if (PEOPLE.has(pl)) peopleLeft += left;
       const share = m ? (100 * left) / m : 0;
-      const ok = PEOPLE.has(pl) ? (left < 10 ? 'yes (< 10)' : 'no') : share <= 0.3 ? 'yes' : 'no';
-      p(`| ${pl} | ${at} | ${m} | ${xs.length} | ${frame === 'aside' ? c('policies together') : '-'} | ${c('single')} | ${c('pair')} | ${c('combined')} | ${left} | ${share.toFixed(2)}% | ${ok} |`);
+      const ok = PEOPLE.has(pl) ? 'summed below' : share <= 0.3 ? 'yes' : 'no';
+      p(`| ${pl} | ${at} | ${m} | ${xs.length} | ${frame === 'aside' ? c('policies together') : '-'} | ${byCls('single')} | ${byCls('pair')} | ${c('combined')} | ${c('unexplained')} | ${left} | ${share.toFixed(2)}% | ${ok} |`);
     }
+  p('');
+  p(`People's boards left (humanRunner + humanCorp + issues, both places, ruling 2): **${peopleLeft}** (rule 3 needs fewer than 10: ${peopleLeft < 10 ? 'met' : 'NOT met'}).`);
+  if (frame === 'aside') {
+    // Ruling 5: retry and partial are present on every board with ice (retry: every reading)
+    const br = {};
+    let base = 0;
+    for (const x of withArms) {
+      if (!Object.values(x.arms.aside).some(Boolean)) continue;
+      base++;
+      for (const [y, list] of Object.entries(x.arms.asideBreaks ?? {})) br[y] = (br[y] ?? 0) + 1;
+    }
+    p('');
+    p(`Ruling 5: of ${base} readings some arm explains alone (aside), how many a second arm undoes when added: ${['retryW', 'partialR', 'partialW'].map(y => `${y} ${br[y] ?? 0}`).join(', ')}.`);
+  }
   const left = withArms.filter(x => !explained(x));
+  // kinds: same game, same server on following turns = one kind
+  const kinds = [];
+  for (const x of [...left].sort((a, b) => (a.src + a.id).localeCompare(b.src + b.id) || a.T - b.T)) {
+    const k = kinds[kinds.length - 1];
+    if (k && k.src === x.src && k.id === x.id && x.T - k.last <= 1) {
+      k.n++;
+      k.last = x.T;
+    } else kinds.push({ src: x.src, id: x.id, pool: poolOf(x), first: x.T, last: x.T, n: 1, x });
+  }
+  p('');
+  p(`#### Left in frame "${frame}" by kind (same game, same server on following turns = one kind): ${kinds.length} kinds`);
+  for (const k of kinds) p(`- ${k.pool} ${k.src} ${k.id} T${k.first}${k.last !== k.first ? '-' + k.last : ''} (${k.n}): runner ${k.x.why}, walk ${k.x.holds ? 'holds' : 'open'} (need ${k.x.need} of ${k.x.walkBudget}); path ${k.x.arms.path.join(' > ') || '(none)'}${k.x.arms.root.length ? '; root ' + k.x.arms.root.join(', ') : ''}; present ${k.x.arms.present.join(',')}${k.x.arms[frame + 'CombinedR'] || k.x.arms[frame + 'CombinedW'] ? '; agrees only with three or more set equal' : ''}`);
   p('');
   p(`#### Left in frame "${frame}", every one (${left.length})`);
   for (const x of left)
