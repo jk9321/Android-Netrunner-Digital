@@ -1,1817 +1,6467 @@
 {
-  "commit": "8efbf4f00ab166c4c732b18256b5e4b835262fb9",
-  "boardCount": 55,
-  "boards": [
-    {
-      "name": "pressure_spike_threat_0",
-      "card": "34092",
-      "branch": "threat<4",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 1.476972,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+ "base": {
+  "srcTree": "90e1b4f80da3276b7ec9e95360a0037292d9d48a",
+  "betaCommit": "8efbf4f00ab166c4c732b18256b5e4b835262fb9"
+ },
+ "made": "scripts/runner-rework/facts-golden.ts",
+ "note": "Golden values for R-A A-move: every reader on one built board per branch; `live` names the readers that differ from the twin (the twin rule). L11: card entries against the engine.",
+ "boards": [
+  {
+   "case": "Pressure Spike",
+   "branch": "below threat 4",
+   "twinIs": "the same board at threat 4",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063"
+    ],
+    "rig": [
+     {
+      "code": "34092",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 7,
+    "iceCreditNeed": 6,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "pressure_spike_threat_4",
-      "card": "34092",
-      "branch": "threat>=4",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.604315,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "pressure_spike_spent",
-      "card": "34092",
-      "branch": "once-per-run spent",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.604315,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "malandragem_counter",
-      "card": "34081",
-      "branch": "mode1: power counter str<=3",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
     },
-    {
-      "name": "malandragem_used",
-      "card": "34081",
-      "branch": "mode1: turn flag set",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 5,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "oncePerRun": "set"
+      }
+     },
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 5,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "malandragem_threat4",
-      "card": "34081",
-      "branch": "mode2: threat>=4 remove",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "curupira_2",
-      "card": "34015",
-      "branch": "2 virus counters on barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.931361,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": -7.0923,
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "curupira_3",
-      "card": "34015",
-      "branch": "3 virus counters on barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.931361,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
     },
-    {
-      "name": "curupira_6",
-      "card": "34015",
-      "branch": "6 virus counters on barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.931361,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Pressure Spike",
+   "branch": "at threat 4",
+   "twinIs": "below threat 4",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063"
+    ],
+    "rig": [
+     {
+      "code": "34092",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 4,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 5,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "oncePerRun": "set"
+      }
+     },
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 5,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "banner_all_etr",
-      "card": "34005",
-      "branch": "all-ETR barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "banner_mixed",
-      "card": "34005",
-      "branch": "mixed barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30039",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 4.5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 1.601471,
-      "serverHold": {
-        "holds": false,
-        "margin": -11,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": -7.0923,
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "laser_pointer_ap",
-      "card": "34016",
-      "branch": "AP ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30047",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 38.098153,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
     },
-    {
-      "name": "laser_pointer_destroyer",
-      "card": "34016",
-      "branch": "Destroyer ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 7,
+    "iceCreditNeed": 6,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "laser_pointer_observer",
-      "card": "34016",
-      "branch": "Observer ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "35052",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 28.515304,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "laser_pointer_none",
-      "card": "34016",
-      "branch": "non-matching barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "fransofia_14cr",
-      "card": "35021",
-      "branch": "Corp 14 credits",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
     },
-    {
-      "name": "fransofia_15cr",
-      "card": "35021",
-      "branch": "Corp 15 credits",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Pressure Spike",
+   "branch": "at threat 4, once-per-run use spent",
+   "twinIs": "at threat 4 with the use not spent",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "bypassesAhead",
+    "runScore",
+    "serverHold",
+    "corpRez"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063"
+    ],
+    "rig": [
+     {
+      "code": "34092",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 3,
+    "threat": 4,
+    "tags": 0,
+    "runFlags": {
+     "pressure-spike:inst-64": true
     },
-    {
-      "name": "lobisomem_bar_counter",
-      "card": "34090",
-      "branch": "barrier + power counter",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.5471,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 7,
+    "iceCreditNeed": 6,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "lobisomem_bar_empty",
-      "card": "34090",
-      "branch": "barrier + 0 counters",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.5471,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": [],
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "lobisomem_nonbar",
-      "card": "34090",
-      "branch": "non-barrier + counter",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30074",
-        "iceRezzed": true,
-        "breakPlans": [
-          {
-            "breaker": "34090",
-            "credits": 1,
-            "boosts": 0,
-            "spends": {}
-          }
-        ],
-        "iceCost": 2,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 4.396455,
-      "serverHold": {
-        "holds": false,
-        "margin": -12,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": -10.3057,
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 12,
+     "rez": null
     },
-    {
-      "name": "sdobrado_1ice",
-      "card": "34012",
-      "branch": "first ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
     },
-    {
-      "name": "sdobrado_2ice_t4_click",
-      "card": "34012",
-      "branch": "2 ice threat 4 with click",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.533581,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "error: Not allowed during a run",
+    "note": "the use flag is set on the run under way (see runFlags in the board)"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34092",
+      "credits": 5,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "oncePerRun": "set"
+      }
+     },
+     {
+      "breaker": "34092",
+      "credits": 7,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 5,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "sdobrado_2ice_t4_noclick",
-      "card": "34012",
-      "branch": "2 ice threat 4 1 click",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.533581,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "alarm_clock_1ice",
-      "card": "34078",
-      "branch": "first ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": -7.0923,
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "alarm_clock_2ice_t4_click",
-      "card": "34078",
-      "branch": "2 ice threat 4 with click",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.533581,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
     },
-    {
-      "name": "alarm_clock_2ice_t4_noclick",
-      "card": "34078",
-      "branch": "2 ice threat 4 1 click",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 5,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 9.533581,
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window",
+    "note": "the use flag is set on the run under way (see runFlags in the board)"
+   }
+  },
+  {
+   "case": "Malandragem",
+   "branch": "counter, strength 3 ice, flag unset",
+   "twinIs": "no Malandragem",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "34081",
+      "tokens": {
+       "power": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
     },
-    {
-      "name": "mayfly_match",
-      "card": "30032",
-      "branch": "breaks barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [
-          {
-            "breaker": "30032",
-            "credits": 1,
-            "boosts": 0,
-            "spends": {
-              "trashesBreaker": true
-            }
-          }
-        ],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "mayfly_highstr",
-      "card": "30032",
-      "branch": "breaks high-str sentry",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "35052",
-        "iceRezzed": true,
-        "breakPlans": [
-          {
-            "breaker": "30032",
-            "credits": 5,
-            "boosts": 4,
-            "spends": {
-              "trashesBreaker": true
-            }
-          }
-        ],
-        "iceCost": 9,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": -6.338245,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "bangun_faceup",
-      "card": "35068",
-      "branch": "faceup agenda in remote",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 20.183198,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
     },
-    {
-      "name": "bangun_facedown",
-      "card": "35068",
-      "branch": "facedown agenda in remote",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 3.189661,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "hantu_match",
-      "card": "35008",
-      "branch": "code gate + virus counters",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30074",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 3.744348,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 2.61306,
-      "serverHold": {
-        "holds": false,
-        "margin": -3,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "hantu_nomatch",
-      "card": "35008",
-      "branch": "barrier (no match)",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.500592,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
     },
-    {
-      "name": "audrey_match",
-      "card": "34004",
-      "branch": "sentry + power counters",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30047",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 38.098153,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
     },
-    {
-      "name": "audrey_nomatch",
-      "card": "34004",
-      "branch": "barrier (no match)",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Malandragem",
+   "branch": "counter, its once-per-turn flag set",
+   "twinIs": "the flag unset",
+   "live": [
+    "runBypasses",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "34081",
+      "tokens": {
+       "power": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": "once flag set"
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "corsair_match",
-      "card": "36004",
-      "branch": "sentry",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30047",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 37.770153,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "corsair_nomatch",
-      "card": "36004",
-      "branch": "code gate (no match)",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30074",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 3.744348,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 2.75656,
-      "serverHold": {
-        "holds": false,
-        "margin": -3,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
     },
-    {
-      "name": "slap_vandal_match",
-      "card": "34026",
-      "branch": "barrier",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
     },
-    {
-      "name": "slap_vandal_nomatch",
-      "card": "34026",
-      "branch": "sentry (no match)",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30047",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 38.098153,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
     },
-    {
-      "name": "botulus_hosted",
-      "card": "30004",
-      "branch": "hosted with 2 virus",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "botulus_grip_0",
-      "card": "30004",
-      "branch": "in grip, 0 ice targets",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null,
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.87347
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.547756
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.547756
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.081281
-        }
-      ]
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "botulus_grip_1",
-      "card": "30004",
-      "branch": "in grip, 1 ice target",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INSTALL_CARD",
-          "score": 4.083105
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.892743
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        }
-      ]
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
     },
-    {
-      "name": "botulus_grip_2",
-      "card": "30004",
-      "branch": "in grip, 2 ice targets",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INSTALL_CARD",
-          "score": 27.563977
-        },
-        {
-          "type": "INSTALL_CARD",
-          "score": 19.863977
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.746271
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.240432
-        }
-      ]
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Malandragem",
+   "branch": "threat 4, no counter (remove from game)",
+   "twinIs": "below threat 4",
+   "live": [
+    "runBypasses",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "34081",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 4,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 0
     },
-    {
-      "name": "tranquilizer_hosted",
-      "card": "30017",
-      "branch": "hosted with 2 virus",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.453515,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "tranquilizer_grip_0",
-      "card": "30017",
-      "branch": "in grip, 0 ice targets",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null,
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.87347
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.547756
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.547756
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.081281
-        }
-      ]
+    "runScore": -0.0907,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
     },
-    {
-      "name": "tranquilizer_grip_1",
-      "card": "30017",
-      "branch": "in grip, 1 ice target",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.892743
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.08461
-        }
-      ]
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
     },
-    {
-      "name": "tranquilizer_grip_2",
-      "card": "30017",
-      "branch": "in grip, 2 ice targets",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INSTALL_CARD",
-          "score": 18.504005
-        },
-        {
-          "type": "INSTALL_CARD",
-          "score": 11.744033
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.746271
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.240432
-        }
-      ]
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": 5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "physarum_hosted",
-      "card": "34082",
-      "branch": "hosted on ice",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30062",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "funhouse_encounter",
-      "card": "30054",
-      "branch": "rezzed Funhouse",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30054",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.337723,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
     },
-    {
-      "name": "manegarm_root",
-      "card": "30042",
-      "branch": "rezzed Manegarm in root",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 4.27941,
-        "credits": 0
-      },
-      "runScore": 9.618546,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
     },
-    {
-      "name": "idiosyncresis_root",
-      "card": "35061",
-      "branch": "rezzed Idiosyncresis in root",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30063",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": true,
-        "margin": "Infinity",
-        "cost": null
-      },
-      "corpRez": "PASS"
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Malandragem",
+   "branch": "counter, ice of strength 4 (does not fit)",
+   "twinIs": "a strength 3 ice",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "34081",
+      "tokens": {
+       "power": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "name": "chain_reaction_grip",
-      "card": "36001",
-      "branch": "in grip with iced remote",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.934966
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.934966
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.892743
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.08461
-        }
-      ]
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "name": "window_of_opportunity",
-      "card": "34077",
-      "branch": "installed with breaker in grip",
-      "serverId": "remote-1",
-      "ice": {
-        "iceCode": "30040",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": 0,
-        "iceCreditNeed": 0
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.892743
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.434966
-        },
-        {
-          "type": "DRAW_CARD",
-          "score": 1.08461
-        }
-      ]
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
     },
-    {
-      "name": "jailbreak_grip",
-      "card": "30028",
-      "branch": "in grip",
-      "serverId": "hq",
-      "ice": {
-        "iceCode": "30046",
-        "iceRezzed": true,
-        "breakPlans": [],
-        "iceCost": "Infinity",
-        "iceCreditNeed": "Infinity"
-      },
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": "-Infinity",
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": "PASS",
-      "topRanked": [
-        {
-          "type": "DRAW_CARD",
-          "score": 18.817696
-        },
-        {
-          "type": "PLAY_OPERATION_OR_EVENT",
-          "score": 7.675076
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 1.452854
-        },
-        {
-          "type": "GAIN_CREDIT",
-          "score": -1.023621
-        }
-      ]
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
     },
-    {
-      "name": "read_write_share_full",
-      "card": "36022",
-      "branch": "4 hosted cards (full)",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.265148,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null,
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 13.140246
-        },
-        {
-          "type": "PLAY_OPERATION_OR_EVENT",
-          "score": 11.948246
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 2.607178
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 2.607178
-        }
-      ]
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
     },
-    {
-      "name": "read_write_share_partial",
-      "card": "36022",
-      "branch": "2 hosted cards",
-      "serverId": "remote-1",
-      "ice": null,
-      "runBypasses": {
-        "count": 0,
-        "price": 0
-      },
-      "bypassesAheadCount": 0,
-      "approachCost": {
-        "cost": 0,
-        "credits": 0
-      },
-      "runScore": 6.265148,
-      "serverHold": {
-        "holds": false,
-        "margin": -13,
-        "cost": null
-      },
-      "corpRez": null,
-      "topRanked": [
-        {
-          "type": "INITIATE_RUN",
-          "score": 13.140246
-        },
-        {
-          "type": "PLAY_OPERATION_OR_EVENT",
-          "score": 11.948246
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 2.607178
-        },
-        {
-          "type": "INITIATE_RUN",
-          "score": 2.607178
-        }
-      ]
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Curupira",
+   "branch": "2 counters",
+   "twinIs": "3 counters",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063",
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34015",
+      "tokens": {
+       "power": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 9,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 9,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 3
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Curupira",
+   "branch": "3 counters",
+   "twinIs": "2 counters",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063",
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34015",
+      "tokens": {
+       "power": 3
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 3
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 9,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 9,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Curupira",
+   "branch": "6 counters",
+   "twinIs": "3 counters",
+   "live": [
+    "runBypasses"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063",
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34015",
+      "tokens": {
+       "power": 6
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [
+      0,
+      1
+     ],
+     "price": 6
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34015",
+      "credits": 4,
+      "value": 0,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 3
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 6,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 6,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Banner",
+   "branch": "barrier whose every subroutine is End the run",
+   "twinIs": "no Banner",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "35075"
+    ],
+    "rig": [
+     {
+      "code": "34005",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34005",
+      "credits": 2,
+      "value": 0,
+      "boosts": 0,
+      "byAbility": true,
+      "spends": {}
+     }
+    ],
+    "iceCost": 2,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Banner",
+   "branch": "mixed barrier",
+   "twinIs": "the all-ETR barrier",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34005",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34005",
+      "credits": 2,
+      "value": 0,
+      "boosts": 0,
+      "byAbility": true,
+      "spends": {}
+     }
+    ],
+    "iceCost": 2,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Laser Pointer",
+   "branch": "AP ice",
+   "twinIs": "no Laser Pointer",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "34016",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Laser Pointer",
+   "branch": "destroyer ice",
+   "twinIs": "no Laser Pointer",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "34016",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Laser Pointer",
+   "branch": "observer ice",
+   "twinIs": "no Laser Pointer",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "35080"
+    ],
+    "rig": [
+     {
+      "code": "34016",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 5.0549,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": 5.0549,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Laser Pointer",
+   "branch": "none ice",
+   "twinIs": "an AP ice",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "36059"
+    ],
+    "rig": [
+     {
+      "code": "34016",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 1.6,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 2
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Fransofia Ward",
+   "branch": "Corp 14 credits",
+   "twinIs": "Corp 15 credits",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "35021",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 14,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 7.7079
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 7.7079,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 7.7079,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Fransofia Ward",
+   "branch": "Corp 15 credits",
+   "twinIs": "Corp 14 credits",
+   "live": [
+    "runBypasses",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "35021",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 15,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 7.7079
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 7.7079,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 7.7079,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Lobisomem",
+   "branch": "barrier, a counter",
+   "twinIs": "no counter",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34090",
+      "tokens": {
+       "power": 1
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34090",
+      "credits": 3,
+      "value": 1,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "counters": {
+        "kind": "power",
+        "n": 1
+       }
+      }
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Lobisomem",
+   "branch": "barrier, no counter",
+   "twinIs": "a counter",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34090",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34090",
+      "credits": 3,
+      "value": 1,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "counters": {
+        "kind": "power",
+        "n": 1
+       }
+      }
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Lobisomem",
+   "branch": "code gate, a counter",
+   "twinIs": "no Lobisomem",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "36030"
+    ],
+    "rig": [
+     {
+      "code": "34090",
+      "tokens": {
+       "power": 1
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34090",
+      "credits": 4,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 4,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "S-Dobrado",
+   "branch": "first ice",
+   "twinIs": "the same board priced without the run option",
+   "live": [
+    "runBypasses"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062",
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "34012"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": {
+    "bypassFirst": true
+   },
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      1
+     ],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "S-Dobrado",
+   "branch": "second ice at threat 4 with a click",
+   "twinIs": "below threat 4",
+   "live": [
+    "runBypasses",
+    "runScore"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062",
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "34012"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 3,
+    "threat": 4,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": {
+    "bypassFirst": true
+   },
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0,
+      1
+     ],
+     "price": 1.5787
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": 0.7328,
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 12,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      1
+     ],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 12,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "S-Dobrado",
+   "branch": "second ice at threat 4 without a click",
+   "twinIs": "with a click",
+   "live": [
+    "runBypasses",
+    "runScore",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062",
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "34012"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 1,
+    "threat": 4,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": {
+    "bypassFirst": true
+   },
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      1
+     ],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 10,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0,
+      1
+     ],
+     "price": 1.5787
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": 0.7328,
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 12,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Alarm Clock",
+   "branch": "first ice with 2 clicks",
+   "twinIs": "without the 2 clicks after the run",
+   "live": [
+    "runBypasses",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "34078",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": {
+    "alarmClock": true
+   },
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 3.7547
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 11,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Alarm Clock",
+   "branch": "first ice without the clicks",
+   "twinIs": "with the clicks",
+   "live": [
+    "runBypasses",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [
+     {
+      "code": "34078",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 2,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": {
+    "alarmClock": true
+   },
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 11,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [
+      0
+     ],
+     "price": 3.7547
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Mayfly",
+   "branch": "an ice it breaks",
+   "twinIs": "no Mayfly",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "30032",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "30032",
+      "credits": 4,
+      "value": 2,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {
+       "trashesBreaker": true
+      }
+     }
+    ],
+    "iceCost": 6,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Mayfly",
+   "branch": "an ice it does not break",
+   "twinIs": "an ice it breaks",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30039"
+    ],
+    "rig": [
+     {
+      "code": "30032",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "30032",
+      "credits": 8,
+      "value": 2,
+      "boosts": 5,
+      "byAbility": false,
+      "spends": {
+       "trashesBreaker": true
+      }
+     }
+    ],
+    "iceCost": 4.5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "30032",
+      "credits": 4,
+      "value": 2,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {
+       "trashesBreaker": true
+      }
+     }
+    ],
+    "iceCost": 6,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Hantu",
+   "branch": "an ice it breaks",
+   "twinIs": "no Hantu",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "35008",
+      "tokens": {
+       "virus": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "35008",
+      "credits": 2,
+      "value": 1.5,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "counters": {
+        "kind": "virus",
+        "n": 1
+       }
+      }
+     }
+    ],
+    "iceCost": 3.5,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Hantu",
+   "branch": "an ice it does not break",
+   "twinIs": "an ice it breaks",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "36030"
+    ],
+    "rig": [
+     {
+      "code": "35008",
+      "tokens": {
+       "virus": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "35008",
+      "credits": 2,
+      "value": 1.5,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "counters": {
+        "kind": "virus",
+        "n": 1
+       }
+      }
+     }
+    ],
+    "iceCost": 3.5,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Audrey v2",
+   "branch": "an ice it breaks",
+   "twinIs": "no Audrey v2",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "34004",
+      "tokens": {
+       "virus": 1
+      }
+     }
+    ],
+    "grip": [
+     "36030"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "34004",
+      "credits": 0,
+      "value": 2.5,
+      "boosts": 1,
+      "byAbility": false,
+      "spends": {
+       "counters": {
+        "kind": "virus",
+        "n": 1
+       },
+       "gripCards": 1
+      }
+     }
+    ],
+    "iceCost": 2.5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": -1.3442,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Audrey v2",
+   "branch": "an ice it does not break",
+   "twinIs": "an ice it breaks",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30063"
+    ],
+    "rig": [
+     {
+      "code": "34004",
+      "tokens": {
+       "virus": 1
+      }
+     }
+    ],
+    "grip": [
+     "36030"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 1,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 1,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "34004",
+      "credits": 0,
+      "value": 2.5,
+      "boosts": 1,
+      "byAbility": false,
+      "spends": {
+       "counters": {
+        "kind": "virus",
+        "n": 1
+       },
+       "gripCards": 1
+      }
+     }
+    ],
+    "iceCost": 2.5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": -1.3442,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Corsair",
+   "branch": "an ice it breaks",
+   "twinIs": "no Corsair",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "36004",
+      "tokens": {}
+     },
+     {
+      "code": "36021",
+      "tokens": {
+       "credit": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "36004",
+      "credits": 3,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "stealthCredits": 1
+      }
+     }
+    ],
+    "iceCost": 3,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Corsair",
+   "branch": "an ice it does not break",
+   "twinIs": "an ice it breaks",
+   "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "36004",
+      "tokens": {}
+     },
+     {
+      "code": "36021",
+      "tokens": {
+       "credit": 2
+      }
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "36004",
+      "credits": 3,
+      "value": 0,
+      "boosts": 1,
+      "byAbility": true,
+      "spends": {
+       "stealthCredits": 1
+      }
+     }
+    ],
+    "iceCost": 3,
+    "iceCreditNeed": 2,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Slap Vandal",
+   "branch": "an ice it breaks",
+   "twinIs": "no Slap Vandal",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "34026",
+      "tokens": {},
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Slap Vandal",
+   "branch": "an ice it does not break",
+   "twinIs": "an ice it breaks",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "35075"
+    ],
+    "rig": [
+     {
+      "code": "34026",
+      "tokens": {},
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "BANGUN",
+   "branch": "faceup agenda, grip 3",
+   "twinIs": "another identity",
+   "live": [
+    "runScore"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [
+     "36030",
+     "36030",
+     "36030"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": 28.3333,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
     }
-  ],
-  "l11EngineChecks": [
-    {
-      "card": "34074",
-      "title": "Friend of a Friend",
-      "branch": "untagged",
-      "field": "holdFacts.clickMoney.credits",
-      "entryValue": null,
-      "engineValue": 5,
-      "agrees": false
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
     },
-    {
-      "card": "34074",
-      "title": "Friend of a Friend",
-      "branch": "tagged",
-      "field": "holdFacts.clickMoney.credits",
-      "entryValue": null,
-      "engineValue": 5,
-      "agrees": false
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
     },
-    {
-      "card": "30027",
-      "title": "Telework Contract",
-      "branch": "9 hosted credits",
-      "field": "holdFacts.clickMoney.credits",
-      "entryValue": null,
-      "engineValue": 3,
-      "agrees": false
+    "runScore": 38.2745,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
     }
-  ]
+   }
+  },
+  {
+   "case": "BANGUN",
+   "branch": "faceup agenda, grip 1 (less than its 2 damage)",
+   "twinIs": "grip 3",
+   "live": [
+    "runScore"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [
+     "36030"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": 28.3333,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   }
+  },
+  {
+   "case": "Botulus",
+   "branch": "hosted, 1 counter",
+   "twinIs": "hosted, 0 counters",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "30004",
+      "tokens": {
+       "virus": 1
+      },
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 2,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Botulus",
+   "branch": "hosted, 2 counters",
+   "twinIs": "hosted, 1 counter",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "30004",
+      "tokens": {
+       "virus": 2
+      },
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 0,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 2,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Tranquilizer",
+   "branch": "hosted on a barrier, 2 counters, Corp at 0 (derezzes at the next turn start)",
+   "twinIs": "hosted, 0 counters",
+   "live": [
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30072"
+    ],
+    "rig": [
+     {
+      "code": "30017",
+      "tokens": {
+       "virus": 2
+      },
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 0,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Botulus",
+   "branch": "in grip, 0 rezzed targets",
+   "twinIs": "1 targets",
+   "live": [
+    "iceCost",
+    "runScore",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "30004"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 1.5,
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": -18.0424,
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.4491
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": -0.1289
+     },
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": -0.2444
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.6557
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": -18.0424
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": []
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": 6.0224
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.1713
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.372
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8008
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Botulus",
+   "branch": "in grip, 1 rezzed targets",
+   "twinIs": "2 targets",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "30004"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": 6.0224
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.1713
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.372
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8008
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Botulus@inst-64",
+      "score": 23.1455
+     },
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": 6.0455
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 0.9826
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.6644
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8783
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7,
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Botulus",
+   "branch": "in grip, 2 rezzed targets",
+   "twinIs": "1 targets",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047",
+     "36030"
+    ],
+    "rig": [],
+    "grip": [
+     "30004"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Botulus@inst-64",
+      "score": 23.1455
+     },
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": 6.0455
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 0.9826
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.6644
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8783
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7,
+     3.7
+    ]
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Botulus@inst-63",
+      "score": 6.0224
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.1713
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.372
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8008
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Tranquilizer",
+   "branch": "in grip, 0 rezzed targets",
+   "twinIs": "1 targets",
+   "live": [
+    "iceCost",
+    "runScore",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "30017"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 1.5,
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": -18.0424,
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.4491
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": -0.1289
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.6557
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": -8.4658
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": -18.0424
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": []
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.2372
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": 1.2111
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.3719
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8253
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Tranquilizer",
+   "branch": "in grip, 1 rezzed targets",
+   "twinIs": "2 targets",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [],
+    "grip": [
+     "30017"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.2372
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": 1.2111
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.3719
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8253
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": 1.1575
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-64",
+      "score": 1.1575
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.0293
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.6688
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.9028
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7,
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Tranquilizer",
+   "branch": "in grip, 2 rezzed targets",
+   "twinIs": "1 targets",
+   "live": [
+    "serverHold",
+    "serverHoldNextTurn",
+    "rankMainActions",
+    "trojanHostValue"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047",
+     "36030"
+    ],
+    "rig": [],
+    "grip": [
+     "30017"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": 1.1575
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-64",
+      "score": 1.1575
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.0293
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.6688
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.9028
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7,
+     3.7
+    ]
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.2372
+     },
+     {
+      "a": "INSTALL_CARD:Tranquilizer@inst-63",
+      "score": 1.2111
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.3719
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8253
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "trojanHostValue": [
+     3.7
+    ]
+   }
+  },
+  {
+   "case": "Physarum Entangler",
+   "branch": "hosted on a code gate",
+   "twinIs": "no Physarum",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "36030"
+    ],
+    "rig": [
+     {
+      "code": "34082",
+      "tokens": {},
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 3,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Physarum Entangler",
+   "branch": "hosted on a barrier",
+   "twinIs": "hosted on a code gate",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "34116"
+    ],
+    "rig": [
+     {
+      "code": "34082",
+      "tokens": {},
+      "host": 0
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": 3,
+    "iceCreditNeed": 3,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Funhouse",
+   "branch": "rezzed, untagged",
+   "twinIs": "another code gate of strength 4 (Sleipnir)",
+   "live": [
+    "iceCost",
+    "iceCreditNeed",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30054"
+    ],
+    "rig": [
+     {
+      "code": "30006",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 6.5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Funhouse",
+   "branch": "rezzed, tagged",
+   "twinIs": "untagged",
+   "live": [
+    "iceCost"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30054"
+    ],
+    "rig": [
+     {
+      "code": "30006",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 1,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": 1.0798,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": 6.5,
+    "iceCreditNeed": 0,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "corpRez": "no window"
+   }
+  },
+  {
+   "case": "Manegarm Skunkworks",
+   "branch": "rezzed, clicks cover it",
+   "twinIs": "unrezzed",
+   "live": [
+    "approachCost",
+    "runScore"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 3.467,
+     "credits": 0
+    },
+    "runScore": 2.0463,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   }
+  },
+  {
+   "case": "Manegarm Skunkworks",
+   "branch": "rezzed, 2 clicks: credits",
+   "twinIs": "4 clicks",
+   "live": [
+    "approachCost",
+    "runScore",
+    "serverHold"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 2,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 7.1127,
+     "credits": 5
+    },
+    "runScore": -1.5994,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 11,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 3.467,
+     "credits": 0
+    },
+    "runScore": 2.0463,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   }
+  },
+  {
+   "case": "Manegarm Skunkworks",
+   "branch": "rezzed, neither",
+   "twinIs": "10 credits",
+   "live": [
+    "approachCost",
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [],
+    "runnerCredits": 4,
+    "corpCredits": 10,
+    "clicks": 2,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": null,
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 5,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 7
+    }
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 7.1127,
+     "credits": 5
+    },
+    "runScore": -1.5994,
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 11,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    }
+   }
+  },
+  {
+   "case": "Idiosyncresis",
+   "branch": "an advanced asset in a remote",
+   "twinIs": "an ambush that is sprung by access (Urtica Cipher)",
+   "live": [
+    "isTrap"
+   ],
+   "reason": null,
+   "board": {
+    "server": "remote-1",
+    "ice": [],
+    "rig": [],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "isTrap": false
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "isTrap": true
+   }
+  },
+  {
+   "case": "Chain Reaction",
+   "branch": "two centrals run, Archives left",
+   "twinIs": "no Chain Reaction in grip",
+   "live": [
+    "rankMainActions"
+   ],
+   "reason": null,
+   "board": {
+    "server": "archives",
+    "ice": [],
+    "rig": [],
+    "grip": [
+     "36001"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 3,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 12,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.612
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": -0.0911
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": -0.468
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8153
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "chainReactionBonus": 0
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 12,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.1089
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -1.0852
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "chainReactionBonus": 0
+   }
+  },
+  {
+   "case": "Window of Opportunity",
+   "branch": "in grip with a program",
+   "twinIs": "no Window of Opportunity",
+   "live": [
+    "rankMainActions"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30062"
+    ],
+    "rig": [],
+    "grip": [
+     "34077",
+     "30032"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Mayfly",
+      "score": 13.037
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 2.135
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": -0.2975
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.6882
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:Window of Opportunity",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "runEventOptions": {
+     "derezOne": true,
+     "successBonus": 0
+    }
+   },
+   "twin": {
+    "breakPlans": [],
+    "iceCost": "Inf",
+    "iceCreditNeed": "Inf",
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13,
+     "rez": []
+    },
+    "serverHoldNextTurn": {
+     "holds": true,
+     "need": "Inf",
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "INSTALL_CARD:Mayfly",
+      "score": 12.742
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.2935
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": -0.2975
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8291
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "runEventOptions": {
+     "derezOne": true,
+     "successBonus": 0
+    }
+   }
+  },
+  {
+   "case": "Jailbreak",
+   "branch": "in grip",
+   "twinIs": "no Jailbreak",
+   "live": [
+    "runScore",
+    "serverHold",
+    "serverHoldNextTurn",
+    "rankMainActions"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [
+     "30047"
+    ],
+    "rig": [
+     {
+      "code": "30032",
+      "tokens": {}
+     }
+    ],
+    "grip": [
+     "30028"
+    ],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "breakPlans": [
+     {
+      "breaker": "30032",
+      "credits": 4,
+      "value": 2,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {
+       "trashesBreaker": true
+      }
+     }
+    ],
+    "iceCost": 6,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": -6.3605,
+    "serverHold": {
+     "holds": false,
+     "need": 3,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 3,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:Jailbreak",
+      "score": 6.837
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": 1.2112
+     },
+     {
+      "a": "DRAW_CARD",
+      "score": 0.1137
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8461
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": -6.3605
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "runEventOptions": {
+     "extraAccesses": 1
+    }
+   },
+   "twin": {
+    "breakPlans": [
+     {
+      "breaker": "30032",
+      "credits": 4,
+      "value": 2,
+      "boosts": 2,
+      "byAbility": false,
+      "spends": {
+       "trashesBreaker": true
+      }
+     }
+    ],
+    "iceCost": 6,
+    "iceCreditNeed": 4,
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 4,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 4,
+     "budget": 13
+    },
+    "corpRez": "no window",
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.3137
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -1.0002
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "runEventOptions": {
+     "extraAccesses": 1
+    }
+   }
+  },
+  {
+   "case": "Read-Write Share",
+   "branch": "full (4 hosted)",
+   "twinIs": "3 hosted",
+   "live": [
+    "rankMainActions",
+    "readWriteFullShuffle"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [],
+    "rig": [
+     {
+      "code": "36022",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.0638
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8416
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "readWriteFullShuffle": "USE_ABILITY:Read-Write Share#0"
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.0583
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8479
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "readWriteFullShuffle": null
+   }
+  },
+  {
+   "case": "Read-Write Share",
+   "branch": "partial (3 hosted)",
+   "twinIs": "4 hosted",
+   "live": [
+    "rankMainActions",
+    "readWriteFullShuffle"
+   ],
+   "reason": null,
+   "board": {
+    "server": "hq",
+    "ice": [],
+    "rig": [
+     {
+      "code": "36022",
+      "tokens": {}
+     }
+    ],
+    "grip": [],
+    "runnerCredits": 10,
+    "corpCredits": 10,
+    "clicks": 4,
+    "threat": 0,
+    "tags": 0,
+    "runFlags": null,
+    "turnFlags": null
+   },
+   "run": null,
+   "readers": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.0583
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8479
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "readWriteFullShuffle": null
+   },
+   "twin": {
+    "runBypasses": {
+     "ice": [],
+     "price": 0
+    },
+    "bypassesAhead": null,
+    "approachCost": {
+     "cost": 0,
+     "credits": 0
+    },
+    "runScore": "-Inf",
+    "serverHold": {
+     "holds": false,
+     "need": 0,
+     "budget": 13,
+     "rez": null
+    },
+    "serverHoldNextTurn": {
+     "holds": false,
+     "need": 0,
+     "budget": 13
+    },
+    "rankMainActions": [
+     {
+      "a": "DRAW_CARD",
+      "score": 1.0638
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.8416
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:hq",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:rd",
+      "score": "-Inf"
+     },
+     {
+      "a": "INITIATE_RUN:archives",
+      "score": "-Inf"
+     }
+    ],
+    "readWriteFullShuffle": "USE_ABILITY:Read-Write Share#0"
+   }
+  }
+ ],
+ "l11": [
+  {
+   "card": "34074",
+   "field": "clickMoney",
+   "state": "{\"tags\":0}",
+   "entry": 9,
+   "engine": 9,
+   "agrees": true,
+   "note": "the use also gives 1 tag(s)"
+  },
+  {
+   "card": "34074",
+   "field": "clickMoney",
+   "state": "{\"tags\":1}",
+   "entry": 9,
+   "engine": 5,
+   "agrees": false,
+   "note": "the use also gives -1 tag(s)"
+  },
+  {
+   "card": "35011",
+   "field": "clickMoney",
+   "state": "{}",
+   "entry": 9,
+   "engine": 9,
+   "agrees": true
+  },
+  {
+   "card": "30027",
+   "field": "clickMoney",
+   "state": "{\"credit\":9}",
+   "entry": 3,
+   "engine": 3,
+   "agrees": true
+  },
+  {
+   "card": "30027",
+   "field": "clickMoney",
+   "state": "{\"credit\":2}",
+   "entry": 2,
+   "engine": 2,
+   "agrees": true
+  },
+  {
+   "card": "30014",
+   "field": "clickMoney",
+   "state": "{\"credit\":2}",
+   "entry": 3,
+   "engine": 3,
+   "agrees": true
+  },
+  {
+   "card": "30014",
+   "field": "clickMoney",
+   "state": "{\"credit\":0}",
+   "entry": 1,
+   "engine": 1,
+   "agrees": true
+  },
+  {
+   "card": "30007",
+   "field": "clickMoney",
+   "state": "{\"virus\":2}",
+   "entry": 6,
+   "engine": 6,
+   "agrees": true
+  },
+  {
+   "card": "30007",
+   "field": "clickMoney",
+   "state": "{\"virus\":0}",
+   "entry": 2,
+   "engine": 2,
+   "agrees": true
+  },
+  {
+   "card": "30027",
+   "field": "clickMoney.once",
+   "state": "after its use this turn",
+   "entry": 3,
+   "engine": 1,
+   "agrees": false,
+   "note": "engine: the ability is not offered again; a click pays 1 (5.2.7a)"
+  },
+  {
+   "card": "34089",
+   "field": "counterCredits",
+   "state": "2 counters, one use",
+   "entry": 2,
+   "engine": 2,
+   "agrees": true,
+   "note": "walk reads 4 for the 2 counters"
+  },
+  {
+   "card": "35033",
+   "field": "firstRunTrashForCost",
+   "state": "the first run of the turn begins (Pennyshaver installed, cost 3)",
+   "entry": "gain the printed install cost of the trashed card",
+   "engine": {
+    "credits": 3,
+    "trashedPenny": true
+   },
+   "agrees": true
+  },
+  {
+   "card": "35034",
+   "field": "runBeginCredits.place",
+   "state": "a run begins",
+   "entry": 1,
+   "engine": 1,
+   "agrees": true
+  },
+  {
+   "card": "30004",
+   "field": "breaksHostSubroutine",
+   "state": "host encountered, 1 counter",
+   "entry": {
+    "counter": "virus",
+    "breaks": 1
+   },
+   "engine": {
+    "breaks": 1,
+    "counterLeft": 0
+   },
+   "agrees": true
+  },
+  {
+   "card": "30017",
+   "field": "runnerTurnStart",
+   "state": "1 counter(s) before the Runner's turn begins",
+   "entry": {
+    "counters": 1,
+    "derezAt": 3,
+    "derezzed": false
+   },
+   "engine": {
+    "counters": 1,
+    "derezzed": false
+   },
+   "agrees": true
+  },
+  {
+   "card": "30017",
+   "field": "runnerTurnStart",
+   "state": "2 counter(s) before the Runner's turn begins",
+   "entry": {
+    "counters": 1,
+    "derezAt": 3,
+    "derezzed": true
+   },
+   "engine": {
+    "counters": 1,
+    "derezzed": true
+   },
+   "agrees": true
+  },
+  {
+   "card": "34082",
+   "field": "hostBypass",
+   "state": "host a code gate",
+   "entry": {
+    "credits": 3
+   },
+   "engine": {
+    "offered": true,
+    "paid": 3,
+    "bypassed": true
+   },
+   "agrees": true
+  },
+  {
+   "card": "34082",
+   "field": "hostBypass",
+   "state": "host a barrier",
+   "entry": "not offered",
+   "engine": "not offered",
+   "agrees": true
+  },
+  {
+   "card": "30054",
+   "field": "encounter",
+   "state": "untagged",
+   "entry": {
+    "toll": {
+     "endRun": true
+    },
+    "unless": {
+     "tags": 1
+    }
+   },
+   "engine": {
+    "prompt": true,
+    "options": [
+     {
+      "choice": "tag",
+      "credits": 0,
+      "tags": 1,
+      "grip": 0,
+      "clicks": 0,
+      "runEnded": false
+     },
+     {
+      "choice": "end",
+      "credits": 0,
+      "tags": 0,
+      "grip": 0,
+      "clicks": 0,
+      "runEnded": true
+     }
+    ]
+   },
+   "agrees": true
+  },
+  {
+   "card": "34035",
+   "field": "encounter",
+   "state": "threat below 4",
+   "entry": {
+    "threatAtLeast": 4,
+    "toll": {
+     "tags": 1
+    },
+    "unless": {
+     "clicks": 1
+    }
+   },
+   "engine": {
+    "prompt": false,
+    "credits": 0,
+    "tags": 0,
+    "clicksAfterRunClick": 0
+   },
+   "agrees": true
+  },
+  {
+   "card": "34035",
+   "field": "encounter",
+   "state": "threat 4",
+   "entry": {
+    "threatAtLeast": 4,
+    "toll": {
+     "tags": 1
+    },
+    "unless": {
+     "clicks": 1
+    }
+   },
+   "engine": {
+    "prompt": true,
+    "options": [
+     {
+      "choice": "click",
+      "credits": 0,
+      "tags": 0,
+      "grip": 0,
+      "clicks": -1,
+      "runEnded": false
+     },
+     {
+      "choice": "tag",
+      "credits": 0,
+      "tags": 1,
+      "grip": 0,
+      "clicks": 0,
+      "runEnded": false
+     }
+    ]
+   },
+   "agrees": true
+  },
+  {
+   "card": "34118",
+   "field": "encounter",
+   "state": "grip 3",
+   "entry": {
+    "toll": {
+     "loses": 3
+    },
+    "unless": {
+     "netDamage": 2,
+     "tags": 1
+    }
+   },
+   "engine": {
+    "prompt": true,
+    "options": [
+     {
+      "choice": "credits",
+      "credits": -3,
+      "tags": 0,
+      "grip": 0,
+      "clicks": 0,
+      "runEnded": false
+     },
+     {
+      "choice": "net",
+      "credits": 0,
+      "tags": 0,
+      "grip": -2,
+      "clicks": 0,
+      "runEnded": false
+     },
+     {
+      "choice": "tag",
+      "credits": 0,
+      "tags": 1,
+      "grip": 0,
+      "clicks": 0,
+      "runEnded": false
+     }
+    ]
+   },
+   "agrees": true
+  },
+  {
+   "card": "36052",
+   "field": "encounter",
+   "state": "credits 10",
+   "entry": {
+    "loses": 1
+   },
+   "engine": {
+    "prompt": false,
+    "credits": -1,
+    "tags": 0,
+    "clicksAfterRunClick": 0
+   },
+   "agrees": true
+  }
+ ]
 }
