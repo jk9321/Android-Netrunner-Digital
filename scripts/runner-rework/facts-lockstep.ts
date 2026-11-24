@@ -60,11 +60,20 @@ const RECORD_TO = (tree: string) => `  chooseAction(state: GameState): GameActio
 function makeTrees(): Record<Name, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
-  // The base's src from git (a shallow checkout fetches the one commit)
-  try {
-    execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
-  } catch {
-    execSync(`git fetch --depth 1 origin ${BASE}`, { stdio: 'ignore' });
+  // The base's src from git (a shallow checkout fetches the one commit). The four shards of a job fetch at once and git's
+  // shallow lock lets one through: the others wait and look again
+  for (let tries = 0; ; tries++) {
+    try {
+      execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
+      break;
+    } catch {
+      try {
+        execSync(`git fetch --depth 1 origin ${BASE}`, { stdio: 'ignore' });
+      } catch (e) {
+        if (tries >= 8) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+      }
+    }
   }
   const dirs = {} as Record<Name, string>;
   for (const name of NAMES) {
