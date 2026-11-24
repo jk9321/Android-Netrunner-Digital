@@ -7,7 +7,7 @@ import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
-import { asSide, logNudge, nudge, tuning } from './synergy';
+import { asSide, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
 import { runnerUnknownSlots } from './runnerReply';
@@ -15,11 +15,12 @@ import { RunnerMemory, chainReactionBonus, planCost, MANEGARM, bestBreakPlan, bo
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 import { CARDS } from './cards';
+import { RunnerContext, runnerDecide, runnerOffTurn } from './runner/core';
 
-// Read when called, not built at load: under the batch entry's import order (scripts/corp-losses.ts imports threatModel
-// first) this module loads inside runs.ts's import cycle, before the card entries are set, and a list built here held
-// [undefined, undefined] (ai-trojans-load; tests/trojansLoad.test.ts). The trojans trojanHostValue prices are the entries
-// with runFacts.trojan (Botulus, Tranquilizer; R-A A-move)
+// Read when called, not built at load: a list built here once read runs.ts's constants before they were set (this module
+// loaded inside runs.ts's import cycle then; ai-trojans-load, tests/trojansLoad.test.ts). It is now in the cycle
+// {corpAI, runnerAI, runnerReply, turnPlanner} (tests/codeHealth.test.ts), and a load-time read is still unsafe here.
+// The trojans trojanHostValue prices are the entries with runFacts.trojan (Botulus, Tranquilizer; R-A A-move)
 const isTrojan = (code: string) => !!CARDS[code]?.runFacts?.trojan;
 
 /**
@@ -56,31 +57,51 @@ export class HeuristicRunnerAI implements Agent {
    * judged like a free action on the Runner's own turn, or null.
    */
   chooseOffTurn(state: GameState): GameAction | null {
-    return asSide('runner', () => {
-      decisionContext(state, 'runner');
-      this.remember(state);
-      this.freeActions.start(state, state.runner.clicks);
-      // ai-honest-runner-view (red team 1): the baseline is scored on the same view as the actions
-      const view = this.ownView(state);
-      const before = evaluate(view, 'runner');
-      const best = getLegalActions(state, 'runner')
-        .filter(a => a.type === 'USE_ABILITY')
-        .map(action => ({ action, score: this.scoreMain(state, action, before, view) }))
-        .sort((a, b) => b.score - a.score)[0];
-      if (!best || best.score === -Infinity) return null;
-      this.notePlayed(best.action);
-      if (this.debug) logNudge(state, 'runner', best.action);
-      return best.action;
-    });
+    return asSide('runner', () => runnerOffTurn(state, this.runnerContext()));
   }
 
+  /** The off-turn question's scores, best first (runner/core.ts runnerOffTurn takes the first): not the ranking. */
+  private offTurnRank(state: GameState): ScoredAction[] {
+    this.freeActions.start(state, state.runner.clicks);
+    // ai-honest-runner-view (red team 1): the baseline is scored on the same view as the actions
+    const view = this.ownView(state);
+    const before = evaluate(view, 'runner');
+    return getLegalActions(state, 'runner')
+      .filter(a => a.type === 'USE_ABILITY')
+      .map(action => ({ action, score: this.scoreMain(state, action, before, view) }))
+      .sort((a, b) => b.score - a.score);
+  }
+
+  /** The order of the questions (runner/core.ts runnerDecide) over this agent's context. */
   private decide(state: GameState): GameAction {
-    decisionContext(state, 'runner');
-    this.remember(state);
-    if (activePrompt(state)) return this.promptAnswer(state);
-    const legal = getLegalActions(state, 'runner');
-    if (state.activeRun) return this.runAction(state, legal) ?? legal[0];
-    return this.mainAction(state, legal);
+    return runnerDecide(state, this.runnerContext());
+  }
+
+  /** This agent as runner/core.ts reads it: its fields and its methods, built per decision (red team 2026-11-24 finding 11: the fields stay its own). */
+  runnerContext(): RunnerContext {
+    return {
+      synergy: this.synergy,
+      view: this.planner ? 'dealt' : 'given',
+      memory: this.memory,
+      guard: this.freeActions,
+      planMemory: this.planMemory,
+      offTurnState: () => ({ savingFor: this.savingFor, digForBreakers: this.digForBreakers }),
+      remember: s => this.remember(s),
+      prompt: s => this.promptAnswer(s),
+      run: (s, legal) => this.runAction(s, legal),
+      counted: readWriteFullShuffle,
+      noteCounted: true,
+      rank: (s, legal) => this.rankMainActions(s, legal),
+      lookahead: this.planner
+        ? (s, ranked) => {
+            const planned = plannerOn('runner') ? this.plan(s, ranked) : null;
+            return planned && { action: planned, note: true, log: true };
+          }
+        : undefined,
+      offTurnRank: s => this.offTurnRank(s),
+      note: a => this.notePlayed(a),
+      debug: this.debug,
+    };
   }
 
   /**
@@ -201,20 +222,6 @@ export class HeuristicRunnerAI implements Agent {
       }
     }
     return undefined;
-  }
-
-  private mainAction(state: GameState, legal: GameAction[]): GameAction {
-    const full = readWriteFullShuffle(state, legal);
-    if (full) {
-      this.notePlayed(full);
-      return full;
-    }
-    const ranked = this.rankMainActions(state, legal);
-    const planned = this.planner && plannerOn('runner') ? this.plan(state, ranked) : null;
-    const chosen = planned ?? (ranked[0]?.score > -Infinity ? ranked[0].action : legal.find(a => a.type === 'END_TURN') ?? legal[0]);
-    this.notePlayed(chosen);
-    if (this.debug) logNudge(state, 'runner', chosen);
-    return chosen;
   }
 
   /** Counts actions in a row that spent no click (loop guard). */

@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { GameAction, GameState, activePrompt, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { createAgent } from '../src/ai';
 import { FreeActionGuard } from '../src/ai/agent';
-import { HeuristicRunnerAI } from '../src/ai/runnerAI';
+import { HeuristicRunnerAI, readWriteFullShuffle } from '../src/ai/runnerAI';
+import type { RunnerContext } from '../src/ai/runner/core';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { asSide, plan, pricing } from '../src/ai/pricing';
 import { giveCard, installIceForTest, installProgramForTest, newGame, passTurn, putInHand, runIntoFirstIce, runnerInstall, startRunnerTurn } from './helpers';
@@ -25,6 +26,18 @@ vi.mock('../src/ai/handValues', async importOriginal => {
       else calls.live++;
       return m.decisionContext(...a);
     },
+  };
+});
+
+// The branch half (added after the base record): every context the order is handed, as handed, with its memory's size then
+const contexts = vi.hoisted(() => ({ on: false, seen: [] as { kind: 'decide' | 'off'; ctx: import('../src/ai/runner/core').RunnerContext; size: number }[] }));
+vi.mock('../src/ai/runner/core', async importOriginal => {
+  const m = await importOriginal<typeof import('../src/ai/runner/core')>();
+  const keep = (kind: 'decide' | 'off', ctx: import('../src/ai/runner/core').RunnerContext) => contexts.on && contexts.seen.push({ kind, ctx, size: ctx.memory.size });
+  return {
+    ...m,
+    runnerDecide: (...a: Parameters<typeof m.runnerDecide>) => (keep('decide', a[1]), m.runnerDecide(...a)),
+    runnerOffTurn: (...a: Parameters<typeof m.runnerOffTurn>) => (keep('off', a[1]), m.runnerOffTurn(...a)),
   };
 });
 
@@ -213,10 +226,7 @@ describe('one decision of each Runner caller (bar 3, recorded on the base)', () 
 });
 
 describe('the Runner agent as callers and scripts see it', () => {
-  // Red team finding 11 (a): scripts snapshot and cast the agent's own fields; they stay, under today's names
-  it("keeps its own fields, under today's names, in today's order", () => {
-    expect(Object.keys(new HeuristicRunnerAI())).toEqual(['side', 'freeActions', 'memory', 'digForBreakers', 'savingFor', 'synergy', 'debug', 'planner', 'planMemory']);
-  });
+  // Red team finding 11 (a), the pin of the agent's own fields: moved to tests/codeHealth.test.ts (brief point 7)
   it("a fresh instance's off-turn state is null and false, its own", () => {
     const [a, b] = [new HeuristicRunnerAI(), new HeuristicRunnerAI()] as unknown as { savingFor: string | null; digForBreakers: boolean; memory: Map<string, string> }[];
     expect([a.savingFor, a.digForBreakers]).toEqual([null, false]);
@@ -251,6 +261,172 @@ describe('the Runner agent as callers and scripts see it', () => {
     } finally {
       P.scoreMain = scoreMain;
     }
+  });
+});
+
+/**
+ * The context each caller builds (step 1 table (a), the branch half of bar 3): its fields, read off the context the
+ * order was handed, against the caller's own fields. The six fields no src code reads before B2 (synergy, view, memory,
+ * guard, planMemory, offTurnState) are checked here.
+ */
+describe('the context each caller hands the order (table (a))', () => {
+  const own = (r: unknown) => r as { synergy: boolean; planner: boolean; debug: boolean; memory: Map<string, string>; freeActions: FreeActionGuard; planMemory: unknown; savingFor: string | null; digForBreakers: boolean };
+  const record = (ask: () => unknown) => {
+    contexts.seen.length = 0;
+    contexts.on = true;
+    try {
+      ask();
+    } finally {
+      contexts.on = false;
+    }
+    return [...contexts.seen];
+  };
+  /** The context an agent builds is the agent's own fields, not copies. */
+  const isOwn = (ctx: RunnerContext, r: HeuristicRunnerAI) => {
+    const o = own(r);
+    expect(ctx.synergy).toBe(o.synergy);
+    expect(ctx.view).toBe(o.planner ? 'dealt' : 'given');
+    expect(ctx.memory).toBe(r.knownCards());
+    expect(ctx.guard).toBe(o.freeActions);
+    expect(ctx.planMemory).toBe(o.planMemory);
+    expect(ctx.offTurnState()).toEqual({ savingFor: o.savingFor, digForBreakers: o.digForBreakers });
+    expect(ctx.counted).toBe(readWriteFullShuffle);
+    expect(ctx.debug).toBe(o.debug);
+  };
+
+  it('the Normal Runner: dealt view, the planner, notes the counted pick; its rollout: given view, no look-ahead, no debug, a copy of the map', () => {
+    const ai = new HeuristicRunnerAI({ debug: false });
+    const seen = record(() => ai.chooseAction(mainState()));
+    const mine = seen.filter(x => x.ctx.memory === ai.knownCards());
+    expect(mine).toHaveLength(1);
+    isOwn(mine[0].ctx, ai);
+    expect([mine[0].ctx.view, !!mine[0].ctx.lookahead, mine[0].ctx.noteCounted, !!mine[0].ctx.base]).toEqual(['dealt', true, true, false]);
+    // the rollout answers prompts only, so on this state it is never handed the order; its context is built the same way
+    const rollout = new HeuristicRunnerAI({ synergy: true, planner: false });
+    const ctx = rollout.runnerContext();
+    isOwn(ctx, rollout);
+    expect([ctx.view, !!ctx.lookahead, ctx.debug]).toEqual(['given', false, false]);
+  });
+  it('the Normal Runner off-turn: the same context, its own off-turn state read as left (fresh: null and false)', () => {
+    const ai = new HeuristicRunnerAI();
+    const seen = record(() => ai.chooseOffTurn(offTurnState()));
+    expect(seen.map(x => x.kind)).toEqual(['off']);
+    isOwn(seen[0].ctx, ai);
+    expect(seen[0].ctx.offTurnState()).toEqual({ savingFor: null, digForBreakers: false });
+  });
+  it("the Hard Runner: the base's context with base, observe, an un-noted counted pick and the search; its playouts: fresh agents holding the Hard Runner's map", () => {
+    const ai = createAgent('runner', 'hard', { seed: 1, samples: 1, candidates: 2 });
+    const base = (ai as unknown as { base: HeuristicRunnerAI }).base;
+    base.knownCards().set('inst-zz', '30066');
+    const seen = record(() => ai.chooseAction(mainState()));
+    const hard = seen.filter(x => x.ctx.memory === base.knownCards());
+    expect(hard).toHaveLength(1);
+    const ctx = hard[0].ctx;
+    expect([ctx.view, ctx.synergy, ctx.noteCounted, !!ctx.base, !!ctx.lookahead, ctx.debug]).toEqual(['given', true, false, true, true, false]);
+    expect(ctx.guard).toBe(own(base).freeActions);
+    const playouts = seen.filter(x => x !== hard[0]);
+    expect(playouts.length).toBeGreaterThan(0);
+    for (const p of playouts) {
+      expect([p.ctx.view, !!p.ctx.lookahead, p.ctx.noteCounted, !!p.ctx.base, p.ctx.memory === base.knownCards()]).toEqual(['given', false, true, false, false]);
+      expect(p.ctx.memory.get('inst-zz')).toBe('30066');
+    }
+  });
+  it("the Hard Corp's playout Runners: an empty map at their first decision", () => {
+    const ai = createAgent('corp', 'hard', { seed: 1, samples: 1, candidates: 2 });
+    const seen = record(() => ai.chooseAction(corpMain()));
+    const firsts = new Map<unknown, number>();
+    for (const x of seen) if (!firsts.has(x.ctx.memory)) firsts.set(x.ctx.memory, x.size);
+    expect(firsts.size).toBeGreaterThan(0);
+    expect([...firsts.values()].every(n => n === 0)).toBe(true);
+    expect(seen.every(x => x.ctx.view === 'given' && !x.ctx.lookahead)).toBe(true);
+  });
+  it("the reply's Runners: given view, no look-ahead, one map per sample starting empty", () => {
+    const seen = record(() => createAgent('corp', 'normal').chooseAction(corpMain()));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(x => x.ctx.view === 'given' && !x.ctx.lookahead && x.ctx.noteCounted && !x.ctx.debug)).toBe(true);
+    const firsts = new Map<unknown, number>();
+    for (const x of seen) if (!firsts.has(x.ctx.memory)) firsts.set(x.ctx.memory, x.size);
+    expect(firsts.size).toBeGreaterThan(1);
+    expect([...firsts.values()].every(n => n === 0)).toBe(true);
+  });
+  it("the oracle playout's Runner: synergy, the dealt view and the planner", () => {
+    const was = tuning.plan;
+    try {
+      applyPlanOff('+oracle.safestRemote');
+      const s = newGame(2); // not the position the call-count test played out: oracle.ts keeps played-out positions
+      putInHand(s, 'corp', 'agenda');
+      s.corp.clicks = 1;
+      const seen = record(() => createAgent('corp', 'normal').chooseAction(s));
+      const oracle = seen.filter(x => x.ctx.view === 'dealt');
+      expect(oracle.length).toBeGreaterThan(0);
+      expect(oracle.every(x => x.ctx.synergy && !!x.ctx.lookahead && x.ctx.noteCounted && !x.ctx.base)).toBe(true);
+    } finally {
+      tuning.plan = was;
+    }
+  });
+});
+
+/**
+ * Bar 2 (red team finding 7): each fault planted by scripts/runner-rework/core-faults.ts, emulated here on a unit state,
+ * changes what the order or a body reads, before the lockstep is asked whether it shows.
+ */
+describe('bar 2: each planted fault changes its input', () => {
+  const guardOf = (r: HeuristicRunnerAI) => (r as unknown as { freeActions: { count: number; key: string } }).freeActions;
+  it("rolloutGuard: a rollout ranking with the decider's guard resets the decider's count", () => {
+    const s = mainState();
+    const run = (shared: boolean) => {
+      const ai = new HeuristicRunnerAI();
+      asSide('runner', () => ai.rankMainActions(s)); // starts the guard at this turn and click count
+      for (let i = 0; i < 3; i++) ai.notePlayed({ type: 'GAIN_CREDIT', player: 'runner' });
+      const rollout = new HeuristicRunnerAI({ planner: false });
+      if (shared) (rollout as unknown as { freeActions: unknown }).freeActions = guardOf(ai);
+      const later = { ...s, runner: { ...s.runner, clicks: s.runner.clicks - 1 } }; // a playout state, a click on
+      asSide('runner', () => rollout.rankMainActions(later));
+      return guardOf(ai).count;
+    };
+    expect([run(false), run(true)]).toEqual([3, 0]);
+  });
+  it("replyMemory: a reply Runner's map keeps a card it saw that is no longer installed, so a shared map carries it to the next sample", () => {
+    const s = mainState();
+    const asset = createCardInstance(s, '30054');
+    asset.isRezzed = true;
+    s.corp.servers['remote-x'] = { id: 'remote-x', name: 'Remote X', isRemote: true, ice: [], root: [asset] } as GameState['corp']['servers'][string];
+    const ai = new HeuristicRunnerAI({ planner: false });
+    ai.observe(s);
+    const gone = structuredClone(s);
+    delete gone.corp.servers['remote-x'];
+    ai.observe(gone);
+    expect(ai.knownCards().get(asset.instanceId)).toBe('30054');
+    expect(new HeuristicRunnerAI({ planner: false }).knownCards().size).toBe(0);
+  });
+  it("playoutMemory: the Hard search's playout Runners hold the Hard Runner's map (see the table (a) test), which the fault drops", () => {
+    const ai = createAgent('runner', 'hard', { seed: 1, samples: 1, candidates: 2 });
+    (ai as unknown as { base: HeuristicRunnerAI }).base.knownCards().set('inst-zz', '30066');
+    contexts.seen.length = 0;
+    contexts.on = true;
+    try {
+      ai.chooseAction(mainState());
+    } finally {
+      contexts.on = false;
+    }
+    const playouts = contexts.seen.filter(x => !x.ctx.base);
+    expect(playouts.length).toBeGreaterThan(0);
+    expect(playouts.every(x => x.ctx.memory.has('inst-zz'))).toBe(true);
+  });
+  it("offTurnHolder: the off-turn scores read the holder's savingFor (a fresh holder's null scores Madani's install otherwise)", () => {
+    const s = offTurnState();
+    const scores = (saving: string | null) => {
+      const ai = new HeuristicRunnerAI();
+      (ai as unknown as { savingFor: string | null }).savingFor = saving;
+      return asSide('runner', () => ai.runnerContext().offTurnRank(s)).map(x => x.score);
+    };
+    expect(scores('hq')).not.toEqual(scores(null));
+  });
+  it("oraclePlanner: the oracle's Runner with its planner off reads the given state and has no look-ahead", () => {
+    const on = new HeuristicRunnerAI({}).runnerContext();
+    const off = new HeuristicRunnerAI({ planner: false }).runnerContext();
+    expect([on.view, !!on.lookahead]).toEqual(['dealt', true]);
+    expect([off.view, !!off.lookahead]).toEqual(['given', false]);
   });
 });
 

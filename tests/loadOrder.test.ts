@@ -22,6 +22,23 @@ describe('module load order', () => {
     const unsafe = (loadReads() as Read[]).filter(r => r.unsafe && !ALLOWED[r.at]);
     expect(unsafe.map(r => `${r.at} ${r.name} from ${r.provider}`)).toEqual([]);
   });
+
+  // R-B B1, tracker R-28 (the Corp side's conditions for parking the cycle {corpAI, runnerAI, runnerReply, turnPlanner}):
+  // no new load-time read inside it. Today's: runnerReply registers the oracle's play-out (a closure, read later) and
+  // corpAI registers the Corp ports; each reads a module outside the cycle. May only shrink.
+  it('no new load-time read in the files of the cycle that holds runnerAI.ts', () => {
+    const CYCLE = ['corpAI', 'runnerAI', 'runnerReply', 'turnPlanner'].map(f => `src/ai/${f}.ts`);
+    const reads = (loadReads() as Read[]).filter(r => CYCLE.some(f => r.at.startsWith(`${f}:`))).map(r => `${r.at.replace(/:\d+$/, '')} ${r.name} from ${r.provider}`);
+    expect(reads.sort()).toEqual([
+      'src/ai/corpAI.ts freeInstallTarget from src/ai/corp/candidates.ts',
+      'src/ai/corpAI.ts holdingRezIds from src/ai/corp/rezMoney.ts',
+      'src/ai/corpAI.ts perfectRecallTarget from src/ai/corp/rez.ts',
+      'src/ai/corpAI.ts registerCorpPorts from src/ai/corpPorts.ts',
+      'src/ai/corpAI.ts runLoss from src/ai/corp/pools.ts',
+      'src/ai/corpAI.ts runStands from src/ai/corp/hold.ts',
+      'src/ai/runnerReply.ts setOraclePlayout from src/ai/oracle.ts',
+    ]);
+  });
 });
 
 /**

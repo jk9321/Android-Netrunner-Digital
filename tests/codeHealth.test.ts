@@ -300,10 +300,50 @@ describe('AI code health (audit guards)', () => {
     return out;
   };
 
-  it('keeps corp/ out of every import cycle, and the largest cycle in src/ai at or under 16 modules (29 before R8)', () => {
+  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 16 modules (29 before R8)', () => {
     const found = cycles(importGraph());
     expect(found.filter(c => c.some(f => f.startsWith('corp/'))), 'corp/ reads the valuation layer; the layer reads corp/ only through corpPorts.ts').toEqual([]);
+    // R-B B1 (and the Corp side's conditions for parking the cycle below, tracker R-28): runner/ holds the order only
+    expect(found.filter(c => c.some(f => f.startsWith('runner/'))), 'runner/ reads the agent only through its context (runner/core.ts RunnerContext)').toEqual([]);
     expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(16);
+  });
+
+  // R-B B1, tracker R-28 (parked by both coordinators 2026-11-24): the cycle that holds the Runner agent is these four and
+  // does not grow; ending it needs a registrar every entry loads (red team 2026-11-24 finding 5)
+  it('keeps the cycle holding runnerAI.ts to exactly {corpAI, runnerAI, runnerReply, turnPlanner}', () => {
+    const found = cycles(importGraph()).filter(c => c.includes('runnerAI.ts'));
+    expect(found.map(c => [...c].sort())).toEqual([['corpAI.ts', 'runnerAI.ts', 'runnerReply.ts', 'turnPlanner.ts']]);
+  });
+
+  // R-B B1 (brief b1-core.md point 7): who reaches the Runner agent from outside runnerAI.ts. May only shrink.
+  it('constructs HeuristicRunnerAI or calls a rankMainActions outside runnerAI.ts only in these files', () => {
+    const ALLOWED: Record<string, string> = {
+      'index.ts': 'createAgent: the Normal Runner',
+      'search.ts': "the Hard Runner's base and the search playouts' Runners (heuristicFor); the Hard Corp's and Runner's rankMainActions",
+      'runnerReply.ts': "the reply's Runner and the oracle playout's Runner",
+      'corpAI.ts': "the Corp agent's own rankMainActions (not the Runner's)",
+    };
+    const found = aiFiles().map(f => f.replace(/\\/g, '/')).filter(f => f !== 'runnerAI.ts' && /\brankMainActions\(|new HeuristicRunnerAI\b/.test(aiText(f)));
+    expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
+    expect(Object.keys(ALLOWED).filter(f => !found.includes(f)), 'a file left the list: take it out of ALLOWED').toEqual([]);
+  });
+
+  // R-B B1 (brief b1-core.md point 7): the run's worth before it starts. May only shrink.
+  it('calls runScore only in these files', () => {
+    const ALLOWED: Record<string, string> = {
+      'runs.ts': 'the owner (runScore itself)',
+      'runnerAI.ts': "the Runner's ranking, its planner's runWorth and its run events",
+      'prompts.ts': 'a prompt that picks a server to run (run events) and Alarm Clock',
+    };
+    const found = aiFiles().map(f => f.replace(/\\/g, '/')).filter(f => /\brunScore\(/.test(aiText(f)));
+    expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
+    expect(Object.keys(ALLOWED).filter(f => !found.includes(f)), 'a file left the list: take it out of ALLOWED').toEqual([]);
+  });
+
+  // Red team 2026-11-24 finding 11 (a): about 18 scripts snapshot, restore and cast the agent's own fields by name
+  it("keeps the Runner agent's own fields, under today's names, in today's order", async () => {
+    const { HeuristicRunnerAI } = await import('../src/ai/runnerAI');
+    expect(Object.keys(new HeuristicRunnerAI())).toEqual(['side', 'freeActions', 'memory', 'digForBreakers', 'savingFor', 'synergy', 'debug', 'planner', 'planMemory']);
   });
 
   it('imports corp/ from outside it only in these files', () => {
@@ -575,16 +615,20 @@ describe('AI code health (audit guards)', () => {
   // measured against beta 920b6fa: cards/types.ts + 49 (RunFacts and its condition vocabulary), the card entries + 55 (the
   // facts with their card text), runs.ts + 35 (the vocabulary's readers in place of 25 card constants), runnerAI.ts + 8):
   // corp/ 4,068, src/ai 16,239
-  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,239 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts)', () => {
+  // Then + 124 in src/ai, corp/ unchanged (ai-runner-core, R-B B1: the Runner's order of questions in one function,
+  // measured against beta ff04f60: runner/core.ts + 107 (runnerDecide, runnerOffTurn, RunnerContext with a comment per
+  // field), runnerAI.ts + 7 (runnerContext, offTurnRank; mainAction deleted), search.ts + 10 (the Hard Runner's context
+  // and runnerLookahead)): corp/ 4,068, src/ai 16,363
+  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,363 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(4068);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16239);
+    expect(all).toBeLessThanOrEqual(16363);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
     expect(4068 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16239 - all).toBeLessThanOrEqual(SLACK);
+    expect(16363 - all).toBeLessThanOrEqual(SLACK);
   });
 });
