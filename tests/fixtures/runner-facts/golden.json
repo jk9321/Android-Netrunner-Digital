@@ -30,7 +30,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -62,7 +66,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -8.1205,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -74,7 +78,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -108,7 +112,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": -7.0923,
+    "runScore": -3.8791,
     "serverHold": {
      "holds": false,
      "need": 4,
@@ -120,7 +124,7 @@
      "need": 4,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -147,7 +151,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -189,7 +197,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": -7.0923,
+    "runScore": -3.8791,
     "serverHold": {
      "holds": false,
      "need": 4,
@@ -201,7 +209,7 @@
      "need": 4,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -225,7 +233,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -8.1205,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -237,7 +245,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -250,8 +258,7 @@
     "iceCreditNeed",
     "bypassesAhead",
     "runScore",
-    "serverHold",
-    "corpRez"
+    "serverHold"
    ],
    "reason": null,
    "board": {
@@ -265,7 +272,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 3,
@@ -299,7 +310,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": -10.3057,
+    "runScore": -7.0925,
     "serverHold": {
      "holds": false,
      "need": 4,
@@ -311,7 +322,7 @@
      "need": 4,
      "budget": 13
     },
-    "corpRez": "error: Not allowed during a run",
+    "corpRez": "pass",
     "note": "the use flag is set on the run under way (see runFlags in the board)"
    },
    "twin": {
@@ -346,7 +357,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": -7.0923,
+    "runScore": -3.8791,
     "serverHold": {
      "holds": false,
      "need": 4,
@@ -358,7 +369,7 @@
      "need": 4,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "note": "the use flag is set on the run under way (see runFlags in the board)"
    }
   },
@@ -368,8 +379,10 @@
    "twinIs": "no Malandragem",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -385,7 +398,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -398,7 +415,7 @@
    "readers": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [
       0
@@ -410,7 +427,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.182,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -422,12 +439,12 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -439,17 +456,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -458,7 +475,9 @@
    "twinIs": "the flag unset",
    "live": [
     "runBypasses",
-    "serverHold"
+    "runScore",
+    "serverHold",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -474,7 +493,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -487,7 +510,7 @@
    "readers": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -499,22 +522,22 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [
       0
@@ -526,7 +549,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.182,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -538,7 +561,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -549,7 +572,8 @@
     "runBypasses",
     "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -563,7 +587,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -588,7 +616,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": -0.0907,
+    "runScore": 3.1226,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -600,7 +628,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -615,7 +643,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.9054,
     "serverHold": {
      "holds": true,
      "need": "Inf",
@@ -627,7 +655,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -636,10 +664,11 @@
    "twinIs": "a strength 3 ice",
    "live": [
     "iceCost",
-    "iceCreditNeed",
     "runBypasses",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -655,7 +684,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -678,7 +711,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.9054,
     "serverHold": {
      "holds": true,
      "need": "Inf",
@@ -690,12 +723,12 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [
       0
@@ -707,7 +740,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.182,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -719,7 +752,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -728,6 +761,7 @@
    "twinIs": "3 counters",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -746,7 +780,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -790,7 +828,7 @@
      "need": 9,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [
@@ -816,7 +854,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -6.4273,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -828,7 +866,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -837,6 +875,7 @@
    "twinIs": "2 counters",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -855,7 +894,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -889,7 +932,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -6.4273,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -901,7 +944,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [
@@ -937,7 +980,7 @@
      "need": 9,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -945,7 +988,9 @@
    "branch": "6 counters",
    "twinIs": "3 counters",
    "live": [
-    "runBypasses"
+    "runBypasses",
+    "runScore",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -962,7 +1007,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -997,7 +1046,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -3.7946,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -1009,7 +1058,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -1035,7 +1084,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -6.4273,
     "serverHold": {
      "holds": false,
      "need": 6,
@@ -1047,7 +1096,7 @@
      "need": 6,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1058,6 +1107,7 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1073,7 +1123,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1105,7 +1159,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -0.4237,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1117,7 +1171,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
@@ -1144,7 +1198,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1155,8 +1209,10 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -1170,7 +1226,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1205,7 +1265,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -1229,7 +1289,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -0.4237,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1241,7 +1301,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1250,8 +1310,10 @@
    "twinIs": "no Laser Pointer",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -1265,7 +1327,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1278,7 +1344,7 @@
    "readers": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [
       0
@@ -1290,7 +1356,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.182,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1302,12 +1368,12 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -1319,17 +1385,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1340,6 +1406,7 @@
     "iceCost",
     "iceCreditNeed",
     "runBypasses",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1355,7 +1422,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1380,7 +1451,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.0946,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1392,7 +1463,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -1419,7 +1490,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -1428,8 +1499,10 @@
    "twinIs": "no Laser Pointer",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -1443,7 +1516,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1468,7 +1545,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.1416,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1480,7 +1557,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -1495,7 +1572,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.9133,
     "serverHold": {
      "holds": false,
      "need": 3,
@@ -1507,7 +1584,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1516,10 +1593,11 @@
    "twinIs": "an AP ice",
    "live": [
     "iceCost",
-    "iceCreditNeed",
     "runBypasses",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -1533,7 +1611,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1556,7 +1638,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.5416,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -1568,12 +1650,12 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [
       0
@@ -1585,7 +1667,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.182,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1597,7 +1679,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -1606,6 +1688,7 @@
    "twinIs": "Corp 15 credits",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1621,7 +1704,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 14,
     "clicks": 4,
@@ -1656,7 +1743,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -1673,7 +1760,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -5.5879,
     "serverHold": {
      "holds": false,
      "need": 7.7079,
@@ -1685,7 +1772,7 @@
      "need": 7.7079,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -1694,6 +1781,7 @@
    "twinIs": "Corp 14 credits",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1709,7 +1797,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 15,
     "clicks": 4,
@@ -1734,7 +1826,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -5.5879,
     "serverHold": {
      "holds": false,
      "need": 7.7079,
@@ -1746,7 +1838,7 @@
      "need": 7.7079,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -1773,7 +1865,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -1784,6 +1876,7 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1801,7 +1894,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1838,7 +1935,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -3.0992,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1850,7 +1947,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
@@ -1877,7 +1974,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1888,6 +1985,7 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -1903,7 +2001,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -1938,7 +2040,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [
@@ -1967,7 +2069,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -3.0992,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -1979,7 +2081,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -1990,6 +2092,7 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -2007,7 +2110,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2039,7 +2146,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -3.285,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -2051,7 +2158,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2078,7 +2185,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2137,7 +2244,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2164,7 +2271,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2225,7 +2332,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2254,7 +2361,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2315,7 +2422,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2345,7 +2452,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2354,6 +2461,7 @@
    "twinIs": "without the 2 clicks after the run",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold"
    ],
    "reason": null,
@@ -2368,7 +2476,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2395,7 +2507,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.6063,
     "serverHold": {
      "holds": true,
      "need": "Inf",
@@ -2407,7 +2519,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2434,7 +2546,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2443,6 +2555,7 @@
    "twinIs": "with the clicks",
    "live": [
     "runBypasses",
+    "runScore",
     "serverHold"
    ],
    "reason": null,
@@ -2457,7 +2570,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 2,
@@ -2494,7 +2611,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -2511,7 +2628,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.6063,
     "serverHold": {
      "holds": true,
      "need": "Inf",
@@ -2523,7 +2640,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -2533,9 +2650,7 @@
    "live": [
     "breakPlans",
     "iceCost",
-    "iceCreditNeed",
-    "serverHold",
-    "serverHoldNextTurn"
+    "runScore"
    ],
    "reason": null,
    "board": {
@@ -2549,7 +2664,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2573,7 +2692,7 @@
      }
     ],
     "iceCost": 6,
-    "iceCreditNeed": 4,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2583,24 +2702,24 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -5.4435,
     "serverHold": {
      "holds": false,
-     "need": 4,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 4,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2612,17 +2731,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -2632,9 +2751,10 @@
    "live": [
     "breakPlans",
     "iceCost",
-    "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -2648,7 +2768,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2682,7 +2806,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.4388,
     "serverHold": {
      "holds": false,
      "need": 2,
@@ -2694,7 +2818,7 @@
      "need": 2,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -2710,7 +2834,7 @@
      }
     ],
     "iceCost": 6,
-    "iceCreditNeed": 4,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2720,19 +2844,19 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -5.4435,
     "serverHold": {
      "holds": false,
-     "need": 4,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 4,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -2742,9 +2866,8 @@
    "live": [
     "breakPlans",
     "iceCost",
-    "iceCreditNeed",
-    "serverHold",
-    "serverHoldNextTurn"
+    "runScore",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -2760,7 +2883,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2787,7 +2914,7 @@
      }
     ],
     "iceCost": 3.5,
-    "iceCreditNeed": 2,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2797,24 +2924,24 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.7603,
     "serverHold": {
      "holds": false,
-     "need": 2,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 2,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2826,17 +2953,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -2847,8 +2974,10 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -2864,7 +2993,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -2899,7 +3032,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [
@@ -2918,7 +3051,7 @@
      }
     ],
     "iceCost": 3.5,
-    "iceCreditNeed": 2,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -2928,19 +3061,19 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.7603,
     "serverHold": {
      "holds": false,
-     "need": 2,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 2,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3021,7 +3154,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -3048,7 +3181,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3114,7 +3247,7 @@
      "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [
@@ -3156,7 +3289,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3167,6 +3300,7 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -3188,7 +3322,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3222,7 +3360,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.636,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -3234,7 +3372,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -3261,7 +3399,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3272,8 +3410,10 @@
     "breakPlans",
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -3293,7 +3433,11 @@
       }
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3306,7 +3450,7 @@
    "readers": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3318,17 +3462,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [
@@ -3354,7 +3498,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -1.636,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -3366,7 +3510,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3374,14 +3518,19 @@
    "branch": "an ice it breaks",
    "twinIs": "no Slap Vandal",
    "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
     "server": "hq",
     "ice": [
-     "30047"
+     "30072"
     ],
     "rig": [
      {
@@ -3390,7 +3539,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3401,9 +3554,18 @@
    },
    "run": null,
    "readers": {
-    "breakPlans": [],
-    "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "breakPlans": [
+     {
+      "breaker": "34026",
+      "credits": 1,
+      "value": 0,
+      "boosts": 0,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 1,
+    "iceCreditNeed": 1,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3413,19 +3575,19 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.973,
     "serverHold": {
      "holds": false,
-     "need": 3,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 3,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -3452,7 +3614,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -3460,8 +3622,13 @@
    "branch": "an ice it does not break",
    "twinIs": "an ice it breaks",
    "live": [
+    "breakPlans",
+    "iceCost",
+    "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -3476,7 +3643,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3511,12 +3682,21 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
-    "breakPlans": [],
-    "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "breakPlans": [
+     {
+      "breaker": "34026",
+      "credits": 1,
+      "value": 0,
+      "boosts": 0,
+      "byAbility": false,
+      "spends": {}
+     }
+    ],
+    "iceCost": 1,
+    "iceCreditNeed": 1,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3526,19 +3706,19 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 0.973,
     "serverHold": {
      "holds": false,
-     "need": 3,
+     "need": 1,
      "budget": 13,
      "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 3,
+     "need": 1,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -3690,8 +3870,9 @@
    "branch": "hosted, 1 counter",
    "twinIs": "hosted, 0 counters",
    "live": [
-    "serverHold",
-    "serverHoldNextTurn"
+    "iceCost",
+    "runScore",
+    "serverHold"
    ],
    "reason": null,
    "board": {
@@ -3708,7 +3889,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3720,8 +3905,8 @@
    "run": null,
    "readers": {
     "breakPlans": [],
-    "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCost": 2.5,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3731,10 +3916,10 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -0.3718,
     "serverHold": {
      "holds": false,
-     "need": 2,
+     "need": 0,
      "budget": 13,
      "rez": null
     },
@@ -3743,12 +3928,12 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
     "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3760,17 +3945,17 @@
     },
     "runScore": "-Inf",
     "serverHold": {
-     "holds": true,
-     "need": "Inf",
+     "holds": false,
+     "need": 1,
      "budget": 13,
-     "rez": []
+     "rez": null
     },
     "serverHoldNextTurn": {
      "holds": false,
-     "need": 2,
+     "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -3779,8 +3964,8 @@
    "twinIs": "hosted, 1 counter",
    "live": [
     "iceCost",
-    "iceCreditNeed",
-    "serverHold"
+    "runScore",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -3797,7 +3982,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -3820,7 +4009,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 2.1282,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -3832,12 +4021,12 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
-    "iceCost": "Inf",
-    "iceCreditNeed": "Inf",
+    "iceCost": 2.5,
+    "iceCreditNeed": 0,
     "runBypasses": {
      "ice": [],
      "price": 0
@@ -3847,10 +4036,10 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -0.3718,
     "serverHold": {
      "holds": false,
-     "need": 2,
+     "need": 0,
      "budget": 13,
      "rez": null
     },
@@ -3859,7 +4048,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -3884,7 +4073,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 0,
     "clicks": 4,
@@ -3919,7 +4112,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "cannot rez"
    },
    "twin": {
     "breakPlans": [],
@@ -3946,7 +4139,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "cannot rez"
    }
   },
   {
@@ -4003,7 +4196,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INITIATE_RUN:rd",
@@ -4057,7 +4250,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Botulus@inst-63",
@@ -4143,7 +4336,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Botulus@inst-63",
@@ -4199,7 +4392,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Botulus@inst-64",
@@ -4291,7 +4484,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Botulus@inst-64",
@@ -4352,7 +4545,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Botulus@inst-63",
@@ -4438,7 +4631,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INITIATE_RUN:rd",
@@ -4492,7 +4685,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INITIATE_RUN:rd",
@@ -4578,7 +4771,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INITIATE_RUN:rd",
@@ -4634,7 +4827,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Tranquilizer@inst-63",
@@ -4726,7 +4919,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Tranquilizer@inst-63",
@@ -4787,7 +4980,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INITIATE_RUN:rd",
@@ -4826,8 +5019,10 @@
    "live": [
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -4842,7 +5037,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -4865,7 +5064,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.1163,
     "serverHold": {
      "holds": false,
      "need": 3,
@@ -4877,7 +5076,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
@@ -4904,7 +5103,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    }
   },
   {
@@ -4914,8 +5113,10 @@
    "live": [
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
-    "serverHoldNextTurn"
+    "serverHoldNextTurn",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -4930,7 +5131,11 @@
       "host": 0
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -4965,7 +5170,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -4980,7 +5185,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -2.1163,
     "serverHold": {
      "holds": false,
      "need": 3,
@@ -4992,7 +5197,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -5002,6 +5207,7 @@
    "live": [
     "iceCost",
     "iceCreditNeed",
+    "runScore",
     "serverHold",
     "serverHoldNextTurn"
    ],
@@ -5017,7 +5223,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -5040,7 +5250,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -4.5184,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5052,7 +5262,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    },
    "twin": {
     "breakPlans": [],
@@ -5079,7 +5289,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -5087,7 +5297,9 @@
    "branch": "rezzed, tagged",
    "twinIs": "untagged",
    "live": [
-    "iceCost"
+    "iceCost",
+    "runScore",
+    "corpRez"
    ],
    "reason": null,
    "board": {
@@ -5101,7 +5313,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -5124,7 +5340,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 1.6284,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5136,7 +5352,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "pass"
    },
    "twin": {
     "breakPlans": [],
@@ -5151,7 +5367,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": -4.5184,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5163,7 +5379,7 @@
      "need": 0,
      "budget": 13
     },
-    "corpRez": "no window"
+    "corpRez": "rez"
    }
   },
   {
@@ -5179,7 +5395,11 @@
     "server": "remote-1",
     "ice": [],
     "rig": [],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -5199,7 +5419,7 @@
      "cost": 3.467,
      "credits": 0
     },
-    "runScore": 2.0463,
+    "runScore": 18.3322,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5222,7 +5442,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 20.6809,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5250,7 +5470,11 @@
     "server": "remote-1",
     "ice": [],
     "rig": [],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 2,
@@ -5270,7 +5494,7 @@
      "cost": 7.1127,
      "credits": 5
     },
-    "runScore": -1.5994,
+    "runScore": 14.6865,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5293,7 +5517,7 @@
      "cost": 3.467,
      "credits": 0
     },
-    "runScore": 2.0463,
+    "runScore": 18.3322,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5322,7 +5546,11 @@
     "server": "remote-1",
     "ice": [],
     "rig": [],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 4,
     "corpCredits": 10,
     "clicks": 2,
@@ -5362,7 +5590,7 @@
      "cost": 7.1127,
      "credits": 5
     },
-    "runScore": -1.5994,
+    "runScore": 14.6865,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5381,6 +5609,7 @@
    "branch": "an advanced asset in a remote",
    "twinIs": "an ambush that is sprung by access (Urtica Cipher)",
    "live": [
+    "runScore",
     "isTrap"
    ],
    "reason": null,
@@ -5388,7 +5617,11 @@
     "server": "remote-1",
     "ice": [],
     "rig": [],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -5408,7 +5641,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 2.4998,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5616,7 +5849,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Mayfly",
@@ -5677,7 +5910,7 @@
      "need": "Inf",
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "pass",
     "rankMainActions": [
      {
       "a": "INSTALL_CARD:Mayfly",
@@ -5780,7 +6013,7 @@
      "need": 3,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "rez",
     "rankMainActions": [
      {
       "a": "PLAY_OPERATION_OR_EVENT:Jailbreak",
@@ -5847,7 +6080,7 @@
      "need": 4,
      "budget": 13
     },
-    "corpRez": "no window",
+    "corpRez": "rez",
     "rankMainActions": [
      {
       "a": "DRAW_CARD",
@@ -5880,6 +6113,7 @@
    "branch": "full (4 hosted)",
    "twinIs": "3 hosted",
    "live": [
+    "runScore",
     "rankMainActions",
     "readWriteFullShuffle"
    ],
@@ -5893,7 +6127,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -5913,7 +6151,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 1.947,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5927,27 +6165,35 @@
     },
     "rankMainActions": [
      {
-      "a": "DRAW_CARD",
-      "score": 1.0638
-     },
-     {
-      "a": "GAIN_CREDIT",
-      "score": -0.8416
-     },
-     {
-      "a": "USE_ABILITY:Read-Write Share#0",
-      "score": "-Inf"
-     },
-     {
       "a": "INITIATE_RUN:hq",
-      "score": "-Inf"
+      "score": 1.947
      },
      {
       "a": "INITIATE_RUN:rd",
-      "score": "-Inf"
+      "score": 1.947
      },
      {
-      "a": "INITIATE_RUN:archives",
+      "a": "DRAW_CARD",
+      "score": -0.1362
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.5726
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
       "score": "-Inf"
      }
     ],
@@ -5963,7 +6209,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 2.0564,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -5977,27 +6223,35 @@
     },
     "rankMainActions": [
      {
-      "a": "DRAW_CARD",
-      "score": 1.0583
-     },
-     {
-      "a": "GAIN_CREDIT",
-      "score": -0.8479
-     },
-     {
-      "a": "USE_ABILITY:Read-Write Share#0",
-      "score": "-Inf"
+      "a": "INITIATE_RUN:rd",
+      "score": 2.0564
      },
      {
       "a": "INITIATE_RUN:hq",
-      "score": "-Inf"
+      "score": 2.0564
      },
      {
-      "a": "INITIATE_RUN:rd",
-      "score": "-Inf"
+      "a": "DRAW_CARD",
+      "score": -0.1417
      },
      {
-      "a": "INITIATE_RUN:archives",
+      "a": "GAIN_CREDIT",
+      "score": -0.5707
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
       "score": "-Inf"
      }
     ],
@@ -6009,6 +6263,7 @@
    "branch": "partial (3 hosted)",
    "twinIs": "4 hosted",
    "live": [
+    "runScore",
     "rankMainActions",
     "readWriteFullShuffle"
    ],
@@ -6022,7 +6277,11 @@
       "tokens": {}
      }
     ],
-    "grip": [],
+    "grip": [
+     "30021",
+     "30021",
+     "30021"
+    ],
     "runnerCredits": 10,
     "corpCredits": 10,
     "clicks": 4,
@@ -6042,7 +6301,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 2.0564,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -6056,27 +6315,35 @@
     },
     "rankMainActions": [
      {
-      "a": "DRAW_CARD",
-      "score": 1.0583
-     },
-     {
-      "a": "GAIN_CREDIT",
-      "score": -0.8479
-     },
-     {
-      "a": "USE_ABILITY:Read-Write Share#0",
-      "score": "-Inf"
+      "a": "INITIATE_RUN:rd",
+      "score": 2.0564
      },
      {
       "a": "INITIATE_RUN:hq",
-      "score": "-Inf"
+      "score": 2.0564
      },
      {
-      "a": "INITIATE_RUN:rd",
-      "score": "-Inf"
+      "a": "DRAW_CARD",
+      "score": -0.1417
      },
      {
-      "a": "INITIATE_RUN:archives",
+      "a": "GAIN_CREDIT",
+      "score": -0.5707
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2486
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
       "score": "-Inf"
      }
     ],
@@ -6092,7 +6359,7 @@
      "cost": 0,
      "credits": 0
     },
-    "runScore": "-Inf",
+    "runScore": 1.947,
     "serverHold": {
      "holds": false,
      "need": 0,
@@ -6106,27 +6373,35 @@
     },
     "rankMainActions": [
      {
-      "a": "DRAW_CARD",
-      "score": 1.0638
-     },
-     {
-      "a": "GAIN_CREDIT",
-      "score": -0.8416
-     },
-     {
-      "a": "USE_ABILITY:Read-Write Share#0",
-      "score": "-Inf"
-     },
-     {
       "a": "INITIATE_RUN:hq",
-      "score": "-Inf"
+      "score": 1.947
      },
      {
       "a": "INITIATE_RUN:rd",
-      "score": "-Inf"
+      "score": 1.947
      },
      {
-      "a": "INITIATE_RUN:archives",
+      "a": "DRAW_CARD",
+      "score": -0.1362
+     },
+     {
+      "a": "GAIN_CREDIT",
+      "score": -0.5726
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "PLAY_OPERATION_OR_EVENT:VRcation",
+      "score": -1.2362
+     },
+     {
+      "a": "USE_ABILITY:Read-Write Share#0",
       "score": "-Inf"
      }
     ],

@@ -135,6 +135,7 @@ interface Built {
   ice: string[];
   rig: string[];
 }
+const FILLER = '30021'; // VRcation
 function build(spec: Spec): Built {
   const s = structuredClone(newGame(1)); // a clone, edited before any legality call (the pins' rule)
   startRunnerTurn(s);
@@ -192,7 +193,9 @@ function build(spec: Spec): Built {
     s.runner.rig.resources.push(c);
     rig.push(c.instanceId);
   }
-  for (const g of spec.grip ?? []) s.runner.grip.push(createCardInstance(s, g));
+  // A grip of three VRcation (no money, no run) unless the board names its grip: with an empty grip runScore prices the
+  // flatline risk and reads every server as not worth a run (-Infinity), so its price part is never reached
+  for (const g of spec.grip ?? [FILLER, FILLER, FILLER]) s.runner.grip.push(createCardInstance(s, g));
   return { s, server, ice, rig };
 }
 
@@ -228,17 +231,28 @@ function corpRez(b: Built, k: number): string {
     // Only the outermost ice is approached first (6.9.2): move it outermost on this copy
     sv.ice = [...sv.ice.filter(c => c !== ice), ice];
     s.runsThisTurn = [];
+    // A fresh run on this copy (a board built with a run under way is asked as the run's own start)
+    s.activeRun = null;
+    if (s.runner.clicks < 1) s.runner.clicks = 1;
     let st = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: b.server });
     const agent: any = createAgent('corp', 'normal');
+    // Driven as GameRunner drives a run (src/ai/playout.ts step): the Runner moves on, the Corp is asked in its rez window
     for (let n = 0; n < 12; n++) {
       const w = st.priority;
-      if (w && w.holder === 'corp' && st.pendingPrompts.length === 0 && w.step === 'approach_ice' && wantsStop(st, 'corp', w)) {
+      if (!st.activeRun || st.activeRun.encounter || st.pendingPrompts.length) return 'no window';
+      if (w && w.holder === 'corp' && w.step === 'approach_ice') {
+        if (!wantsStop(st, 'corp', w)) return 'not asked (no stop)';
         clear();
-        const pick = agent.chooseRez(st, rezCandidates(st, 'approach_ice'));
+        const cands = rezCandidates(st, 'approach_ice');
+        if (!cands.some(c => c.instanceId === ice.instanceId)) return 'cannot rez';
+        const pick = agent.chooseRez(st, cands);
         return pick && pick.type === 'REZ_CARD' ? 'rez' : 'pass';
       }
-      if (st.activeRun?.encounter || !st.activeRun) return 'no window';
-      st = cont(st);
+      const side = w?.holder ?? 'runner';
+      const legal = getLegalActions(st, side);
+      const go = legal.find(a => a.type === 'CONTINUE_RUN') ?? legal.find(a => a.type === 'PASS');
+      if (!go) return 'no window';
+      st = executeAction(st, go);
     }
     return 'no window';
   } catch (e) {
@@ -430,7 +444,7 @@ for (const [code, name, breaks, not, o] of [
   [C.HANTU, 'Hantu', C.KARUNA, C.SLEIPNIR, { programs: [{ code: C.HANTU, tokens: { virus: 2 } }] }],
   [C.AUDREY, 'Audrey v2', C.KARUNA, C.PHAROS, { programs: [{ code: C.AUDREY, tokens: { virus: 1 } }], grip: [C.SLEIPNIR] }],
   [C.CORSAIR, 'Corsair', C.CAPACITOR, C.KARUNA, { hardware: [{ code: C.TOUCHSTONE, tokens: { credit: 2 } }] }],
-  [C.SLAP, 'Slap Vandal', C.KARUNA, C.KESSLEROID, { programs: [{ code: C.SLAP, host: 0 }] }],
+  [C.SLAP, 'Slap Vandal', C.PALISADE, C.KESSLEROID, { programs: [{ code: C.SLAP, host: 0 }] }],
 ] as [string, string, string, string, Spec][]) {
   add({ case: name, branch: 'an ice it breaks', spec: brk(code, breaks, o), twin: without(brk(code, breaks, o), code), twinIs: `no ${name}` });
   add({ case: name, branch: 'an ice it does not break', spec: brk(code, not, o), twin: brk(code, breaks, o), twinIs: 'an ice it breaks' });
