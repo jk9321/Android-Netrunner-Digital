@@ -83,6 +83,7 @@ function ownerTerm(s: GameState, code: string, host: any): number | null {
 /** Row 5: the install action's own score for `cardId` on its best host, at the card-choice board (built as the header says). */
 function actionScore(b: GameState, cardId: string, memory: Map<string, string>): Record<string, unknown> {
   if (b.activeRun) return { why: 'during a run' };
+  if (b.activePlayer !== 'runner') return { why: "the Corp's turn" };
   const board: GameState = structuredClone(b);
   board.pendingPrompts = [];
   board.runner.clicks = Math.max(1, board.runner.clicks);
