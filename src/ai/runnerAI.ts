@@ -11,14 +11,16 @@ import { asSide, logNudge, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
 import { runnerUnknownSlots } from './runnerReply';
-import { BOTULUS, RunnerMemory, chainReactionBonus, planCost, TRANQUILIZER, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost, tankDamage } from './runs';
+import { RunnerMemory, chainReactionBonus, planCost, MANEGARM, bestBreakPlan, botulusBreaks, runCreditSpend, hostedTrojans, creditsAhead, iceCreditsAhead, iceCost, iceCreditNeed, needsBiggerHand, runScore, runShortfall, serverValue, spendCost, subroutineCost, tankDamage } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
+import { CARDS } from './cards';
 
 // Read when called, not built at load: under the batch entry's import order (scripts/corp-losses.ts imports threatModel
-// first) this module loads inside runs.ts's import cycle, before runs.ts has set BOTULUS and TRANQUILIZER, and a list
-// built here held [undefined, undefined] (ai-trojans-load; tests/trojansLoad.test.ts)
-const isTrojan = (code: string) => code === BOTULUS || code === TRANQUILIZER;
+// first) this module loads inside runs.ts's import cycle, before the card entries are set, and a list built here held
+// [undefined, undefined] (ai-trojans-load; tests/trojansLoad.test.ts). The trojans trojanHostValue prices are the entries
+// with runFacts.trojan (Botulus, Tranquilizer; R-A A-move)
+const isTrojan = (code: string) => !!CARDS[code]?.runFacts?.trojan;
 
 /**
  * Rule-based Runner: builds economy, installs icebreakers for the ice
@@ -129,7 +131,11 @@ export class HeuristicRunnerAI implements Agent {
 
     // Botulus: its counters only break this ice's subroutines, and cost nothing
     if (botulusBreaks(state, ice) > 0) {
-      const botulus = hostedTrojans(state, ice, BOTULUS).find(c => counters(c, 'virus') > 0)!;
+      // The hosted program whose entry's holdFacts.breaksHostSubroutine counter it holds (the walk reads the same field)
+      const botulus = state.runner.rig.programs.find(c => {
+        const breaks = c.hostedOnId === ice.instanceId ? CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine : undefined;
+        return !!breaks && counters(c, breaks.counter) > 0;
+      })!;
       const use = legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === botulus.instanceId);
       if (use) return use;
     }
@@ -315,7 +321,8 @@ export class HeuristicRunnerAI implements Agent {
     if (prompt?.kind === 'effect_choice' && prompt.side === 'runner' && prompt.options.every(o => after.corp.servers[o.id])) {
       const options = { ...runEventOptions(prompt.source.cardCode, state), memory: this.memory, wary: this.synergy && tuning.wary };
       const best = Math.max(...prompt.options.map(o => runScore(view, o.id, options)));
-      return best - spendCost(state, paid) + (prompt.source.cardCode === '30028' ? RATES.drawnCard : 0); // Jailbreak draws a card
+      // Jailbreak draws a card if successful (its run entry's successDraws, priced here at RATES.drawnCard)
+      return best - spendCost(state, paid) + (options.successDraws ? options.successDraws * RATES.drawnCard : 0);
     }
     // Window of Opportunity (plan.bypass): its install first (worth what the board gains, with no click), then its run
     if (cardCode === WINDOW_OF_OPPORTUNITY && plan().bypass && prompt?.side === 'runner' && !state.activeRun) {
@@ -380,7 +387,8 @@ export class HeuristicRunnerAI implements Agent {
 export function trojanHostValue(state: GameState, code: string, host: CardInstance): number {
   const value = 1 + 0.15 * Math.min(iceStop(state), iceCost(state, host));
   const doubled = hostedTrojans(state, host, code).length;
-  return code === TRANQUILIZER ? value - 3 * doubled : value - 1.5 * doubled;
+  // What a second copy does is its entry's (runFacts.trojan.second); -3 and -1.5 are prices
+  return CARDS[code]?.runFacts?.trojan?.second === 'idle' ? value - 3 * doubled : value - 1.5 * doubled;
 }
 
 /**

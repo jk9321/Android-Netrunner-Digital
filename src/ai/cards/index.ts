@@ -9,7 +9,7 @@ import { SYSTEM_GATEWAY } from './systemGateway';
 import type { CardAI, CorpEffectContext, CounterType, CounterWorth } from './types';
 import { VANTAGE_POINT } from './vantagePoint';
 
-export type { CardAI, CorpEffectContext, CounterType, CounterWorth } from './types';
+export type { CardAI, CorpEffectContext, CounterType, CounterWorth, RunFacts } from './types';
 
 /**
  * The AI's card knowledge, one entry per card, one file per set (2026-11-03).

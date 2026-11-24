@@ -62,7 +62,10 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30004': {
     synergy: { gives: { virus: 1, breakers: 0.5 } },
     // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1); "Hosted virus counter: Break 1 subroutine on host ice."
+    // breaksHostSubroutine is read by both sides (R-A A-move): the walk, and the Runner's botulusBreaks and encounter (runs.ts, runnerAI.ts)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } },
+    // A second Botulus on the same host adds its own counters (runnerAI.ts trojanHostValue prices it)
+    runFacts: { trojan: { second: 'adds' } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
@@ -160,7 +163,10 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30017': {
     synergy: { gives: { virus: 1 } },
     // "When your turn begins, place 1 virus counter ... Then, if there are 3 or more hosted virus counters, derez host ice"
+    // Corp-only (the walk): the Runner's price holds no copy of the derez (A-log L3, a B5 item)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } },
+    // A second Tranquilizer on the same host does nothing the first doesn't: each derezzes at its own 3 counters (trojanHostValue)
+    runFacts: { trojan: { second: 'idle' } },
     value: { rig: 2.5 },
     // A virus counter a turn; 3 derez its host
     runner: (state, _code, card) => perTurn(state, card ? counterWorth(state, card, 'virus') : 1, 'runner', 0, 3, virusWait()),
@@ -241,9 +247,9 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Jailbreak
   '30028': {
     synergy: { gives: { runs: 1, hq: 1, rd: 1, draw: 0.5 } },
-    // Jailbreak
+    // Jailbreak: "If successful, draw 1 card and ... access 1 additional card" (the draw priced by runnerAI.ts scoreMain only)
     run: (): RunOptions => {
-      return { extraAccesses: 1 };
+      return { extraAccesses: 1, successDraws: 1 };
     },
   },
   // Overclock
@@ -264,7 +270,8 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     runner: state => muWorth(state) + cardRate(state, 'runner') * 0.6,
   },
   // Mayfly
-  '30032': { synergy: { gives: { breakers: 0.5 } } },
+  // "When this run ends, trash this program." (runs.ts breakPlans prices the trash)
+  '30032': { synergy: { gives: { breakers: 0.5 } }, runFacts: { breaker: { trashedWhenRunEnds: true } } },
   // Smartware Distributor
   '30033': {
     turnIncome: { credits: 1, hosted: true }, // when your turn begins, take 1 from it,
@@ -389,6 +396,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   '30054': {
     synergy: { gives: { ice: 1, tags: 1, denial: 0.5 } },
     // "When the Runner encounters this ice, end the run unless the Runner takes 1 tag" (6.9.3a)
+    // Read by both sides (R-A A-move): the walk, and the Runner's plainIcePrice (it takes the tag)
     holdFacts: { encounter: { toll: { endRun: true }, unless: { tags: 1 } } },
   },
   // Ping

@@ -158,6 +158,8 @@ export const ELEVATION: Record<string, CardAI> = {
   '35008': {
     synergy: { gives: { breakers: 1, virus: 1 } },
     counters: { virus: () => 1 }, // +2 strength for a boost
+    // "Hosted virus counter: +2 strength."
+    runFacts: { breaker: { boostPerCounter: { kind: 'virus', strength: 2 } } },
     counterFormulas: { virus: hantuVirus },
   },
   // Rising Tide
@@ -238,6 +240,8 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 2 }, // Taxes every rez
     // Each rez costs the Corp a credit more; bypass an ice once the Corp is rich
     runner: state => perTurn(state, PACE.rezzes, 'runner') + (state.corp.credits >= 15 ? 3 : 0.5),
+    // "Whenever you encounter a piece of ice, if the Corp has 15 credits or more, you may trash this resource to bypass that ice."
+    runFacts: { bypass: [{ when: { corpCreditsAtLeast: 15 }, cost: { trashed: true } }] },
   },
   // Open Market
   '35022': {
@@ -482,6 +486,8 @@ export const ELEVATION: Record<string, CardAI> = {
   // Idiosyncresis
   '35061': {
     synergy: { gives: { econ: 1, denial: 1.5 }, wants: { advance: 1 } },
+    // Hostile, but it does nothing when accessed or left: not a trap (runs.ts isTrap, read by both sides)
+    runFacts: { hostileNotTrap: true },
     value: { keep: 2.5 }, // 3 credits for the Corp and -2 for the Runner per counter
     placedCounter: () => 0.6 * 5, // A placed counter
     // Each advancement is 3 credits to the Corp and 2 off the Runner, for a click and a credit
@@ -511,7 +517,12 @@ export const ELEVATION: Record<string, CardAI> = {
   // Touch-ups
   '35067': { synergy: { gives: { advance: 2 } }, setup: true },
   // BANGUN
-  '35068': { corpTurnDamage: 0 /* plan.corpTurnDamageOwn: on access to a faceup agenda only */, synergy: { gives: { damage: 1, tags: 0.5 } } },
+  // "Whenever the Runner accesses a faceup installed agenda, do 2 meat damage and give the Runner 1 tag." (runs.ts serverWorth)
+  '35068': {
+    corpTurnDamage: 0 /* plan.corpTurnDamageOwn: on access to a faceup agenda only */,
+    synergy: { gives: { damage: 1, tags: 0.5 } },
+    runFacts: { faceupAgendaAccess: { meatDamage: 2, tags: 1 } },
+  },
   // The Zwicky Group
   '35069': { synergy: { wants: { operations: 1.5 } } },
   // Greenmail
