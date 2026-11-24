@@ -5,7 +5,8 @@
  *   branch   this checkout's src (ai-runner-core);
  *   control  the base's src again: the time arm, and a check that the base is reproducible (base against base).
  * Every tree gets the same hooks (core-hooks.ts HOOKS: call-site records in files B1 does not change). FAULT=<name>
- * adds one planted fault (core-faults.ts, bar 2) to the branch tree only.
+ * adds one planted fault (core-faults.ts, bar 2) to the branch tree only; FAULT=a,b,... gives shard s the fault s % n (none =
+ * no fault), each fault over every source, and labels every line with its fault.
  *
  * At every top-level step the three trees must agree on each COLUMN (count and FNV hash of its records in that step):
  *   pick    the top-level action (both sides; GameRunner 'step' records of the top scope)
@@ -31,6 +32,7 @@
  *
  *   SHARD=0/64 npx vite-node scripts/runner-rework/core-lockstep.ts -- POOL=batch,nrdb,human
  *   ARGS="POOL=batch DEALS=1001 MAX_STEPS=300" npx vite-node scripts/runner-rework/core-lockstep.ts
+ *   ARGS="POOL=human DEALS=report-21 FAULT=offTurnHolder" npx vite-node scripts/runner-rework/core-lockstep.ts (DEALS names human files too)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
@@ -54,12 +56,16 @@ const POOLS = (process.env.POOL ?? 'batch,nrdb,human').split(',');
 const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const MAX_STEPS = Number(process.env.MAX_STEPS ?? 4000);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity); // local trial: stop after this long
-const FAULT = process.env.FAULT ?? '';
+// FAULT=a,b,...: one fault per shard, in turn (shard % n), each over every source with the shards that carry it
+// ('none' = no fault: the bar's own leg in the same run)
+const FAULT_LIST = (process.env.FAULT ?? '').split(',').filter(Boolean);
+const FAULT = FAULT_LIST.length ? FAULT_LIST[shard % FAULT_LIST.length].replace(/^none$/, '') : '';
+const [sub, subs] = FAULT_LIST.length > 1 ? [Math.floor(shard / FAULT_LIST.length), Math.floor(shards / FAULT_LIST.length)] : [shard, shards];
 const SEED = Number(process.env.SEED ?? 12345);
 const SAMPLES = Number(process.env.SAMPLES ?? 3);
 const HARD_DEALS = Number(process.env.HARD_DEALS ?? 10);
 const ORACLE_DEALS = Number(process.env.ORACLE_DEALS ?? 4);
-const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
+const out = (x: Record<string, unknown>) => console.log(JSON.stringify(FAULT_LIST.length ? { fault: FAULT || 'none', ...x } : x));
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
@@ -348,11 +354,11 @@ async function main() {
     else if (pool === 'oracle') for (const r of pick(batch).slice(0, ORACLE_DEALS)) sources.push({ pool, id: r });
     else if (pool === 'human') {
       const dir = 'tests/fixtures/human-games';
-      for (const f of readdirSync(dir).filter(f => f.endsWith('.json')).sort()) sources.push({ pool, id: join(dir, f) });
+      for (const f of readdirSync(dir).filter(f => f.endsWith('.json') && (!DEALS.length || DEALS.includes(f.slice(0, -5)))).sort()) sources.push({ pool, id: join(dir, f) });
     } else throw new Error(`unknown pool ${pool}`);
   }
   for (const [k, src] of sources.entries()) {
-    if (k % shards !== shard) continue;
+    if (sub >= subs || k % subs !== sub) continue;
     if (Date.now() - started > MAX_MS) break;
     try {
       if (src.pool === 'human') human(src.id);
