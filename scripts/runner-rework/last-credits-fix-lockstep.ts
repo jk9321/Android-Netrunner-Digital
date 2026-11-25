@@ -48,6 +48,8 @@ const LIMIT = Number(process.env.LIMIT ?? Infinity);
 const MAX_STEPS = Number(process.env.MAX_STEPS ?? 6000);
 const PICKS = process.env.PICKS === '1';
 const BRANCH_SRC = process.env.BRANCH_SRC ?? 'src';
+/** BRANCH_REF=<sha>: the branch tree's src from that commit (git archive), so a later script can pair an older SHA. */
+const BRANCH_REF = process.env.BRANCH_REF ?? '';
 const DRAFT = (process.env.DRAFT ?? '').split(',').filter(Boolean);
 const FAULT_LIST = (process.env.FAULT ?? '').split(',').filter(Boolean);
 const FAULT = FAULT_LIST.length ? FAULT_LIST[shard % FAULT_LIST.length].replace(/^none$/, '') : '';
@@ -95,10 +97,12 @@ function makeTrees(): Record<Name, string> {
   for (let tries = 0; ; tries++) {
     try {
       execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
+      if (BRANCH_REF) execSync(`git cat-file -e ${BRANCH_REF}^{commit}`, { stdio: 'ignore' });
       break;
     } catch {
       try {
         execSync(`git fetch --depth 1 origin ${BASE}`, { stdio: 'ignore' });
+        if (BRANCH_REF) execSync(`git fetch --depth 1 origin ${BRANCH_REF}`, { stdio: 'ignore' });
       } catch (e) {
         if (tries >= 8) throw e;
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
@@ -111,7 +115,8 @@ function makeTrees(): Record<Name, string> {
   for (const name of NAMES) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
-    if (name === 'branch') cpSync(BRANCH_SRC, join(dir, 'src'), { recursive: true });
+    if (name === 'branch' && BRANCH_REF) execSync(`git archive ${BRANCH_REF} src | tar -x -C ${dir}`);
+    else if (name === 'branch') cpSync(BRANCH_SRC, join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     if (name === 'branch' && DRAFT.length) execSync(`python3 scripts/runner-rework/last-credits-fix-draft.py ${DRAFT[0]} ${DRAFT[1]} ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
