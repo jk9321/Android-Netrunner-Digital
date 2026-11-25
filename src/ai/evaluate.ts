@@ -360,6 +360,7 @@ export function corpBoardValue(state: GameState, viewer: SideCode): number {
  * and 2 credits, rule 4.4.1) or a card to a tag punisher (Retribution) the
  * Corp holds, as far as `viewer` knows. The Runner clears a tag for a click
  * and 2 credits when keeping it costs more, so tags are worth the cheaper. Owner of a tag, both views (registry).
+ * Enters evaluate once (the Runner's strength); no other reader discounts a Runner card for a tag (F108, 2026-11-25).
  */
 export function tagsWorth(state: GameState, viewer: SideCode, count?: number, memoHome?: GameState): number {
   // Tags the Runner has now, or a count priced as if given (an ice subroutine, an operation)
@@ -484,7 +485,7 @@ export function sideStrength(state: GameState, side: SideCode, viewer: SideCode 
       handAndClicks(state, 'corp', viewer) +
       pointValue(corp.score, viewer === 'corp' ? KNOBS.corpPoints : 1) +
       corpBoardValue(state, viewer) +
-      tagsWorth(state, viewer) +
+      // No tag line: the Runner's side holds the clock, once (F108, 2026-11-25; a Corp line read each tag twice in evaluate)
       // Dividends and Next Big Thing counters, AU Co. power counters
       corp.scoreArea.reduce((n, a) => n + countersWorth(state, a, 'agenda'), 0) +
       countersWorth(state, corp.identity, 'power')

@@ -22,7 +22,6 @@ export const PAYOUT_RISK = {
    */
   moneyIced: 0.078,
   moneyBare: 0.268,
-  /** A Runner resource: trashed by the Corp only while the Runner is tagged. */
-  runnerTagged: 0.25,
+  /** A Runner card, tagged or not (the tagged 0.25 deleted, F108 2026-11-25: a tag's loss is the tag clock's, tagsWorth). */
   runnerUntagged: 0.02,
 };

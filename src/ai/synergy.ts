@@ -91,11 +91,6 @@ export const tuning = {
     tagTrashNow: true,
     /** The cards from HQ that trashing a resource also costs (Sebastião, Manuel at threat 3) are priced as the Corp's least useful ones, not the flat worth of a card in hand. */
     hqTrashCost: true,
-    /**
-     * The Corp deciding prices a tagged Runner's resources without the risk of its own trash action (PAYOUT_RISK.runnerTagged):
-     * that risk is the Corp's choice, already in the tag clock, so it made keeping the tag look as good as trashing.
-     */
-    ownTrashRisk: true,
     /** Runner: bypass (rules 6.5.8) is priced: S-Dobrado and Window of Opportunity runs skip their ice, bypass cards in the rig cut ice costs, and "bypass this ice?" prompts weigh the encounter they skip (runs runBypasses, prompts). */
     bypass: true,
     /**
@@ -370,7 +365,7 @@ export const tuning = {
  */
 export const sideOff: Record<SideCode, string[]> = {
   corp: [],
-  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'ownTrashRisk', 'hqTrashCost', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'oracle'],
+  runner: ['scoreNow', 'scoreInTwo', 'tagTrashNow', 'hqTrashCost', 'iceProtects', 'replyContenders', 'clearinghouseRez', 'ownIceKnown', 'oracle'],
 };
 
 /**
@@ -420,6 +415,8 @@ export const FOLDED: readonly string[] = [
   // Stage D item 1 branch 2 (ai-hold-walk, brief 5.7): the hold count's walk and its commits' temporary switches; the
   // count as on beta (iceCreditNeed summed per rez set) and keepFor's own sum were deleted with them
   'holdWalk', 'holdWalkTags', 'holdWalkCredits', 'holdWalkSequence', 'holdWalkTolls',
+  // 2026-11-25, F108: the tagged risk it switched off for the deciding Corp is deleted for both sides
+  'ownTrashRisk',
 ];
 
 /**

@@ -28,6 +28,11 @@
  *
  *   SHARD=0/64 MODE=count POOL=batch,nrdb,people,issue58,old150 npx vite-node scripts/tag-owner/count.ts
  *   SHARD=0/64 MODE=legs POOL=batch,nrdb SEEDS=2 MIRROR_P=0.05 npx vite-node scripts/tag-owner/count.ts
+ *
+ * On the build branch (ai-tag-owner, brief-build.md rev 1 bar 3): ARM_BASE=<the merge base's full SHA> builds every
+ * patched arm from that commit's src (trees.ts armSource); `source` and the `branch` arm are the checkout's src, so the
+ * source games are the branch's and Part A prices each tag under the branch beside ownerOnce5 on the same boards.
+ *   ARGS="MODE=count POOL=batch,nrdb ARM_BASE=<sha>"
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -335,7 +340,7 @@ type Tally = Record<string, number>;
 const inc = (t: Tally, k: string, n = 1) => void (t[k] = (t[k] ?? 0) + n);
 const PICKS: (Arm | 'ctl')[] = [...ARMS, 'ctl'];
 const treeOf = (a: Arm | 'ctl'): T => (a === 'ctl' ? A.base : A[a]);
-const ONCE: Record<Arm, boolean> = { base: false, once: true, resOnly: false, resOnlyOnce: true, owner: false, ownerOnce: true };
+const ONCE: Record<Arm, boolean> = { base: false, once: true, resOnly: false, resOnlyOnce: true, owner: false, ownerOnce: true, ownerOnce5: true, branch: true };
 
 function kindOf(s: GameState, method: Method): string {
   if (method === 'chooseRez') return 'rez';
@@ -949,7 +954,7 @@ function fieldsOf(agent: any): any {
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
   const names: TreeName[] = MODE === 'legs' ? ['source', 'legs', 'base', 'owner'] : ['source', ...ARMS, 'noWait', 'noPerTurn'];
-  const dirs = makeTrees(root, names);
+  const dirs = makeTrees(root, names, shard);
   S = await loadTree('source', dirs.source);
   for (const n of names.slice(1)) (A as any)[n] = await loadTree(n, dirs[n]);
   const started = Date.now();

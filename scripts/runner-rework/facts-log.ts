@@ -883,15 +883,9 @@ class Watch {
     const tags =
       (asRunner(after, () => T.evaluate.tagsWorth(structuredClone(after), 'runner')) as number) -
       (asRunner(untagged, () => T.evaluate.tagsWorth(structuredClone(untagged), 'runner')) as number);
-    const risk = T.payoutRisk.PAYOUT_RISK;
-    const saved = risk.runnerTagged;
-    let flat: number;
-    try {
-      risk.runnerTagged = risk.runnerUntagged;
-      flat = ev(after) - ev(untagged);
-    } finally {
-      risk.runnerTagged = saved;
-    }
+    // F108 (2026-11-25): PAYOUT_RISK.runnerTagged is deleted (a Runner card is at the untagged rate, tagged or not), so the
+    // change with the tagged rate set to the untagged one is the change as it is
+    const flat = ev(after) - ev(untagged);
     let keep: number | null = null;
     try {
       keep = ev(after) - ev(T.core.executeAction(structuredClone(s), { type: 'RESOLVE_PROMPT', player: 'runner', promptId: p.id, choice: { kind: 'access_trash', trash: false } }));

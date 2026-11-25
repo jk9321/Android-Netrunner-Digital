@@ -11,9 +11,11 @@
  *
  *   npx vite-node scripts/tag-owner/probe.ts                       (a) and (b) on #58
  *   MODE=pool POOL=batch SHARD=0/4 npx vite-node scripts/tag-owner/probe.ts   (b) on the pool's tag-taking boards
+ *   ARM_BASE=<sha> PLAY=base PROBE_ARMS=base,ownerOnce,ownerOnce5,branch npx vite-node scripts/tag-owner/probe.ts
+ *     (build brief step 0.2: #58 played on by the base tree, so the boards are the count's, under the four trees)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { readFileSync } from 'node:fs';
+import { cpSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { CardInstance, GameAction, GameState } from '../../src/core';
 import { ALL_DECKS } from '../nsg-sample-decks';
@@ -78,8 +80,11 @@ async function loadTree(dir: string): Promise<T> {
     },
   };
 }
-const ARMS = ['base', 'ownerOnce'] as const;
-type Arm = (typeof ARMS)[number];
+// The arms asked (build brief bar 0.2: PROBE_ARMS=base,ownerOnce,ownerOnce5,branch with ARM_BASE set, trees.ts)
+const ARMS = (process.env.PROBE_ARMS ?? 'base,ownerOnce').split(',') as Arm[];
+type Arm = 'base' | 'ownerOnce' | 'ownerOnce5' | 'branch';
+/** The tree that plays #58 on from T3: `source` (this checkout) or `base` (the arms' base src, so the boards are the count's). */
+const PLAY = (process.env.PLAY ?? 'source') as 'source' | 'base';
 let S: T;
 const A = {} as Record<Arm, T>;
 const titleOf = (code: string) => {
@@ -268,9 +273,11 @@ function poolDeal(pool: string, rec: any) {
 }
 
 async function main() {
-  const dirs = makeTrees(root, ['source', ...ARMS]);
-  S = await loadTree(dirs.source);
+  const dirs = makeTrees(root, [...new Set(['source', 'base', ...ARMS] as const)], shard);
   for (const a of ARMS) A[a] = await loadTree(dirs[a]);
+  // The playing tree is its own copy (its caches are never cleared by an arm's asking)
+  if (PLAY === 'base') cpSync(dirs.base, join(root, 'play'), { recursive: true });
+  S = await loadTree(PLAY === 'base' ? join(root, 'play') : dirs.source);
   if (MODE === 'issue58') return issue58();
   const sources: { pool: string; rec: any }[] = [];
   for (const pool of POOLS) for (const r of JSON.parse(readFileSync(`scripts/tag-owner/deals-${RUNS[pool]}.json`, 'utf8'))) if (!DEALS.length || DEALS.includes(String(r.seed))) sources.push({ pool, rec: r });
