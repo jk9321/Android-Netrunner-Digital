@@ -559,7 +559,10 @@ async function main() {
     flush();
     pool = 'people';
     AUDIT = false;
-    const files = readdirSync('tests/fixtures/human-games').filter(f => f.endsWith('.json')).sort();
+    const files = readdirSync('tests/fixtures/human-games')
+      .filter(f => f.endsWith('.json'))
+      .filter(f => !DEALS.length || DEALS.includes(`people:${f.replace('.json', '')}`))
+      .sort();
     for (const [k, f] of files.entries()) {
       if (k % SLICE !== SLICE_K) continue;
       if (Date.now() - started > MAX_MS) {
