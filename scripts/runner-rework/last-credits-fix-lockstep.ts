@@ -237,7 +237,9 @@ function deal(pool: string, d: Deal) {
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const side of ['corp', 'runner'] as const) ms[n][side] += tms[n][side];
   const r1 = (x: number) => Math.round(x);
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, recordSame, ms: Object.fromEntries(NAMES.map(n => [n, { corp: r1(tms[n].corp), runner: r1(tms[n].runner) }])) });
+  // the base tree's own record (winner, cr, sc), so it can be read against another base run's records afterwards
+  const rec = !diff ? { winner: B.winner ?? null, cr, sc } : null;
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, recordSame, rec, ms: Object.fromEntries(NAMES.map(n => [n, { corp: r1(tms[n].corp), runner: r1(tms[n].runner) }])) });
 }
 
 async function main() {
