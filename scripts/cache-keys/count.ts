@@ -51,7 +51,11 @@ const POOLS = (env.POOL ?? 'batch,nrdb').split(',');
 const DEALS = (env.DEALS ?? '').split(',').filter(Boolean);
 const SAMPLE: Record<MapName, number> = Object.fromEntries(MAPS.map(m => [m, Number(env[`SAMPLE_${m}`] ?? env.SAMPLE ?? 1)])) as Record<MapName, number>;
 const AUDIT = env.AUDIT !== '0';
-const OWN = env.OWN !== '0';
+// Own play: '1' every arm on every deal; 'changed' (default) only the arms with a changed decision in this deal's lockstep
+// (an arm that answers as the source at every decision plays the source's game: its record is the base record)
+const OWN = env.OWN ?? 'changed';
+/** The time pass on every TIME_EVERY-th deal of a shard (1: all). */
+const TIME_EVERY = Number(env.TIME_EVERY ?? 1);
 const E_ON = env.E === '1';
 const MAX_MS = Number(env.MAX_MS ?? Infinity);
 const OUT_DIR = env.OUT_DIR ?? '';
@@ -341,6 +345,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
   for (const k of Object.keys(tracks)) delete tracks[k];
   let i = 0;
   const diffs: Record<string, unknown>[] = [];
+  const changedTrees = new Set<string>();
   const decide = (side: string, method: Method, s: GameState, from: any, mine: () => unknown) => {
     const idx = i++;
     const kind = kindOf(s, method);
@@ -362,6 +367,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
       inc(`${P}MS|${n}|${k}`, r[n].ms);
       if (slow) inc(`${P}MSslow|${n}|${k}`, r[n].ms);
       if (r[n].a !== sa) {
+        changedTrees.add(n);
         inc(`${P}CH|${n}|${k}`);
         if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, answer: r[n].a.slice(0, 300), source: sa.slice(0, 300), ctlWrong: n === 'ctl' ? undefined : ctlWrong });
       }
@@ -400,12 +406,13 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
   const lockMs = Math.round(performance.now() - t0);
   // Own play: each arm plays the deal itself, hooks off
   const plays: Record<string, unknown> = {};
-  if (OWN && !timing) {
+  if (OWN !== '0' && !timing) {
     const ck = G.__ck;
     G.__ck = undefined;
     try {
       for (const n of ASKED) {
         if (n === 'ctl' && env.OWN_CTL !== '1') continue;
+        if (OWN === 'changed' && !changedTrees.has(n)) continue;
         const p = playOwn(T[n], d);
         const firstTurn = p.cr.findIndex((c, k) => c !== d.cr[k] || p.sc[k] !== d.sc[k]);
         plays[n] = { same: p.winner === d.winner && key(p.cr) === key(d.cr) && key(p.sc) === key(d.sc), winner: p.winner, firstTurn: firstTurn < 0 && p.cr.length !== d.cr.length ? Math.min(p.cr.length, d.cr.length) : firstTurn, turns: p.cr.length, ms: p.ms };
@@ -468,6 +475,7 @@ async function main() {
     recCount.clear();
     evalMs = 0;
   };
+  let nth = 0;
   for (const [k, u] of units.entries()) {
     if (k % SLICE !== SLICE_K) continue;
     if (Date.now() - started > MAX_MS) {
@@ -480,7 +488,7 @@ async function main() {
     }
     try {
       if (MODES.includes('lockstep')) lockstep(u.pool, u.d, false);
-      if (MODES.includes('time')) lockstep(u.pool, u.d, true);
+      if (MODES.includes('time') && (nth++ % TIME_EVERY === 0)) lockstep(u.pool, u.d, true);
       if (MODES.includes('driver') && u.pool === 'g3') await driver(u.d);
     } catch (e) {
       out({ kind: 'error', pool: u.pool, seed: u.d.seed, error: (e as Error).stack?.slice(0, 800) });
