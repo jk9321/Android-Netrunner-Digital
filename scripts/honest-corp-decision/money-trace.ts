@@ -10,7 +10,7 @@ import { GameAction, GameState, activePrompt, cardDef, executeAction, getLegalAc
 import { asSide } from '../../src/ai/pricing';
 import { answerPrompt } from '../../src/ai/prompts';
 import { moneyPick } from '../../src/ai/incomeLine';
-import { knownIncome } from '../../src/ai/corp/lines';
+import { knownIncome } from '../../src/ai/nextTurnMoney';
 import { corpDecisionView } from '../../src/ai/turnPlanner';
 import { cardSynergy } from '../../src/ai/synergyTags';
 

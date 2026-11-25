@@ -1,6 +1,7 @@
 import { CardInstance, GameState, cardDef } from '../../core';
 import { tally } from '../diagnostics';
-import { TurnFrom, afterRun, nextTurn, nextTurnBoard, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
+import { afterRun, nextTurnBoard, reachQuestion, reachSets, restOfTurn, serverHold } from './hold';
+import { nextTurn, TurnFrom } from '../nextTurnMoney';
 import { memo } from '../valueModel';
 import { agendasUnseen } from './pools';
 

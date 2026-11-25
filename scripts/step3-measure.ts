@@ -13,7 +13,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { knownIncome } from '../src/ai/corp/lines';
+import { knownIncome } from '../src/ai/nextTurnMoney';
 import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
 import { countedRez } from '../src/ai/corp/rez';
 import { iceCreditNeed } from '../src/ai/runs';

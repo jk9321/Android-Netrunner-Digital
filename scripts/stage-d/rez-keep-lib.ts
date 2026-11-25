@@ -18,7 +18,8 @@
  */
 import { CardInstance, GameState, cardDef } from '../../src/core';
 import { rezCost } from '../../src/core/engine/cardEffects';
-import { reachQuestion, reachSets, runnerEarnings, serverHold } from '../../src/ai/corp/hold';
+import { reachQuestion, reachSets, serverHold } from '../../src/ai/corp/hold';
+import { runnerEarnings } from '../../src/ai/nextTurnMoney';
 import { stakedServers } from '../../src/ai/corp/rezMoney';
 import { countedRez, matchPointRez, rezStops } from '../../src/ai/corp/rez';
 import { agendasUnseen } from '../../src/ai/corp/pools';

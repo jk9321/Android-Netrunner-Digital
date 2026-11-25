@@ -1,17 +1,17 @@
 import { CardInstance, GameAction, GameState, cardDef, getLegalActions } from '../../core';
-import { counters } from '../../core/engine/cardEffects';
 import { withIceInstalled } from '../board';
-import { dividendsOf, scoreCreditsOf, turnIncomeOf } from '../cards';
+import { dividendsOf, scoreCreditsOf } from '../cards';
 import { plan } from '../pricing';
 import { tally } from '../diagnostics';
 import { serverHold } from './hold';
 import { lineFloor } from './rezMoney';
+import { knownIncome, nextClicks, nextTurnCredits } from '../nextTurnMoney';
 
 /**
  * The counted scoring lines (Step 4 Stage A, spec-step4-corp-core.md 1.3 Q4 and Q5, 2.2), moved here from
  * countedScore.ts with their readers: can the Corp score an agenda by the end of its next turn with the server holding
  * through the Runner's turn (scoreInTwo), does a line under way still hold (lineHolds), the held line's step on a later
- * turn (heldLaterStep), the money they count on (knownIncome, nextTurnCredits) and the scoring remote.
+ * turn (heldLaterStep), the money they count on (knownIncome, nextTurnCredits: nextTurnMoney.ts) and the scoring remote.
  *
  * They read the owners: what holds a server is serverHold (corp/hold.ts), the money a line must leave once it has
  * scored is lineFloor (corp/rezMoney.ts), which reads rezMoney's keep since Stage C6 (the byServer sum before it).
@@ -28,20 +28,6 @@ export const installedAgendas = (s: GameState) => Object.values(s.corp.servers).
 /** The Corp's main phase, outside a run and every prompt and window (where a line's next action is taken). */
 export const isCorpMain = (s: GameState) =>
   s.activePlayer === 'corp' && !s.activeRun && s.pendingPrompts.length === 0 && !s.turnStep && !(s.priority && s.priority.holder !== 'corp') && !s.winner;
-
-/**
- * Credits the Corp can count on next turn: rezzed cards that pay it as its turn begins (the card entry's turnIncome;
- * a campaign pays no more than the credits it holds). The card-text match this replaced never matched ("take 3
- * credits" has no [credit] symbol in the stripped text), so it counted nothing.
- */
-export function knownIncome(state: GameState): number {
-  let n = 0;
-  for (const c of Object.values(state.corp.servers).flatMap(v => v.root)) {
-    const pay = c.isRezzed ? turnIncomeOf(c.cardCode) : undefined;
-    if (pay) n += pay.hosted ? Math.min(pay.credits, counters(c, 'credit')) : pay.credits;
-  }
-  return n;
-}
 
 export interface TwoTurnLine {
   /** plan.assetCover: 'asset', a drip asset with an ice in front (assetCover; agenda and agendaId then name the asset). */
@@ -73,16 +59,6 @@ export interface HeldLine {
   /** Counters on the agenda when the line began (0 for an agenda from HQ). */
   counters: number;
 }
-
-/** The clicks the Corp has on its next turn (5.2.6; bonus clicks given for it). */
-const nextClicks = (state: GameState) => state.corp.maxClicks + (state.corp.bonusClicksNextTurn ?? 0);
-
-/**
- * A two-turn line's money on its next turn: what the Corp ends this turn on, less the rez spend that holds the server
- * through the Runner's turn, plus its known income and the next turn's clicks the line does not spend (r) as credits
- * (5.2.6a). scoreInTwo, lineHolds and reservedForAgenda read it, so their horizons cannot drift.
- */
-export const nextTurnCredits = (state: GameState, end: number, rez: number, r: number) => end - rez + knownIncome(state) + (nextClicks(state) - r);
 
 /** The rez spend that holds `server` through the Runner's next turn with `credits` to spend (serverHold), or null. */
 const holdingSpend = (state: GameState, server: string, credits: number): number | null => {
