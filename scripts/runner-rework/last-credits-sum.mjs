@@ -47,10 +47,13 @@ if (opt.select) {
   for (const pool of ['batch', 'nrdb']) {
     let n = 0;
     for (const r of A.filter(x => x.pool === pool && x.cls === 'Z')) {
-      if (!r.agree) list.push({ key: r.key, cls: r.cls, dir: r.dir, card: r.card, rezzed: r.rezzed });
-      else if (n++ % k === 0) list.push({ key: r.key, cls: r.cls, dir: r.dir, card: r.card, rezzed: r.rezzed, control: true });
+      const e = { key: r.key, cls: r.cls, sub: r.sub, dir: r.dir, card: r.card, rezzed: r.rezzed, credits: r.credits, creditsAfter: r.creditsAfter, margin: r.decision.margin, margin5: r.plus5?.margin ?? null, trashNet: r.priceRun.trashNet, fine: r.fine, tips: r.tips };
+      if (!r.agree) list.push(e);
+      else if (n++ % k === 0) list.push({ ...e, control: true });
     }
   }
+  // #65's fixture, one board apart (coordinator 13:21Z ask 3)
+  for (const r of A.filter(x => x.pool === 'fixtures' && x.cls === 'Z')) list.push({ key: r.key, cls: r.cls, sub: r.sub, dir: r.dir, card: r.card, rezzed: r.rezzed, credits: r.credits, creditsAfter: r.creditsAfter, margin: r.decision.margin, margin5: r.plus5?.margin ?? null, trashNet: r.priceRun.trashNet, fine: r.fine, tips: r.tips, fixture: true });
   writeFileSync(opt.out ?? 'scripts/runner-rework/last-credits-pairs.json', JSON.stringify(list));
   print(`pairs list: ${list.length} accesses (${list.filter(x => !x.control).length} disagreeing, ${list.filter(x => x.control).length} controls)`);
   process.exit(0);
@@ -190,5 +193,27 @@ if (P.length) {
       const m4 = per(p => (p.trash.at4 && p.keep.at4 ? money(p.trash, 4) - money(p.keep, 4) : 0));
       print(line([pool, d, xs.length, xs[0].pairs.length, cell(w), cell(m), cell(m2), cell(m4)]));
     }
+  }
+  const row = (label, xs) => {
+    const per = f => xs.map(r => mean(r.pairs.map(f)));
+    const w = per(p => (p.trash.w === 'runner') - (p.keep.w === 'runner'));
+    const m = per(p => p.trash.rp - p.trash.cp - (p.keep.rp - p.keep.cp));
+    const m2 = per(p => money(p.trash, 2) - money(p.keep, 2));
+    const m4 = per(p => money(p.trash, 4) - money(p.keep, 4));
+    print(line([label, xs.length, xs.length ? xs[0].pairs.length : '', xs.length >= 10 ? cell(w) : `${cell(w)} (under 10: shows nothing)`, cell(m), cell(m2), cell(m4)]));
+  };
+  print('\n### price trash, decision keep, by the access\'s tipping part (an access with several counts in each; reported only)');
+  print(line(['pool / tipping part', 'n', 'seeds', 'wins', 'point margin', 'money T+2', 'money T+4']));
+  print(line(['---', '---:', '---:', '---:', '---:', '---:', '---:']));
+  for (const pool of ['batch', 'nrdb']) {
+    const xs = P.filter(r => r.pool === pool && r.dir === 'priceTrash/decisionKeep' && !r.fixture);
+    for (const t of ['rigCards', 'gripClicks', 'credits', 'gripKeep', 'corpBoardRest']) row(`${pool} ${t}`, xs.filter(r => r.tips?.includes(t)));
+    row(`${pool} none alone`, xs.filter(r => r.tips && !r.tips.length));
+  }
+  const fx = P.filter(r => r.fixture);
+  if (fx.length) {
+    print('\n### #65\'s fixture, one board (never a rate): per seed, trash then keep');
+    for (const r of fx) print(`- ${r.src} T${r.T} ${r.card}: ` + r.pairs.map(p => `k${p.k} ${p.trash.w}/${p.keep.w} margin ${p.trash.rp - p.trash.cp}/${p.keep.rp - p.keep.cp} T+2 ${money(p.trash, 2)}/${money(p.keep, 2)} T+4 ${money(p.trash, 4)}/${money(p.keep, 4)}`).join('; '));
+    row('#65 fixture (seed-level only)', fx);
   }
 }

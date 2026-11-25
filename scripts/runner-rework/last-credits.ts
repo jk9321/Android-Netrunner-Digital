@@ -48,7 +48,9 @@ const MODE = process.env.MODE ?? 'count';
 const POOLS = (process.env.POOL ?? 'batch,nrdb,people,fixtures').split(',');
 const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const FILES = (process.env.FILES ?? '').split(',').filter(Boolean);
-const SEEDS = Number(process.env.SEEDS ?? 3);
+// SEEDS=n for every pool, or per pool: SEEDS=batch:7,nrdb:17 (R-14h step 0)
+const SEEDS_BY: Record<string, number> = Object.fromEntries((process.env.SEEDS ?? '3').split(',').map(x => (x.includes(':') ? [x.split(':')[0], Number(x.split(':')[1])] : ['*', Number(x)])));
+const seedsFor = (pool: string): number => SEEDS_BY[pool] ?? SEEDS_BY['*'] ?? 3;
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
 const root = resolve(process.env.TROOT ?? 'node_modules/.cache/last-credits', String(shard));
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
@@ -441,9 +443,12 @@ function corpAsk(pool: string, src: string, s0: GameState, made: GameAction) {
   E.pricing.asSide('corp', () => {
     E.handValues.decisionContext(s, 'corp');
     const afters = legal.map(a => ({ a, after: E.prompts.simulate(s, a) as GameState | null })).filter(x => x.after) as { a: GameAction; after: GameState }[];
-    const chosen = afters.find(x => key(x.a) === key(made));
+    // The move made, by exact match, else by its type and choice (the recorded move and the legal list's can differ in a
+    // field outside the choice, the prompt's id or the player)
+    const norm = (c: any) => key(c && Array.isArray(c.cardInstanceIds) ? { ...c, cardInstanceIds: [...c.cardInstanceIds].sort() } : c);
+    const chosen = afters.find(x => key(x.a) === key(made)) ?? afters.find(x => x.a.type === made.type && norm((x.a as any).choice) === norm((made as any).choice) && (made as any).choice !== undefined) ?? afters.find(x => x.a.type === made.type && key((x.a as any).choice) === key((made as any).choice) && (made as any).choice !== undefined);
     const low = (x: { after: GameState }) => x.after.corp.credits <= 1;
-    if (!chosen) return out({ kind: 'c', pool, src, i: corpIdx++, T: s.turnNumber, prompt: isPrompt, unmatched: true });
+    if (!chosen) return out({ kind: 'c', pool, src, i: corpIdx++, T: s.turnNumber, prompt: isPrompt, promptKind: isPrompt ? prompt.kind : null, unmatched: true, made: key(made).slice(0, 200), legal: legal.length });
     if (!afters.some(x => low(x) !== low(chosen))) return;
     const scoreOf = (after: GameState) => {
       const cap: any = { active: !isPrompt };
@@ -558,7 +563,7 @@ function playOn(s0: GameState, trash: boolean, k: number, memory: Map<string, st
 function pairs(s0: GameState, memory: Map<string, string>, rec: any) {
   const u = unitPrompt(P, s0)!;
   const res: any[] = [];
-  for (let k = 0; k < SEEDS; k++) {
+  for (let k = 0, n = seedsFor(rec.pool); k < n; k++) {
     const t = timed('pairs', () => playOn(s0, true, k, memory, u.card.instanceId, u.card.cardCode));
     const kk = timed('pairs', () => playOn(s0, false, k, memory, u.card.instanceId, u.card.cardCode));
     res.push({ k, trash: t, keep: kk });
@@ -599,7 +604,7 @@ function unit(pool: string, src: string, idx: number, s: GameState, answer: Game
         return;
       }
       try {
-        pairs(s, new Map(memory), { pool, src, idx, T: s.turnNumber, cls: w.cls, dir: w.dir, card: w.card, rezzed: w.rezzed, control: !!w.control });
+        pairs(s, new Map(memory), { pool, src, idx, T: s.turnNumber, ...w, key: undefined, control: !!w.control }); // the count's parts ride along (coordinator 13:21Z ask 2)
       } catch (err) {
         out({ kind: 'err', pool, src, idx, error: (err as Error).stack?.slice(0, 400) });
       }
