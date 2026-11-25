@@ -93,19 +93,22 @@ async function main() {
   const dirs = trees();
   const T: Record<'base' | 'draft', Tree> = { base: await loadTree('base', dirs.base), draft: await loadTree('draft', dirs.draft) };
   const deals: Deal[] = JSON.parse(readFileSync(`scripts/runner-rework/last-credits-fix-deals-${POOL === 'batch' ? '45617829233' : '45621322301'}.json`, 'utf8'));
-  const d = deals.find(x => x.seed === SEED);
-  if (!d) throw new Error(`no deal ${SEED} in ${POOL}`);
-  const c = DECK_POOL.find(x => x.side === 'corp' && x.name === d.corpDeck)!;
-  const r = DECK_POOL.find(x => x.side === 'runner' && x.name === d.runnerDeck)!;
+  // BOARD=<fixture json>: one decision on a saved board (a test's) instead of a deal's step
+  const BOARD = process.env.BOARD;
+  const d = BOARD ? undefined : deals.find(x => x.seed === SEED);
+  if (!BOARD && !d) throw new Error(`no deal ${SEED} in ${POOL}`);
+  const c = d && DECK_POOL.find(x => x.side === 'corp' && x.name === d.corpDeck)!;
+  const r = d && DECK_POOL.find(x => x.side === 'runner' && x.name === d.runnerDeck)!;
   const rec: Record<string, { rates: [string, string, number][]; draws: [string, string, number][]; threats: [string, string, number][]; plans: unknown[]; ranks: unknown[]; act?: unknown }> = {};
   for (const name of ['base', 'draft'] as const) {
     const t = T[name];
     t.clear();
-    const g = new t.GameRunner(t.core.createInitialGameState(t.decks.deckGameSetup(d.seed, c, r)), { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') });
+    const start = BOARD ? JSON.parse(readFileSync(BOARD, 'utf8')) : t.core.createInitialGameState(t.decks.deckGameSetup(d!.seed, c, r));
+    const g = new t.GameRunner(start, { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') });
     // the Runner's 'later' answers on the way to the decision (the same game: its boards are equal on both trees)
     const pre: number[] = [];
     G.__whyDraw = (_stack: string, side: string, when: string, v: number) => side === 'runner' && when === 'later' && pre.push(v);
-    for (let i = 0; i < STEP; i++) g.step();
+    for (let i = 0; i < (BOARD ? 0 : STEP); i++) g.step();
     G.__whyDraw = undefined;
     // CLEARAT=all|hand|damage: empty those caches on both trees just before the decision (all: the tree's clear; hand:
     // handValues' deck average and click worth maps; damage: effectValues' damage threats), to see whether the move was
@@ -137,7 +140,7 @@ async function main() {
   }
   const B = rec.base;
   const D = rec.draft;
-  console.log(`# ${POOL} ${SEED} step ${STEP}: board ${JSON.stringify((B as any).board)}; base pick ${B.act}; draft pick ${D.act}\n`);
+  console.log(`# ${BOARD ?? `${POOL} ${SEED} step ${STEP}`}: board ${JSON.stringify((B as any).board)}; base pick ${B.act}; draft pick ${D.act}\n`);
   for (const [name, x] of Object.entries(rec)) {
     console.log(`## ${name}: planner candidates (top level), best first`);
     for (const p of x.plans as any[]) console.log(`- ${p.side}: pick ${p.best} (${p.value}); ${p.scored.map((s: any) => `${s[0]} = ${s[1]}`).join('; ')}`);
