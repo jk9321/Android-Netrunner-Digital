@@ -10,7 +10,8 @@ import { GameRunner } from '../src/ai/playout';
  * Issues #67 and #68 (Jeff's saved games, tests/fixtures/runner-issues/issue-67.json and issue-68.json; brief
  * runner-rework/briefs/i67-i68-pins-count.md, tracker R-27, items I67 and I68). Diagnosis in docs/gemini-prep/issues-67-68.md.
  * Both fixes belong to the Runner rework's R-B (#67 with the #58 family, owner O1 after B2's log; #68 with the prompt work,
- * B3), so each is pinned as a known failure (`it.fails`) beside a twin that passes today.
+ * B3), so each was pinned as a known failure (`it.fails`) beside a twin that passes. #67 is fixed by O1a (the fixed 0.5
+ * trash floor gone); #68 is still pinned.
  *
  * Each board is the saved game replayed move by move with a fresh Normal Runner that observes every board of the replay
  * (its own memory only, no hidden information; rules 1.12, 10.2.2a). The pins state behaviour, not a score, so either fix
@@ -125,8 +126,9 @@ describe('issue #67: a run on Remote 1 for B-1001, then the trash declined at th
     expect(state.runner.credits).toBeGreaterThanOrEqual(3);
   });
 
-  // Passes when the Runner either does not make the run on Remote 1 this turn or trashes B-1001 when it gets there
-  it.fails('#67 T8: the Runner does not run Remote 1 and then decline to trash B-1001', { timeout: 30_000 }, () => {
+  // Passes when the Runner either does not make the run on Remote 1 this turn or trashes B-1001 when it gets there.
+  // Fixed by brief O1a (tracker R-14b): B-1001 was priced at serverWorth's fixed 0.5 under water, now 0 (rules 1.19.2, 7.1.5)
+  it('#67 T8: the Runner does not run Remote 1 and then decline to trash B-1001', { timeout: 30_000 }, () => {
     const accesses = b1001Accesses();
     expect(accesses.filter(x => x.credits >= 3 && !x.trash)).toEqual([]);
   });

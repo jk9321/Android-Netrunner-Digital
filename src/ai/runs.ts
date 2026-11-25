@@ -1111,6 +1111,12 @@ function knownStealHit(state: GameState, code: string, grip: number): number {
 /** A steal less its own damage: none when it can't be stolen (an additional cost it can't pay, `tax` null). */
 const stealNet = (worth: number, tax: number | null, hit: number) => (tax === null ? 0 : taxedSteal(worth, tax) - hit);
 
+/** A trash of this accessed root card: its worth as left (RUNNER-ASSET-TRASH, corpCardValue's `left`, not discounted by the Runner's own trash chance) less the trash on the Runner's slide; never below 0, and 0 unpayable: a trash is the Runner's choice (rules 1.19.2, 7.1.5; brief O1a: no 0.5 floor) */
+function trashNet(state: GameState, card: CardInstance): number {
+  const trash = cardDef(card).trash_cost;
+  return trash != null && trash <= state.runner.credits ? Math.max(0, corpCardValue(card, state, 'runner', true) - creditCost(state, trash)) : 0;
+}
+
 function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number, rest?: BreachRest, grip = state.runner.grip.length): number {
   const server = state.corp.servers[serverId];
   const { odds, points } = agendaOdds(state);
@@ -1157,8 +1163,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
         value += stealNet(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card), knownStealHit(state, card.cardCode, grip));
         continue;
       }
-      const trash = cardDef(card).trash_cost;
-      if (trash != null && trash <= state.runner.credits) value += Math.max(0, corpCardValue(card, state, 'runner', true) - creditCost(state, trash));
+      value += trashNet(state, card);
     } else if (!card.isRezzed) {
       const agenda = remoteAgendaOdds(state, server, card, trap);
       // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash
@@ -1166,13 +1171,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
       value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * trapHit(state, card.advancementCounters, grip, memory) + (1 - agenda - trapShare) * 1;
-    } else {
-      const trash = cardDef(card).trash_cost;
-      // Trashing it denies the Corp what it would still pay if left (RUNNER-ASSET-TRASH: the worth as left, corpCardValue's
-      // `left`, not discounted by the Runner's own chance of trashing it, which is this choice; rule 1.19.2: an accessed
-      // card with a trash cost may be trashed by paying it)
-      if (trash != null && trash <= state.runner.credits) value += Math.max(0.5, corpCardValue(card, state, 'runner', true) - creditCost(state, trash));
-    }
+    } else value += trashNet(state, card);
   }
   return value;
 }
