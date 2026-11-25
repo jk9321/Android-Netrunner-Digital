@@ -12,6 +12,10 @@ import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
 import { runnerDecisionView } from '../src/ai/turnPlanner';
 import { asSide } from '../src/ai/synergy';
+import { corpCardValue } from '../src/ai/evaluate';
+import { creditCost } from '../src/ai/runs';
+import { turnsLeft } from '../src/ai/cardProfiles';
+import { trashCost } from '../src/core/engine/cardEffects';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
 
 const TITHE = '30073';
@@ -182,6 +186,120 @@ describe('R3 bare economy assets (RUNNER-ASSET-TRASH)', () => {
       return serverValue(s, 'remote-1');
     };
     expect(at(15)).toBeGreaterThan(at(6));
+  });
+});
+
+// Brief O1a (tracker R-14b; issue #67): the fixed 0.5 that `serverWorth` credited a rezzed root card worth less than its
+// trash is gone. A trash is the Runner's choice (rules 1.19.2, 7.1.5), so a card under water adds nothing to the run.
+// Red team 2026-11-25 findings 1, 2 and 5: the boards are on the Runner's own view, the condition is asserted from the
+// board first, and the two input faults the floor was hiding are pinned as known failures beside a twin that passes.
+const SPIN_DOCTOR = '30053';
+const MALAPERT = '30066';
+const HOLO_MAN = '34120';
+const MAHKOTA = '35082';
+const rezzedCard = (s: GameState, code: string, tokens?: Record<string, number>) => {
+  const c = createCardInstance(s, code);
+  c.isRezzed = true;
+  if (tokens) c.tokens = tokens;
+  return c;
+};
+const remoteOf = (s: GameState, cards: CardInstance[]) => {
+  s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Server 1', isRemote: true, ice: [], root: cards };
+};
+const leftWorth = (view: GameState, id: string) => {
+  const card = view.corp.servers['remote-1'].root.find(c => c.instanceId === id)!;
+  return asSide('runner', () => corpCardValue(card, view, 'runner', true));
+};
+
+describe('O1a a rezzed root card worth less than its trash adds nothing to the run (rules 1.19.2, 7.1.5)', () => {
+  for (const [name, code] of [
+    ['a rezzed Spin Doctor with Archives empty', SPIN_DOCTOR],
+    ['a rezzed Malapert Data Vault', MALAPERT],
+  ] as const) {
+    it(`${name} alone in a bare remote: serverValue 0 and runScore at or below 0, at 3, 6 and 10 credits`, () => {
+      for (const credits of [3, 6, 10]) {
+        const s = newGame();
+        startRunnerTurn(s);
+        s.runner.credits = credits;
+        s.corp.archives.faceUp = [];
+        s.corp.archives.faceDown = [];
+        const card = rezzedCard(s, code);
+        remoteOf(s, [card]);
+        const view = runnerDecisionView(s);
+        const trash = cardDef(card).trash_cost!;
+        // Under water on this board: the worth as left is less than what the trash costs the Runner
+        expect(leftWorth(view, card.instanceId)).toBeLessThan(asSide('runner', () => creditCost(view, trash)));
+        expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBe(0);
+        expect(asSide('runner', () => runScore(view, 'remote-1'))).toBeLessThanOrEqual(0);
+      }
+    });
+  }
+  it('twin: a Regolith with 15 hosted is above its trash on the same view and still worth the run', () => {
+    for (const credits of [3, 6, 10]) {
+      const s = newGame();
+      startRunnerTurn(s);
+      s.runner.credits = credits;
+      const card = rezzedCard(s, REGOLITH, { credit: 15 });
+      remoteOf(s, [card]);
+      const view = runnerDecisionView(s);
+      expect(leftWorth(view, card.instanceId)).toBeGreaterThan(asSide('runner', () => creditCost(view, cardDef(card).trash_cost!)));
+      expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBeGreaterThan(0);
+      expect(asSide('runner', () => runScore(view, 'remote-1'))).toBeGreaterThan(0);
+    }
+  });
+
+  // Red team finding 1, tracker R-10h (a card-entry fault, the Corp side's read): The Holo Man's text is once a turn
+  // for the rest of the game, but its entry (src/ai/cards/liberation.ts '34120') prices one use on every board
+  // Turns left are guessed from the score (cardProfiles.ts turnsLeft): a fresh game against one at 6 points
+  const turnsBoard = (code: string, tokens: Record<string, number> | undefined, corpScore: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.credits = 6;
+    s.corp.score = corpScore;
+    const card = rezzedCard(s, code, tokens);
+    remoteOf(s, [card]);
+    const view = runnerDecisionView(s);
+    return { view, card };
+  };
+  // The input the pin reads differs between the two boards; Holo Man's worth as left is priced today, the same on both
+  it('twin: the two boards differ in turns left, and The Holo Man has a worth as left on each', () => {
+    const many = turnsBoard(HOLO_MAN, undefined, 0);
+    const one = turnsBoard(HOLO_MAN, undefined, 6);
+    expect(turnsLeft(many.view)).toBeGreaterThan(turnsLeft(one.view));
+    expect(leftWorth(many.view, many.card.instanceId)).toBeGreaterThan(0);
+    expect(leftWorth(one.view, one.card.instanceId)).toBeGreaterThan(0);
+  });
+  it.fails('R-10h: The Holo Man rezzed in a remote is worth more left with many turns left than with one turn left', () => {
+    const many = turnsBoard(HOLO_MAN, undefined, 0);
+    const one = turnsBoard(HOLO_MAN, undefined, 6);
+    expect(turnsLeft(many.view)).toBeGreaterThan(turnsLeft(one.view));
+    expect(leftWorth(many.view, many.card.instanceId)).toBeGreaterThan(leftWorth(one.view, one.card.instanceId));
+  });
+
+  // Red team finding 2 (b), tracker R-14g: the engine's trash cost of an asset beside a rezzed Mahkota Langit Grid is 2
+  // more (its Persistent text; src/core/engine/cardEffects.ts trashCost), but serverWorth reads the printed cost, so it
+  // prices a Regolith trash the Runner cannot pay
+  const mahkotaBoard = (credits: number) => {
+    const s = newGame();
+    startRunnerTurn(s);
+    s.runner.credits = credits;
+    const mahkota = rezzedCard(s, MAHKOTA, { credit: 2 });
+    const regolith = rezzedCard(s, REGOLITH, { credit: 15 });
+    remoteOf(s, [mahkota, regolith]);
+    const view = runnerDecisionView(s);
+    const engineTrash = trashCost(view, view.corp.servers['remote-1'].root.find(c => c.instanceId === regolith.instanceId)!)!;
+    return { view, engineTrash, credits };
+  };
+  it('twin: beside Mahkota with the engine trash cost payable (6 credits), the server is worth running', () => {
+    const { view, engineTrash, credits } = mahkotaBoard(6);
+    expect(engineTrash).toBeLessThanOrEqual(credits);
+    expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBeGreaterThan(0);
+  });
+  it.fails('R-14g: beside Mahkota with 3 credits the Regolith trash (engine cost above the credits) is not in the server\'s worth', () => {
+    const { view, engineTrash, credits } = mahkotaBoard(3);
+    expect(engineTrash).toBeGreaterThan(credits);
+    // Mahkota itself is under water (finding 2 a), so with no trash payable the server holds nothing
+    expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBe(0);
   });
 });
 

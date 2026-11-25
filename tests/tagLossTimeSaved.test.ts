@@ -46,7 +46,9 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
     clearHandCaches();
     Object.assign(probe, { prices: 0, rig: 0, rigIn: 0, rez: 0, hold: 0 });
     const action = createAgent('corp', 'normal').chooseAction(saved());
-    expect(action).toEqual({ player: 'corp', type: 'DRAW_CARD' });
+    // Brief O1a (tracker R-14b): DRAW_CARD before it; under this decision the Corp's reply priced the rezzed Malapert Data
+    // Vault in remote-1 at serverWorth's 0.5 floor 54 times (the formula below 0.5), so with the floor gone the pick moves
+    expect(action).toEqual({ player: 'corp', type: 'GAIN_CREDIT' });
     // Measured on ai-tag-loss-time (beta 8e28403's clock): 25,222 tag-clock prices, 126,117 rig values inside the clock of
     // 133,173, 56,920 rez budgets asked and 6,242 hold counts started inside it. With ai-tag-loss-bp (a resource priced by
     // its own term plus its share of the plans: no rig value inside the clock): 10,914 prices, 0 inside of 7,044, 4,102
