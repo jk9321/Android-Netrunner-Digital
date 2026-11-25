@@ -526,6 +526,7 @@ function playOn(s0: GameState, trash: boolean, k: number, memory: Map<string, st
   const T = s0.turnNumber;
   const logAt = s.log.length;
   let at2: any = null;
+  let at4: any = null; // R-14h: four turns on as well (the Corp side's case 3a)
   let steps = 0;
   // The card's payouts taken (an approximation, said so in the hand-off): credits that left its hosted credits, plus the
   // Corp's credit gain on a step whose action names the card (its click ability), until the snapshot
@@ -537,6 +538,7 @@ function playOn(s0: GameState, trash: boolean, k: number, memory: Map<string, st
   };
   for (; steps < 8000 && !g.state.winner; steps++) {
     if (!at2 && g.state.turnNumber > T + 2) at2 = snap(g.state);
+    if (!at4 && g.state.turnNumber > T + 4) at4 = snap(g.state);
     const before = g.state;
     const h0 = Number(installed(before)?.tokens?.credit ?? 0);
     if (!g.step()) break;
@@ -549,7 +551,8 @@ function playOn(s0: GameState, trash: boolean, k: number, memory: Map<string, st
     }
   }
   if (!at2) at2 = snap(g.state);
-  return { w: g.state.winner ?? null, cp: g.state.corp.score, rp: g.state.runner.score, at2, steps, T: g.state.turnNumber };
+  if (!at4) at4 = snap(g.state);
+  return { w: g.state.winner ?? null, cp: g.state.corp.score, rp: g.state.runner.score, at2, at4, steps, T: g.state.turnNumber };
 }
 
 function pairs(s0: GameState, memory: Map<string, string>, rec: any) {
