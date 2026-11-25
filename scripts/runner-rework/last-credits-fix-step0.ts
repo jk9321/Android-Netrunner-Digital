@@ -266,6 +266,8 @@ function deal(pool: string, d: Deal) {
         credits: today,
         money: m,
         flips,
+        // rev 3 (two-sided rule): every deck card above today's credits, whatever the forms' money (N, false unpayables)
+        above: costs.filter(c => c > today),
         sites: Object.fromEntries(cur.sites),
         fires: Object.fromEntries(cur.fires),
         reads: Object.fromEntries(cur.reads),
