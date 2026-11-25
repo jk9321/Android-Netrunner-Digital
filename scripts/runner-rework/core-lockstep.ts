@@ -1,8 +1,9 @@
 /**
- * R-B B1 (brief netrunner-ai/runner-rework/briefs/b1-core.md rev 1, bar 1, 2, 6 and 7): the branch's tree against its
+ * R-B B1 (brief netrunner-ai/runner-rework/briefs/b1-core.md rev 1, bar 1, 2, 6 and 7), reused by R-B B2 (b2-run.md
+ * rev 1, bars 1, 2, 6 and 7; BASE beta 57b02d6, two columns added): the branch's tree against its
  * base, decision by decision and per caller kind. Three trees, each loaded as its own module graph (facts-trees.ts loadTree):
- *   base     the base commit's src (BASE, default beta ff04f60), from git;
- *   branch   this checkout's src (ai-runner-core);
+ *   base     the base commit's src (BASE, default beta 57b02d6, B2's cut; B1 used ff04f60), from git;
+ *   branch   this checkout's src (ai-runner-run);
  *   control  the base's src again: the time arm, and a check that the base is reproducible (base against base).
  * Every tree gets the same hooks (core-hooks.ts HOOKS: call-site records in files B1 does not change). FAULT=<name>
  * adds one planted fault (core-faults.ts, bar 2) to the branch tree only; FAULT=a,b,... gives shard s the fault s % n (none =
@@ -19,6 +20,9 @@
  *   hard    every action of every Hard search playout (scopes hardR, hardC)
  *   oracle  every action of every oracle playout (scope oracle)
  *   rez     every chooseRez answer, null included
+ *   drank   R-B B2: the deciding Runner's own rank list at every top-level main-phase decision, actions and scores bit for
+ *           bit (runner/core.ts's `ranked`, top scope only: no planner rollout, reply, Hard or oracle playout)
+ *   offrank R-B B2: the deciding Runner's off-turn score list at every top-level off-turn question (top scope only)
  *   legacy  facts-lockstep.ts's stream (every Runner chooseAction answer made inside the step, nested ones first): the
  *           continuity column, the old script's `inner`
  * Each record carries its scope path (top>reply, top>oracle>..., top>hardR), so a record made in another place differs.
@@ -49,7 +53,7 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
   const [k, v] = kv.split('=');
   process.env[k] = v;
 }
-const BASE = process.env.BASE ?? 'ff04f60832fdde5dd1c5c81bb50ee4e91a0da553';
+const BASE = process.env.BASE ?? '57b02d6fe816fdeaf778954f2f09539e50c105a7';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve(process.env.TROOT ?? 'node_modules/.cache/runner-core-lockstep', String(shard));
 const POOLS = (process.env.POOL ?? 'batch,nrdb,human').split(',');
@@ -70,7 +74,7 @@ const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
 type Name = (typeof NAMES)[number];
-const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'legacy'] as const;
+const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'drank', 'offrank', 'legacy'] as const;
 type Column = (typeof COLUMNS)[number];
 
 // ------------------------------------------------------------------------------------------------ trees
@@ -156,13 +160,21 @@ function listen(t: Tree, rec: Rec): () => void {
     else if (state.activeRun && side === 'runner') fnv(rec.run, `${at}|${a}`);
     if (side === 'runner') fnv(rec.legacy, String(JSON.stringify(action)));
   };
+  // R-B B2: scores bit for bit (String keeps every double; -0 apart from 0)
+  const scoreList = (ranked: { action: unknown; score: number }[]) => JSON.stringify(ranked.map(r => [r.action, Object.is(r.score, -0) ? '-0' : String(r.score)]));
+  G.__lkDecRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => {
+    if (path() === 'top') fnv(rec.drank, scoreList(ranked));
+  };
+  G.__lkOffRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => {
+    if (path() === 'top') fnv(rec.offrank, scoreList(ranked));
+  };
   G.__lkRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => fnv(rec.rank, `${path()}|${JSON.stringify(ranked.map(r => [r.action, String(r.score)]))}`);
   G.__lkAns = (where: string, _s: GameState, action: unknown) => {
     fnv(rec.prompt, `${path()}>${where}|runner|${key(action)}`);
     fnv(rec.legacy, String(JSON.stringify(action)));
   };
   return () => {
-    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = undefined;
+    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = undefined;
   };
 }
 

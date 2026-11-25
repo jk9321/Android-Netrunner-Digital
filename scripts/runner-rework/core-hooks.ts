@@ -14,6 +14,10 @@
  *                  answers, the Runner's planner only (side === 'runner').
  *   runnerReply.ts the reply sample's GameRunner is labelled 'reply'; the oracle playout's GameRunner 'oracle'.
  *   search.ts      the Hard search playout's GameRunner is labelled 'hardR' (a Runner's search) or 'hardC' (a Corp's).
+ *   runner/core.ts R-B B2 (brief b2-run.md rev 1, step 1 (e), red team 2026-11-25 finding 14): the rank list the order
+ *                  is handed (`const ranked = ctx.rank(state, legal);`) and the off-turn score list
+ *                  (`const best = ctx.offTurnRank(state)[0];`), both lines B2 does not edit, so the same text applies to
+ *                  base and branch; the lockstep keeps the top-scope records only (the deciding Runner's own lists).
  */
 export type Patch = [file: string, at: string, to: string];
 
@@ -67,6 +71,13 @@ export const HOOKS: Patch[] = [
     'ai/search.ts',
     `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });`,
     `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });\n  (runner as any).__lkScope = side === 'runner' ? 'hardR' : 'hardC';`,
+  ],
+  // R-B B2: the deciding Runner's own rank list and its off-turn score list (runner/core.ts, lines B2 does not edit)
+  ['ai/runner/core.ts', `  const ranked = ctx.rank(state, legal);`, `  const ranked = ctx.rank(state, legal);\n  (globalThis as any).__lkDecRank?.(state, ranked);`],
+  [
+    'ai/runner/core.ts',
+    `  const best = ctx.offTurnRank(state)[0];`,
+    `  const __offRanked = ctx.offTurnRank(state);\n  (globalThis as any).__lkOffRank?.(state, __offRanked);\n  const best = __offRanked[0];`,
   ],
 ];
 
