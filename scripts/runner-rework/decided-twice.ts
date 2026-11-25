@@ -95,8 +95,9 @@ function wayOf(v: GameState, ice: CardInstance, price: any, bypassed: Set<string
   if (subs <= 0) return E.runs.botulusBreaks(v, ice) > 0 ? 'counter' : 'free';
   const phys = E.runs.physarumCost(v, ice);
   if (phys !== undefined && price.credits === phys && price.value === 0) return 'physarum';
+  // The click self-break: the field the scratch trees return beside that price (rev 1), not a value match
+  if (price.__clicks !== undefined) return 'clicks';
   const self = E.runs.__selfBreakPrice(v, ice, subs);
-  if (E.ice.isBioroid(ice) && price.credits === 0 && self.credits === 0 && Math.abs(price.value - self.value) < 1e-9) return 'clicks';
   if (E.ice.iceScript?.(ice)?.runnerBreakCost !== undefined && price.credits === self.credits && price.value === 0) return 'selfCredits';
   return price.credits === 0 && price.value > 0 ? 'counter' : 'credits';
 }
@@ -130,14 +131,12 @@ function s0Read(p: Price, s1: GameState) {
       cr: r3(price?.credits),
       val: r3(price?.value),
       dmg: price?.damage ?? null,
-      clicks: E.ice.isBioroid(c) && c.isRezzed ? (E.runs.bioroidBreakClicks(c, Math.max(0, (E.runs.plannedSubroutines(v, c) as any[]).length)) as number) : 0,
+      clicks: price?.__clicks ?? 0,
     };
   });
   const bioroidClicks = asRunner(v, () => E.runs.bioroidClicks(v, sv.ice)) as number;
-  // The in-run readers on S0's view, as at the outermost ice: the run as it began (S1's run, clicks and credits), outside all its ice
-  const inRun: GameState = structuredClone(v);
-  inRun.activeRun = { ...structuredClone(s1.activeRun!), icePosition: sv.ice.length, encounter: null, phase: 'movement' } as any;
-  inRun.runner = { ...inRun.runner, clicks: s1.runner.clicks, credits: s1.runner.credits };
+  // The in-run readers on S0r (rev 1): the state after the run is started, at the outermost ice, before any rez
+  const inRun: GameState = structuredClone(s1);
   E.clear();
   const sumNeed = asRunner(inRun, () =>
     sv.ice.reduce((n: number, c: CardInstance) => n + (c.isRezzed && !bypassed.has(c.instanceId) ? (E.runs.iceCreditNeed(inRun, c) as number) : 0), 0)
@@ -145,6 +144,9 @@ function s0Read(p: Price, s1: GameState) {
   const ahead = asRunner(inRun, () => E.runs.creditsAhead(inRun)) as number;
   const avail = E.effects.availableCredits(v, 'runner') as number;
   const availRun = E.effects.availableCredits(inRun, 'runner') as number;
+  // The credits on cards that pay only during runs (runBudget adds them before a run by design, runs.ts:476)
+  const duringRun = (asRunner(v, () => E.runs.runBudget(v)) as number) - avail;
+  const P = ice.filter((i: any) => i.way === 'clicks').reduce((n: number, i: any) => n + i.clicks, 0);
   // S0's trashes: every root card whose trash serverWorth adds (a rezzed card, or one the Runner accessed: the memory,
   // HIDDEN-READ, read), and its worth there: serverValue with the card less without it (count L14's method, the owner asked)
   const trashes: any[] = [];
@@ -184,6 +186,8 @@ function s0Read(p: Price, s1: GameState) {
     ahead: r3(ahead),
     avail,
     availRun,
+    duringRun,
+    P,
     trashes,
   };
 }
@@ -224,6 +228,9 @@ interface Enc {
   reasons: { r: string; d: any }[];
   spent: number;
   clicksSpent: number;
+  clickSubs: number[];
+  blocks: boolean[];
+  pricedClicks: boolean;
 }
 
 class Watch {
@@ -339,7 +346,10 @@ class Watch {
     if (e0 && cur && cur.id === e0.iceId && a) {
       const newly = e1 && e1.iceId === e0.iceId ? e1.broken.filter((b, i) => b && !e0.broken[i]).length : 0;
       if (newly) {
-        if (a.type === 'BIOROID_BREAK') cur.broke.click += newly;
+        if (a.type === 'BIOROID_BREAK') {
+          cur.broke.click += newly;
+          e1!.broken.forEach((b, i) => b && !e0.broken[i] && cur!.clickSubs.push(i));
+        }
         else if (a.type === 'BREAK_SUBROUTINE') cur.broke.credits += newly;
         else cur.broke.ability += newly;
       }
@@ -364,6 +374,14 @@ class Watch {
         reasons: [],
         spent: 0,
         clicksSpent: 0,
+        clickSubs: [],
+        // Each subroutine: would it end the run (subroutineBlocks, asked on a copy of the encounter's board)
+        blocks: safe(() => {
+          const b = structuredClone(next);
+          const iceB = b.corp.servers[b.activeRun!.server].ice.find(x => x.instanceId === e1.iceId)!;
+          return asRunner(b, () => (E.ice.iceSubroutines(b, iceB) as any[]).map(sub => !!E.runs.subroutineBlocks(b, sub.label)));
+        }, [] as boolean[]),
+        pricedClicks: (u.s0?.ice ?? []).find((i: any) => i.id === e1.iceId)?.way === 'clicks',
       };
       u.encs.push(cur);
     }
@@ -391,18 +409,12 @@ class Watch {
       if (pr.kind === 'access_trash') {
         const ch = (a as any).choice;
         const card = s.corp.servers[run!.server]?.root.find(x => x.instanceId === pr.cardInstanceId) ?? c.findCardAnywhere(s, pr.cardInstanceId);
-        const acc: any = { id: pr.cardInstanceId, code: card?.cardCode, t: title(card?.cardCode), trashCost: pr.trashCost, trash: !!ch?.trash || !!ch?.alternativeId, credits: s.runner.credits };
-        // The access answer's scores here, and on the priced path (the run's own resources less what the price spent)
+        const acc: any = { id: pr.cardInstanceId, code: card?.cardCode, t: title(card?.cardCode), trashCost: pr.trashCost, cost: card ? (def(card).trash_cost ?? null) : null, trash: !!ch?.trash || !!ch?.alternativeId, credits: s.runner.credits };
+        // The access answer's scores here, and the two S0 asks
         if (u.s0?.trashes?.some((t: any) => t.id === pr.cardInstanceId)) {
           const memory = new Map(this.memoryOf());
           acc.here = timed('access', () => safe(() => accessScores(s, memory), null));
-          const priced = structuredClone(s);
-          const plannedClicks = (u.s0.ice as any[]).filter(i => i.way === 'clicks').reduce((n, i) => n + i.clicks, 0);
-          priced.runner.credits = Math.max(0, u.startCredits - Number(u.s0.known ?? 0));
-          priced.runner.clicks = Math.max(0, u.startClicks - plannedClicks);
-          priced.runner.tags = u.tagsAtStart ?? priced.runner.tags;
-          acc.pricedPath = { credits: priced.runner.credits, clicks: priced.runner.clicks, tags: priced.runner.tags };
-          acc.atPrice = timed('access', () => safe(() => accessScores(priced, memory), null));
+          Object.assign(acc, this.asks(u, s, acc.cost, memory));
         }
         u.accesses.push(acc);
       } else {
@@ -423,6 +435,16 @@ class Watch {
         });
       }
     }
+    // A priced trash accessed with no trash offered (could not pay): the two S0 asks on a copy with the prompt it lacked
+    const was = new Set((s.activeRun?.accessed ?? []).map((x: any) => x.id));
+    for (const x of next.activeRun?.accessed ?? []) {
+      const t = (u.s0?.trashes ?? []).find((y: any) => y.id === x.id);
+      if (!t || was.has(x.id) || u.accesses.some((y: any) => y.id === x.id)) continue;
+      const pn = c.activePrompt(next);
+      if (pn && pn.kind === 'access_trash' && pn.cardInstanceId === x.id) continue;
+      const memory = new Map(this.memoryOf());
+      u.accesses.push({ id: x.id, code: t.code, t: t.t, trashCost: null, cost: t.cost, trash: false, credits: next.runner.credits, notOffered: true, ...this.asks(u, next, t.cost, memory, x.id) });
+    }
     if (next.activeRun?.breached && !u.breached) {
       u.breached = true;
       u.atBreach = { credits: next.runner.credits, clicks: next.runner.clicks, grip: next.runner.grip.length, tags: next.runner.tags };
@@ -440,6 +462,27 @@ class Watch {
       u.jack = { pos, credits, needs: need.map(x => [x.t, r3(x.need)]), next: inner?.instanceId ?? null, x: xIce?.instanceId ?? null, code: xIce?.cardCode ?? null, t: title(xIce?.cardCode) ?? (over ? null : 'approach'), rezzedS0: xIce ? !u.facedown.has(xIce.instanceId) : null };
     }
     if (u.tagsAtStart === undefined) u.tagsAtStart = s.runner.tags;
+  }
+
+  /**
+   * The two S0 asks (rev 1) on an access board `b0`: the clicks and tags of the priced path (the run's start less the
+   * planned click breaks) and the credits (1) S0's, which the price's own trash test reads (runs.ts:1161, :1174), (2) S0's
+   * less `known` (the priced path). With no trash offered at the access (could not pay), the board gets the access prompt
+   * the engine would offer at those credits (a copy only).
+   */
+  asks(u: any, b0: GameState, cost: number | null, memory: Map<string, string>, card?: string) {
+    const ask = (credits: number) => {
+      const b = structuredClone(b0);
+      b.runner.credits = Math.max(0, credits);
+      b.runner.clicks = Math.max(0, u.startClicks - Number(u.s0.P ?? 0));
+      b.runner.tags = u.tagsAtStart ?? b.runner.tags;
+      const pb = E.core.activePrompt(b);
+      if (card && !(pb && pb.kind === 'access_trash' && pb.cardInstanceId === card)) {
+        b.pendingPrompts = [{ kind: 'access_trash', id: 'dt-ask', side: 'runner', cardInstanceId: card, trashCost: cost, alternatives: [], message: '' } as any, ...b.pendingPrompts];
+      } else if (pb && pb.kind === 'access_trash' && pb.trashCost == null && cost != null && b.runner.credits >= cost) pb.trashCost = cost;
+      return { credits: b.runner.credits, clicks: b.runner.clicks, tags: b.runner.tags, ...(timed('access', () => safe(() => accessScores(b, memory), null)) ?? {}) };
+    };
+    return { atS0: ask(u.s0.creditsS0), atPrice: ask(u.s0.creditsS0 - Number(u.s0.known ?? 0)) };
   }
 
   end(s: GameState, a: GameAction | null, next: GameState) {
@@ -545,23 +588,23 @@ function classify(u: any): { cls: string; sub?: string; detail?: any } {
     const enc = (u.encs as Enc[]).filter(e => e.id === end.ice).pop();
     const reasons = enc?.reasons.map(r => r.r) ?? [];
     if (x?.way === 'clicks') {
-      // K as the brief writes it (bioroidClicks of the server's ice against the clicks after the run's own click), and
-      // Kplan beside it: the clicks of every ice the price itself took by clicks (bioroidClicks leaves out a bioroid with a breaker plan)
-      const K = s0.bioroidClicks > s0.clicksS0 - 1;
-      const plannedClicks = (s0.ice as any[]).filter(i => i.way === 'clicks').reduce((n, i) => n + i.clicks, 0);
-      return { cls: 'T2', detail: { ice: x.t, K, Kplan: plannedClicks > s0.clicksS0 - 1, plannedClicks, bioroidClicks: s0.bioroidClicks, clicksAfterRunClick: s0.clicksS0 - 1, end: end.kind, reasons, clicksAtEnc: enc?.clicks ?? null } };
+      // K (rev 1): P, the clicks the chosen prices plan, against the clicks left after the run's own click; bioroidClicks beside it
+      const K = s0.P > s0.clicksS0 - 1;
+      const W = (u.encs as Enc[]).filter(e => e.clicksSpent > 0 || e.pricedClicks).map(e => ({ t: e.t, clicks: e.clicksSpent, subs: e.clickSubs, endsRun: e.clickSubs.map(i => !!e.blocks[i]), planned: e.pricedClicks }));
+      return { cls: 'T2', detail: { ice: x.t, K, P: s0.P, Kbioroid: s0.bioroidClicks > s0.clicksS0 - 1, bioroidClicks: s0.bioroidClicks, clicksAfterRunClick: s0.clicksS0 - 1, W, end: end.kind, reasons, clicksAtEnc: enc?.clicks ?? null } };
     }
     const wantCredits = end.kind === 'jack' || reasons.some(r => r === 'cannotGetThrough' || r === 'cannotPayAll' || r === 'cannotBreakBlocking' || r === 'noPlanAll');
     if (wantCredits) {
       const i = Math.abs(Number(s0.known) - Number(s0.sumNeed)) > 1e-6;
-      const ii = Math.abs(Number(s0.budget) - Number(s0.avail)) > 1e-6;
+      // (ii) rev 1: budget against availableCredits plus the credits that pay only during runs (runBudget's by design)
+      const ii = Math.abs(Number(s0.budget) - (Number(s0.avail) + Number(s0.duringRun ?? 0))) > 1e-6;
       const sub = i && ii ? 'i+ii' : i ? 'i' : ii ? 'ii' : 'iii';
       // What took the credits that the price did not charge as credits: every credit loss in the run not on a priced credit break
       const took = (u.deltas as any[])
         .filter(d => d.dc < 0)
         .filter(d => !(d.ice && priced.get(d.ice) && BREAK_WAYS.has(priced.get(d.ice).way) && (d.a === 'BREAK_SUBROUTINE' || d.a === 'BOOST_BREAKER' || d.a === 'USE_ABILITY')))
         .map(d => `${d.by}:${d.a}${d.card ? ':' + d.card : ''}@${d.phase}${d.ice ? ':' + (priced.get(d.ice)?.t ?? 'unpriced') : ''} ${d.dc}`);
-      return { cls: 'T1', sub, detail: { ice: x?.t ?? end.t, way: x?.way ?? null, known: s0.known, sumNeed: s0.sumNeed, budget: s0.budget, avail: s0.avail, end: end.kind, reasons, took } };
+      return { cls: 'T1', sub, detail: { ice: x?.t ?? end.t, way: x?.way ?? null, known: s0.known, sumNeed: s0.sumNeed, budget: s0.budget, avail: s0.avail, duringRun: s0.duringRun, end: end.kind, reasons, took } };
     }
     return { cls: 'O', sub: `${end.kind}:${x?.way ?? 'unpriced'}`, detail: { ice: end.t, reasons } };
   }
@@ -570,14 +613,16 @@ function classify(u: any): { cls: string; sub?: string; detail?: any } {
   const trashes = (s0.trashes as any[]).map(t => {
     const acc = (u.accesses as any[]).find(x => x.id === t.id);
     const accessed = (u.accessedIds as string[]).includes(t.id) || !!acc;
-    return { ...t, accessed, offered: !!acc && acc.trashCost != null, taken: !!acc?.trash, creditsAtAccess: acc?.credits ?? null, here: acc?.here ?? null, atPrice: acc?.atPrice ?? null };
+    return { ...t, accessed, offered: !!acc && acc.trashCost != null, taken: !!acc?.trash, creditsAtAccess: acc?.credits ?? null, here: acc?.here ?? null, atS0: acc?.atS0 ?? null, atPrice: acc?.atPrice ?? null };
   });
   const missed = trashes.filter(t => t.accessed && !t.taken);
   if (missed.length) {
     if (costly.length) return { cls: 'H', sub: 'H2', detail: { took: costly.map(e => ({ t: e.t, cr: e.spent, k: e.clicksSpent })), trash: missed.map(t => t.t) } };
     const t = missed[0];
-    const before = t.atPrice?.pick === 'keep' ? 'disagreedBefore' : t.offered ? 'changedInRun' : 'couldNotPay';
-    return { cls: 'T4', sub: before, detail: { trashes: missed } };
+    // Rev 1: two kinds (declined, could not pay), and which S0 ask already kept: with S0's credits; only with S0's less known; neither
+    const kind = t.offered ? 'declined' : 'couldNotPay';
+    const keepAt = t.atS0?.pick === 'keep' ? 'keepS0' : t.atPrice?.pick === 'keep' ? 'keepLessKnown' : 'neither';
+    return { cls: 'T4', sub: `${kind}/${keepAt}`, detail: { trashes: missed } };
   }
   const pairs: string[] = [];
   for (const e of u.encs as Enc[]) {

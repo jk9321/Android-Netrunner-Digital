@@ -54,25 +54,26 @@ for (const pool of POOLS) {
 }
 p('');
 
-p('## T2 (clicks) and the O3 rule');
+p('## T2 (clicks) and the O3 rule (rev 1: the two self-play pools summed, each pool\'s share beside it; the pins apart)');
 p('');
 const t2self = runs.filter(r => (r.pool === 'batch' || r.pool === 'nrdb') && r.cls === 'T2');
-const k = rs => `${rs.filter(r => r.detail.K).length} of ${rs.length} (${pct(rs.filter(r => r.detail.K).length, rs.length)})`;
-const kp = rs => `${rs.filter(r => r.detail.Kplan).length} of ${rs.length} (${pct(rs.filter(r => r.detail.Kplan).length, rs.length)})`;
-p(`Self-play pools together (batch + nrdb), T2 runs: ${shown(t2self.length)}.`);
-p(`- **K as written** (bioroidClicks of the server's ice > the clicks after the run's own click): yes on ${k(t2self)}.`);
-p(`- Kplan beside it (the clicks of the ice the price took by clicks > the same clicks): yes on ${kp(t2self)}.`);
+const yes = (rs, f) => rs.filter(r => r.detail[f]).length;
+p(`Self-play T2 runs, batch + nrdb: **${t2self.length}**${t2self.length < 10 ? ' (under 10: back to the coordinator with the records)' : ''}.`);
+p(`- **K** (P, the clicks the chosen prices plan, > the clicks after the run's own click): yes on **${yes(t2self, 'K')} of ${t2self.length} (${pct(yes(t2self, 'K'), t2self.length)})**.`);
+p(`- Beside it, bioroidClicks of the server > the same clicks: yes on ${yes(t2self, 'Kbioroid')} of ${t2self.length}.`);
 for (const pool of ['batch', 'nrdb']) {
   const rs = runs.filter(r => r.pool === pool && r.cls === 'T2');
-  p(`- ${pool}: T2 ${shown(rs.length)}; K yes ${rs.filter(r => r.detail.K).length}; Kplan yes ${rs.filter(r => r.detail.Kplan).length}; ended by jack-out ${rs.filter(r => r.detail.end === 'jack').length}, by a subroutine ${rs.filter(r => r.detail.end === 'sub').length}`);
+  p(`- ${pool}: T2 ${rs.length}; K yes ${yes(rs, 'K')}; ended by jack-out ${rs.filter(r => r.detail.end === 'jack').length}, by a subroutine ${rs.filter(r => r.detail.end === 'sub').length}`);
 }
+const wSelf = t2self.flatMap(r => r.detail.W ?? []);
+p(`- W over the self-play T2 runs (per ice met): clicks spent on ice the price had planned by clicks ${wSelf.filter(w => w.planned && w.clicks > 0).length}; on subroutines that do not end the run ${wSelf.reduce((n, w) => n + w.endsRun.filter(e => !e).length, 0)} of ${wSelf.reduce((n, w) => n + w.endsRun.length, 0)} subroutines clicked; planned ice met with no click left ${wSelf.filter(w => w.planned && w.clicks === 0).length}.`);
 const pins = runs.filter(r => r.pool === 'issues' && r.cls === 'T2');
-p(`- Issue pins (read apart; evidence, not a rate): ${pins.map(r => `${r.src} ${r.server} K ${r.detail.K ? 'yes' : 'no'} / Kplan ${r.detail.Kplan ? 'yes' : 'no'} (bioroidClicks ${r.detail.bioroidClicks}, planned ${r.detail.plannedClicks}, clicks after the run's click ${r.detail.clicksAfterRunClick})`).join('; ') || 'none'}.`);
+p(`- Issue pins (read apart; evidence, not a rate): ${pins.map(r => `${r.src} ${r.server} K ${r.detail.K ? 'yes' : 'no'} (P ${r.detail.P}, bioroidClicks ${r.detail.bioroidClicks}, clicks after the run's click ${r.detail.clicksAfterRunClick}; W ${JSON.stringify(r.detail.W)})`).join('; ') || 'none'}.`);
 p('');
 
 p('## T1 (credits), split by what differed at S0');
 p('');
-p('| pool | T1 | (i) known vs sum of iceCreditNeed | (ii) budget vs availableCredits | (i) and (ii) | (iii) both agree |');
+p('| pool | T1 | (i) known vs sum of iceCreditNeed | (ii) budget vs availableCredits + during-run credits | (i) and (ii) | (iii) both agree |');
 p('|---|---:|---:|---:|---:|---:|');
 for (const pool of POOLS) {
   const rs = runs.filter(r => r.pool === pool && r.cls === 'T1');
@@ -95,7 +96,11 @@ for (const pool of POOLS) {
   const byCard = new Map();
   for (const r of t3) byCard.set(r.detail.card, (byCard.get(r.detail.card) ?? 0) + 1);
   p(`- ${pool}: T3 ${shown(t3.length)} (the price was damage, owner O2: ${t3.filter(r => r.detail.damage).length}; by card: ${[...byCard].map(([c, n]) => `${c} ${n}`).join(', ') || '-'})`);
-  p(`  T4 ${shown(t4.length)}: disagreed before the run (the access answer on the priced path already keeps) ${t4.filter(r => r.sub === 'disagreedBefore').length} (${pct(t4.filter(r => r.sub === 'disagreedBefore').length, t4.length)}), changed in the run ${t4.filter(r => r.sub === 'changedInRun').length}, could not pay at the access ${t4.filter(r => r.sub === 'couldNotPay').length}`);
+  const k4 = (kind, keep) => t4.filter(r => r.sub === `${kind}/${keep}`).length;
+  for (const kind of ['declined', 'couldNotPay']) {
+    const n = t4.filter(r => r.sub.startsWith(kind)).length;
+    p(`  T4 ${kind} ${shown(n)}: kept with S0's credits ${k4(kind, 'keepS0')} (${pct(k4(kind, 'keepS0'), n)}), kept only with S0's less known ${k4(kind, 'keepLessKnown')} (${pct(k4(kind, 'keepLessKnown'), n)}), neither ${k4(kind, 'neither')} (${pct(k4(kind, 'neither'), n)})`);
+  }
 }
 p('');
 

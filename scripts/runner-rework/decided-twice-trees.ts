@@ -75,6 +75,8 @@ export const HOOKED: Patch[] = [
 
 const RS = `(globalThis as any).__dtRs`;
 export const EVAL: Patch[] = [
+  // P (rev 1): the click self-break's clicks, as a field beside the price (read by the log, by nothing in src)
+  ['ai/runs.ts', `  return { credits: 0, value: clicks * 1.5 };\n}`, `  return { credits: 0, value: clicks * 1.5, __clicks: clicks } as IcePrice;\n}`],
   [
     'ai/runs.ts',
     `const CHAIN_REACTION = '36001';`,
