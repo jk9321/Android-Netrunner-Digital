@@ -32,6 +32,7 @@ type Pool = {
   timeIn: Record<string, Record<string, number>>;
   ms: { hooked: Record<string, number>; control: Record<string, number> };
   records: Record<string, unknown>[];
+  decisions: number;
   sizes: Record<string, Record<string, number>>;
   evalMs: number;
   deals: number;
@@ -43,7 +44,7 @@ type Pool = {
 const pools = new Map<string, Pool>();
 const pool = (p: string): Pool => {
   let x = pools.get(p);
-  if (!x) pools.set(p, (x = { counts: {}, maxes: {}, timeIn: {}, ms: { hooked: {}, control: {} }, records: [], sizes: {}, evalMs: 0, deals: 0, same: 0, differ: [], errors: [], shards: 0 }));
+  if (!x) pools.set(p, (x = { counts: {}, maxes: {}, timeIn: {}, ms: { hooked: {}, control: {} }, records: [], sizes: {}, evalMs: 0, decisions: 0, deals: 0, same: 0, differ: [], errors: [], shards: 0 }));
   return x;
 };
 const add = (a: Record<string, number>, b: Record<string, number>) => {
@@ -62,7 +63,11 @@ for (const f of readdirSync(IN)) {
     if (o.kind === 'deal' || o.kind === 'human') {
       const P = pool(pl);
       P.deals++;
-      if (o.recordSame === false || o.diverged) P.differ.push(`${o.seed ?? o.file}${o.diverged ? ` (${o.diverged})` : ''}`);
+      if (o.kind === 'human') {
+        P.decisions += o.decisions ?? 0;
+        if (o.differ || o.stopped || o.errors?.length) P.differ.push(`${o.src}: ${o.differ} answers differ${o.stopped ? `, stopped ${o.stopped}` : ''}${o.errors?.length ? `, errors ${o.errors.join('; ')}` : ''}`);
+        else P.same++;
+      } else if (o.recordSame === false || o.diverged) P.differ.push(`${o.seed ?? o.file}${o.diverged ? ` (${o.diverged})` : ''}`);
       else P.same++;
     } else if (o.kind === 'counts') {
       const P = pool(pl);
@@ -87,11 +92,16 @@ const table = (head: string[], rows: (string | number)[][]) =>
 const parts = (k: string) => k.split('|');
 const KINDS = ['decider', 'lookahead', 'reply', 'oracle', 'hard'];
 const lines: string[] = [];
+const GUARDS = ['averaging', 'pricingRootDeck', 'pricingTagLoss', 'pricingIce', 'countingHold', 'planning', 'pricingBreaker', 'oracleRunning', 'rezzingToUse'];
+const GSEEN: Record<string, number> = {};
+const GENT: Record<string, number> = {};
+const GREAD: Record<string, number> = {};
 const out = (x: string) => lines.push(x);
 out(`# Part 2: pricing.ts's context counted on the pools\n`);
 out(`Inputs: ${IN}. Kinds: decider = the deciding agent's own code (outside any nested GameRunner and outside the planner's turn play-out), lookahead = inside planTurn (the Corp's turn planner play-out) or the Runner's own playouts, reply = a nested GameRunner (the other side answering inside a look-ahead), oracle and hard = those GameRunner scopes. "Corp decision" / "Runner decision" = the side whose top-level step it is.\n`);
 for (const [name, P] of pools) {
-  out(`\n## Pool ${name}: ${P.deals} games (${P.same} play identical to the base record${P.differ.length ? `; differ: ${P.differ.join(', ')}` : ''}), ${P.shards} shard outputs${P.errors.length ? `; errors: ${P.errors.join('; ')}` : ''}\n`);
+  const same = name === 'human' ? `${P.same} with the hooked AI's answer equal to the plain tree's at every one of ${fmt(P.decisions)} decisions` : `${P.same} play identical to the base record`;
+  out(`\n## Pool ${name}: ${P.deals} games (${same}${P.differ.length ? `; differ: ${P.differ.join(', ')}` : ''}), ${P.shards} shard outputs${P.errors.length ? `; errors: ${P.errors.join('; ')}` : ''}\n`);
 
   // 1. per guard
   out(`### 1. Per field: setter entries (changed / same value), reads that see it set and clear, deepest nesting\n`);
@@ -202,6 +212,33 @@ for (const [name, P] of pools) {
   const unread = READS.map((r, id) => (rowsR.some(x => x[0] === id) ? null : `${id} ${r.what === 'pricing()' ? r.field : r.what} ${where(r)}`)).filter(Boolean);
   out(`\nReads never reached in this pool (${unread.length}): ${unread.join('; ')}\n`);
 
+  // 1b. guards: the value each read sees (set = the guard fired), by deciding side
+  out(`\n### 1b. Guards: setter entries and reads that see the guard up (it fired) or down, by deciding side\n`);
+  const gRows: (string | number)[][] = [];
+  for (const g of GUARDS) {
+    const row: Record<string, number> = {};
+    for (const [k, v] of Object.entries(P.counts)) {
+      const p = parts(k);
+      if (p[0] === 'E') {
+        // E|id|side|kind|acting|changed|same (rez.ts's hook: E|rezzingToUse|rez.ts:405|side|kind|acting|rezzingToUse|)
+        const z = p[1] === 'rezzingToUse' ? 1 : 0;
+        if (p[5 + z].split(',').includes(g) || p[6 + z].split(',').includes(g)) row[`E${p[2 + z]}`] = (row[`E${p[2 + z]}`] ?? 0) + v;
+      } else if (p[0] === 'R') {
+        const r = READS[Number(p[1])];
+        if (r.what !== 'pricing()' || r.field !== g) continue;
+        const key = `${p[5] === 'set' ? 'S' : 'C'}${p[2]}`;
+        row[key] = (row[key] ?? 0) + v;
+      }
+    }
+    const seen = (row.Scorp ?? 0) + (row.Srunner ?? 0);
+    GSEEN[g] = (GSEEN[g] ?? 0) + seen;
+    GENT[g] = (GENT[g] ?? 0) + (row.Ecorp ?? 0) + (row.Erunner ?? 0);
+    GREAD[g] = (GREAD[g] ?? 0) + seen + (row.Ccorp ?? 0) + (row.Crunner ?? 0);
+    gRows.push([g, row.Ecorp ?? 0, row.Erunner ?? 0, row.Scorp ?? 0, row.Ccorp ?? 0, row.Srunner ?? 0, row.Crunner ?? 0]);
+  }
+  out(table(['guard', 'entries, Corp decision', 'entries, Runner decision', 'reads up, Corp', 'reads down, Corp', 'reads up, Runner', 'reads down, Runner'], gRows));
+  out(`\n(entries = setter calls that set or keep it, by the side whose top-level decision it is; rezzingToUse entries = \`.add\` calls at corp/rez.ts:405; "up" = the read saw true, or a non-empty Set)\n`);
+
   // 4. guards by deciding side
   out(`\n### 4. Fields read under a Corp decision and under a Runner decision\n`);
   const reach: Record<string, Record<string, number>> = {};
@@ -282,8 +319,16 @@ for (const [name, P] of pools) {
   out(inc8.length ? table(['cache', 'deciding side', 'kind', 'hits', 'differ by more than 0.001', 'share', 'median difference', 'largest'], inc8) : 'none (NO_EVAL=1)');
   out(`\nEval-tree time: ${fmt(Math.round(P.evalMs))} ms (left out of the hooked decision times above). For threats the difference is the larger of |burst| and |share|.\n`);
   if (P.records.length) {
-    out(`\nRecords (up to five per class per shard; boards under each shard's boards/):\n`);
-    for (const r of P.records.slice(0, 60)) out('- `' + JSON.stringify(r).slice(0, 600) + '`');
+    // five distinct records per class (the shards keep up to five each)
+    const byCls = new Map<string, Set<string>>();
+    for (const r of P.records) {
+      const c = String(r.cls ?? '?');
+      const set = byCls.get(c) ?? new Set<string>();
+      byCls.set(c, set);
+      if (set.size < 5) set.add(JSON.stringify(r).slice(0, 600));
+    }
+    out(`\nRecords (five distinct per class; boards under each shard's boards/):\n`);
+    for (const c of [...byCls.keys()].sort()) for (const j of byCls.get(c)!) out('- `' + j + '`');
   }
 }
 // Value caches cleared whole at a size cap (static, this checkout's src)
