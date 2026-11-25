@@ -32,6 +32,8 @@ type Pool = {
   timeIn: Record<string, Record<string, number>>;
   ms: { hooked: Record<string, number>; control: Record<string, number> };
   records: Record<string, unknown>[];
+  sizes: Record<string, Record<string, number>>;
+  evalMs: number;
   deals: number;
   same: number;
   differ: string[];
@@ -41,7 +43,7 @@ type Pool = {
 const pools = new Map<string, Pool>();
 const pool = (p: string): Pool => {
   let x = pools.get(p);
-  if (!x) pools.set(p, (x = { counts: {}, maxes: {}, timeIn: {}, ms: { hooked: {}, control: {} }, records: [], deals: 0, same: 0, differ: [], errors: [], shards: 0 }));
+  if (!x) pools.set(p, (x = { counts: {}, maxes: {}, timeIn: {}, ms: { hooked: {}, control: {} }, records: [], sizes: {}, evalMs: 0, deals: 0, same: 0, differ: [], errors: [], shards: 0 }));
   return x;
 };
 const add = (a: Record<string, number>, b: Record<string, number>) => {
@@ -71,6 +73,8 @@ for (const f of readdirSync(IN)) {
       add(P.ms.hooked, o.ms?.hooked);
       add(P.ms.control, o.ms?.control);
       P.records.push(...(o.records ?? []));
+      for (const [k, m] of Object.entries(o.sizes ?? {}) as [string, Record<string, number>][]) add((P.sizes[k] ??= {}), m);
+      P.evalMs += o.evalMs ?? 0;
     } else if (o.kind === 'error') pool(pl).errors.push(`${o.seed ?? o.file}: ${String(o.error).slice(0, 160)}`);
   }
 }
@@ -82,14 +86,15 @@ const table = (head: string[], rows: (string | number)[][]) =>
   [`| ${head.join(' | ')} |`, `|${head.map((_, i) => (i ? '---:' : '---')).join('|')}|`, ...rows.map(r => `| ${r.map(x => (typeof x === 'number' ? fmt(x) : x)).join(' | ')} |`)].join('\n');
 const parts = (k: string) => k.split('|');
 const KINDS = ['decider', 'lookahead', 'reply', 'oracle', 'hard'];
-const out: string[] = [];
-out.push(`# Part 2: pricing.ts's context counted on the pools\n`);
-out.push(`Inputs: ${IN}. Kinds: decider = the deciding agent's own code (outside any nested GameRunner and outside the planner's turn play-out), lookahead = inside planTurn (the Corp's turn planner play-out) or the Runner's own playouts, reply = a nested GameRunner (the other side answering inside a look-ahead), oracle and hard = those GameRunner scopes. "Corp decision" / "Runner decision" = the side whose top-level step it is.\n`);
+const lines: string[] = [];
+const out = (x: string) => lines.push(x);
+out(`# Part 2: pricing.ts's context counted on the pools\n`);
+out(`Inputs: ${IN}. Kinds: decider = the deciding agent's own code (outside any nested GameRunner and outside the planner's turn play-out), lookahead = inside planTurn (the Corp's turn planner play-out) or the Runner's own playouts, reply = a nested GameRunner (the other side answering inside a look-ahead), oracle and hard = those GameRunner scopes. "Corp decision" / "Runner decision" = the side whose top-level step it is.\n`);
 for (const [name, P] of pools) {
-  out.push(`\n## Pool ${name}: ${P.deals} games (${P.same} play identical to the base record${P.differ.length ? `; differ: ${P.differ.join(', ')}` : ''}), ${P.shards} shard outputs${P.errors.length ? `; errors: ${P.errors.join('; ')}` : ''}\n`);
+  out(`\n## Pool ${name}: ${P.deals} games (${P.same} play identical to the base record${P.differ.length ? `; differ: ${P.differ.join(', ')}` : ''}), ${P.shards} shard outputs${P.errors.length ? `; errors: ${P.errors.join('; ')}` : ''}\n`);
 
   // 1. per guard
-  out.push(`### 1. Per field: setter entries (changed / same value), reads that see it set and clear, deepest nesting\n`);
+  out(`### 1. Per field: setter entries (changed / same value), reads that see it set and clear, deepest nesting\n`);
   const fields = [...new Set(READS.map(r => (r.field.startsWith('plan.') ? 'plan' : r.what === 'actingSide()' ? 'side' : r.field)).concat(['anchor', 'known.corp', 'known.runner', 'rezzingToUse']))].sort();
   const rowsG: (string | number)[][] = [];
   for (const f of fields) {
@@ -122,10 +127,10 @@ for (const [name, P] of pools) {
     if (!ch && !sm && !set && !clear) continue;
     rowsG.push([f, ch, sm, KINDS.map(k => (byKind[k] ? `${k} ${fmt(byKind[k])}` : '')).filter(Boolean).join(', ') || '-', set, clear, deep || '-']);
   }
-  out.push(table(['field', 'entries changing it', 'entries setting the same value', 'entries by kind', 'reads under a setter of it', 'reads with no setter of it on the stack', 'deepest nesting'], rowsG));
+  out(table(['field', 'entries changing it', 'entries setting the same value', 'entries by kind', 'reads under a setter of it', 'reads with no setter of it on the stack', 'deepest nesting'], rowsG));
 
   // 2. per setter
-  out.push(`\n### 2. Per setter call: calls, what they change, nesting\n`);
+  out(`\n### 2. Per setter call: calls, what they change, nesting\n`);
   const rowsS: (string | number)[][] = [];
   SETS.forEach((s, id) => {
     let calls = 0;
@@ -144,7 +149,7 @@ for (const [name, P] of pools) {
   });
   const rz = Object.entries(P.counts).filter(([k]) => k.startsWith('E|rezzingToUse|')).reduce((a, [, v]) => a + v, 0);
   rowsS.push(['rezzingToUse add (rez.ts:405, outside the entry points)', rz, 'rezzingToUse', '-', '-']);
-  out.push(table(['setter call', 'calls', 'fields changed (calls)', 'calls that change nothing', 'by kind'], rowsS));
+  out(table(['setter call', 'calls', 'fields changed (calls)', 'calls that change nothing', 'by kind'], rowsS));
   const depth: Record<string, { n: number; over1: number }> = {};
   for (const [k, v] of Object.entries(P.counts)) {
     const p = parts(k);
@@ -153,7 +158,7 @@ for (const [name, P] of pools) {
     d.n += v;
     if (Number(p[2]) > 1) d.over1 += v;
   }
-  out.push(
+  out(
     '\n' +
       table(
         ['entry point', 'calls', 'max depth (same entry point)', 'calls nested in the same entry point', 'max depth (any entry point)'],
@@ -162,7 +167,7 @@ for (const [name, P] of pools) {
   );
 
   // 3 and 6. per reader
-  out.push(`\n### 3 and 6. Per read: count by caller kind, reads with no setter of its field on the stack, reads with the whole stack empty (the default context at top level); split by deciding side and actingSide()\n`);
+  out(`\n### 3 and 6. Per read: count by caller kind, reads with no setter of its field on the stack, reads with the whole stack empty (the default context at top level); split by deciding side and actingSide()\n`);
   const rowsR: (string | number)[][] = [];
   READS.forEach((r, id) => {
     let n = 0;
@@ -193,12 +198,12 @@ for (const [name, P] of pools) {
       empty,
     ]);
   });
-  out.push(table(['#', 'read', 'reads', 'by kind', 'deciding side / actingSide()', 'value seen', 'no setter of it on the stack', 'stack empty'], rowsR));
+  out(table(['#', 'read', 'reads', 'by kind', 'deciding side / actingSide()', 'value seen', 'no setter of it on the stack', 'stack empty'], rowsR));
   const unread = READS.map((r, id) => (rowsR.some(x => x[0] === id) ? null : `${id} ${r.what === 'pricing()' ? r.field : r.what} ${where(r)}`)).filter(Boolean);
-  out.push(`\nReads never reached in this pool (${unread.length}): ${unread.join('; ')}\n`);
+  out(`\nReads never reached in this pool (${unread.length}): ${unread.join('; ')}\n`);
 
   // 4. guards by deciding side
-  out.push(`\n### 4. Fields read under a Corp decision and under a Runner decision\n`);
+  out(`\n### 4. Fields read under a Corp decision and under a Runner decision\n`);
   const reach: Record<string, Record<string, number>> = {};
   for (const [k, v] of Object.entries(P.counts)) {
     const p = parts(k);
@@ -207,10 +212,10 @@ for (const [name, P] of pools) {
     const f = r.what === 'pricing()' ? r.field : r.what;
     (reach[f] ??= {})[p[2]] = (reach[f][p[2]] ?? 0) + v;
   }
-  out.push(table(['field / reader', 'reads in a Corp decision', 'reads in a Runner decision'], Object.entries(reach).sort().map(([f, m]) => [f, m.corp ?? 0, m.runner ?? 0])));
+  out(table(['field / reader', 'reads in a Corp decision', 'reads in a Runner decision'], Object.entries(reach).sort().map(([f, m]) => [f, m.corp ?? 0, m.runner ?? 0])));
 
   // 5. time
-  out.push(`\n### 5. Time\n`);
+  out(`\n### 5. Time\n`);
   const tRows: (string | number)[][] = [];
   for (const s of ['corp', 'runner']) {
     const h = P.ms.hooked[s] ?? 0;
@@ -218,10 +223,10 @@ for (const [name, P] of pools) {
     const inside = P.timeIn[s] ?? {};
     tRows.push([`${s} decisions`, P.ms.hooked[`n${s[0].toUpperCase()}${s.slice(1)}`] ?? 0, fmt(Math.round(c)), fmt(Math.round(h)), Object.entries(inside).map(([k, v]) => `${k} ${v.toFixed(0)} ms (${pct(v, h)})`).join(', ')]);
   }
-  out.push(table(['', 'decisions', 'control ms (no hooks)', 'hooked ms', 'inside the timed entry points (share of hooked time)'], tRows));
+  out(table(['', 'decisions', 'control ms (no hooks)', 'hooked ms', 'inside the timed entry points (share of hooked time)'], tRows));
 
   // 6. stale reads
-  out.push(`\n### 6. anchor and known reads by who noted the value (same = noted by the reading decision at the same kind and acting side; outer = noted by the deciding agent above this look-ahead or reply)\n`);
+  out(`\n### 6. anchor and known reads by who noted the value (same = noted by the reading decision at the same kind and acting side; outer = noted by the deciding agent above this look-ahead or reply)\n`);
   const st: Record<string, number> = {};
   for (const [k, v] of Object.entries(P.counts)) {
     const p = parts(k);
@@ -229,34 +234,67 @@ for (const [name, P] of pools) {
     const key = `${p[1]}|${p[3]}|${p[4]}|${p[6]}${p[7] ? ` (${p[7]})` : ''}`;
     st[key] = (st[key] ?? 0) + v;
   }
-  out.push(table(['field', 'deciding side', 'kind', 'noted by', 'reads'], Object.entries(st).sort().map(([k, v]) => [...k.split('|'), v])));
-  out.push(`\nAt each top-level decision's start, who noted the anchor and each known entry it starts with:\n`);
+  out(table(['field', 'deciding side', 'kind', 'noted by', 'reads'], Object.entries(st).sort().map(([k, v]) => [...k.split('|'), v])));
+  out(`\nAt each top-level decision's start, who noted the anchor and each known entry it starts with:\n`);
   const bo: Record<string, number> = {};
   for (const [k, v] of Object.entries(P.counts)) if (k.startsWith('B|')) bo[k.slice(2)] = (bo[k.slice(2)] ?? 0) + v;
-  out.push(table(['field', 'deciding side', 'decision', 'last noted by', 'decisions'], Object.entries(bo).sort().map(([k, v]) => [...k.split('|'), v])));
+  out(table(['field', 'deciding side', 'decision', 'last noted by', 'decisions'], Object.entries(bo).sort().map(([k, v]) => [...k.split('|'), v])));
 
   // 7. does a stale or unkeyed value change a number
-  out.push(`\n### 7. Does a stale or unkeyed value change a number\n`);
+  out(`\n### 7. Does a stale or unkeyed value change a number\n`);
   const a7 = Object.entries(P.counts).filter(([k]) => k.startsWith('A7a|'));
-  out.push(`(a) Reads of anchor or known by a top-level decision before its own first note (decisionContext's own read of the last anchor excluded):\n`);
-  out.push(a7.length ? table(['field', 'deciding side', 'the value against a fresh note', 'reads'], a7.map(([k, v]) => [...parts(k).slice(1), v])) : 'none');
+  out(`(a) Reads of anchor or known by a top-level decision before its own first note (decisionContext's own read of the last anchor excluded):\n`);
+  out(a7.length ? table(['field', 'deciding side', 'the value against a fresh note', 'reads'], a7.map(([k, v]) => [...parts(k).slice(1), v])) : 'none');
   const q = Object.entries(P.counts).filter(([k]) => k.startsWith('Q|'));
   const qa = Object.entries(P.counts).filter(([k]) => k.startsWith('QA|'));
-  out.push(`\n(b) Questions asked under an anchor or known entry noted elsewhere (all calls, by class):\n`);
-  out.push(table(['question', 'deciding side', 'kind', 'acting', 'noted by', 'calls'], q.map(([k, v]) => [...parts(k).slice(1), v])));
-  out.push(`\nRe-asked right after a fresh note of the reading decision's board, in a cache-free sandbox (at most CAP per question and class per shard), with a control re-ask under the same context:\n`);
-  out.push(qa.length ? table(['question', 'deciding side', 'kind', 'noted by', 'answer against the fresh note', 'control', 're-asks'], qa.map(([k, v]) => [...parts(k).slice(1), v])) : 'none re-asked');
+  out(`\n(b) Questions asked under an anchor or known entry noted elsewhere (all calls, by class):\n`);
+  out(table(['question', 'deciding side', 'kind', 'acting', 'noted by', 'calls'], q.map(([k, v]) => [...parts(k).slice(1), v])));
+  out(`\nRe-asked right after a fresh note of the reading decision's board, in a cache-free sandbox (at most CAP per question and class per shard), with a control re-ask under the same context:\n`);
+  out(qa.length ? table(['question', 'deciding side', 'kind', 'noted by', 'answer against the fresh note', 'control', 're-asks'], qa.map(([k, v]) => [...parts(k).slice(1), v])) : 'none re-asked');
   const h = Object.entries(P.counts).filter(([k]) => k.startsWith('H|'));
   const ha = Object.entries(P.counts).filter(([k]) => k.startsWith('HA|'));
-  out.push(`\n(c) Memo hits (valueModel.ts memos) by what differs between the fill and the hit:\n`);
-  out.push(table(['differs at the hit', 'deciding side', 'kind', 'filled by', 'hits'], h.map(([k, v]) => [...parts(k).slice(1), v])));
-  out.push(`\nRecomputed in the sandbox (containers not compared):\n`);
-  out.push(ha.length ? table(['differs at the hit', 'memo', 'recomputed against the stored value', 'control (recomputed under the fill context)', 'hits'], ha.map(([k, v]) => [...parts(k).slice(1).concat(parts(k).length === 4 ? [''] : []), v])) : 'none recomputed');
+  out(`\n(c) Memo hits (valueModel.ts memos) by what differs between the fill and the hit:\n`);
+  out(table(['differs at the hit', 'deciding side', 'kind', 'filled by', 'hits'], h.map(([k, v]) => [...parts(k).slice(1), v])));
+  out(`\nRecomputed in the sandbox (containers not compared):\n`);
+  out(ha.length ? table(['differs at the hit', 'memo', 'recomputed against the stored value', 'control (recomputed under the fill context)', 'hits'], ha.map(([k, v]) => [...parts(k).slice(1).concat(parts(k).length === 4 ? [''] : []), v])) : 'none recomputed');
+  // 8. the incomplete-key caches
+  out(`\n### 8. Hits of the caches whose key is known incomplete (AI-CACHE-HIDDEN-STATE), each worked out again on the asking board in the eval tree (every cache there serving nothing)\n`);
+  const inc8: (string | number)[][] = [];
+  for (const [k, v] of Object.entries(P.counts)) {
+    const p = parts(k);
+    if (p[0] !== 'I' || p[4] !== 'hit') continue;
+    const cls = p.slice(1, 4).join('|');
+    const dif = P.counts[`I|${cls}|differs`] ?? 0;
+    const e = Object.entries(P.sizes[cls] ?? {}).map(([d, n]) => [Number(d), n] as [number, number]).sort((a, b) => a[0] - b[0]);
+    const N = e.reduce((a, b) => a + b[1], 0);
+    let c = 0;
+    let med: number | string = '-';
+    for (const [d, n] of e) {
+      c += n;
+      if (c >= N / 2) {
+        med = d;
+        break;
+      }
+    }
+    inc8.push([...p.slice(1, 4), v, dif, pct(dif, v), med, e.length ? e[e.length - 1][0] : '-']);
+  }
+  inc8.sort((a, b) => String(a[0] + '' + a[1] + a[2]).localeCompare(String(b[0] + '' + b[1] + b[2])));
+  out(inc8.length ? table(['cache', 'deciding side', 'kind', 'hits', 'differ by more than 0.001', 'share', 'median difference', 'largest'], inc8) : 'none (NO_EVAL=1)');
+  out(`\nEval-tree time: ${fmt(Math.round(P.evalMs))} ms (left out of the hooked decision times above). For threats the difference is the larger of |burst| and |share|.\n`);
   if (P.records.length) {
-    out.push(`\nRecords (up to five per class per shard; boards under each shard's boards/):\n`);
-    for (const r of P.records.slice(0, 60)) out.push('- `' + JSON.stringify(r).slice(0, 600) + '`');
+    out(`\nRecords (up to five per class per shard; boards under each shard's boards/):\n`);
+    for (const r of P.records.slice(0, 60)) out('- `' + JSON.stringify(r).slice(0, 600) + '`');
   }
 }
-const text = out.join('\n') + '\n';
+// Value caches cleared whole at a size cap (static, this checkout's src)
+out(`\n## Caches cleared at a size cap (static, src/ai)\n`);
+const caps: (string | number)[][] = [];
+const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(d, e.name)) : e.name.endsWith('.ts') ? [join(d, e.name)] : []));
+for (const f of walk('src')) readFileSync(f, 'utf8').split('\n').forEach((l, i) => {
+  const m = /if \((\w+)\.size > (\d+)\) \1\.clear\(\)/.exec(l);
+  if (m) caps.push([m[1], `${f.replace(/^src\//, '')}:${i + 1}`, m[2], m[1] === 'deckAverage' || m[1] === 'threats' ? 'yes (AI-CACHE-HIDDEN-STATE)' : 'no']);
+});
+out(table(['cache', 'clear at', 'cap (entries)', 'key known incomplete'], caps));
+const text = lines.join('\n') + '\n';
 if (OUT) writeFileSync(OUT, text);
 else console.log(text);

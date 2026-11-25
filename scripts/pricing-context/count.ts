@@ -181,12 +181,27 @@ function hookTree(dir: string) {
     read,
     write
   );
+  // Item 8: every hit of the two caches whose key is known incomplete (AI-CACHE-HIDDEN-STATE), handed to the eval tree
+  applyPatches(
+    dir,
+    [
+      ['ai/handValues.ts', `  if (cached !== undefined && !drawAudit.on) return cached;`, `  if (cached !== undefined && !drawAudit.on) return (globalThis as any).__pcInc ? (globalThis as any).__pcInc('deckAverage', cached, state, side, deck) : cached;`],
+      ['ai/effectValues.ts', `  if (cached && !threatsAudit.on) return cached;`, `  if (cached && !threatsAudit.on) return (globalThis as any).__pcInc ? (globalThis as any).__pcInc('threats', cached, state, skipIce, own) : cached;`],
+    ],
+    'item 8 hits',
+    read,
+    write
+  );
+  wrapCaches(dir, '__pcCache');
+}
+/** Wraps every cache of CACHES in `globalThis[hook](map)`. */
+function wrapCaches(dir: string, hook: string) {
   for (const [file, name] of CACHES) {
     const path = join(dir, 'src', file);
-    const text = read(path);
+    const text = readFileSync(path, 'utf8');
     const re = new RegExp(`^((?:export )?const ${name}\\s*(?::[^=]+)?=\\s*)(new (?:Weak)?(?:Map|Set)\\b.*?\\));?\\s*$`, 'm');
     if (!re.test(text)) throw new Error(`cache ${name} not found in ${file}`);
-    write(path, text.replace(re, (_m, a, b) => `${a}(globalThis as any).__pcCache(${b});`));
+    writeFileSync(path, text.replace(re, (_m, a, b) => `${a}(globalThis as any).${hook}(${b});`));
   }
 }
 
@@ -234,6 +249,36 @@ class SandboxMap {
 }
 G.__pcCache = (m: unknown) => new SandboxMap(m);
 
+/**
+ * Item 8's eval tree: never plays, never shares a module with the game. Every value cache of the CACHES list (and the
+ * synergy profiles, the anchor's deckValues) serves nothing and stores nothing, and two exports work out a deckAverage
+ * or threats value on the asking board exactly as the cache's miss path does.
+ */
+function evalTree(dir: string) {
+  const read = (p: string) => readFileSync(p, 'utf8');
+  const write = (p: string, t: string) => writeFileSync(p, t);
+  wrapCaches(dir, '__evCache');
+  applyPatches(
+    dir,
+    [
+      ['ai/handValues.ts', `  const all = (anchor.deckValues ??= new Map());`, `  const all = new Map<string, Map<string, number>>();`],
+      ['ai/synergy.ts', `const ownCache = { corp: new WeakMap<GameState, Profile>(), runner: new WeakMap<GameState, Profile>() };`, `const ownCache = { corp: (globalThis as any).__evCache(new WeakMap<GameState, Profile>()), runner: (globalThis as any).__evCache(new WeakMap<GameState, Profile>()) };`],
+      ['ai/synergy.ts', `const oppCache = { corp: new WeakMap<GameState, Profile>(), runner: new WeakMap<GameState, Profile>() };`, `const oppCache = { corp: (globalThis as any).__evCache(new WeakMap<GameState, Profile>()), runner: (globalThis as any).__evCache(new WeakMap<GameState, Profile>()) };`],
+    ],
+    'eval caches',
+    read,
+    write
+  );
+  const hv = join(dir, 'src/ai/handValues.ts');
+  write(hv, read(hv) + `\n/** count.ts item 8: deckAverage's miss path (drawWorth) on the asking board. */\nexport function __pcDeckAvg(state: GameState, side: SideCode, deck: CardInstance[]): number {\n  return withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));\n}\n`);
+  const ev = join(dir, 'src/ai/effectValues.ts');
+  write(
+    ev,
+    read(ev) +
+      `\n/** count.ts item 8: threats' miss path on the asking board. */\nexport function __pcThreat(state: GameState, skipIce: boolean, own: boolean): { burst: number; share: number } {\n  const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));\n  const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));\n  const hits = live\n    .filter(c => !skipIce || cardDef(c).type_code !== 'ice')\n    .map(c => (own ? ownTurnDamage(state, c.cardCode) : cardDamage(c.cardCode)))\n    .filter(n => n > 0);\n  return { burst: hits.length ? Math.max(...hits) : 0, share: live.length ? hits.length / live.length : 0 };\n}\n`
+  );
+}
+
 function makeTrees(): Record<Name, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
@@ -242,11 +287,59 @@ function makeTrees(): Record<Name, string> {
     const dir = join(root, n);
     mkdirSync(dir, { recursive: true });
     cpSync('src', join(dir, 'src'), { recursive: true });
-    if (n === 'hooked') hookTree(join(dir, 'src') === '' ? dir : dir);
+    if (n === 'hooked') hookTree(dir);
     dirs[n] = dir;
+  }
+  if (!NO_EVAL) {
+    evalDir = join(root, 'eval');
+    mkdirSync(evalDir, { recursive: true });
+    cpSync('src', join(evalDir, 'src'), { recursive: true });
+    evalTree(evalDir);
   }
   return dirs;
 }
+let evalDir = '';
+let E: { pricing: any; hv: any; ev: any } | null = null;
+let evalMs = 0;
+const NO_EVAL = process.env.NO_EVAL === '1'; // item 8 off
+/** A map that never serves and never stores (the eval tree's caches). */
+class NoStoreMap {
+  get() {
+    return undefined;
+  }
+  has() {
+    return false;
+  }
+  set() {
+    return this;
+  }
+  add() {
+    return this;
+  }
+  delete() {
+    return false;
+  }
+  clear() {}
+  get size() {
+    return 0;
+  }
+  forEach() {}
+  keys() {
+    return [][Symbol.iterator]();
+  }
+  values() {
+    return [][Symbol.iterator]();
+  }
+  entries() {
+    return [][Symbol.iterator]();
+  }
+  [Symbol.iterator]() {
+    return [][Symbol.iterator]();
+  }
+}
+G.__evCache = () => new NoStoreMap();
+/** Item 8's differences by class: rounded difference -> hits (sums across shards; median and largest from it). */
+const sizes = new Map<string, Map<number, number>>();
 
 // ------------------------------------------------------------------------------------------------ the counts
 const counts = new Map<string, number>();
@@ -501,6 +594,30 @@ function listen() {
     if (!m) fills.set(values, (m = new Map()));
     m.set(key, snap());
   };
+  // ---- item 8: a hit of an incomplete-key cache, worked out again on the asking board in the eval tree
+  G.__pcInc = (name: string, cached: any, state: GameState, a: any, b: any) => {
+    if (G.__pcSB || !E) return cached;
+    const kind = kindNow();
+    const ts = topSide();
+    const ctx = P.pricing();
+    const t0 = performance.now();
+    const patch: Record<string, unknown> = {};
+    for (const k of Object.keys(ctx)) patch[k] = k === 'diagnostics' ? null : ctx[k];
+    const fresh = E.pricing.withPricing(patch, () => (name === 'deckAverage' ? E.hv.__pcDeckAvg(state, a, b) : E.ev.__pcThreat(state, a, b)));
+    evalMs += performance.now() - t0;
+    const d = name === 'deckAverage' ? Math.abs(fresh - cached) : Math.max(Math.abs(fresh.burst - cached.burst), Math.abs(fresh.share - cached.share));
+    const cls = `${name}|${ts}|${kind}`;
+    inc(`I|${cls}|hit`);
+    if (d > 0.001) {
+      inc(`I|${cls}|differs`);
+      let m = sizes.get(cls);
+      if (!m) sizes.set(cls, (m = new Map()));
+      const r = Number(d.toPrecision(3));
+      m.set(r, (m.get(r) ?? 0) + 1);
+      keepRecord(`inc:${cls}`, { served: name === 'deckAverage' ? cached : { ...cached }, fresh, side: name === 'deckAverage' ? a : undefined, stateId: state.id, T: state.turnNumber }, state);
+    }
+    return cached;
+  };
   G.__pcMemoHit = (values: Map<string, unknown>, key: string, v: unknown, work: () => unknown) => {
     if (G.__pcSB) return v;
     const s = fills.get(values)?.get(key);
@@ -573,6 +690,8 @@ function startTop(s: GameState) {
 
 function deal(pool: string, d: Deal) {
   source = `${pool}:${d.seed}`;
+  // A deal whose record differs from its base record is listed and left out of the counts (rolled back below)
+  const keep = { sizes: new Map([...sizes].map(([k, m]) => [k, new Map(m)])), counts: new Map(counts), maxes: new Map(maxes), records: records.length, timeIn: structuredClone(timeIn), ms: NAMES.map(n => [n, Object.fromEntries(Object.entries(ms[n]).map(([k, v]) => [k, v.length]))] as const) };
   const g = {} as Record<Name, any>;
   for (const n of NAMES) {
     T[n].clear();
@@ -596,8 +715,10 @@ function deal(pool: string, d: Deal) {
     for (const n of order) {
       if (n === 'hooked') startTop(s);
       const t0 = performance.now();
+      const e0 = evalMs;
       more[n] = g[n].step();
-      const dt = performance.now() - t0;
+      // item 8's eval-tree time is not the hooked tree's decision time
+      const dt = performance.now() - t0 - (evalMs - e0);
       if (dec && more[n]) ms[n][dec.side].push(dt);
     }
     top = null;
@@ -611,7 +732,18 @@ function deal(pool: string, d: Deal) {
   }
   const B = g.hooked.state;
   const recordSame = !diverged && (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc);
-  out({ kind: 'deal', pool, seed: d.seed, steps, recordSame, diverged, winner: B.winner ?? null, T: B.turnNumber, ms: Date.now() - started });
+  if (!recordSame) {
+    counts.clear();
+    for (const [k, v] of keep.counts) counts.set(k, v);
+    maxes.clear();
+    for (const [k, v] of keep.maxes) maxes.set(k, v);
+    records.length = keep.records;
+    sizes.clear();
+    for (const [k, m] of keep.sizes) sizes.set(k, m);
+    for (const sd of Object.keys(timeIn)) timeIn[sd] = keep.timeIn[sd];
+    for (const [n, lens] of keep.ms) for (const [k, len] of Object.entries(lens)) ms[n][k].length = len;
+  }
+  out({ kind: 'deal', pool, seed: d.seed, steps, recordSame, counted: recordSame, diverged, winner: B.winner ?? null, T: B.turnNumber, ms: Date.now() - started });
 }
 
 function human(file: string) {
@@ -672,9 +804,14 @@ async function main() {
   T = {} as typeof T;
   for (const n of NAMES) T[n] = await loadTree(n, dirs[n]);
   P = T.hooked.pricing;
+  if (evalDir) {
+    const e = (f: string) => import(/* @vite-ignore */ join(evalDir, 'src', f));
+    await loadTree('eval', evalDir);
+    E = { pricing: await e('ai/pricing.ts'), hv: await e('ai/handValues.ts'), ev: await e('ai/effectValues.ts') };
+  }
   listen();
-  const batch: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/facts-deals-45444888753.json', 'utf8'));
-  const nrdb: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/facts-deals-45458221138.json', 'utf8'));
+  const batch: Deal[] = JSON.parse(readFileSync('scripts/pricing-context/deals-45553599707.json', 'utf8'));
+  const nrdb: Deal[] = JSON.parse(readFileSync('scripts/pricing-context/deals-45555227992.json', 'utf8'));
   const pick = (recs: Deal[]) => recs.filter(r => !DEALS.length || DEALS.includes(String(r.seed)));
   const sources: { pool: string; id: any }[] = [];
   for (const pool of POOLS) {
@@ -688,8 +825,10 @@ async function main() {
   let pool = '';
   const flush = () => {
     if (!pool) return;
-    out({ kind: 'counts', pool, counts: Object.fromEntries(counts), maxes: Object.fromEntries(maxes), timeIn, ms: Object.fromEntries(NAMES.map(n => [n, { corp: sum(ms[n].corp), runner: sum(ms[n].runner), nCorp: ms[n].corp.length, nRunner: ms[n].runner.length }])), records });
+    out({ kind: 'counts', pool, counts: Object.fromEntries(counts), maxes: Object.fromEntries(maxes), timeIn, ms: Object.fromEntries(NAMES.map(n => [n, { corp: sum(ms[n].corp), runner: sum(ms[n].runner), nCorp: ms[n].corp.length, nRunner: ms[n].runner.length }])), records, sizes: Object.fromEntries([...sizes].map(([k, m]) => [k, Object.fromEntries(m)])), evalMs: Math.round(evalMs) });
     counts.clear();
+    sizes.clear();
+    evalMs = 0;
     maxes.clear();
     records.length = 0;
     recCount.clear();
