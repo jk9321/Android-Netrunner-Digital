@@ -272,3 +272,30 @@ if (tags.length) {
     }
   }
 }
+
+// ---------------------------------------------------------------------------------------------------- views.ts (coordinator 06:56Z)
+const ws = rows.filter(r => r.kind === 'w');
+const ls = rows.filter(r => r.kind === 'l');
+if (ws.length) {
+  say('\n## Whose clear: the flat score or the planner (views.ts)');
+  say('Unit: a Runner main decision of the source game while tagged with a click and 2 credits; a fresh base-tree Runner with the source agent\'s fields ranks (rankMainActions: REMOVE_TAG at its flat score plus the deck nudge) and decides. Flat: the ranking\'s top is REMOVE_TAG and so is the pick. Planner: the pick differs from the ranking\'s top.\n');
+  say(head(['pool', 'decisions', 'source clears', 'of them: top REMOVE_TAG (flat)', 'of them: top another, pick REMOVE_TAG (planner)', 'of them: the fresh pick is not REMOVE_TAG', 'not cleared by the source: top REMOVE_TAG, planner picked another', 'REMOVE_TAG\'s mean ranking score']));
+  for (const p of SELF) {
+    const xs = ws.filter(w => w.pool === p);
+    if (!xs.length) continue;
+    const cl = xs.filter(w => w.srcPick === 'REMOVE_TAG');
+    const no = xs.filter(w => w.srcPick !== 'REMOVE_TAG');
+    say(line([p, xs.length, cl.length, cl.filter(w => w.top === 'REMOVE_TAG' && w.pick === 'REMOVE_TAG').length, cl.filter(w => w.top !== 'REMOVE_TAG' && w.pick === 'REMOVE_TAG').length, cl.filter(w => w.pick !== 'REMOVE_TAG').length, no.filter(w => w.top === 'REMOVE_TAG' && w.pick !== 'REMOVE_TAG').length, r2(mean(xs.filter(w => w.tagScore !== null), w => w.tagScore))]));
+  }
+}
+if (ls.length) {
+  say('\n## The clock\'s input by arm and view (views.ts)');
+  say('Unit: a Runner main decision board with a resource installed. tagLossPerTurn (evaluate.ts:408, skip 0) under each tree and view; tagged boards as they are, untagged boards with one tag added.\n');
+  say(head(['pool', 'boards', 'n', 'base R', 'base C', 'resOnly R', 'resOnly C', 'owner R', 'owner C', 'base R = 0 while base C > 0']));
+  for (const p of SELF)
+    for (const tg of [true, false]) {
+      const xs = ls.filter(l => l.pool === p && l.tagged === tg);
+      if (!xs.length) continue;
+      say(line([p, tg ? 'tagged' : 'untagged + 1 tag', xs.length, ...['base.runner', 'base.corp', 'resOnly.runner', 'resOnly.corp', 'owner.runner', 'owner.corp'].map(k => r2(mean(xs, l => num(l[k])))), xs.filter(l => num(l['base.runner']) === 0 && num(l['base.corp']) > 0).length]));
+    }
+}
