@@ -18,8 +18,8 @@
  *                        fire; a later decision that plays the line's next step from the memory reads it (a carried fire).
  *   runnerAI.ts rankMainActions  savingFor and digForBreakers (written at the ranking from saveUpTarget's serverValue and
  *                        runScore) are marked when a fire happened while they were worked out; chooseOffTurn's
- *                        offTurnRank reads them through scoreMain at a later decision (a carried fire). B2 is not on beta
- *                        yet: today this is their only later reader (runner/core.ts:22).
+ *                        offTurnRank reads them through scoreMain at a later decision (a carried fire; since B2 on beta,
+ *                        246b7b2, a first difference whose only fire is such a read is listed apart by the sum).
  *   oracle.ts playedOut  is filled only with plan.oracle.safestRemote on (off in the batch and NRDB pools): not hooked, named.
  *
  * LOOK (every tree): the Runner planner's playouts (turnPlanner planTurn's `playout` call) are counted as look-ahead, so a

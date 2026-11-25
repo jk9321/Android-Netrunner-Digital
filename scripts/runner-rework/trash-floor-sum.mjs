@@ -136,6 +136,22 @@ if (lock.length) {
     for (const d of fired) for (const c of d.diff.cards ?? []) byCard[c] = (byCard[c] ?? 0) + 1;
     p(`First differences with a fire, by class: ${Object.entries(byCls).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(', ') || 'none'}; by card: ${Object.entries(byCard).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${titles[c] ?? c} ${n}`).join(', ') || 'none'}.`);
     p(`Steps before the first difference with a fire on the base tree: ${lock.filter(d => d.leg === leg).reduce((n, d) => n + (d.firedSteps ?? 0), 0)} (fires that changed no record).`);
+    // B2 on beta (brief, If B2 merges first): a first difference whose only fires are reads of the off-turn holder
+    // (savingFor / digForBreakers written at a ranking with a fire) is listed apart with its record, not a stop
+    const offOnly = fired.filter(d => d.diff.fires.every(c => c.startsWith('off:')));
+    p(`First differences whose only fire is a read of the off-turn holder (listed apart): ${offOnly.length}${offOnly.length ? ': ' + offOnly.map(d => `${d.pool}:${d.seed} step ${d.diff.step} T${d.diff.T} ${d.diff.side}:${d.diff.kind} columns ${d.diff.branchCols.join(',')} fires [${d.diff.fires.join(', ')}]`).join('; ') : ''}.`);
+    // The chance rate (ruling 03:33Z): in the deals that differ, the share of all the base tree's decisions with a fire,
+    // read from MODE=fires lines on the same base when they are among the inputs
+    const firesBy = new Map(lines.filter(x => x.mode === 'fires' && x.kind === 'deal').map(x => [`${x.pool}:${x.seed}`, x]));
+    if (firesBy.size) {
+      for (const pool of POOLS) {
+        const ds = lock.filter(d => d.leg === leg && d.pool === pool && d.diff).map(d => firesBy.get(`${pool}:${d.seed}`));
+        const have = ds.filter(Boolean);
+        const n = have.reduce((a, x) => a + Object.values(x.by).reduce((b, r) => b + r.n, 0), 0);
+        const f = have.reduce((a, x) => a + Object.values(x.by).reduce((b, r) => b + r.fired, 0), 0);
+        if (ds.length) p(`Chance rate, ${pool}: in the ${ds.length} differing deals (${have.length} with a fires record) ${f} of ${n} decisions have a fire (${pct(f, n)}).`);
+      }
+    }
     const times = lines.filter(x => x.mode === 'lockstep' && x.kind === 'time' && x.leg === leg);
     const sum = n => times.reduce((a, t) => ({ corp: a.corp + t.ms[n].corp, runner: a.runner + t.ms[n].runner }), { corp: 0, runner: 0 });
     if (times.length) {
