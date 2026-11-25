@@ -24,15 +24,23 @@ for (const side of ['corp', 'runner']) {
   p(`| pool | seed | T | step | part | rows whose 'later' value moved there | base pick | draft pick |`);
   p(`|---|---:|---:|---:|---|---|---|---|`);
   const parts = {};
+  // which deck the moved rows read: the Corp's own, the Runner's (a Runner-deck 'later' read inside the Corp's look-ahead), both
+  const byDeck = { own: {}, other: {}, both: {}, neither: {} };
   let unexplained = 0, embedded = 0;
   for (const d of rows) {
     const r = decs.get(`${d.pool}|${d.seed}|${d.diff.step}`);
     const fired = r ? Object.keys(r.fires).filter(k => k.startsWith(`${FORM}|later|`)).map(k => k.split('|').slice(2).join(' ')) : null;
     if (!fired?.length) unexplained++;
     if (fired?.some(f => f.endsWith(EMBEDDED))) embedded++;
+    const decks = new Set((fired ?? []).map(f => f.split(' ')[0]));
+    const other = side === 'corp' ? 'runner' : 'corp';
+    const which = decks.has(side) && decks.has(other) ? 'both' : decks.has(side) ? 'own' : decks.has(other) ? 'other' : 'neither';
+    byDeck[which][d.diff.kind] = (byDeck[which][d.diff.kind] ?? 0) + 1;
     parts[d.diff.kind] = (parts[d.diff.kind] ?? 0) + 1;
     const cell = x => String(x).replace(/\|/g, '/').slice(0, 90);
     p(`| ${d.pool} | ${d.seed} | ${d.diff.T} | ${d.diff.step} | ${d.diff.kind} | ${fired ? fired.join('; ') || '(none)' : '(no step 0 record)'} | ${cell(d.diff.picks?.base)} | ${cell(d.diff.picks?.branch)} |`);
   }
+  const list = o => Object.entries(o).map(([k, n]) => `${k} ${n}`).join(', ') || '-';
+  p(`\nBy the deck the moved rows read, per part: own deck only: ${list(byDeck.own)}; the other side's deck only: ${list(byDeck.other)}; both: ${list(byDeck.both)}; no row: ${list(byDeck.neither)}.`);
   p(`\nBy part: ${Object.entries(parts).map(([k, n]) => `${k} ${n}`).join(', ') || '-'}. No 'later' row moved at the decision: ${unexplained}. Embedded Reporting's row moved: ${embedded}.\n`);
 }
