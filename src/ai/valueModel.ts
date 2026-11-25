@@ -175,17 +175,23 @@ export function scopeToGame(map: Map<string, unknown>, state: GameState): void {
   mapGames.set(map, state.id);
 }
 
+/**
+ * When the card is played (R-14h, brief runner-rework/briefs/r14h-last-credits-fix.md): 'now', a card in the hand on
+ * the board priced, or lost from it now; 'later', a card that arrives on a later turn and is paid with that turn's
+ * money (handValues.ts drawMoney). Required at every call: each reader declares its class (tests/cardRateClass.test.ts).
+ */
+export type DrawWhen = 'now' | 'later';
 /** The deck's average card (handValues.ts registers it; valueModel can't import it without a cycle). */
-let deckCard: ((state: GameState, side: SideCode) => number) | null = null;
-export const setDeckCard = (fn: (state: GameState, side: SideCode) => number) => (deckCard = fn);
+let deckCard: ((state: GameState, side: SideCode, when: DrawWhen) => number) | null = null;
+export const setDeckCard = (fn: (state: GameState, side: SideCode, when: DrawWhen) => number) => (deckCard = fn);
 
 /**
  * Worth of one card drawn from, or lost out of, `side`'s hand: the deck's
  * average card with plan.flatRates.cards (no peeking: the deck, not the
  * hand), else the flat rate. Owner of a card drawn from a deck (docs/ai-priced-quantities.md, valuation table).
  */
-export function cardRate(state: GameState | undefined, side: SideCode): number {
-  return logValue('cardDrawn', 'cardRate', state, state && deckCard ? deckCard(state, side) : RATES.drawnCard, side);
+export function cardRate(state: GameState | undefined, side: SideCode, when: DrawWhen): number {
+  return logValue('cardDrawn', 'cardRate', state, state && deckCard ? deckCard(state, side, when) : RATES.drawnCard, side, when);
 }
 
 /** Worth of `points` more for a side on `score` (averaged decklist points can be fractional). */

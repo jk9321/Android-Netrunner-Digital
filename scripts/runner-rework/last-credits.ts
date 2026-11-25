@@ -248,7 +248,7 @@ function fineParts(t: any, k: any, cardId: string, board: GameState) {
   void board;
   // The deck's average card (cardRate: drawWorth, heldWorth's SOON on the stack) on each board: the channel by which the
   // credits reach draw cards' and payout cards' worth in the rig and a click's worth
-  const cardRate = { trash: E.vm.cardRate(t.after, 'runner') as number, keep: E.vm.cardRate(k.after, 'runner') as number };
+  const cardRate = { trash: E.vm.cardRate(t.after, 'runner', 'later') as number, keep: E.vm.cardRate(k.after, 'runner', 'later') as number };
   return { base, fine, byCard, fineGap, pricedOut: out, cardRate };
 }
 const dd = (t: any, k: any, f: (c: any) => number) => f(t.cap) - f(k.cap);

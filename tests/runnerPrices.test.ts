@@ -60,7 +60,7 @@ describe('R2 damage (rules 10.4.4, 5.2.7c)', () => {
   });
   it('a full grip does not make damage free: the clicks that draw back are paid (CLICK each), or the card is lost', () => {
     const s = inRun(5, 3);
-    expect(damageWorth(s, 2, true)).toBeGreaterThanOrEqual(Math.min(2 * CLICK, 2 * cardRate(s, 'runner')) - 1e-9);
+    expect(damageWorth(s, 2, true)).toBeGreaterThanOrEqual(Math.min(2 * CLICK, 2 * cardRate(s, 'runner', 'now')) - 1e-9);
     expect(damageWorth(s, 2, true)).toBeLessThanOrEqual(damageWorth(s, 2));
   });
   it("only the Runner's own pricing of its run reads the draw-back: the Corp's view of the same subroutine does not", () => {

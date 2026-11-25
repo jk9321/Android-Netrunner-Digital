@@ -36,7 +36,7 @@ function azimatCredit(state: GameState): number {
 /** Side Hustle: one a run until 6, then all taken with a card; each waits for the rest. */
 function sideHustleCredit(state: GameState, card: CardInstance): number {
   const turnsToFill = Math.max(0, 6 - counters(card, 'credit')) / PACE.runs;
-  return PAYOUT_RISK.clickWait ** turnsToFill + cardRate(state, 'runner') / 6;
+  return PAYOUT_RISK.clickWait ** turnsToFill + cardRate(state, 'runner', 'later') / 6;
 }
 
 /** Hantu: +2 strength when a sentry is stronger than it, else spare. */
@@ -50,7 +50,7 @@ function hantuVirus(state: GameState, card: CardInstance): number {
 const gioanPower = (state: GameState): number => Math.min(1, 2 * PACE.agendaEvents) * damageWorth(state, 1);
 
 /** AU Co.: 2 counters look at 3 cards, keep 2: two cards drawn and a filter. */
-const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp') + handFilter()) / 2;
+const auCoPower = (state: GameState): number => (2 * cardRate(state, 'corp', 'later') + handFilter()) / 2;
 
 /** Facedown Archives as the pricing side sees it: the Runner can't see those cards (Gemini audit 2.2a). */
 const corpArchivesHidden = (state: GameState): CardInstance[] => (actingSide() === 'runner' ? [] : state.corp.archives.faceDown);
@@ -71,19 +71,19 @@ function embeddedAgenda(state: GameState): number {
     const gain = printedGain(cardDef(c).stripped_text);
     return cardDef(c).type_code === 'operation' && gain !== undefined ? gain - (cardDef(c).cost ?? 0) : 0;
   });
-  return Math.max(0, Math.max(0, ...gains) - cardRate(state, 'corp'));
+  return Math.max(0, Math.max(0, ...gains) - cardRate(state, 'corp', 'later'));
 }
 
 /** Off the Books: any card from R&D, installed for nothing: a card, a click, and the install it saves. */
 function offTheBooksAgenda(state: GameState): number {
   const installs = state.corp.rd.filter(c => ['asset', 'upgrade', 'ice'].includes(cardDef(c).type_code ?? ''));
-  return cardRate(state, 'corp') + CLICK + mean(installs.map(c => (cardDef(c).type_code === 'ice' ? 1 : 0)), 0.5);
+  return cardRate(state, 'corp', 'later') + CLICK + mean(installs.map(c => (cardDef(c).type_code === 'ice' ? 1 : 0)), 0.5);
 }
 
 /** Next Big Thing: a click for 4 cards, any shuffled back: new cards in the hand's free space, the rest swapped for its worst cards. */
 function nextBigThingAgenda(state: GameState): number {
   const space = Math.min(4, Math.max(0, state.corp.handSizeLimit - state.corp.hq.length));
-  const card = cardRate(state, 'corp');
+  const card = cardRate(state, 'corp', 'later');
   return space * card + (4 - space) * 0.5 * card - CLICK;
 }
 
@@ -106,7 +106,7 @@ const devadattaPower = (state: GameState): number => {
 };
 
 /** Cacophony: 2 counters sabotage 3, the Corp picking its worst cards. */
-const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp')) / 2;
+const cacophonyPower = (state: GameState): number => (3 * 0.5 * cardRate(state, 'corp', 'now')) / 2;
 
 /** Average net credits of a transaction operation in the Corp's deck (Plutus replays them). */
 function transactionGain(state: GameState): number {
@@ -152,7 +152,7 @@ export const ELEVATION: Record<string, CardAI> = {
     synergy: { gives: { trash: 1.5, draw: 0.5 } },
     value: { rig: 2.5, draws: 1 }, // Trash and draw, once
     // Once, trash a non-agenda card accessed (about 4 to the Corp) and draw 1
-    runner: state => 0.7 * (4 + cardRate(state, 'runner')),
+    runner: state => 0.7 * (4 + cardRate(state, 'runner', 'later')),
   },
   // Hantu
   '35008': {
@@ -321,13 +321,13 @@ export const ELEVATION: Record<string, CardAI> = {
     value: { rig: 2, draws: 0.5 }, // Credits and a card for spent installs
     // Now and then, an empty card turned into its install cost and a card
     runner: state => {
-      const spent = 0.25 * (2 + cardRate(state, 'runner') - 1);
+      const spent = 0.25 * (2 + cardRate(state, 'runner', 'later') - 1);
       // The Sourdough loop (Jeff, 2026-10-30): Principia pays its printed 4 but reinstalls for 1 less per other
       // Breaker installed (from the grip, or the heap with Scrounge), so trashing a spare copy is credits and a card most turns
       const principia = [...state.runner.grip, ...state.runner.stack, ...state.runner.heap, ...state.runner.rig.programs].some(c => c.cardCode === PRINCIPIA);
       if (!principia) return perTurn(state, spent, 'runner');
       const breakers = state.runner.rig.programs.filter(c => isIcebreaker(c) && c.cardCode !== PRINCIPIA).length;
-      const loop = 4 + cardRate(state, 'runner') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
+      const loop = 4 + cardRate(state, 'runner', 'later') - Math.max(0, 4 - Math.max(1, breakers)) - CLICK;
       return perTurn(state, Math.max(spent, 0.6 * loop), 'runner');
     },
     // "The first time each turn a run begins, you may trash 1 of your other installed cards. If you do, gain credits
@@ -341,7 +341,7 @@ export const ELEVATION: Record<string, CardAI> = {
     // A credit for each run until it holds 6, then a card
     runner: (state, code, card) => {
       const left = Math.max(0, 6 - (card ? counters(card, 'credit') : 1));
-      return perTurn(state, PACE.runs * counterWorthOf(state, code, 'credit'), 'runner', 0, Math.ceil(left / PACE.runs)) + 0.85 ** Math.ceil(left / PACE.runs) * cardRate(state, 'runner');
+      return perTurn(state, PACE.runs * counterWorthOf(state, code, 'credit'), 'runner', 0, Math.ceil(left / PACE.runs)) + 0.85 ** Math.ceil(left / PACE.runs) * cardRate(state, 'runner', 'later');
     },
     counters: { credit: () => 0.9 }, // All taken (and a card drawn) once it holds 6
     counterFormulas: { credit: (s, card) => sideHustleCredit(s, card) },

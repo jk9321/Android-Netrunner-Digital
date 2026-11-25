@@ -37,7 +37,7 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5, draws: 0.5 },
     // A counter on turns it trashes a Corp card, each a card or a tag gone
     runner: (state, code) => perTurn(state, PACE.paidTrashes * counterWorthOf(state, code, 'power'), 'runner'),
-    counters: { power: state => (state.runner.tags > 0 ? Math.max(cardRate(state, 'runner'), RATES.tagAgainstRunner * 0.5) : cardRate(state, 'runner')) }, // A card or a tag removed
+    counters: { power: state => (state.runner.tags > 0 ? Math.max(cardRate(state, 'runner', 'later'), RATES.tagAgainstRunner * 0.5) : cardRate(state, 'runner', 'later')) }, // A card or a tag removed
   },
   // Audrey v2 (icebreaker)
   '34004': {
@@ -88,7 +88,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { draw: 1, discard: 0.5 } },
     value: { rig: 1, draws: 1 },
     // A card off the top of the stack for a fresh draw when the Corp installs in a root
-    runner: state => perTurn(state, 0.6 * 0.5 * cardRate(state, 'runner'), 'runner'),
+    runner: state => perTurn(state, 0.6 * 0.5 * cardRate(state, 'runner', 'later'), 'runner'),
   },
   // Mercury: Chrome Libertador
   '34010': { synergy: { gives: { hq: 1, rd: 1 }, wants: { runs: 1 } } },
@@ -163,7 +163,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1, rd: 1, draw: 2 } },
     // 5 cards
     run: (state?: GameState): RunOptions => {
-      return { successBonus: state ? Math.min(5, Math.max(1, state.runner.handSizeLimit - state.runner.grip.length + 1)) * cardRate(state, 'runner') : 4 };
+      return { successBonus: state ? Math.min(5, Math.max(1, state.runner.handSizeLimit - state.runner.grip.length + 1)) * cardRate(state, 'runner', 'now') : 4 };
     },
   },
   // AirbladeX (JSRF Ed.)
@@ -179,7 +179,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { draw: 1 }, wants: { install: 1 } },
     value: { rig: 2.5, draws: 1 },
     // +2 MU; a card the first time each turn it installs a program
-    runner: state => 2 * muWorth(state) * 0.6 + perTurn(state, PACE.programInstalls * cardRate(state, 'runner'), 'runner'),
+    runner: state => 2 * muWorth(state) * 0.6 + perTurn(state, PACE.programInstalls * cardRate(state, 'runner', 'later'), 'runner'),
   },
   // Living Mural
   '34024': { synergy: { gives: { breakers: 1 }, when: ['threat'] } },
@@ -305,14 +305,14 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { keep: 2, upgrade: [2, 1.5] },
     // Steals here cost 2 cards from the grip, and so does trashing it
     corp: (state, _code, { cost, agenda }) => {
-      const tax = 2 * cardRate(state, 'runner') * 0.6;
+      const tax = 2 * cardRate(state, 'runner', 'now') * 0.6;
       return { keep: Math.max(0.3, tax - cost + 0.1 * agenda), upgrade: [Math.max(0.3, tax + 0.1 * agenda - cost), Math.max(0.3, tax * 0.7 - cost)] };
     },
   },
   // Epiphany Analytica: Nations Undivided (identity)
   '34048': {
     synergy: { gives: { install: 1, draw: 0.5 } },
-    counters: { power: state => 0.5 * cardRate(state, 'corp') + 0.5 }, // A click for a look at 3 and a free install
+    counters: { power: state => 0.5 * cardRate(state, 'corp', 'later') + 0.5 }, // A click for a look at 3 and a free install
   },
   // Oracle Thinktank
   '34049': { synergy: { gives: { tags: 1 }, wants: { tags: 0.5 } } },
@@ -440,7 +440,7 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5, draws: 1 },
     // +1 MU; 2 cards when it removes a tag, after a turn ended tagged
     runner: (state, code) => muWorth(state) + perTurn(state, 0.4 * tagged(state) * counterWorthOf(state, code, 'power'), 'runner'),
-    counters: { power: state => 2 * cardRate(state, 'runner') }, // 2 cards when a tag is removed
+    counters: { power: state => 2 * cardRate(state, 'runner', 'later') }, // 2 cards when a tag is removed
   },
   // The Wizard's Chest
   '34070': {
@@ -781,7 +781,7 @@ export const LIBERATION: Record<string, CardAI> = {
   // The Basalt Spire (agenda)
   '34123': {
     synergy: { wants: { discard: 1 }, when: ['onScore'] },
-    counters: { agenda: state => 0.6 * cardRate(state, 'corp') + 0.5 }, // A card back from Archives
+    counters: { agenda: state => 0.6 * cardRate(state, 'corp', 'later') + 0.5 }, // A card back from Archives
   },
   // Hearts and Minds
   '34124': {

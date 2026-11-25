@@ -9,13 +9,13 @@ import { newGame } from './helpers';
 describe('the last flat rates from the model (Jeff, 2026-10-28; plan.flatRates)', () => {
   it('a card drawn or lost is worth the deck’s average card, not a flat 1.6', () => {
     const s = newGame();
-    const runner = cardRate(s, 'runner');
+    const runner = cardRate(s, 'runner', 'now');
     expect(runner).not.toBe(RATES.drawnCard);
     expect(runner).toBeGreaterThan(0.5);
     expect(runner).toBeLessThan(4);
     // Damage at a roomy grip loses about one average card
     s.runner.grip = [...s.runner.grip.slice(0, 5), ...s.runner.stack.slice(0, 3)];
-    expect(damageWorth(s, 1)).toBeCloseTo(cardRate(s, 'runner'));
+    expect(damageWorth(s, 1)).toBeCloseTo(cardRate(s, 'runner', 'now'));
   });
 
   it('accesses are priced on the point clock: a point near the win is worth more', () => {
@@ -43,7 +43,7 @@ describe('the last flat rates from the model (Jeff, 2026-10-28; plan.flatRates)'
     const s = newGame();
     const limit = s.runner.handSizeLimit ?? 5;
     const clock = Math.max(0, flatlineOdds(s, limit - 1, true) - flatlineOdds(s, limit, true));
-    expect(coreSlotWorth(s)).toBeCloseTo(0.5 * cardRate(s, 'runner'));
+    expect(coreSlotWorth(s)).toBeCloseTo(0.5 * cardRate(s, 'runner', 'now'));
     expect(coreDamageWorth(s)).toBeCloseTo(coreSlotWorth(s) + flatlineWorth(s) * clock);
   });
 

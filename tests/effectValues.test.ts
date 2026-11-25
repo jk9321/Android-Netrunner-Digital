@@ -75,11 +75,11 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Spin Doctor: 2 cards drawn', () => {
-    expect(keep('30053')).toBeCloseTo(2 * cardRate(newGame(), 'corp') + 0.5);
+    expect(keep('30053')).toBeCloseTo(2 * cardRate(newGame(), 'corp', 'now') + 0.5);
   });
 
   it('Humanoid Resources: 4 credits and 3 cards, its 3 clicks paid back by 3 free actions', () => {
-    expect(keep('35039')).toBeCloseTo(0.9 * (4 + 3 * cardRate(newGame(), 'corp')) - 1);
+    expect(keep('35039')).toBeCloseTo(0.9 * (4 + 3 * cardRate(newGame(), 'corp', 'now')) - 1);
   });
 
   it('Phật Gioan Baotixita: counters still to come, used up within 3 turns', () => {
@@ -166,7 +166,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('T400 Memory Diamond: +1 MU and a bigger hand', () => {
-    expect(rig('30031')).toBeCloseTo(MU + 0.6 * cardRate(newGame(), 'runner'));
+    expect(rig('30031')).toBeCloseTo(MU + 0.6 * cardRate(newGame(), 'runner', 'now'));
   });
 
   // ---- Runner programs ----
@@ -175,7 +175,7 @@ describe('the last hand-set cards, priced by what they do (Jeff, 2026-10-28)', (
   });
 
   it('Gourmand: once, a trashed card and a card drawn', () => {
-    expect(rig('35007')).toBeCloseTo(0.7 * (4 + cardRate(newGame(), 'runner')));
+    expect(rig('35007')).toBeCloseTo(0.7 * (4 + cardRate(newGame(), 'runner', 'later')));
   });
 
   it('Botulus and Tranquilizer: a counter a turn for about 3 turns', () => {

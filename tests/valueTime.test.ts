@@ -79,7 +79,7 @@ describe('step 2: the tag input to the Corp formulas worked out on first read', 
             const eager = board(runnerTurn, tags);
             const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
             const agenda = pointGain(eager.corp.score, agendaOdds(eager).points);
-            const card = cardRate(eager, 'corp');
+            const card = cardRate(eager, 'corp', 'now');
             const tag = tagsWorth(eager, 'corp', 1);
             const risk = getCardDefinition(code).type_code === 'asset' ? assetRisk(eager, false) : PAYOUT_RISK.corpBare;
             expect(corpEffect(board(runnerTurn, tags), code, rezzed), code).toEqual(corpFormula(eager, code, { cost, agenda, card, tag, risk }));

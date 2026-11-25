@@ -1,8 +1,8 @@
 import { PACE, accessWorth, damageWorth, perTurn } from '../src/ai/effectValues';
 import { PAYOUT_RISK } from '../src/ai/payoutRisk';
-import { CLICK, cardRate } from '../src/ai/valueModel';
+import { CLICK, DrawWhen, cardRate } from '../src/ai/valueModel';
 
-const corpCard = () => cardRate(newGame(), 'corp');
+const corpCard = (when: DrawWhen) => cardRate(newGame(), 'corp', when);
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameState } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
@@ -100,7 +100,7 @@ describe('the last hand-set counter rates from what each counter turns into (Jef
   });
 
   it('AU Co.: two counters draw 2 of 3 cards', () => {
-    expect(on('35046', 'power')).toBeCloseTo((2 * corpCard() + 0.3) / 2);
+    expect(on('35046', 'power')).toBeCloseTo((2 * corpCard('later') + 0.3) / 2);
   });
 
   it('Project Ingatan: worth more with a card in Archives to install', () => {
@@ -119,13 +119,13 @@ describe('the last hand-set counter rates from what each counter turns into (Jef
   });
 
   it('Off the Books: a card, a click and the install saved', () => {
-    expect(on('35071', 'agenda')).toBeGreaterThan(corpCard() + CLICK);
+    expect(on('35071', 'agenda')).toBeGreaterThan(corpCard('later') + CLICK);
   });
 
   it('Next Big Thing: 4 cards for a click, worth less into a full hand', () => {
     const roomy = on('35060', 'agenda', s => (s.corp.hq = []));
     const full = on('35060', 'agenda', s => (s.corp.hq = s.corp.hq.slice(0, 5)));
-    expect(roomy).toBeCloseTo(4 * corpCard() - CLICK);
+    expect(roomy).toBeCloseTo(4 * corpCard('later') - CLICK);
     expect(full).toBeLessThan(roomy);
   });
 
@@ -168,6 +168,6 @@ describe('the last hand-set counter rates from what each counter turns into (Jef
   });
 
   it('Cacophony: half of sabotage 3, the Corp picking its worst cards', () => {
-    expect(on('35010', 'power')).toBeCloseTo(0.75 * corpCard());
+    expect(on('35010', 'power')).toBeCloseTo(0.75 * corpCard('now'));
   });
 });

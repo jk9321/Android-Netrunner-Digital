@@ -31,13 +31,13 @@ describe('pricing context', () => {
 
   it("the deck's average card priced while ice is priced is not served outside it, nor the other way", () => {
     // The Runner's deck: its run cards read run odds, which are the flat guesses while ice is being priced
-    const plain = asSide('runner', () => cardRate(newGame(), 'runner'));
-    const guarded = asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(newGame(), 'runner')));
+    const plain = asSide('runner', () => cardRate(newGame(), 'runner', 'now'));
+    const guarded = asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(newGame(), 'runner', 'now')));
     expect(guarded).not.toBe(plain);
     const s = newGame();
-    expect(asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(s, 'runner')))).toBe(guarded);
+    expect(asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(s, 'runner', 'now')))).toBe(guarded);
     // Context A after context B on the same position: A's own number, then B's again
-    expect(asSide('runner', () => cardRate(s, 'runner'))).toBe(plain);
-    expect(asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(s, 'runner')))).toBe(guarded);
+    expect(asSide('runner', () => cardRate(s, 'runner', 'now'))).toBe(plain);
+    expect(asSide('runner', () => withPricing({ pricingIce: true }, () => cardRate(s, 'runner', 'now')))).toBe(guarded);
   });
 });

@@ -6,7 +6,7 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
+import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 
@@ -41,7 +41,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
       if (planned !== undefined) return planned;
       // Played out when chosen (one-step simulation); in hand, a money card is worth its net gain
       const gain = printedGain(def.stripped_text);
-      const average = cardRate(state, def.side_code);
+      const average = cardRate(state, def.side_code, 'now');
       return gain !== undefined ? Math.max(average, gain - cost) : average;
     }
     case 'agenda': {
@@ -60,7 +60,7 @@ export function playedWorth(state: GameState, card: CardInstance): number {
   }
   // Runner rig cards
   const profile = CARD_PROFILES[card.cardCode];
-  if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
+  if (profile) return payoutWorth(profile, turns, profile.load, payoutWait(state, profile, 'runner'), cardRate(state, 'runner', 'later')) * payoutSlide(state, 'runner', profile.load) - cost - CLICK;
   // (Not while the deck's average card is worked out, nor inside any breaker's pricing: its rig walks the hosted breakers,
   // which nesting would price at 1 + 2k R(k-1) rig values for k hosted (minutes with four on Madani); depth 1 is 1 + 2k)
   if (isIcebreaker(card) && !pricing().pricingBreaker && !pricing().averaging) {
@@ -94,12 +94,14 @@ function loadedWorth(state: GameState, card: CardInstance): number {
 /** Worth of one card waiting in hand: the card-level input of a hand's owner, ownHandValue (registry, valuation table). */
 export function heldWorth(state: GameState, card: CardInstance, side: SideCode, freeInstall = false): number {
   // Installed later without spending a click (a program hosted on Madani): the click playedWorth charges is saved
-  return heldFromPlayed(state, card, side, playedWorth(state, card) + (freeInstall ? CLICK : 0));
+  return heldFromPlayed(card, playedWorth(state, card) + (freeInstall ? CLICK : 0), side === 'corp' ? state.corp.credits : state.runner.credits);
 }
 
-/** A card's worth held in hand, from its worth played: soon if `state`'s credits pay for it, never under the floor. */
-function heldFromPlayed(state: GameState, card: CardInstance, side: SideCode, played: number): number {
-  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
+/**
+ * A card's worth held in hand, from its worth played: soon if `credits` pay for it, never under the floor. A held card
+ * is tested against the board's credits (heldWorth); a deck card against the money it would be played with (drawMoney).
+ */
+function heldFromPlayed(card: CardInstance, played: number, credits: number): number {
   const soon = (cardDef(card).cost ?? 0) <= credits ? SOON.now : SOON.later;
   return Math.max(HAND_FLOOR, soon * played);
 }
@@ -153,17 +155,29 @@ function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
-/** Average held worth of the cards left in a side's deck (what a draw is expected to bring). */
-function drawWorth(state: GameState, side: SideCode): number {
+/**
+ * The money a deck card drawn `when` is tested against (heldFromPlayed: payable soon or not): the side's credits on the
+ * board for a card in hand now or lost from it now ('now'); for a card that arrives on a later turn ('later'), the money
+ * it is played with on that turn (R-14h; commit 2 of its brief: the credits on the board for both, play unchanged).
+ */
+function drawMoney(state: GameState, side: SideCode, when: DrawWhen): number {
+  void when; // commit 3: 'later' reads the next turn's money
+  return side === 'corp' ? state.corp.credits : state.runner.credits;
+}
+
+/** Average held worth of the cards left in a side's deck (what a draw is expected to bring), each card tested against the money it is played with (drawMoney). */
+function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {
   // plan.oracle.rd: the Corp's next draw is R&D's top card itself
   const deck = side === 'corp' ? corpDrawPool(state) : state.runner.stack;
   // The cards, not just the count: the Runner reply deals guessed decks of the same size (runnerReply.ts).
   // plan.drawWorthCredits (code audit, 2026-11-06): and the side's credits, which decide what each card would cost to play
   // (heldWorth's SOON): without them the average from the turn's first credit count was used all turn, and in look-aheads
   // that spend or gain money (found as a test that passed alone and failed after another, tests/brokeCorp.test.ts)
-  const rootAvg = rootDeckAverage(state, side, deck);
+  const money = drawMoney(state, side, when);
+  const rootAvg = rootDeckAverage(state, side, deck, money);
   if (rootAvg !== undefined) return rootAvg;
-  const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:`;
+  // R-14h: and the money the cards are tested against, beside the credits (playedWorth reads the credits itself: payoutSlide)
+  const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:${money}:`;
   // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
   // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
   // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
@@ -182,7 +196,7 @@ function drawWorth(state: GameState, side: SideCode): number {
   if (cached !== undefined && !drawAudit.on) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
-  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldWorth(state, c, side), 0) / deck.length : RATES.drawnCard));
+  const value = withPricing({ averaging: true }, () => (deck.length ? deck.reduce((n, c) => n + heldFromPlayed(c, playedWorth(state, c), money), 0) / deck.length : RATES.drawnCard));
   if (cached !== undefined) {
     // The audit (test-only): a value served from the map, worked out again on the asking board
     drawAudit.checked++;
@@ -211,7 +225,7 @@ export const deckAvgStats = { served: 0, priced: 0, audit: false, checked: 0, mi
  * Cache: anchor.deckValues, per decision (a new anchor each time decisionContext notes another board), keyed by the
  * pricing context and side, then the card. Audited by tests/rootDeckAverage.test.ts (every hit priced again).
  */
-function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[]): number | undefined {
+function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[], money: number): number | undefined {
   if (!atDeckRoot(state, side)) return undefined;
   const anchor = pricing().anchor!;
   if (!deck.length) return RATES.drawnCard;
@@ -221,7 +235,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
   if (!values) all.set(key, (values = new Map()));
   const root = anchor.root!;
   deckAvgStats.served++;
-  // The asking board's credits decide which cards could be played soon (heldFromPlayed), as in the per-board
+  // The asking board's money (drawMoney) decides which cards could be played soon (heldFromPlayed), as in the per-board
   // average (plan.drawWorthCredits): a line that spends its money down sees its draws worth less. Only the
   // card's played worth is kept from the root.
   let sum = 0;
@@ -236,7 +250,7 @@ function rootDeckAverage(state: GameState, side: SideCode, deck: CardInstance[])
       values.set(c.instanceId, played);
       deckAvgStats.priced++;
     }
-    sum += heldFromPlayed(state, c, side, played);
+    sum += heldFromPlayed(c, played, money);
   }
   return sum / deck.length;
 }
@@ -252,7 +266,7 @@ function priceAtRoot(root: GameState, card: CardInstance): number {
 }
 
 /** The deck's average card for valueModel's cardRate (plan.flatRates.cards); the flat rate while it is being worked out. */
-setDeckCard((state, side) => (pricing().averaging ? RATES.drawnCard : drawWorth(state, side)));
+setDeckCard((state, side, when) => (pricing().averaging ? RATES.drawnCard : drawWorth(state, side, when)));
 
 /**
  * Worth of a side's own hand: the best `limit` cards by held worth, the
@@ -267,7 +281,7 @@ export function ownHandValue(state: GameState, side: SideCode): number {
   const reach = side === 'corp' ? reachCard(state) : undefined;
   const values = hand
     // plan.oracle.rd: a card the Corp drew in a look-ahead is one it knew was coming
-    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
+    .map(c => (seen && !seen.has(c.instanceId) && !(side === 'corp' && corpKnowsRd()) ? logValue('cardDrawn', 'ownHandValue drawWorth', state, side === actingSide() ? cardRate(state, side, 'now') : drawWorth(state, side, 'now'), side) : c === reach ? HAND_FLOOR : heldWorth(state, c, side)))
     .sort((a, b) => b - a);
   let value = 0;
   for (let i = 0; i < values.length; i++) {
@@ -307,7 +321,7 @@ export function clickWorth(state: GameState, side: SideCode): number {
     // rest (playedWorth charges the click: add it back to get what the click buys)
     .map(c => (1 - SOON.now) * (playedWorth(state, c) + CLICK))
     .sort((a, b) => b - a);
-  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side) : drawWorth(state, side), side)); // V-B B1: the decider's own deck through cardRate (ruling 8)
+  const repeatable = Math.max(1, logValue('cardDrawn', 'clickWorth drawWorth', state, side === actingSide() ? cardRate(state, side, 'now') : drawWorth(state, side, 'now'), side)); // V-B B1: the decider's own deck through cardRate (ruling 8)
   let total = 0;
   for (let i = 0; i < clicks; i++) total += Math.max(repeatable, plays[i] ?? 0);
   const value = Math.max(1, Math.min(3, total / clicks));

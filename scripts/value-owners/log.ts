@@ -29,7 +29,7 @@ import { Agent } from '../../src/ai/agent';
 import { GameRunner } from '../../src/ai/playout';
 import { installDiagnostics, newDiagnostics } from '../../src/ai/diagnostics';
 import { Pricing, pricing, withPricing } from '../../src/ai/pricing';
-import { CLICK, RATES, cardRate, flatlineWorth, payoutSlide, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
+import { CLICK, DrawWhen, RATES, cardRate, flatlineWorth, payoutSlide, pointGain, reachCard, sampledEndWorth, sideCreditValue, valueLoops } from '../../src/ai/valueModel';
 import { clickPrice, handByCard, heldWorth, ownHandValue } from '../../src/ai/handValues';
 import { agendaWorth, corpCardValue, handValue, hqTrashCardsLoss, keepValue, tagsWorth } from '../../src/ai/evaluate';
 import { agendaOdds, corpEffect, damageWorth, perTurn, rezzedWorth } from '../../src/ai/effectValues';
@@ -300,8 +300,8 @@ function priceAgain(s: Sample): void {
       check(s, keepValue(st, a[0] as CardInstance));
       return;
     case 'cardRate': {
-      const [sd] = a as [SideCode];
-      check(s, cardRate(st, sd));
+      const [sd, when] = a as [SideCode, DrawWhen];
+      check(s, cardRate(st, sd, when));
       // V-B B1 (recount VA-LOG-AVERAGING-MASK): inside an average the owner's hook returns the flat 1.6 itself, so those
       // asks would count as agreement; they go to a row of their own and the comparison rows read outside it only
       const avg = s.ctx.averaging ? ' (averaging: the guard serves 1.6)' : '';
@@ -312,7 +312,7 @@ function priceAgain(s: Sample): void {
     case 'ownHandValue drawWorth':
     case 'clickWorth drawWorth': {
       const [sd] = a as [SideCode];
-      add('cardDrawn', `${s.site} (direct entry) vs cardRate`, s, { copy: s.value, owner: cardRate(st, sd) }, `${sd}${s.ctx.averaging ? ', averaging' : ''}`);
+      add('cardDrawn', `${s.site} (direct entry) vs cardRate`, s, { copy: s.value, owner: cardRate(st, sd, 'now') }, `${sd}${s.ctx.averaging ? ', averaging' : ''}`);
       return;
     }
     case 'iceWorth': {
@@ -427,7 +427,7 @@ function priceAgain(s: Sample): void {
         const profile = CARD_PROFILES[c.cardCode];
         if (!profile || cardDef(c).side_code !== 'runner') continue;
         // V-B B1 (recount VA-LOG-RIG-SLIDE): play's term is payoutWorth x payoutSlide (evaluate.ts runnerRigValue)
-        const pay = payoutWorth(profile, turnsLeft(st), counters(c, 'credit'), payoutWait(st, profile, 'runner'), cardRate(st, 'runner')) * payoutSlide(st, 'runner', counters(c, 'credit'));
+        const pay = payoutWorth(profile, turnsLeft(st), counters(c, 'credit'), payoutWait(st, profile, 'runner'), cardRate(st, 'runner', 'later')) * payoutSlide(st, 'runner', counters(c, 'credit'));
         add('rigCard', 'profiled rig card: payoutWorth x payoutSlide vs 2 x runnerCardValue', s, { copy: pay, owner: RATES.rigCardScale * runnerCardValue(c.cardCode, st, c) }, cardDef(c).title);
       }
       return;
@@ -489,7 +489,7 @@ function formulaColumns(st: GameState, ctx: Partial<Pricing>) {
       row.gap.push(today - (rezzed - cost));
       // linearity: f(c) - f(0) for a few costs, through the card's formula with only `cost` changed
       const agenda = pointGain(st.corp.score, agendaOdds(st).points);
-      const card = cardRate(st, 'corp');
+      const card = cardRate(st, 'corp', 'now');
       const f = (c: number) => corpFormula(st, code, { cost: c, agenda, card, get tag() { return tagsWorth(st, 'corp', 1); } })?.keep ?? NaN;
       const f0 = f(0);
       row.slopes.push([1, 2, 3, 5].map(c => f(c) - f0));

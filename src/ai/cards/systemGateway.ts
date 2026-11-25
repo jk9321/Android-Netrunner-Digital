@@ -56,7 +56,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { trash: 2, discard: 1 }, wants: { draw: 1 } },
     value: { rig: 3 },
     // +1 MU; trash an accessed card for 2 cards from the grip (its trash cost and the Corp's loss, about 4)
-    runner: state => muWorth(state) + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * cardRate(state, 'runner')), 'runner'),
+    runner: state => muWorth(state) + perTurn(state, 0.25 * Math.max(0, 4 + 2 - 2 * cardRate(state, 'runner', 'now')), 'runner'),
   },
   // Botulus
   '30004': {
@@ -267,7 +267,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { wants: { draw: 1 } },
     value: { rig: 2 },
     // +1 MU and one more card in hand (and one more point of life against damage)
-    runner: state => muWorth(state) + cardRate(state, 'runner') * 0.6,
+    runner: state => muWorth(state) + cardRate(state, 'runner', 'now') * 0.6,
   },
   // Mayfly
   // "When this run ends, trash this program." (runs.ts breakPlans prices the trash)
@@ -287,7 +287,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     synergy: { gives: { draw: 1 }, wants: { draw: 1 } },
     value: { rig: 3.5, draws: 1 },
     // One more card the first time each turn it clicks to draw
-    runner: state => perTurn(state, PACE.drawTurns * cardRate(state, 'runner'), 'runner'),
+    runner: state => perTurn(state, PACE.drawTurns * cardRate(state, 'runner', 'later'), 'runner'),
   },
   // HB: Precision Design
   '30035': { synergy: { gives: { draw: 0.5 }, wants: { discard: 0.5 }, when: ['onScore'] } },
@@ -382,10 +382,10 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
       const { agenda, agendaPoints } = hiddenCardOdds(state);
       const { faceUp, faceDown } = state.corp.archives;
       const root = pricing().anchor?.root, unseen = root && !corpKnowsRd() ? rdIdsAt(root) : undefined;
-      const odds = () => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp');
-      const known = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(state, 'corp'));
+      const odds = () => agenda * archivedAgendaLoss(state, agendaPoints) + (1 - agenda) * 0.3 * cardRate(state, 'corp', 'later');
+      const known = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(state, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(state, 'corp', 'later'));
       const worth = [
-        ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp') : known(c))),
+        ...faceUp.map(c => (viewer === 'runner' ? 0.3 * cardRate(state, 'corp', 'later') : known(c))),
         ...faceDown.map(c => (viewer === 'runner' || unseen?.has(c.instanceId) ? odds() : known(c))),
       ].sort((a, b) => b - a);
       if (viewer === 'runner') return 0.3 + (worth[0] ?? 0) + (worth[1] ?? 0);
