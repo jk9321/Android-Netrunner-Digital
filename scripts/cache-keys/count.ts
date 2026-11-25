@@ -48,7 +48,8 @@ const GROUP = GROUP_LIST[shard % G_];
 const SLICE = Math.max(1, Math.floor(shards / G_));
 const SLICE_K = Math.floor(shard / G_);
 const POOLS = (env.POOL ?? 'batch,nrdb').split(',');
-const DEALS = (env.DEALS ?? '').split(',').filter(Boolean);
+// DEALS_<group> (a top-up run) overrides DEALS for that group's shards
+const DEALS = (env[`DEALS_${(env.GROUPS ?? 't').split(',')[Number((env.SHARD ?? '0/1').split('/')[0]) % (env.GROUPS ?? 't').split(',').length]}`] ?? env.DEALS ?? '').split(',').filter(Boolean);
 const SAMPLE: Record<MapName, number> = Object.fromEntries(MAPS.map(m => [m, Number(env[`SAMPLE_${m}`] ?? env.SAMPLE ?? 1)])) as Record<MapName, number>;
 let AUDIT = env.AUDIT !== '0';
 // Own play: '1' every arm on every deal; 'changed' (default) only the arms with a changed decision in this deal's lockstep
