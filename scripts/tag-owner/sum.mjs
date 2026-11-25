@@ -98,6 +98,42 @@ if (tags.length) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------- Part A additions (06:38Z, 06:41Z)
+const tc = (t, a) => num(t.priced.tagCost?.[a]);
+const sd = (xs, f) => {
+  const m = mean(xs, f);
+  return xs.length > 1 ? Math.sqrt(sum(xs, x => (Number(f(x)) - m) ** 2) / (xs.length - 1)) : NaN;
+};
+if (tags.some(t => t.priced.tagCost)) {
+  say('\n## Part A, tagCost beside the arms (06:38Z, 06:41Z)');
+  say('Unit: as Part A. tagCost = the run\'s price of one more tag (runs.ts tagCost, Runner view) on the board the tag was taken from, under each arm. "arm less tagCost" = the arm\'s whole change of evaluate for one more tag (Runner view) less that arm\'s tagCost: mean, SD over tags.\n');
+  for (const p of pools) {
+    const tp = tags.filter(t => t.pool === p && t.priced.tagCost);
+    if (!tp.length) continue;
+    say(`\n### ${p}`);
+    say(head(['tags', 'stuck', 'n', 'cost', ...ARMS.map(a => `${a} tagCost`), ...ARMS.map(a => `${a} less tagCost (SD)`)]));
+    for (const [name, f] of [['all', () => true], ['first', t => t.first], ['later', t => !t.first]])
+      for (const [sn, sf] of [['any', () => true], ['stuck', t => t.stuck], ['not stuck', t => !t.stuck]]) {
+        const xs = tp.filter(t => f(t) && sf(t));
+        if (!xs.length) continue;
+        say(line([name, sn, xs.length, ms(xs, t => t.cost), ...ARMS.map(a => r2(mean(xs, t => tc(t, a)))), ...ARMS.map(a => `${r2(mean(xs, t => priceOf(t, a, 'runner') - tc(t, a)))} (${r2(sd(xs, t => priceOf(t, a, 'runner') - tc(t, a)))})`)]));
+      }
+    const tr = tp.filter(t => t.trash);
+    if (tr.length) {
+      say(`\nTags from a trash (${tr.length}): tagCost on the access board, tagCost on its copy with the trash cost off the Runner's credits, and the one number (the arm's change of evaluate on the trash board without vs with the tag):\n`);
+      say(head(['tag', 'card', 'trash cost', ...ARMS.map(a => `${a}: tagCost / after / one number`)]));
+      for (const t of tr) say(line([`${t.src} T${t.T}`, t.trash.card, t.trash.trashCost, ...ARMS.map(a => `${r2(tc(t, a))} / ${r2(num(t.trash.tagCostAfter[a]))} / ${r2(num(t.trash.oneNumber[a]))}`)]));
+    }
+  }
+}
+const p58 = rows.filter(r => r.kind === 'p58');
+if (p58.length) {
+  say('\n## #58 boards T3 to T6 side by side (06:38Z)');
+  say('Unit: one board of the #58 pin where the Runner chose a run. Plaza\'s worth less its trash, tagCost on the board, tagCost after the trash (trash cost off the credits), and the arm\'s whole change of evaluate for one more tag (Runner view).\n');
+  say(head(['T', 'clicks', 'credits', 'target', 'Plaza worth less trash', 'tagCost', 'tagCost after trash', ...ARMS]));
+  for (const r of p58) say(line([r.T, r.clicks, r.credits, r.target, r.arms.base.worthLessTrash, r.arms.base.tagCost, r.arms.base.tagCostAfterTrash, ...ARMS.map(a => r2(num(r.arms[a].evalTag)))]));
+}
+
 // ---------------------------------------------------------------------------------------------------- Part B
 // One unit: the legs averaged over its seeds first (the seeds share the board), then the mean and its standard error over units
 const legOk = u => u.legs.filter(l => !l.error);
@@ -153,6 +189,7 @@ if (units.length) {
         ['a punisher (Runner\'s view)', u => u.split.punisher],
         ['tag', u => (u.split.first ? 'first' : 'later')],
         ['the Runner\'s last click', u => (u.split.lastClick ? 'yes' : 'no')],
+        ['stuck (no click and 2 credits to clear)', u => (u.split.stuck ? 'yes' : 'no')],
       ];
       for (const [name, f] of splits) {
         for (const val of [...new Set(us.map(f))].sort()) {
