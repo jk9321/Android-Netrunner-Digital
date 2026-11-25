@@ -4,9 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, executeAction } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, createInitialGameState, executeAction, findCardAnywhere, rezCostOf } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
-import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
+import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tagCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
+import { GameRunner } from '../src/ai/playout';
+import { CARDS } from '../src/ai/cards';
+import { deckGameSetup } from '../src/data/decks';
 import { accessDamage, damageWorth } from '../src/ai/effectValues';
 import { CLICK, cardRate } from '../src/ai/valueModel';
 import { scoreOutcome, simulate } from '../src/ai/prompts';
@@ -16,7 +19,7 @@ import { corpCardValue } from '../src/ai/evaluate';
 import { creditCost } from '../src/ai/runs';
 import { turnsLeft } from '../src/ai/cardProfiles';
 import { trashCost } from '../src/core/engine/cardEffects';
-import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce, startRunnerTurn } from './helpers';
+import { answer, cont, installCorpForTest, installIceForTest, installProgramForTest, newGame, run, runIntoFirstIce, startRunnerTurn } from './helpers';
 
 const TITHE = '30073';
 const REGOLITH = '30071';
@@ -295,11 +298,171 @@ describe('O1a a rezzed root card worth less than its trash adds nothing to the r
     expect(engineTrash).toBeLessThanOrEqual(credits);
     expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBeGreaterThan(0);
   });
-  it.fails('R-14g: beside Mahkota with 3 credits the Regolith trash (engine cost above the credits) is not in the server\'s worth', () => {
+  it('R-14g: beside Mahkota with 3 credits the Regolith trash (engine cost above the credits) is not in the server\'s worth', () => {
     const { view, engineTrash, credits } = mahkotaBoard(3);
     expect(engineTrash).toBeGreaterThan(credits);
     // Mahkota itself is under water (finding 2 a), so with no trash payable the server holds nothing
     expect(asSide('runner', () => serverValue(view, 'remote-1'))).toBe(0);
+  });
+});
+
+// Brief O1b rev 2 (tracker R-14f; issue #58): the price of a trash reads what the trash gives the Runner, a run fact in the
+// card's entry (Public Access Plaza: "Threat 2 -> When the Runner trashes this asset (while it is rezzed), give them 1
+// tag", src/core/scripts/elevation/corp/assets.ts), priced by tagCost on the board after the trash is paid (red team
+// second pass S1). Rules 1.19.2 and 7.1.5: a trash is the Runner's choice, so the term is never below 0. Every Plaza board
+// asserts first that a tag costs this Runner something (S2: on a bare starter rig tagCost is 0 and the boards would pass
+// with the fact absent). The boards are #58's saved game (tests/fixtures/runner-facts/issues/issue-58.json) at the
+// Runner's first run of a turn, the Plaza alone in a bare remote, on the Runner's own view.
+const PLAZA = '35062';
+interface Saved58 { config: { seed: number; corpDeck: never; runnerDeck: never }; startStops?: GameState['stops']; moves: GameAction[] }
+const saved58: Saved58 = JSON.parse(readFileSync(new URL('./fixtures/runner-facts/issues/issue-58.json', import.meta.url), 'utf8'));
+/** #58's board at the Runner's first run of `turn` (a structuredClone, editable), with `edit` applied before the view. */
+function plaza58(turn: number, edit?: (s: GameState) => void) {
+  let s = createInitialGameState(deckGameSetup(saved58.config.seed, saved58.config.corpDeck, saved58.config.runnerDeck));
+  if (saved58.startStops) s = { ...s, stops: saved58.startStops };
+  for (const move of saved58.moves) {
+    if (s.turnNumber === turn && s.activePlayer === 'runner' && move.type === 'INITIATE_RUN') {
+      const state = structuredClone(s);
+      edit?.(state);
+      const view = runnerDecisionView(state);
+      const server = Object.values(view.corp.servers).find(v => v.root.some(c => c.cardCode === PLAZA))!;
+      const card = server.root.find(c => c.cardCode === PLAZA)!;
+      const terms = asSide('runner', () => {
+        const worth = corpCardValue(card, view, 'runner', true) - creditCost(view, trashCost(view, card)!);
+        const paid = { ...view, runner: { ...view.runner, credits: view.runner.credits - trashCost(view, card)! } };
+        return { worth, tag: tagCost(view), tagPaid: tagCost(paid), value: serverValue(view, server.id) };
+      });
+      return { state, view, server, card, ...terms, threat: Math.max(view.corp.score, view.runner.score) };
+    }
+    s = executeAction(s, move);
+  }
+  throw new Error(`issue 58: no Runner run in turn ${turn}`);
+}
+/** The Plaza accessed for real: the run on its server played on a clone of `state` by GameRunner (Normal agents) to the
+ * access_trash prompt; the Runner's answer, or null if the run never reaches it. */
+function forcedAccess(state: GameState, serverId: string): boolean | null {
+  const start = executeAction(structuredClone(state), { type: 'INITIATE_RUN', player: 'runner', targetServerId: serverId } as GameAction);
+  const g = new GameRunner(start, { runner: createAgent('runner', 'normal'), corp: createAgent('corp', 'normal') });
+  for (let i = 0; i < 200 && g.state.activeRun && activePrompt(g.state)?.kind !== 'access_trash'; i++) g.step();
+  const p = activePrompt(g.state);
+  if (p?.kind !== 'access_trash') return null;
+  g.step();
+  const a = g.last;
+  return a?.type === 'RESOLVE_PROMPT' && a.choice.kind === 'access_trash' ? a.choice.trash : null;
+}
+/** The board is the brief's: the Plaza rezzed, alone in a remote with no ice, and a tag costs this Runner something. */
+function plazaBoard(b: ReturnType<typeof plaza58>, threatAtLeast: number) {
+  expect(b.card.isRezzed).toBe(true);
+  expect(b.server.ice.length).toBe(0);
+  expect(b.server.root.length).toBe(1);
+  expect(b.threat).toBeGreaterThanOrEqual(threatAtLeast);
+  expect(b.tag).toBeGreaterThan(0);
+}
+
+describe('O1b the price of a trash holds the tag the trash gives (tracker R-14f, issue #58)', () => {
+  it("the fact is the card's text, read the way the engine reads it: a trashed Plaza gives a tag only rezzed and at threat 2", () => {
+    const fact = CARDS[PLAZA].runFacts?.trashedByRunner;
+    expect(fact).toEqual({ tags: 1, when: { threatAtLeast: 2 }, rezzed: true });
+    // The engine: a Plaza in a bare remote, accessed and trashed (the access played, the trash paid), the tags it leaves
+    const engineTags = (rezzed: boolean, threat: number) => {
+      const s = newGame();
+      s.corp.score = threat;
+      const id = installCorpForTest(s, PLAZA, 'remote1', rezzed);
+      startRunnerTurn(s);
+      s.runner.credits = 10;
+      const x = cont(run(s, 'remote1'));
+      expect(activePrompt(x)).toMatchObject({ kind: 'access_trash', cardInstanceId: id });
+      expect(findCardAnywhere(x, id)?.isRezzed ?? false).toBe(rezzed);
+      const before = x.runner.tags;
+      const after = answer(x, { kind: 'access_trash', trash: true });
+      expect(after.corp.servers.remote1?.root.some(c => c.instanceId === id) ?? false).toBe(false);
+      return after.runner.tags - before;
+    };
+    const factTags = (rezzed: boolean, threat: number) => (fact && (!fact.rezzed || rezzed) && threat >= (fact.when?.threatAtLeast ?? 0) ? fact.tags : 0);
+    for (const [rezzed, threat] of [[true, 2], [true, 1], [false, 2]] as const) expect(factTags(rezzed, threat)).toBe(engineTags(rezzed, threat));
+    expect(engineTags(true, 2)).toBe(1);
+  });
+
+  it("under the tag: the worth as left less the trash is below the tag's price, so the server holds nothing (#58 T3)", () => {
+    const b = plaza58(3);
+    plazaBoard(b, 2);
+    expect(b.worth).toBeGreaterThan(0);
+    expect(b.worth).toBeLessThan(b.tagPaid);
+    expect(b.value).toBe(0);
+  });
+
+  it('above the tag: the server is worth the trash less the tag, not 0 and not the trash in full (#58 T6)', () => {
+    const b = plaza58(6);
+    plazaBoard(b, 2);
+    expect(b.worth).toBeGreaterThan(b.tagPaid);
+    expect(b.value).toBeCloseTo(b.worth - b.tagPaid, 6);
+    expect(b.value).toBeGreaterThan(0);
+    expect(b.value).toBeLessThan(b.worth);
+  });
+
+  it('at the trash cost plus 1 the tag is priced after the trash is paid (S1): the board left cannot clear it this turn', () => {
+    const b = plaza58(6, s => {
+      s.runner.credits = 3;
+    });
+    plazaBoard(b, 2);
+    // The two readings differ on this board: 2 credits for the trash leave 1, short of the 2 that clear a tag
+    expect(b.tagPaid).toBeGreaterThan(b.tag);
+    // Priced before the trash it would add something; priced after, it does not
+    expect(b.worth - b.tag).toBeGreaterThan(0);
+    expect(b.worth - b.tagPaid).toBeLessThan(0);
+    expect(b.value).toBe(0);
+  });
+
+  it('twin below threat 2: no tag, the server holds the trash in full', () => {
+    const b = plaza58(6, s => {
+      s.corp.score = Math.min(s.corp.score, 1);
+      s.runner.score = Math.min(s.runner.score, 1);
+    });
+    plazaBoard(b, 0);
+    expect(b.threat).toBeLessThan(2);
+    expect(b.worth).toBeGreaterThan(0);
+    expect(b.value).toBeCloseTo(b.worth, 6);
+  });
+
+  // The Corp side's step 0.6, ruled by the rework coordinator (2026-11-25 08:09Z): the price reads the fact on the card as
+  // it lies ("while it is rezzed"). The Corp could rez it in the run's window before the access (its credits and the rez
+  // cost are public; in self-play it never did, 0 of 17 accesses), but that needs the board at the access: the walk's,
+  // tracker R-14l (R-C1), which changes this test knowingly
+  it('R-14l: a seen, unrezzed Plaza at threat 2, the Corp able to pay its rez, is priced with no tag (#58 T6)', () => {
+    const b = plaza58(6, s => {
+      const plaza = Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === PLAZA)!;
+      plaza.isRezzed = false;
+      plaza.runnerKnows = true;
+    });
+    expect(b.card.isRezzed).toBe(false);
+    expect(b.server.ice.length).toBe(0);
+    expect(b.server.root.length).toBe(1);
+    expect(b.threat).toBeGreaterThanOrEqual(2);
+    expect(b.tag).toBeGreaterThan(0);
+    expect(b.view.corp.credits).toBeGreaterThanOrEqual(rezCostOf(b.view, b.card));
+    expect(b.worth).toBeGreaterThan(0);
+    const seen = asSide('runner', () => serverValue(b.view, b.server.id, 0, new Map([[b.card.instanceId, PLAZA]])));
+    expect(seen).toBeCloseTo(b.worth, 6);
+  });
+
+  it("#58 T3: the price's Plaza term is 0 and the access, forced on a clone, is declined: the two agree", { timeout: 60_000 }, () => {
+    const b = plaza58(3);
+    plazaBoard(b, 2);
+    expect(b.value).toBe(0);
+    expect(forcedAccess(b.state, b.server.id)).toBe(false);
+  });
+
+  it('#58 T6 setup: the Plaza rezzed alone at threat 2, a tag costs the Runner something, and the forced access reaches the trash', { timeout: 60_000 }, () => {
+    const b = plaza58(6);
+    plazaBoard(b, 2);
+    expect(forcedAccess(b.state, b.server.id)).not.toBeNull();
+  });
+
+  // Known failure (tracker R-14f with the Corp side's F108): the price prices the trash at about +0.75 while the access
+  // decision declines it, reading the tag several times; it turns when the decision reads a tag once
+  it("#58 T6: the sign of the price's Plaza term is the forced access's answer", { timeout: 60_000 }, () => {
+    const b = plaza58(6);
+    expect(b.value > 0).toBe(forcedAccess(b.state, b.server.id));
   });
 });
 

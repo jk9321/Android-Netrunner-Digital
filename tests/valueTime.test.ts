@@ -55,7 +55,8 @@ describe('step 1: the tag clock kept on the original board', () => {
 
 describe('step 2: the tag input to the Corp formulas worked out on first read', () => {
   const codes = Object.keys(CARDS).filter(code => CARDS[code].corp);
-  it('there are Corp formulas, and 4 of them read the tag input', () => {
+  // 3 since F108 (2026-11-25): B-1001's entry reads "tagged" and no longer the tag's price (item 5)
+  it('there are Corp formulas, and 3 of them read the tag input', () => {
     expect(codes.length).toBeGreaterThan(40);
     const readers = codes.filter(code => {
       let read = false;
@@ -67,7 +68,7 @@ describe('step 2: the tag input to the Corp formulas worked out on first read', 
       }
       return read;
     });
-    expect(readers.sort()).toHaveLength(4);
+    expect(readers.sort()).toHaveLength(3);
   });
 
   for (const runnerTurn of [false, true])

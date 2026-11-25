@@ -62,7 +62,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       expect(a.type === 'INSTALL_CARD' && a.cardInstanceId === id && a.targetServerId === remote).toBe(false);
     });
   }
-  it.fails('D4 #49 #111: Ansel 1.0 is not installed on remote-6 in the rest of the Corp\'s turn (expected: HQ) (known-failing: since ai-runner-money a draw first, the install on the next click)', { timeout: T }, () => {
+  it.fails('D4 #49 #111: Ansel 1.0 is installed on HQ in the rest of the Corp\'s turn (known-failing: the Corp installs it on remote-6; since ai-runner-money a draw first, the install on the next click)', { timeout: T }, () => {
     const { s: s0, recorded } = at(49, 111);
     const id = (recorded as Install).cardInstanceId!;
     expect(cardDef(findCardAnywhere(s0, id)!).title).toBe('Ansel 1.0');
@@ -78,7 +78,10 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       s = executeAction(s, a);
     }
     expect(played.length).toBeGreaterThan(0);
-    expect(played.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === id && a.targetServerId === 'remote-6')).toBe(false);
+    // Restated 2026-11-25 (Jeff's yes on the card): the pin asserts the HQ install Jeff expected, not only "not on
+    // remote-6". With the Runner's later-turn money (R-14h, #65) the Corp ends its turn and discards Ansel at hand size,
+    // which passed the old wording without the HQ ice (runner-rework/r14h-fix/step0-2-3-money.md)
+    expect(played.some(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === id && a.targetServerId === 'hq')).toBe(true);
   });
 
   // A guard, not a pin: since centralIce the Corp puts Descent on bare R&D, not remote-1. D4 decides whether R&D or HQ

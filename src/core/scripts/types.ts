@@ -268,6 +268,12 @@ export interface CardAbility {
   fromArchives?: boolean;
   /** The Corp can use this while the agenda is in the Runner's score area (Next Big Thing). */
   fromRunnerScoreArea?: boolean;
+  /**
+   * With fromRunnerScoreArea: usable ONLY from the Runner's score area, not
+   * the Corp's (Oracle Thinktank: "only if this agenda is in the Runner's
+   * score area"; rules 3.2.3, 4.5.4 make Corp-scored agendas active otherwise).
+   */
+  runnerScoreAreaOnly?: boolean;
   /** Either player can use this ability (Detente); the user pays its costs. */
   anyPlayer?: boolean;
   /** Click abilities can only be used in the controller's action phase. */
