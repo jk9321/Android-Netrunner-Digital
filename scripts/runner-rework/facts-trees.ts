@@ -101,6 +101,7 @@ export interface Tree {
   iceValues: any;
   evaluate: any;
   payoutRisk: any;
+  effectValues: any;
   clear: () => void;
 }
 
@@ -169,6 +170,7 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
     iceValues: iv,
     evaluate,
     payoutRisk,
+    effectValues: ev,
     clear: () => {
       hv.clearHandCaches();
       ev.clearDamageThreats();

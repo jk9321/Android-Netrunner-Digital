@@ -14,8 +14,14 @@
  * branch tree's src from that directory instead of this checkout's. DRAFT=<runner form>,<corp form> writes commit 3's draft
  * drawMoney into the branch tree first (last-credits-fix-draft.py; forms none, 1, 2, today).
  *
- * Pools: batch (the 221 deals of g1 45617829233), nrdb (the 110 of NRDB=1 g1 45621322301). LIMIT=n: the first n deals of
- * each pool (step 0.5: 20).
+ * Pools: batch (the 221 deals of g1 45617829233), nrdb (the 110 of NRDB=1 g1 45621322301); RECORDS=<batch run>,<nrdb run>
+ * reads another pair of base runs' deal records (scripts/runner-rework/last-credits-fix-deals-<run>.json: the same deals,
+ * the records a base on another tree played). LIMIT=n: the first n deals of each pool (step 0.5: 20).
+ *
+ * Bar 2's reading of commit 3 against commit 2 (rulings 16): every tree also hashes its 'later' drawWorth answers into a
+ * second stream per step (side, value). A differing deal reports `later`: whether the 'later' answers already differed at
+ * the first differing step (`atStep`), at an earlier step only (`before`, the first such step), or not at all: a first
+ * difference with no 'later' move at its step is accepted only with a cache path shown (why script, CLEARAT).
  *
  *   SHARD=0/64 npx vite-node scripts/runner-rework/last-credits-fix-lockstep.ts -- BASE=<sha> POOL=batch,nrdb
  */
@@ -50,6 +56,15 @@ const out = (x: Record<string, unknown>) => console.log(JSON.stringify(FAULT_LIS
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
+const RECORDS = (process.env.RECORDS ?? '45617829233,45621322301').split(',');
+/** The 'later' stream's hook: drawWorth's answers, both trees (the signature line is commit 2's and commit 3's). */
+const LATER: Patch[] = [
+  [
+    'ai/handValues.ts',
+    `function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {\n`,
+    `function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {\n  const __v = drawWorthLk(state, side, when);\n  if (when === 'later') (globalThis as any).__lkLater?.(side, __v);\n  return __v;\n}\nfunction drawWorthLk(state: GameState, side: SideCode, when: DrawWhen): number {\n`,
+  ],
+];
 type Name = (typeof NAMES)[number];
 
 /** Step 0.5's planted faults (branch tree only, after the hooks), each 0.01 on one input. Against commit 2's SHA every one must stop. */
@@ -100,6 +115,7 @@ function makeTrees(): Record<Name, string> {
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     if (name === 'branch' && DRAFT.length) execSync(`python3 scripts/runner-rework/last-credits-fix-draft.py ${DRAFT[0]} ${DRAFT[1]} ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
+    applyPatches(dir, LATER, `later ${name}`, read, write);
     if (name === 'branch' && FAULT) {
       const fault = FAULTS[FAULT];
       if (!fault) throw new Error(`no fault ${FAULT} (${Object.keys(FAULTS).join(', ')})`);
@@ -124,7 +140,7 @@ const fnv = (acc: Acc, x: string) => {
   acc.n++;
 };
 /** Every hook writes into one stream, each record labelled with its kind and scope path. */
-function listen(t: Tree, rec: Acc): () => void {
+function listen(t: Tree, rec: Acc, later: Acc): () => void {
   const scopes: string[] = [];
   const path = () => scopes.join('>');
   const core = t.core;
@@ -139,8 +155,9 @@ function listen(t: Tree, rec: Acc): () => void {
   G.__lkOffRank = (_s: GameState, ranked: any[]) => !PICKS && fnv(rec, `${path()}|offrank|${scoreList(ranked)}`);
   G.__lkRank = (_s: GameState, ranked: any[]) => !PICKS && fnv(rec, `${path()}|rank|${scoreList(ranked)}`);
   G.__lkAns = (where: string, _s: GameState, action: unknown) => top() && fnv(rec, `${path()}>${where}|ans|${key(action)}`);
+  G.__lkLater = (side: string, v: number) => fnv(later, `${side}|${Object.is(v, -0) ? '-0' : String(v)}`);
   return () => {
-    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = undefined;
+    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__lkLater = undefined;
   };
 }
 
@@ -179,6 +196,7 @@ function deal(pool: string, d: Deal) {
   let lastTurn = -1;
   let diff: Record<string, unknown> | null = null;
   let steps = 0;
+  let laterFirst: number | null = null; // the first step whose 'later' answers differ, base against branch
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.base.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -188,11 +206,13 @@ function deal(pool: string, d: Deal) {
     }
     const dec = decisionOf(T.base.core, s);
     const res = {} as Record<Name, Acc>;
+    const lat = {} as Record<Name, Acc>;
     const more = {} as Record<Name, boolean>;
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     for (const n of order) {
       res[n] = fresh();
-      const stop = listen(T[n], res[n]);
+      lat[n] = fresh();
+      const stop = listen(T[n], res[n], lat[n]);
       const t0 = performance.now();
       try {
         more[n] = g[n].step();
@@ -203,9 +223,12 @@ function deal(pool: string, d: Deal) {
     }
     steps++;
     const same = (a: Name, b: Name) => res[a].n === res[b].n && res[a].h === res[b].h && more[a] === more[b];
+    const laterAt = lat.base.n !== lat.branch.n || lat.base.h !== lat.branch.h;
+    if (laterAt && laterFirst === null) laterFirst = i;
     if (!same('base', 'branch') || !same('base', 'control')) {
       const pick = (n: Name) => key(g[n].last).slice(0, 160);
-      diff = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, branch: !same('base', 'branch'), control: !same('base', 'control'), picks: { base: pick('base'), branch: pick('branch') } };
+      const later = { atStep: laterAt, before: laterFirst !== null && laterFirst < i ? laterFirst : null };
+      diff = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, branch: !same('base', 'branch'), control: !same('base', 'control'), later, picks: { base: pick('base'), branch: pick('branch') } };
       break;
     }
     if (!more.base) break;
@@ -221,8 +244,8 @@ async function main() {
   const dirs = makeTrees();
   T = {} as Record<Name, Tree>;
   for (const n of NAMES) T[n] = await loadTree(n, dirs[n]);
-  const batch: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/last-credits-fix-deals-45617829233.json', 'utf8'));
-  const nrdb: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/last-credits-fix-deals-45621322301.json', 'utf8'));
+  const batch: Deal[] = JSON.parse(readFileSync(`scripts/runner-rework/last-credits-fix-deals-${RECORDS[0]}.json`, 'utf8'));
+  const nrdb: Deal[] = JSON.parse(readFileSync(`scripts/runner-rework/last-credits-fix-deals-${RECORDS[1]}.json`, 'utf8'));
   const sources: { pool: string; d: Deal }[] = [];
   for (const pool of POOLS) (pool === 'batch' ? batch : nrdb).filter(d => !DEALS.length || DEALS.includes(String(d.seed))).slice(0, LIMIT).forEach(d => sources.push({ pool, d }));
   for (let i = sub; i < sources.length; i += subs) {

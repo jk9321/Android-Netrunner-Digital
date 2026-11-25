@@ -1,6 +1,6 @@
 # R-14h fix: commit 3's draft drawMoney written into a tree (scratch tool for step 0.2's pick list and the form reads; the
 # commit itself is written by hand). The 'later' money per side: none (credits + turn-start payments), 1 or 2 (every click
-# but k earning), today (the credits, as commit 2).
+# but k earning), today (the credits, as commit 2); Runner 'probe': k2's import and call, today's money.
 #   python3 scripts/runner-rework/last-credits-fix-draft.py <runner form> <corp form> <tree dir holding src/>
 import sys,os
 os.chdir(sys.argv[3])
@@ -11,6 +11,8 @@ H='src/ai/handValues.ts'
 def form(side,k):
     if side=='runner':
         if k=='today': return None
+        # probe: the import, the WeakMap and the call as k2, the money as today's (a path other than the money shows)
+        if k=='probe': return "state.runner.credits + 0 * runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - 2)]"
         if k=='none': return "state.runner.credits + runnerEarnings(state, nextTurn(state))[0]"
         return f"state.runner.credits + runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - {k})]"
     else:
