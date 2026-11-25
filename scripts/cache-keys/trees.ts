@@ -32,9 +32,11 @@ export type Slice = [file: string, from: string, to: string, text: string];
 export type Variant = 'base' | 'exact' | 'byState' | 'off' | 'table' | 'fault';
 export type MapName = 'threats' | 'deckAverage' | 'clickCache';
 export const MAPS: MapName[] = ['threats', 'deckAverage', 'clickCache'];
-export type Arm = Record<MapName, Variant>;
+/** buildTargets (F113, the coordinator's addition after step 0): optional, base when absent. */
+export type Arm = Record<MapName, Variant> & { buildTargets?: 'base' | 'exact' | 'byState' | 'off' };
 
 const B: Arm = { threats: 'base', deckAverage: 'base', clickCache: 'base' };
+const A3 = (v: Variant): Arm => ({ threats: v, deckAverage: v, clickCache: v });
 export const ARMS: Record<string, Arm> = {
   ctl: B,
   't.exact': { ...B, threats: 'exact' },
@@ -50,6 +52,12 @@ export const ARMS: Record<string, Arm> = {
   'all.exact': { threats: 'exact', deckAverage: 'exact', clickCache: 'exact' },
   'all.byState': { threats: 'byState', deckAverage: 'byState', clickCache: 'byState' },
   'all.off': { threats: 'off', deckAverage: 'off', clickCache: 'off' },
+  'b.exact': { ...B, buildTargets: 'exact' },
+  'b.byState': { ...B, buildTargets: 'byState' },
+  'b.off': { ...B, buildTargets: 'off' },
+  'all4.exact': { ...A3('exact'), buildTargets: 'exact' },
+  'all4.byState': { ...A3('byState'), buildTargets: 'byState' },
+  'all4.off': { ...A3('off'), buildTargets: 'off' },
   'f.threat': { ...B, threats: 'fault' },
   'f.deck': { ...B, deckAverage: 'fault' },
 };
@@ -60,6 +68,8 @@ export const GROUPS: Record<string, string[]> = {
   c: ['ctl', 'c.exact', 'c.byState', 'c.off'],
   all: ['ctl', 'all.exact', 'all.byState', 'all.off'],
   f: ['ctl', 'f.threat', 'f.deck'],
+  b: ['ctl', 'b.exact', 'b.byState', 'b.off'],
+  all4: ['ctl', 'all4.exact', 'all4.byState', 'all4.off'],
 };
 
 const H = `(globalThis as any).__ck`;
@@ -244,6 +254,46 @@ ${C_WORK}
 }
 const C_DECL = 'const clickCache = new Map<string, number>();';
 
+// ------------------------------------------------------------------------------------------------ buildTargets (F113)
+// The value reads corpIceMean (its own per-game map, 0 wrong in step 0's E) and the side's cards in every zone: the
+// Corp's agendas' advancement costs, or the Runner's card costs. exact keys those (the side, the ice mean, the codes of
+// the side's cards); byState hangs the map on the GameState; off works it out on every call.
+const B_FROM = '  const key = `${side}:${state.id}:${state.corp.identity.cardCode}:${state.runner.identity.cardCode}`;';
+const B_TO = '  buildTargets.set(key, target);\n  return target;\n}';
+const B_WORK = `  const corpCards = sideCards(state, 'corp');
+  const runnerCards = sideCards(state, 'runner');
+  const ice = corpIceMean(state);
+  let target: number;
+  if (side === 'corp') {
+    target = 2.5 * ice + mean(corpCards.filter(c => cardDef(c).type_code === 'agenda').map(c => cardDef(c).advancement_cost ?? 3), 3);
+  } else {
+    const costs = runnerCards.map(c => cardDef(c).cost ?? 0).sort((a, b) => b - a);
+    target = 2.5 * ice + mean(costs.slice(0, 3), 3);
+  }`;
+function buildText(v: 'exact' | 'byState' | 'off', tree: string): string {
+  const hit = `  if (cached !== undefined) return ${H}?.other ? ${H}.other('${tree}', 'buildTargets', cached, state, side) : cached;`;
+  if (v === 'exact')
+    return `  const key = \`\${side}:\${corpIceMean(state)}:\${sideCards(state, side).map(c => c.cardCode).sort().join(',')}\`;
+  const cached = buildTargets.get(key);
+${hit}
+${B_WORK}
+  buildTargets.set(key, target);
+  return target;
+}`;
+  if (v === 'byState')
+    return `  let __in = __buildBS.get(state);
+  if (!__in) __buildBS.set(state, (__in = new Map()));
+  const cached = __in.get(side);
+${hit}
+${B_WORK}
+  __in.set(side, target);
+  return target;
+}`;
+  return `${B_WORK}
+  return target;
+}`;
+}
+
 // ------------------------------------------------------------------------------------------------ helpers (valueModel.ts)
 /** The exact arms' position print and the context print; appended to valueModel.ts in every asked tree (unused by base). */
 const HELPERS = `
@@ -295,6 +345,8 @@ export function armTree(dir: string, tree: string, arm: Arm) {
   slice(dir, ['ai/handValues.ts', D_FROM, D_TO, deckText(arm.deckAverage, tree)], `${tree} deckAverage`);
   slice(dir, ['ai/handValues.ts', C_FROM, C_TO, clickText(arm.clickCache, tree)], `${tree} clickCache`);
   if (arm.threats === 'table') slice(dir, T_TABLE, `${tree} table`);
+  const bv = arm.buildTargets ?? 'base';
+  if (bv !== 'base') slice(dir, ['ai/valueModel.ts', B_FROM, B_TO, buildText(bv, tree)], `${tree} buildTargets`);
   applyPatches(
     dir,
     [
@@ -304,7 +356,9 @@ export function armTree(dir: string, tree: string, arm: Arm) {
       ['ai/handValues.ts', `import { CLICK, RATES, cardRate, fingerprint,`, `import { __ckContent, __ckCtx, CLICK, RATES, cardRate, fingerprint,`],
       // E: the other maps' hits (counted and audited in the ctl tree only; inert elsewhere)
       ['ai/valueModel.ts', `  const cached = iceMeans.get(key);\n  if (cached !== undefined) return cached;`, `  const cached = iceMeans.get(key);\n  if (cached !== undefined) return ${H}?.other ? ${H}.other('${tree}', 'iceMeans', cached, state) : cached;`],
-      ['ai/valueModel.ts', `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return cached;`, `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return ${H}?.other ? ${H}.other('${tree}', 'buildTargets', cached, state, side) : cached;`],
+      ...(bv === 'base'
+        ? ([['ai/valueModel.ts', `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return cached;`, `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return ${H}?.other ? ${H}.other('${tree}', 'buildTargets', cached, state, side) : cached;`]] as [string, string, string][])
+        : [['ai/valueModel.ts', 'const buildTargets = new Map<string, number>();', 'const buildTargets = new Map<string, number>();\nconst __buildBS = new WeakMap<GameState, Map<string, number>>();'] as [string, string, string]]),
       ['ai/iceValues.ts', `  const cached = deckShares.get(key);\n  if (cached) return cached;`, `  const cached = deckShares.get(key);\n  if (cached) return ${H}?.other ? ${H}.other('${tree}', 'deckShares', cached, state) : cached;`],
       ['ai/effectValues.ts', `  let codes = boardFactCodes.get('codes');\n  if (!codes)`, `  let codes = boardFactCodes.get('codes');\n  if (codes && ${H}?.other) codes = ${H}.other('${tree}', 'boardFactCodes', codes, state);\n  if (!codes)`],
       ['ai/evaluate.ts', `  return memo(state, 'hiddenCardOdds', () => hiddenCardOddsOf(state));`, `  let __filled = false;\n  const __v = memo(state, 'hiddenCardOdds', () => ((__filled = true), hiddenCardOddsOf(state)));\n  return !__filled && ${H}?.other ? ${H}.other('${tree}', 'hiddenCardOdds', __v, state) : __v;`],

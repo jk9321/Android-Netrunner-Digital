@@ -57,7 +57,7 @@ const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(a && a / b
 const n0 = (x: number | undefined) => Math.round(x ?? 0).toLocaleString('en-US');
 const ratio = (a: number, b: number) => (b ? `x${(a / b).toFixed(3)}` : '-');
 const MAPS = ['threats', 'deckAverage', 'clickCache'];
-const ARM_MAPS: Record<string, string[]> = { t: ['threats'], d: ['deckAverage'], c: ['clickCache'], all: MAPS };
+const ARM_MAPS: Record<string, string[]> = { t: ['threats'], d: ['deckAverage'], c: ['clickCache'], all: MAPS, b: MAPS, all4: MAPS };
 const mapsOf = (tree: string) => (tree === 'ctl' ? MAPS : tree === 'f.threat' ? ['threats'] : tree === 'f.deck' ? ['deckAverage'] : ARM_MAPS[tree.split('.')[0]]);
 const sortTrees = (ts: string[]) => [...new Set(ts)].sort((a, b) => (a === 'ctl' ? -1 : b === 'ctl' ? 1 : a.localeCompare(b)));
 
