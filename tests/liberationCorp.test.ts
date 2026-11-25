@@ -419,6 +419,20 @@ describe('The Automata Initiative: NBN', () => {
     expect(s.corp.rd.some(c => c.instanceId === oracle)).toBe(true);
   });
 
+  // Issue #73. Card text: "The Corp can use this ability only if this agenda is in the Runner's
+  // score area." Rules 3.2.3 / 4.5.4 make agendas in the Corp's score area active, so without the
+  // restriction the ability was offered on a Corp-scored Oracle Thinktank.
+  it('Oracle Thinktank in the Corp score area offers no ability, even with a tagged Runner (#73)', () => {
+    let s = newGame();
+    s = scoreForTest(s, L.oracle);
+    const oracle = s.corp.scoreArea.find(c => c.cardCode === L.oracle)!.instanceId;
+    corpTurn(s);
+    s.runner.tags = 1;
+    const use = { type: 'USE_ABILITY', player: 'corp', cardInstanceId: oracle, abilityIndex: 0 } as const;
+    expect(isLegalAction(s, use)).toBe(false);
+    expect(getLegalActions(s, 'corp').some(a => a.type === 'USE_ABILITY' && a.cardInstanceId === oracle)).toBe(false);
+  });
+
   it('Balanced Coverage names a type and gains 2 if the top card of R&D matches', () => {
     let s = newGame();
     installCorpForTest(s, L.balanced, 'remote-1', true);

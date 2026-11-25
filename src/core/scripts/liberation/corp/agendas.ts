@@ -119,6 +119,7 @@ export const oracleThinktank: CardScript = {
       label: 'Remove 1 tag: shuffle this agenda into R&D.',
       clicks: 1,
       fromRunnerScoreArea: true,
+      runnerScoreAreaOnly: true,
       canUse: ({ state }) => (state.runner.tags > 0 ? null : 'The Runner has no tag to remove'),
       resolve: ({ state, card }) => {
         removeTags(state, 1);

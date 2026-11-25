@@ -48,6 +48,7 @@ export function abilityUsableFrom(ability: CardAbility, where: AbilityZone, own:
   if (where === 'hq') return !!ability.fromHQ;
   if (ability.fromHQ) return false;
   if (where === 'runnerScoreArea') return !!ability.fromRunnerScoreArea;
+  if (ability.runnerScoreAreaOnly) return false;
   return own || !!ability.anyPlayer;
 }
 
