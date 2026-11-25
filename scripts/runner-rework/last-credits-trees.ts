@@ -10,6 +10,7 @@
  *
  * Each patch must match exactly once (a stop otherwise).
  */
+import { execSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EVAL as DT_EVAL, Patch } from './decided-twice-trees';
@@ -26,7 +27,9 @@ export function makeTrees(root: string): { play: string; eval: string; pairs: st
   const dirs = { play: join(root, 'play'), eval: join(root, 'eval'), pairs: join(root, 'pairs') };
   for (const [name, dir] of Object.entries(dirs)) {
     mkdirSync(dir, { recursive: true });
-    cpSync('src', join(dir, 'src'), { recursive: true });
+    // SRC_REF=<sha> (R-14h fix bar 3: the base arm on beta's src, this checkout's scripts): that commit's src (git archive)
+    if (process.env.SRC_REF) execSync(`git cat-file -e ${process.env.SRC_REF}^{commit} || git fetch --depth 1 origin ${process.env.SRC_REF}; git archive ${process.env.SRC_REF} src | tar -x -C ${dir}`, { shell: '/bin/bash' });
+    else cpSync('src', join(dir, 'src'), { recursive: true });
     const patches = name === 'eval' ? [...DT_EVAL, ...PARTS, ...EXTRA] : [];
     for (const [f, at, to] of patches) {
       const path = join(dir, 'src', f);

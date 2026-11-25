@@ -770,8 +770,10 @@ async function main() {
   const sources: { pool: string; id: any }[] = [];
   for (const pool of POOLS) {
     if (pool === 'batch' || pool === 'nrdb') {
+      // RECORDS=<batch run>,<nrdb run> (R-14h fix bar 3): the same deals, another base pair's records (last-credits-fix-deals-<run>.json)
+      const recFiles = process.env.RECORDS?.split(',').map(r => `scripts/runner-rework/last-credits-fix-deals-${r}.json`);
       const run = pool === 'batch' ? '45574713678' : '45593231799';
-      const recs: Rec[] = JSON.parse(readFileSync(`scripts/runner-rework/last-credits-deals-${run}.json`, 'utf8'));
+      const recs: Rec[] = JSON.parse(readFileSync(recFiles ? recFiles[pool === 'batch' ? 0 : 1] : `scripts/runner-rework/last-credits-deals-${run}.json`, 'utf8'));
       for (const r of recs) if (!DEALS.length || DEALS.includes(String(r.seed))) sources.push({ pool, id: r });
     } else if (pool === 'people') {
       const dir = 'tests/fixtures/human-games';
