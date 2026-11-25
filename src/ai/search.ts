@@ -1,17 +1,18 @@
-import { CardInstance, GameAction, GameState, SideCode, activePrompt, getCardDefinition, getLegalActions, isLegalAction } from '../core';
+import { CardInstance, GameAction, GameState, SideCode, getCardDefinition, isLegalAction } from '../core';
 import { Agent } from './agent';
 import { HeuristicCorpAI } from './corpAI';
-import { HeuristicRunnerAI, readWriteFullShuffle } from './runnerAI';
+import { HeuristicRunnerAI } from './runnerAI';
 import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
-import { asSide, logNudge } from './synergy';
+import { asSide } from './synergy';
 import { decisionContext } from './handValues';
 import { dealRunnerUnknowns, knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 import { ScoredAction } from './agent';
 import { CorpMemory, corpDecide } from './corp/core';
 import { countedRez } from './corp/rez';
+import { RunnerPick, runnerDecide } from './runner/core';
 
 /**
  * Hard AI: Monte Carlo look-ahead on top of the rule-based AI.
@@ -198,28 +199,37 @@ export class SearchAI implements Agent {
     return best;
   }
 
-  /** The Runner (the Corp's pipeline is decideCorp). */
+  /**
+   * The Runner (the Corp's pipeline is decideCorp): the one order (runner/core.ts runnerDecide, R-B B1) over the base
+   * Runner's context with the Hard Runner's differences named. A prompt, a run under way and the Corp's turn-start step
+   * follow the rule-based AI's judgement: the base answers those states whole (`base`), so the base context's `prompt`
+   * and `run` are never reached here. `observe` is the extra memory call on the main path. A full Read-Write Share (a
+   * rule, not a judgement: plan.readWriteFull) is returned without a note. The base's own look-ahead (none: its planner
+   * is off) is replaced by the search, not merged with it.
+   */
   private decide(state: GameState): GameAction {
-    decisionContext(state, this.side);
-    // Prompts and the steps of a run follow the rule-based AI's judgement
-    if (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start') return this.base.chooseAction(state);
-    if (this.base instanceof HeuristicRunnerAI) this.base.observe(state);
-    // A rule, not a judgement: a full Read-Write Share is shuffled back (plan.readWriteFull)
-    const full = readWriteFullShuffle(state, getLegalActions(state, 'runner'));
-    if (full) return full;
-    const ranked = this.base.rankMainActions(state).filter(c => c.score > -Infinity);
-    if (ranked.length === 0) return this.base.chooseAction(state);
-    if (ranked[0].action.type === 'SCORE_AGENDA') return ranked[0].action;
+    const base = this.base as HeuristicRunnerAI; // chooseAction sends the Corp to decideCorp
+    return runnerDecide(state, {
+      ...base.runnerContext(),
+      base: s => base.chooseAction(s),
+      remember: s => base.observe(s),
+      noteCounted: false,
+      lookahead: (s, ranked) => this.runnerLookahead(s, ranked, base),
+      debug: !!this.options.debug,
+    });
+  }
+
+  /** The Runner's look-ahead: the search over the rule-based AI's few best candidates, with what the order notes and logs. */
+  private runnerLookahead(state: GameState, all: ScoredAction[], base: HeuristicRunnerAI): RunnerPick {
+    const ranked = all.filter(c => c.score > -Infinity);
+    if (ranked.length === 0) return { action: base.chooseAction(state), note: false, log: false };
+    if (ranked[0].action.type === 'SCORE_AGENDA') return { action: ranked[0].action, note: false, log: false };
     // Only one sensible move, or the favourite is far ahead: no need to think it over
-    if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) {
-      this.base.notePlayed(ranked[0].action);
-      return ranked[0].action;
-    }
+    if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) return { action: ranked[0].action, note: true, log: false };
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
     decisionContext(state, this.side); // the look-ahead noted its own hands
-    this.base.notePlayed(best); // keeps the rule-based AI's loop guard in step
-    if (this.options.debug) logNudge(state, this.side, best);
-    return best;
+    // noted: keeps the rule-based AI's loop guard in step
+    return { action: best, note: true, log: true };
   }
 
   /** The Runner's abilities on the Corp's turn follow the rule-based AI's judgement. */
