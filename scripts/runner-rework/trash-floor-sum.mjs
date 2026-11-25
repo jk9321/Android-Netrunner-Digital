@@ -10,6 +10,10 @@
 //   memo:own, line:own, off:own), or a Corp decision whose reply fired (reply, memo:reply, line:reply, off:reply: the Corp
 //   prices its options by the reply; it calls no serverWorth itself).
 //   A deal whose first difference is not explained is a STOP under that form.
+// MODE=play    unit: one g3 game, per leg (base, branch), paired by seed: the mean per game of each count, branch less
+//              base with its standard error over the paired games. DEALS_BASE / DEALS_BRANCH (env): the g3 batches'
+//              deals.json, to check each game's record (winner, cr, sc) and to read the loss summary's two trend classes
+//              per game (its alarms "Corp stayed broke", "agenda stuck in HQ").
 import { readFileSync, readdirSync } from 'node:fs';
 
 const lines = [];
@@ -141,6 +145,74 @@ if (lock.length) {
     }
     p('');
   }
+}
+
+// ------------------------------------------------------------------------------------------------ play
+const plays = lines.filter(x => x.mode === 'play' && x.kind === 'game');
+if (plays.length) {
+  p('# O1a bar 6: the Corp side\'s numbers, per g3 game, branch beside base');
+  p('');
+  const by = { base: new Map(), branch: new Map() };
+  for (const g of plays) by[g.leg]?.set(g.seed, g);
+  const deals = {};
+  for (const leg of ['base', 'branch']) {
+    const f = process.env[`DEALS_${leg.toUpperCase()}`];
+    if (f) deals[leg] = new Map(JSON.parse(readFileSync(f, 'utf8')).map(d => [d.seed, d]));
+  }
+  const same = (g, d) => d && (g.winner ?? null) === (d.winner ?? null) && JSON.stringify(g.cr) === JSON.stringify(d.cr) && JSON.stringify(g.sc) === JSON.stringify(d.sc);
+  for (const leg of ['base', 'branch']) {
+    if (!deals[leg]) continue;
+    const games = [...by[leg].values()];
+    const bad = games.filter(g => !same(g, deals[leg].get(g.seed)));
+    p(`${leg}: ${games.length} games, equal to the g3 batch's record: ${games.length - bad.length}${bad.length ? ` (**differ: ${bad.slice(0, 20).map(g => g.seed).join(', ')}**)` : ''}.`);
+  }
+  const seeds = [...by.base.keys()].filter(s => by.branch.has(s)).sort((a, b) => a - b);
+  p(`Paired games: ${seeds.length}. Errors: ${errs.filter(e => e.mode === 'play').length}.`);
+  p('');
+  const alarm = (leg, seed, kind) => (deals[leg]?.get(seed)?.alarms ?? []).filter(a => a.kind === kind).length;
+  const counts = [
+    ['Runner runs', g => g.runs.hq + g.runs.rd + g.runs.archives + g.runs.remote],
+    ['  on HQ', g => g.runs.hq],
+    ['  on R&D', g => g.runs.rd],
+    ['  on Archives', g => g.runs.archives],
+    ['  on remotes', g => g.runs.remote],
+    ['  on remotes with no unrezzed root card', g => g.bareRemoteRuns],
+    ['agenda points stolen', g => Object.values(g.stolen).reduce((a, b) => a + b, 0)],
+    ['  from HQ', g => g.stolen.hq],
+    ['  from R&D', g => g.stolen.rd],
+    ['  from Archives', g => g.stolen.archives],
+    ['  from remotes', g => g.stolen.remote],
+    ['assets and upgrades the Runner trashed', g => (g.trashed.asset ?? 0) + (g.trashed.upgrade ?? 0)],
+    ['  assets', g => g.trashed.asset ?? 0],
+    ['  upgrades', g => g.trashed.upgrade ?? 0],
+    ['  offered (accessed, a trash cost)', g => (g.offered.asset ?? 0) + (g.offered.upgrade ?? 0)],
+    ['Corp credits gained', g => g.gained],
+    ['Corp win (points or flatline)', g => (g.winner === 'corp' ? 1 : 0)],
+    ['game length (turns)', g => g.T],
+  ];
+  const trend = [
+    ['Corp stayed broke (alarms, per game)', (leg, g) => alarm(leg, g.seed, 'Corp stayed broke')],
+    ['agenda stuck in HQ (alarms, per game)', (leg, g) => alarm(leg, g.seed, 'agenda stuck in HQ')],
+  ];
+  const mean = xs => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+  const se = xs => {
+    const m = mean(xs);
+    return xs.length > 1 ? Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1) / xs.length) : 0;
+  };
+  const f = x => (Math.abs(x) >= 10 ? x.toFixed(1) : x.toFixed(2));
+  p('| per game | base | branch | branch - base (± SE, paired) |');
+  p('|---|---:|---:|---:|');
+  const row = (name, get) => {
+    const b = seeds.map(s => get('base', by.base.get(s)));
+    const r = seeds.map(s => get('branch', by.branch.get(s)));
+    const d = seeds.map((_, i) => r[i] - b[i]);
+    p(`| ${name} | ${f(mean(b))} | ${f(mean(r))} | ${mean(d) >= 0 ? '+' : ''}${f(mean(d))} ± ${f(se(d))} |`);
+  };
+  for (const [name, get] of counts) row(name, (_leg, g) => get(g));
+  if (deals.base && deals.branch) for (const [name, get] of trend) row(name, get);
+  p('');
+  p(`Games that differ in record between the legs: ${seeds.filter(s => JSON.stringify([by.base.get(s).winner, by.base.get(s).cr, by.base.get(s).sc]) !== JSON.stringify([by.branch.get(s).winner, by.branch.get(s).cr, by.branch.get(s).sc])).length} of ${seeds.length}; winner moved to the Corp ${seeds.filter(s => by.base.get(s).winner !== 'corp' && by.branch.get(s).winner === 'corp').length}, to the Runner ${seeds.filter(s => by.base.get(s).winner === 'corp' && by.branch.get(s).winner !== 'corp').length}.`);
+  p('');
 }
 if (errs.length) {
   p('## Errors');

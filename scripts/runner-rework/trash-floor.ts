@@ -18,6 +18,13 @@
  * LEGS=a,b,...: shard s runs leg s % n over every deal with the shards that carry it. Time: ms of every step that asks
  * an agent, by side, per tree, over the steps the three trees play alike.
  *
+ * MODE=play (bar 6): the deals of a g3 batch (corp-losses.ts's pairings of the shipped decks, seeds 1000 + 10 (p - 1) + g + 1,
+ * g = 0..2), played by a plain GameRunner on one tree per leg (LEGS=base,branch: BASE's src, this checkout's src; no hook),
+ * each game's record (winner, cr, sc, to be read against the g3 batch's deals.json) and its counts: Runner runs by server
+ * (HQ, R&D, Archives, remotes), remote runs whose root holds no unrezzed card, agenda points stolen by the server of the
+ * run, accessed cards with a trash cost offered and trashed by card type, Corp credits gained (every rise of the Corp's
+ * credits between two steps).
+ *
  * POOL=batch,nrdb (the 221 deals of g1 45499791395, the 110 of NRDB=1 g1 45503877309); DEALS=seed,... or PER_POOL=n (the
  * first n deals of each pool).
  *
@@ -51,13 +58,13 @@ const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const PER_POOL = Number(process.env.PER_POOL ?? Infinity);
 const MAX_STEPS = Number(process.env.MAX_STEPS ?? 4000);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
-const LEGS = MODE === 'lockstep' ? (process.env.LEGS ?? 'branch').split(',').filter(Boolean) : ['fires'];
+const LEGS = MODE === 'lockstep' ? (process.env.LEGS ?? 'branch').split(',').filter(Boolean) : MODE === 'play' ? (process.env.LEGS ?? 'base,branch').split(',').filter(Boolean) : ['fires'];
 const LEG = LEGS[shard % LEGS.length];
 const [sub, subs] = LEGS.length > 1 ? [Math.floor(shard / LEGS.length), Math.floor(shards / LEGS.length)] : [shard, shards];
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify({ mode: MODE, leg: LEG, ...x }));
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
-const NAMES = (MODE === 'lockstep' ? ['base', 'branch', 'control'] : ['base']) as Name[];
+const NAMES = (MODE === 'lockstep' ? ['base', 'branch', 'control'] : MODE === 'play' ? [LEG === 'branch' ? 'branch' : 'base'] : ['base']) as Name[];
 type Name = 'base' | 'branch' | 'control';
 const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'legacy'] as const;
 type Column = (typeof COLUMNS)[number];
@@ -88,6 +95,11 @@ function makeTrees(): Record<Name, string> {
     const checkout = name === 'branch' && LEG === 'branch';
     if (checkout) cpSync('src', join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
+    // MODE=play: the tree as it is, no hook (the batch's own play)
+    if (MODE === 'play') {
+      dirs[name] = dir;
+      continue;
+    }
     // The floor's line exists on BASE's src only (the branch replaced it with trashNet)
     const patches: Patch[] = [...HOOKS, ...(checkout ? [] : FLOOR), ...CARRY, ...LOOK];
     applyPatches(dir, patches, `tree ${name}`, read, write);
@@ -351,6 +363,52 @@ function lockstepDeal(pool: string, d: Deal) {
   out({ kind: 'deal', pool, seed: d.seed, steps, firedSteps, T: g.base.state.turnNumber, diff, ms: { base: round(tms.base), branch: round(tms.branch), control: round(tms.control) } });
 }
 
+
+/** MODE=play: one g3 game on the leg's tree, plain GameRunner, its record and bar 6's counts. */
+function playDeal(d: Deal & { game: number }) {
+  const t = T[NAMES[0]];
+  t.clear();
+  const g = new t.GameRunner(dealStateOf(t, d), agentsOf(t));
+  const cr: number[] = [];
+  const sc: number[] = [];
+  let lastTurn = -1;
+  const runs: Record<string, number> = { hq: 0, rd: 0, archives: 0, remote: 0 };
+  let bareRemoteRuns = 0;
+  const stolen: Record<string, number> = { hq: 0, rd: 0, archives: 0, remote: 0, other: 0 };
+  const offered: Record<string, number> = {};
+  const trashed: Record<string, number> = {};
+  let gained = 0;
+  const where = (id: string) => (id === 'hq' || id === 'rd' || id === 'archives' ? id : 'remote');
+  for (let i = 0; i < MAX_STEPS; i++) {
+    const s: GameState = g.state;
+    if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
+      cr.push(s.corp.credits);
+      sc.push(s.corp.score);
+      lastTurn = s.turnNumber;
+    }
+    const p = t.core.activePrompt(s);
+    if (!g.step()) break;
+    const n: GameState = g.state;
+    const a: any = g.last;
+    if (n.corp.credits > s.corp.credits) gained += n.corp.credits - s.corp.credits;
+    if (n.runsThisTurn.length > s.runsThisTurn.length && n.turnNumber === s.turnNumber) {
+      const id = n.runsThisTurn[n.runsThisTurn.length - 1].server;
+      runs[where(id)]++;
+      const sv = n.corp.servers[id];
+      if (where(id) === 'remote' && sv && sv.root.length > 0 && sv.root.every((c: any) => c.isRezzed || c.faceUp)) bareRemoteRuns++;
+    }
+    if (n.runner.score > s.runner.score) stolen[s.activeRun ? where(s.activeRun.server) : 'other'] += n.runner.score - s.runner.score;
+    if (p?.kind === 'access_trash' && a?.player === 'runner' && a.type === 'RESOLVE_PROMPT' && a.choice?.kind === 'access_trash') {
+      const card = [...Object.values(s.corp.servers).flatMap((v: any) => [...v.root, ...v.ice]), ...s.corp.hq, ...s.corp.rd, ...s.corp.archives.faceUp, ...s.corp.archives.faceDown].find((c: any) => c.instanceId === p.cardInstanceId);
+      const type = card ? t.core.getCardDefinition(card.cardCode).type_code : 'other';
+      offered[type] = (offered[type] ?? 0) + 1;
+      if (a.choice.trash || a.choice.alternativeId) trashed[type] = (trashed[type] ?? 0) + 1;
+    }
+  }
+  const B = g.state;
+  out({ kind: 'game', seed: d.seed, game: d.game, corpDeck: d.corpDeck, runnerDeck: d.runnerDeck, winner: B.winner ?? null, cr, sc, T: B.turnNumber, runs, bareRemoteRuns, stolen, offered, trashed, gained });
+}
+
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
   const dirs = makeTrees();
@@ -360,7 +418,20 @@ async function main() {
   const nrdb: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/decided-twice-deals-45503877309.json', 'utf8'));
   const pick = (recs: Deal[]) => recs.filter(r => !DEALS.length || DEALS.includes(String(r.seed))).slice(0, PER_POOL);
   const sources: { pool: string; d: Deal }[] = [];
-  for (const pool of POOLS) {
+  if (MODE === 'play') {
+    // corp-losses.ts's pairings (shipped decks, no DECKS filter) and seeds, games 0..GAMES-1, stride 10
+    const games = Number(process.env.GAMES ?? 3);
+    let pairing = 0;
+    for (const c of ALL_DECKS.filter(x => x.side === 'corp'))
+      for (const r of ALL_DECKS.filter(x => x.side === 'runner')) {
+        pairing++;
+        for (let game = 0; game < games; game++) {
+          const seed = 1000 + (pairing - 1) * Math.max(10, games) + game + 1;
+          if (!DEALS.length || DEALS.includes(String(seed))) sources.push({ pool: 'g3', d: { seed, game, corpDeck: c.name, runnerDeck: r.name, winner: null, cr: [], sc: [] } as Deal });
+        }
+      }
+  }
+  for (const pool of MODE === 'play' ? [] : POOLS) {
     if (pool === 'batch') for (const d of pick(batch)) sources.push({ pool, d });
     else if (pool === 'nrdb') for (const d of pick(nrdb)) sources.push({ pool, d });
     else throw new Error(`unknown pool ${pool}`);
@@ -371,6 +442,7 @@ async function main() {
     if (Date.now() - started > MAX_MS) break;
     try {
       if (MODE === 'fires') firesDeal(src.pool, src.d);
+      else if (MODE === 'play') playDeal(src.d as Deal & { game: number });
       else if (MODE === 'lockstep') lockstepDeal(src.pool, src.d);
       else throw new Error(`unknown MODE ${MODE}`);
     } catch (e) {
