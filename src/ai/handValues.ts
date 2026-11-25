@@ -9,6 +9,7 @@ import { handPlanWorth } from './cardPlans';
 import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
 import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
+import { nextTurn, runnerEarnings } from './nextTurnMoney';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -155,14 +156,22 @@ function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
+const laterMoneys = new WeakMap<GameState, number>();
 /**
  * The money a deck card drawn `when` is tested against (heldFromPlayed: payable soon or not): the side's credits on the
- * board for a card in hand now or lost from it now ('now'); for a card that arrives on a later turn ('later'), the money
- * it is played with on that turn (R-14h; commit 2 of its brief: the credits on the board for both, play unchanged).
+ * board for a card in hand now or lost from it now ('now'). For a card that arrives on a later turn ('later'), the money
+ * it is played with on that turn (R-14h, issue #65; the form ruled at step 0.3, runner-rework/r14h-fix/ and rulings 16):
+ * the Runner, its credits and what its cards and every click but two make on its next turn (two clicks kept: one draws
+ * the card, one plays it), read from the next-turn money's owner (nextTurnMoney.ts runnerEarnings), never a copy, and
+ * worked out once per board (laterMoneys). The Corp, its credits on the board, as 'now' (the Corp side's ruling,
+ * 2026-11-25): its 'later' rows keep their class as plumbing, with today's money; its own form is R-14q's.
  */
 function drawMoney(state: GameState, side: SideCode, when: DrawWhen): number {
-  void when; // commit 3: 'later' reads the next turn's money
-  return side === 'corp' ? state.corp.credits : state.runner.credits;
+  if (side === 'corp') return state.corp.credits;
+  if (when === 'now') return state.runner.credits;
+  let money = laterMoneys.get(state);
+  if (money === undefined) laterMoneys.set(state, (money = state.runner.credits + runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - 2)]));
+  return money;
 }
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring), each card tested against the money it is played with (drawMoney). */

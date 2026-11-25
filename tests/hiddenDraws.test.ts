@@ -6,6 +6,7 @@ import { guessRunnerView, knownRdSlots } from '../src/ai/runnerReply';
 import robust from './fixtures/search-hold-window-robust.json';
 import t10 from './fixtures/hidden-draws-1001-t10.json';
 import runnerT4 from './fixtures/runner-draws-1001-t4.json';
+import runnerT5 from './fixtures/runner-draws-1001-t5.json';
 import runnerT6 from './fixtures/runner-draws-1001-t6.json';
 
 /**
@@ -71,7 +72,10 @@ describe('plan.hiddenDraws for the Runner', () => {
   it('is on for the Runner (not in sideOff.runner)', () => {
     expect(sideOff.runner).not.toContain('hiddenDraws');
   });
-  for (const [name, fixture] of [['deal 1001 T4', runnerT4], ['deal 1001 T6', runnerT6]] as const) {
+  // deal 1001 T5 at 2 clicks (R-14h commit 3, rulings 16 (d)): the T4 board's pick no longer turns on the stack's order
+  // once a card drawn for a later turn is tested against that turn's money, so the board is the T4 fixture played on by
+  // GameRunner (Normal Corp and Runner) to the first Runner board where the real stack's order changes the pick again
+  for (const [name, fixture] of [['deal 1001 T5', runnerT5], ['deal 1001 T6', runnerT6]] as const) {
     it(`${name}: from the real stack the stack's order changes the pick; from the Runner's view it does not (10.2.2a)`, () => {
       const s = fixture as unknown as GameState;
       expect(s.activePlayer).toBe('runner');

@@ -177,10 +177,14 @@ describe('issue #65: run priced for trashing rezzed Regolith Mining License, the
   });
 
   // Passes when every Runner access of rezzed Regolith Mining License that it can pay to trash ends
-  // with it trashed (or the Runner makes no such run).
-  it.fails('#65 T4: every affordable access of rezzed Regolith Mining License ends with it trashed', { timeout: 15_000 }, () => {
+  // with it trashed (or the Runner makes no such run). Fixed by R-14h (brief runner-rework/briefs/r14h-last-credits-fix.md,
+  // commit 3): the cards Verbal Plasticity draws arrive on a later turn and are tested against that turn's money
+  // (handValues.ts drawMoney), so trashing to 0 credits no longer prices them as unplayable. The run is made and the
+  // trash paid on this board (the second line), so the pin is not met by an empty list.
+  it('#65 T4: every affordable access of rezzed Regolith Mining License ends with it trashed', { timeout: 15_000 }, () => {
     const accesses = regolithAccesses();
     expect(accesses.filter(x => x.credits >= 3 && !x.trash)).toEqual([]);
+    expect(accesses.some(x => x.credits >= 3 && x.trash)).toBe(true);
   });
 
   // Twin: the same T4 board with +4 credits (5 credits total, so trashing Regolith for 3 leaves 2 credits
