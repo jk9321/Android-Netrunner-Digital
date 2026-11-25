@@ -9,6 +9,11 @@
  * FAULT=<name> plants one fault (FAULTS below, step 0.5) in the branch tree only; FAULT=a,b,... gives shard s the fault
  * s % n ('none' = no fault), each over every source with the shards that carry it.
  *
+ * PICKS=1 hashes only the top-level game's actions and answers (no rank lists, no look-ahead scopes): the first differing
+ * step is then the first changed pick (step 0.2's Corp list; bar 2 reads the default, every value). BRANCH_SRC=<dir>: the
+ * branch tree's src from that directory instead of this checkout's. DRAFT=<runner form>,<corp form> writes commit 3's draft
+ * drawMoney into the branch tree first (last-credits-fix-draft.py; forms none, 1, 2, today).
+ *
  * Pools: batch (the 221 deals of g1 45617829233), nrdb (the 110 of NRDB=1 g1 45621322301). LIMIT=n: the first n deals of
  * each pool (step 0.5: 20).
  *
@@ -35,6 +40,9 @@ const POOLS = (process.env.POOL ?? 'batch,nrdb').split(',');
 const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const LIMIT = Number(process.env.LIMIT ?? Infinity);
 const MAX_STEPS = Number(process.env.MAX_STEPS ?? 6000);
+const PICKS = process.env.PICKS === '1';
+const BRANCH_SRC = process.env.BRANCH_SRC ?? 'src';
+const DRAFT = (process.env.DRAFT ?? '').split(',').filter(Boolean);
 const FAULT_LIST = (process.env.FAULT ?? '').split(',').filter(Boolean);
 const FAULT = FAULT_LIST.length ? FAULT_LIST[shard % FAULT_LIST.length].replace(/^none$/, '') : '';
 const [sub, subs] = FAULT_LIST.length > 1 ? [Math.floor(shard / FAULT_LIST.length), Math.floor(shards / FAULT_LIST.length)] : [shard, shards];
@@ -88,8 +96,9 @@ function makeTrees(): Record<Name, string> {
   for (const name of NAMES) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
-    if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
+    if (name === 'branch') cpSync(BRANCH_SRC, join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
+    if (name === 'branch' && DRAFT.length) execSync(`python3 scripts/runner-rework/last-credits-fix-draft.py ${DRAFT[0]} ${DRAFT[1]} ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
     if (name === 'branch' && FAULT) {
       const fault = FAULTS[FAULT];
@@ -123,12 +132,13 @@ function listen(t: Tree, rec: Acc): () => void {
     scopes.push(gr.__lkScope ?? 'top');
     return () => void scopes.pop();
   };
-  G.__lk = (_gr: any, kind: string, state: GameState, action: unknown) => fnv(rec, `${path()}|${kind}|${kind === 'act' ? core.actingSide(state) : ''}|${key(action)}`);
+  const top = () => !PICKS || path() === 'top';
+  G.__lk = (_gr: any, kind: string, state: GameState, action: unknown) => top() && fnv(rec, `${path()}|${kind}|${kind === 'act' ? core.actingSide(state) : ''}|${key(action)}`);
   const scoreList = (ranked: { action: unknown; score: number }[]) => JSON.stringify(ranked.map(r => [r.action, Object.is(r.score, -0) ? '-0' : String(r.score)]));
-  G.__lkDecRank = (_s: GameState, ranked: any[]) => fnv(rec, `${path()}|drank|${scoreList(ranked)}`);
-  G.__lkOffRank = (_s: GameState, ranked: any[]) => fnv(rec, `${path()}|offrank|${scoreList(ranked)}`);
-  G.__lkRank = (_s: GameState, ranked: any[]) => fnv(rec, `${path()}|rank|${scoreList(ranked)}`);
-  G.__lkAns = (where: string, _s: GameState, action: unknown) => fnv(rec, `${path()}>${where}|ans|${key(action)}`);
+  G.__lkDecRank = (_s: GameState, ranked: any[]) => !PICKS && fnv(rec, `${path()}|drank|${scoreList(ranked)}`);
+  G.__lkOffRank = (_s: GameState, ranked: any[]) => !PICKS && fnv(rec, `${path()}|offrank|${scoreList(ranked)}`);
+  G.__lkRank = (_s: GameState, ranked: any[]) => !PICKS && fnv(rec, `${path()}|rank|${scoreList(ranked)}`);
+  G.__lkAns = (where: string, _s: GameState, action: unknown) => top() && fnv(rec, `${path()}>${where}|ans|${key(action)}`);
   return () => {
     G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = undefined;
   };
@@ -194,7 +204,8 @@ function deal(pool: string, d: Deal) {
     steps++;
     const same = (a: Name, b: Name) => res[a].n === res[b].n && res[a].h === res[b].h && more[a] === more[b];
     if (!same('base', 'branch') || !same('base', 'control')) {
-      diff = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, branch: !same('base', 'branch'), control: !same('base', 'control') };
+      const pick = (n: Name) => key(g[n].last).slice(0, 160);
+      diff = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, branch: !same('base', 'branch'), control: !same('base', 'control'), picks: { base: pick('base'), branch: pick('branch') } };
       break;
     }
     if (!more.base) break;
