@@ -120,7 +120,8 @@ function makeTrees(): Record<Name, string> {
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     if (name === 'branch' && DRAFT.length) execSync(`python3 scripts/runner-rework/last-credits-fix-draft.py ${DRAFT[0]} ${DRAFT[1]} ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
-    applyPatches(dir, LATER, `later ${name}`, read, write);
+    // a tree before commit 2 (no DrawWhen) has no 'later' read to hash: its stream stays empty (bar 2a reads no stream)
+    if (read(join(dir, 'src', LATER[0][0])).includes(LATER[0][1])) applyPatches(dir, LATER, `later ${name}`, read, write);
     if (name === 'branch' && FAULT) {
       const fault = FAULTS[FAULT];
       if (!fault) throw new Error(`no fault ${FAULT} (${Object.keys(FAULTS).join(', ')})`);
