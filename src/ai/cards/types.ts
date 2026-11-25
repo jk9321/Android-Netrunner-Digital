@@ -149,6 +149,9 @@ export interface RunFacts {
   firstIce?: FirstIceBypass;
   trojan?: { second: 'adds' | 'idle' }; // a trojan trojanHostValue prices: what a second copy on its host does
   faceupAgendaAccess?: { meatDamage: number; tags: number }; // identity: accessing a faceup installed agenda (BANGUN)
+  /** What the Runner suffers when it trashes this card: `tags` while the board meets `when` and, with `rezzed`, the card is
+   * rezzed (Public Access Plaza); a damage would be a key here. Read by the price of a trash (runs.ts trashNet). */
+  trashedByRunner?: { tags: number; when?: BoardWhen; rezzed?: true };
   hostileNotTrap?: true; // an ambush/hostile asset that does nothing accessed or left (Idiosyncresis; isTrap)
   playsAfterSuccessfulRuns?: string[]; // an event playable only after successful runs on these this turn (Chain Reaction)
 }

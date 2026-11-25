@@ -11,8 +11,8 @@ import {
   installedIcebreakers,
   isBioroid,
 } from '../core/engine/ice';
-import { availableCredits, counters, rezCost, stealthCredits, threatLevel, turnFlag } from '../core/engine/cardEffects';
-import { stealCost } from '../core/engine/actions/run';
+import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
+import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -1111,10 +1111,24 @@ function knownStealHit(state: GameState, code: string, grip: number): number {
 /** A steal less its own damage: none when it can't be stolen (an additional cost it can't pay, `tax` null). */
 const stealNet = (worth: number, tax: number | null, hit: number) => (tax === null ? 0 : taxedSteal(worth, tax) - hit);
 
-/** A trash of this accessed root card: its worth as left (RUNNER-ASSET-TRASH, corpCardValue's `left`, not discounted by the Runner's own trash chance) less the trash on the Runner's slide; never below 0, and 0 unpayable: a trash is the Runner's choice (rules 1.19.2, 7.1.5; brief O1a: no 0.5 floor) */
+/**
+ * A trash of this accessed root card: its worth as left (RUNNER-ASSET-TRASH, corpCardValue's `left`) less the engine's
+ * trash cost on the Runner's slide, less the tags its entry says the trash gives (runFacts.trashedByRunner, priced by
+ * tagCost after the trash is paid); never below 0, and 0 where the engine offers no trash (offerMidAccess: the cost, the
+ * credits that can pay it, cannotStealOrTrash, the grip cost): a trash is the Runner's choice (rules 1.19.2, 7.1.5).
+ */
 function trashNet(state: GameState, card: CardInstance): number {
-  const trash = cardDef(card).trash_cost;
-  return trash != null && trash <= state.runner.credits ? Math.max(0, corpCardValue(card, state, 'runner', true) - creditCost(state, trash)) : 0;
+  const cost = trashCost(state, card);
+  if (cost == null || cannotStealOrTrash(state, card)) return 0;
+  const purse = availableCredits(state, 'runner', { kind: 'trash', card });
+  if (purse < cost || state.runner.grip.length < (getCardScript(card.cardCode)?.trashGripCost ?? 0)) return 0;
+  const net = corpCardValue(card, state, 'runner', true) - creditCost(state, cost);
+  const hit = runFactsOf(card.cardCode)?.trashedByRunner;
+  if (!hit || (hit.rezzed && !card.isRezzed) || !meets(state, hit.when)) return Math.max(0, net);
+  // The pool pays what the other credits that can pay a trash do not (spendCredits pays those first)
+  const left = state.runner.credits - Math.max(0, cost - Math.max(0, purse - state.runner.credits));
+  const tag = memo(state, `tagAfterTrash:${left}`, () => tagCost({ ...state, runner: { ...state.runner, credits: left } }));
+  return Math.max(0, net - hit.tags * tag);
 }
 
 function serverWorth(state: GameState, serverId: string, extraAccesses: number, memory: RunnerMemory | undefined, wary: boolean, repeat: number, rest?: BreachRest, grip = state.runner.grip.length): number {
