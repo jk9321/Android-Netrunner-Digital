@@ -36,13 +36,19 @@ describe('the golden boards (leg 1c)', () => {
     delete rest.successDraws;
     return { ...r, runEventOptions: rest };
   };
+  // F108 (2026-11-25, Jeff's yes in the build thread): one golden number moves, nothing else; the file is not edited. On
+  // "Funhouse / rezzed, tagged" the run's click was priced through a card's worth at the tagged rate (clickPrice, clickWorth,
+  // cardRate: VRcation's playedWorth and the deck's average card 1.2499 tagged against 1.9694 untagged). F108 waits every
+  // Runner card at the untagged rate, tagged or not, so the click costs 1.9694 on this board and runScore goes 1.6284 to
+  // 0.9018. Breach, the ice's price, credits, approach and tagsWorth (3.25) are unchanged; so are the twin and every other board.
+  const F108: Record<string, Record<string, number>> = { 'Funhouse / rezzed, tagged': { runScore: 0.9018 } };
   for (const [i, want] of (GOLDEN.boards as any[]).entries()) {
     it(`${want.case} / ${want.branch}: every reader gives the golden number`, () => {
       const got = asFile(golden[i]);
       got.readers = lessDraws(got.readers);
       got.twin = lessDraws(got.twin);
       expect(got.board).toEqual(want.board);
-      expect(got.readers).toEqual(want.readers);
+      expect(got.readers).toEqual({ ...want.readers, ...F108[`${want.case} / ${want.branch}`] });
       expect(got.twin).toEqual(want.twin);
       expect(got.live).toEqual(want.live);
     });
