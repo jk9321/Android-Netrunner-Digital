@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, createInitialGameState, executeAction, findCardAnywhere } from '../src/core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, createInitialGameState, executeAction, findCardAnywhere, rezCostOf } from '../src/core';
 import { HeuristicRunnerAI, createAgent } from '../src/ai';
 import { BLOCK, bestBreakPlan, breachAccesses, icePrice, isTrap, runRestWorth, runScore, serverValue, subroutineCost, tagCost, tankDamage, trapDamageMax, trapHit, unrezzedDamageRisk } from '../src/ai/runs';
 import { GameRunner } from '../src/ai/playout';
@@ -424,9 +424,26 @@ describe('O1b the price of a trash holds the tag the trash gives (tracker R-14f,
     expect(b.value).toBeCloseTo(b.worth, 6);
   });
 
-  // The Corp side's step 0.6: the Corp can rez a seen, unrezzed Plaza in the window before the access, and its credits and
-  // the rez cost are public, so whether the price holds the tag there is ruled from the count, not asserted here
-  it.todo('a seen, unrezzed Plaza at threat 2: tag or no tag in the price (ruled from step 0.6)');
+  // The Corp side's step 0.6, ruled by the rework coordinator (2026-11-25 08:09Z): the price reads the fact on the card as
+  // it lies ("while it is rezzed"). The Corp could rez it in the run's window before the access (its credits and the rez
+  // cost are public; in self-play it never did, 0 of 17 accesses), but that needs the board at the access: the walk's,
+  // tracker R-14l (R-C1), which changes this test knowingly
+  it('R-14l: a seen, unrezzed Plaza at threat 2, the Corp able to pay its rez, is priced with no tag (#58 T6)', () => {
+    const b = plaza58(6, s => {
+      const plaza = Object.values(s.corp.servers).flatMap(v => v.root).find(c => c.cardCode === PLAZA)!;
+      plaza.isRezzed = false;
+      plaza.runnerKnows = true;
+    });
+    expect(b.card.isRezzed).toBe(false);
+    expect(b.server.ice.length).toBe(0);
+    expect(b.server.root.length).toBe(1);
+    expect(b.threat).toBeGreaterThanOrEqual(2);
+    expect(b.tag).toBeGreaterThan(0);
+    expect(b.view.corp.credits).toBeGreaterThanOrEqual(rezCostOf(b.view, b.card));
+    expect(b.worth).toBeGreaterThan(0);
+    const seen = asSide('runner', () => serverValue(b.view, b.server.id, 0, new Map([[b.card.instanceId, PLAZA]])));
+    expect(seen).toBeCloseTo(b.worth, 6);
+  });
 
   it("#58 T3: the price's Plaza term is 0 and the access, forced on a clone, is declined: the two agree", { timeout: 60_000 }, () => {
     const b = plaza58(3);
