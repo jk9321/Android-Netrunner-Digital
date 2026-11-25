@@ -148,11 +148,25 @@ interface Dec {
   sites: Map<string, number>; // site|side|when -> calls
   fires: Map<string, number>; // form|when|deckSide|site -> calls whose value moves > 0.001
   reads: Map<string, number>; // when|deckSide -> drawWorth answers
+  // rev 4: the decision's board as each side's first 'later' read of its deck sees it, and that deck as read there
+  at: { T: number; cc: number; rc: number; credits: Record<Side, number>; len: Record<Side, number> };
+  cap: Partial<Record<Side, { cards: [cost: number, played: number, op: boolean][]; money: Record<Form, number> }>>;
 }
 let cur: Dec | null = null;
 const siteStack: string[] = [];
 const altByKey = new Map<string, Record<Form, number>>();
 let lastRoot: Record<Form, number> | undefined;
+type Cards = [cost: number, played: number, op: boolean][];
+const cardsByKey = new Map<string, Cards>();
+let lastRootCards: Cards | undefined;
+const cardsOf = (deck: any[], played: number[]): Cards => deck.map((c, i) => [costOf(c), played[i], CORE.cardDef(c).type_code === 'operation']);
+/** Rev 4: keep the deck as read on the decision's own board (credits, clicks, turn and deck size as at the decision). */
+function capture(state: GameState, side: Side, when: string, cards: Cards | undefined) {
+  if (!cur || when !== 'later' || cur.cap[side] || !cards) return;
+  const a = cur.at;
+  if (state.turnNumber !== a.T || credits(state, side) !== a.credits[side] || cards.length !== a.len[side]) return;
+  cur.cap[side] = { cards, money: moneyOf(state, side) };
+}
 const siteOf = (stack: string): string => {
   const line = stack.split('\n')[2] ?? '';
   const m = line.match(/src\/(ai\/[^:)]+):(\d+)/);
@@ -181,17 +195,24 @@ function install() {
       siteStack.pop();
     },
     miss(k: string, state: GameState, side: Side, deck: any[], played: number[]) {
-      if (deck.length) altByKey.set(k, averages(deck, played, moneyOf(state, side)));
+      if (deck.length) {
+        altByKey.set(k, averages(deck, played, moneyOf(state, side)));
+        cardsByKey.set(k, cardsOf(deck, played));
+      }
     },
     answer(k: string, state: GameState, side: Side, when: string, value: number) {
       note(state, side, when, value, altByKey.get(k));
+      capture(state, side, when, cardsByKey.get(k));
     },
     root(state: GameState, side: Side, deck: any[], played: number[]) {
       lastRoot = averages(deck, played, moneyOf(state, side));
+      lastRootCards = cardsOf(deck, played);
     },
     rootAnswer(state: GameState, side: Side, when: string, value: number) {
       note(state, side, when, value, lastRoot);
+      capture(state, side, when, lastRootCards);
       lastRoot = undefined;
+      lastRootCards = undefined;
     },
   };
 }
@@ -219,15 +240,58 @@ function decisionOf(s: GameState): { side: Side; kind: string } | null {
   return { side, kind: CORE.activePrompt(s) ? 'prompt' : s.activeRun ? 'run' : 'main' };
 }
 
+/**
+ * Rev 4's check, per deck read at the decision (each side's deck as its first 'later' read on the decision's board saw
+ * it): for each form F with money m, E(F) = the sum over the deck of |held worth at m - held worth at the yardstick|,
+ * the yardstick being the deck side's next own turn: the Runner's peak credits; the Corp's credits when that turn ended
+ * for a card paid by a rez (anything but an operation), the peak for an operation. Beside it, among the cards above
+ * today's credits (N): false payables (cost within m, above the yardstick) and false unpayables (above m, within it).
+ */
+function heldErrors(x: any, blocks: { side: Side; peak: number; end: number }[]) {
+  const r: Record<string, unknown> = {};
+  for (const side of ['runner', 'corp'] as Side[]) {
+    const cap = x.cap[side];
+    if (!cap) continue;
+    const next = blocks.findIndex((bl, i) => i > x.block && bl.side === side);
+    if (next < 0 || next === blocks.length - 1) continue;
+    const { peak, end } = blocks[next];
+    const today = x.capCredits[side];
+    const money: Record<string, number> = { T: today, ...cap.money };
+    const E: Record<string, number> = {};
+    const fp: Record<string, number> = {};
+    const fu: Record<string, number> = {};
+    let N = 0;
+    for (const [cost] of cap.cards as Cards) if (cost > today) N++;
+    for (const [f, m] of Object.entries(money)) {
+      let e = 0;
+      let a = 0;
+      let b = 0;
+      for (const [cost, played, op] of cap.cards as Cards) {
+        const y = side === 'runner' || op ? peak : end;
+        e += Math.abs(held(cost, played, m) - held(cost, played, y));
+        if (cost > today && cost <= m && cost > y) a++;
+        if (cost > today && cost > m && cost <= y) b++;
+      }
+      E[f] = Math.round(e * 1e4) / 1e4;
+      fp[f] = a;
+      fu[f] = b;
+    }
+    r[side] = { own: side === x.side, credits: today, N, E, fp, fu };
+  }
+  return r;
+}
+
 function deal(pool: string, d: Deal) {
   T.clear();
   altByKey.clear();
+  cardsByKey.clear();
   const g = new T.GameRunner(dealStateOf(d), { corp: T.createAgent('corp', 'normal'), runner: T.createAgent('runner', 'normal') });
   const cr: number[] = [];
   const sc: number[] = [];
   let lastTurn = -1;
   // turn blocks: one per player turn, in order, with the peak credits of the side whose turn it is
-  const blocks: { side: Side; peak: number }[] = [];
+  // (rev 4) and the credits it held when that turn ended
+  const blocks: { side: Side; peak: number; end: number }[] = [];
   let blockId = '';
   const decs: Record<string, unknown>[] = [];
   const t0 = performance.now();
@@ -241,14 +305,18 @@ function deal(pool: string, d: Deal) {
     const id = `${s.turnNumber}:${s.activePlayer}`;
     if (id !== blockId) {
       blockId = id;
-      blocks.push({ side: s.activePlayer as Side, peak: credits(s, s.activePlayer as Side) });
+      blocks.push({ side: s.activePlayer as Side, peak: credits(s, s.activePlayer as Side), end: credits(s, s.activePlayer as Side) });
     }
     const dec = decisionOf(s);
-    cur = dec ? { ...dec, sites: new Map(), fires: new Map(), reads: new Map() } : null;
+    const at = { T: s.turnNumber, cc: s.corp.clicks, rc: s.runner.clicks, credits: { corp: s.corp.credits, runner: s.runner.credits }, len: { corp: dec ? ORACLE.corpDrawPool(s).length : 0, runner: s.runner.stack.length } };
+    cur = dec ? { ...dec, sites: new Map(), fires: new Map(), reads: new Map(), at, cap: {} } : null;
     const more: boolean = g.step();
     const after: GameState = g.state;
     const b = blocks[blocks.length - 1];
-    if (`${after.turnNumber}:${after.activePlayer}` === blockId) b.peak = Math.max(b.peak, credits(after, b.side));
+    if (`${after.turnNumber}:${after.activePlayer}` === blockId) {
+      b.peak = Math.max(b.peak, credits(after, b.side));
+      b.end = credits(after, b.side);
+    }
     if (dec && cur) {
       // the decider's own deck on the decision's board, against each form (cards the form flips)
       const side = dec.side;
@@ -271,6 +339,9 @@ function deal(pool: string, d: Deal) {
         sites: Object.fromEntries(cur.sites),
         fires: Object.fromEntries(cur.fires),
         reads: Object.fromEntries(cur.reads),
+        cap: cur.cap,
+        len: cur.at.len,
+        capCredits: cur.at.credits,
       });
     }
     cur = null;
@@ -282,7 +353,10 @@ function deal(pool: string, d: Deal) {
   for (const x of decs) {
     const next = blocks.findIndex((bl, i) => i > (x.block as number) && bl.side === x.side);
     x.peak = next < 0 || next === blocks.length - 1 ? null : blocks[next].peak;
+    x.err = heldErrors(x, blocks);
     delete x.block;
+    delete x.cap;
+    delete x.capCredits;
     out({ kind: 'dec', pool, seed: d.seed, ...x });
   }
   out({ kind: 'deal', pool, seed: d.seed, recordSame, winner: B.winner ?? null, T: B.turnNumber, decisions: decs.length, ms: Math.round(performance.now() - t0) });
