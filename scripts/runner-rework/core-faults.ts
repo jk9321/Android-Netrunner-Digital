@@ -1,11 +1,22 @@
 /**
- * R-B B1 bar 2 (brief b1-core.md rev 1, red team 2026-11-24 finding 7): the planted faults, each a patch on the BRANCH
- * tree's text after the hooks (core-lockstep.ts FAULT=<name>), each first shown on a unit state to change its input
- * (tests/runnerCore.test.ts, "bar 2"). Never applied outside a lockstep's scratch tree.
+ * R-B B1 bar 2 (brief b1-core.md rev 1, red team 2026-11-24 finding 7) and B2 bar 2 (brief b2-run.md rev 1): the planted
+ * faults, each a patch on the BRANCH tree's text after the hooks (core-lockstep.ts FAULT=<name>), each first shown on a
+ * unit state to change its input (tests/runnerCore.test.ts and tests/runnerRun.test.ts, "bar 2"). Never applied outside
+ * a lockstep's scratch tree.
  */
 import type { Patch } from './core-hooks';
 
 export const FAULTS: Record<string, Patch[]> = {
+  // R-B B2 bar 2 (brief b2-run.md rev 1; each input shown on a unit state in tests/runnerRun.test.ts, "bar 2"):
+  // a term of the ranking moved by 1e-9 (the big-hand draw's flat, read once in scoreMain)
+  bigHand: [['ai/runner/terms.ts', `  bigHandDraw: 1.5,`, `  bigHandDraw: 1.5 + 1e-9,`]],
+  // the jack-out test made '>=': with exactly the credits the rezzed ice further in needs, the Runner jacks out
+  jackOutEqual: [['ai/runner/run.ts', `    if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');`, `    if (creditsAhead(state) >= credits && find('JACK_OUT')) return find('JACK_OUT');`]],
+  // the tanking margin 0.5 made 0: a full break costing more than the tank is never taken first
+  marginZero: [['ai/runner/run.ts', `  if (breakPlan && planCost(breakPlan) <= tank + 0.5) {`, `  if (breakPlan && planCost(breakPlan) <= tank + 0) {`]],
+  // the Manegarm click reserve returning 0: a spare bioroid click is taken even when it leaves fewer than Manegarm's 2
+  reserveZero: [['ai/runner/run.ts', `  return spare >= 5 * count ? 0 : 2 * count;`, `  return spare >= 5 * count ? 0 : 0;`]],
+  // R-B B1 bar 2:
   // The planner's rollout handed the deciding Runner's loop guard (its rankings start, so reset, the decider's count)
   rolloutGuard: [['ai/runnerAI.ts', `    rollout.memory = new Map(this.memory);`, `    rollout.memory = new Map(this.memory);\n    (rollout as any).freeActions = this.freeActions;`]],
   // The reply's Runner given one memory across the samples of a reply

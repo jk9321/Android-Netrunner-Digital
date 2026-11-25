@@ -266,8 +266,10 @@ describe('the Runner agent as callers and scripts see it', () => {
 
 /**
  * The context each caller builds (step 1 table (a), the branch half of bar 3): its fields, read off the context the
- * order was handed, against the caller's own fields. The six fields no src code reads before B2 (synergy, view, memory,
- * guard, planMemory, offTurnState) are checked here.
+ * order was handed, against the caller's own fields. B2 deleted the four context fields no src code read (synergy,
+ * guard, planMemory, offTurnState) and the run callback (runAction is called directly); the two it kept, view and memory,
+ * are checked here: read by B3's prompt answer, and until then this table's handle. The agent's own fields the deleted
+ * ones copied are read off the agent itself.
  */
 describe('the context each caller hands the order (table (a))', () => {
   const own = (r: unknown) => r as { synergy: boolean; planner: boolean; debug: boolean; memory: Map<string, string>; freeActions: FreeActionGuard; planMemory: unknown; savingFor: string | null; digForBreakers: boolean };
@@ -284,12 +286,8 @@ describe('the context each caller hands the order (table (a))', () => {
   /** The context an agent builds is the agent's own fields, not copies. */
   const isOwn = (ctx: RunnerContext, r: HeuristicRunnerAI) => {
     const o = own(r);
-    expect(ctx.synergy).toBe(o.synergy);
     expect(ctx.view).toBe(o.planner ? 'dealt' : 'given');
     expect(ctx.memory).toBe(r.knownCards());
-    expect(ctx.guard).toBe(o.freeActions);
-    expect(ctx.planMemory).toBe(o.planMemory);
-    expect(ctx.offTurnState()).toEqual({ savingFor: o.savingFor, digForBreakers: o.digForBreakers });
     expect(ctx.counted).toBe(readWriteFullShuffle);
     expect(ctx.debug).toBe(o.debug);
   };
@@ -307,12 +305,12 @@ describe('the context each caller hands the order (table (a))', () => {
     isOwn(ctx, rollout);
     expect([ctx.view, !!ctx.lookahead, ctx.debug]).toEqual(['given', false, false]);
   });
-  it('the Normal Runner off-turn: the same context, its own off-turn state read as left (fresh: null and false)', () => {
+  it('the Normal Runner off-turn: the same context, its own off-turn state as left (fresh: null and false)', () => {
     const ai = new HeuristicRunnerAI();
     const seen = record(() => ai.chooseOffTurn(offTurnState()));
     expect(seen.map(x => x.kind)).toEqual(['off']);
     isOwn(seen[0].ctx, ai);
-    expect(seen[0].ctx.offTurnState()).toEqual({ savingFor: null, digForBreakers: false });
+    expect([own(ai).savingFor, own(ai).digForBreakers]).toEqual([null, false]);
   });
   it("the Hard Runner: the base's context with base, observe, an un-noted counted pick and the search; its playouts: fresh agents holding the Hard Runner's map", () => {
     const ai = createAgent('runner', 'hard', { seed: 1, samples: 1, candidates: 2 });
@@ -322,8 +320,7 @@ describe('the context each caller hands the order (table (a))', () => {
     const hard = seen.filter(x => x.ctx.memory === base.knownCards());
     expect(hard).toHaveLength(1);
     const ctx = hard[0].ctx;
-    expect([ctx.view, ctx.synergy, ctx.noteCounted, !!ctx.base, !!ctx.lookahead, ctx.debug]).toEqual(['given', true, false, true, true, false]);
-    expect(ctx.guard).toBe(own(base).freeActions);
+    expect([ctx.view, own(base).synergy, ctx.noteCounted, !!ctx.base, !!ctx.lookahead, ctx.debug]).toEqual(['given', true, false, true, true, false]);
     const playouts = seen.filter(x => x !== hard[0]);
     expect(playouts.length).toBeGreaterThan(0);
     for (const p of playouts) {
@@ -351,6 +348,14 @@ describe('the context each caller hands the order (table (a))', () => {
   });
   it("the oracle playout's Runner: synergy, the dealt view and the planner", () => {
     const was = tuning.plan;
+    // The agent that built each context: synergy is the agent's own field since B2 deleted the context's copy
+    const agentOf = new WeakMap<object, HeuristicRunnerAI>();
+    const build = HeuristicRunnerAI.prototype.runnerContext;
+    const spy = vi.spyOn(HeuristicRunnerAI.prototype, 'runnerContext').mockImplementation(function (this: HeuristicRunnerAI) {
+      const ctx = build.call(this);
+      agentOf.set(ctx, this);
+      return ctx;
+    });
     try {
       applyPlanOff('+oracle.safestRemote');
       const s = newGame(2); // not the position the call-count test played out: oracle.ts keeps played-out positions
@@ -359,8 +364,9 @@ describe('the context each caller hands the order (table (a))', () => {
       const seen = record(() => createAgent('corp', 'normal').chooseAction(s));
       const oracle = seen.filter(x => x.ctx.view === 'dealt');
       expect(oracle.length).toBeGreaterThan(0);
-      expect(oracle.every(x => x.ctx.synergy && !!x.ctx.lookahead && x.ctx.noteCounted && !x.ctx.base)).toBe(true);
+      expect(oracle.every(x => own(agentOf.get(x.ctx)).synergy && !!x.ctx.lookahead && x.ctx.noteCounted && !x.ctx.base)).toBe(true);
     } finally {
+      spy.mockRestore();
       tuning.plan = was;
     }
   });

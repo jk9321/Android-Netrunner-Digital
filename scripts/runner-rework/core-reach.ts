@@ -46,7 +46,7 @@ const RC = '(globalThis as any).__rc?.';
 const R = 'ai/runnerAI.ts';
 
 /** The counters, on the base's runnerAI.ts text (each must match once). Each adds a count and changes no answer. */
-const REACH: Patch[] = [
+export const REACH: Patch[] = [
   // the top GameRunner's ask (after HOOKS, which wrote this line)
   ['ai/playout.ts', `    const __act = this.agents[side].chooseAction(state);`, `    (globalThis as any).__rcAsk?.(state);\n    const __act = this.agents[side].chooseAction(state);`],
   [
@@ -89,7 +89,7 @@ export const BRANCHES = [
 ];
 
 // ------------------------------------------------------------------------------------------------ sum
-if (process.env.SUM) {
+if (process.env.SUM && !(globalThis as any).__reachImport) {
   const files: string[] = [];
   const walk = (d: string) => {
     for (const e of readdirSync(d)) {
@@ -271,7 +271,9 @@ async function main() {
   if (process.env.OUT_DIR && existsSync(process.env.OUT_DIR)) writeFileSync(join(process.env.OUT_DIR, 'done'), 'ok');
 }
 
-main().catch(e => {
-  console.error(e);
-  process.exit(1);
-});
+// Imported for its REACH list (a unit board's branch, tests/runnerRun.test.ts's recording): no run
+if (!(globalThis as any).__reachImport)
+  main().catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
