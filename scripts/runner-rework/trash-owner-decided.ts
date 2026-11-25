@@ -18,38 +18,58 @@
  * Run as decided-twice.ts: ARGS="POOL=batch,nrdb,issues" SHARD=i/n npx vite-node scripts/runner-rework/trash-owner-decided.ts;
  * IDENT=1 checks the hooked tree against a plain copy of src, step for step.
  */
-import { readFileSync } from 'node:fs';
-import { HOOKED, type Patch } from './decided-twice-trees';
+import { readFileSync } from "node:fs";
+import { HOOKED, type Patch } from "./decided-twice-trees";
 
-const A = '(globalThis as any).__dtAgent';
-const src = (f: string) => readFileSync(`src/${f}`, 'utf8');
+const A = "(globalThis as any).__dtAgent";
+const src = (f: string) => readFileSync(`src/${f}`, "utf8");
 const once = (f: string, at: string) => src(f).split(at).length === 2;
 const dedent = (t: string) =>
   t
-    .split('\n')
-    .map(l => (l.startsWith('  ') ? l.slice(2) : l))
-    .join('\n');
+    .split("\n")
+    .map((l) => (l.startsWith("  ") ? l.slice(2) : l))
+    .join("\n");
 
 const moved: Patch[] = [];
 for (let i = 0; i < HOOKED.length; i++) {
   const [f, at, to] = HOOKED[i];
   if (once(f, at)) continue;
-  if (f !== 'ai/runnerAI.ts') throw new Error(`a stale patch outside runnerAI.ts: ${f}: ${at.slice(0, 90)}`);
-  const runCard: Patch = [f, at.replace(/\+ 0\.3;$/, '+ RUNNER_TERMS.runCard;'), to.replace(/\+ 0\.3;$/, '+ RUNNER_TERMS.runCard;')];
-  const inRun: Patch = ['ai/runner/run.ts', dedent(at), dedent(to).replace(/\?\.(enc|move)\(this, /g, `?.$1(${A}, `)];
+  if (f !== "ai/runnerAI.ts")
+    throw new Error(
+      `a stale patch outside runnerAI.ts: ${f}: ${at.slice(0, 90)}`,
+    );
+  const runCard: Patch = [
+    f,
+    at.replace(/\+ 0\.3;$/, "+ RUNNER_TERMS.runCard;"),
+    to.replace(/\+ 0\.3;$/, "+ RUNNER_TERMS.runCard;"),
+  ];
+  const inRun: Patch = [
+    "ai/runner/run.ts",
+    dedent(at),
+    dedent(to).replace(/\?\.(enc|move)\(this, /g, `?.$1(${A}, `),
+  ];
   const next = [runCard, inRun].find(([g, a]) => once(g, a));
-  if (!next) throw new Error(`no B2 place for a decided-twice patch: ${at.slice(0, 90)}`);
-  if (next[0] === 'ai/runner/run.ts' && next[2].includes('this')) throw new Error(`a moved patch still passes this: ${next[1].slice(0, 90)}`);
+  if (!next)
+    throw new Error(
+      `no B2 place for a decided-twice patch: ${at.slice(0, 90)}`,
+    );
+  if (next[0] === "ai/runner/run.ts" && next[2].includes("this"))
+    throw new Error(`a moved patch still passes this: ${next[1].slice(0, 90)}`);
   HOOKED[i] = next;
   moved.push(next);
 }
 const decide = `    return runnerDecide(state, this.runnerContext());`;
-if (!once('ai/runnerAI.ts', decide)) throw new Error('runnerAI.ts decide: the call to runnerDecide does not match once');
+if (!once("ai/runnerAI.ts", decide))
+  throw new Error(
+    "runnerAI.ts decide: the call to runnerDecide does not match once",
+  );
 HOOKED.push([
-  'ai/runnerAI.ts',
+  "ai/runnerAI.ts",
   decide,
   `    const __p = ${A};\n    ${A} = this;\n    try {\n      return runnerDecide(state, this.runnerContext());\n    } finally {\n      ${A} = __p;\n    }`,
 ]);
-console.error(`trash-owner-decided: ${moved.length} patches moved to B2's places (${moved.map(m => m[0]).join(', ')}), the agent's scope added`);
+console.error(
+  `trash-owner-decided: ${moved.length} patches moved to B2's places (${moved.map((m) => m[0]).join(", ")}), the agent's scope added`,
+);
 
-await import('./decided-twice');
+await import("./decided-twice");
