@@ -134,14 +134,27 @@ describe('fix 1: the scoring remote\'s own holding rez counted once (rezMoney `e
   // Corp at 4 credits and 3 clicks): remote-1 (Funhouse, Ping, Witch Hunt to come) read short only by the double count
   // (floor 6 against 4 once), so the three HQ ice went to remote-1 and the Corp took a credit; counted once remote-1 is
   // not short and Ping goes to a new remote.
-  it('report-48 move 42: the Corp installs Ping on a new remote', { timeout: T }, () => {
+  // Restated 2026-11-25 (Corp-side AI Coordinator; runner-rework/r14h-fix/placement-48-42.md): the pin asserted the first
+  // pick (Ping on a new remote, a 0.55 margin over GAIN_CREDIT). With the Runner's later-turn money (R-14h, #65) the
+  // Corp's reply Runner on that line draws instead of removing Ping's tag, so the Corp takes a credit first; fix 1's
+  // quantity is unchanged. The pin now asserts fix 1 itself (remote-1 not short, the floor counted once) and what fix 1
+  // removed: no HQ ice goes to remote-1 in the rest of the Corp's turn
+  it('report-48 move 42: remote-1 is not short and no ice goes to remote-1 this turn', { timeout: T }, () => {
     const s = read('report-48-42.json');
     expect(inCorp(s, () => scoringShort(s))).toBe(null);
     expect(inCorp(s, () => [lineKeep(s, agendasInHq(s)), lineKeep(s, agendasInHq(s), 'remote-1')])).toEqual([6, 4]);
-    const g = new GameRunner(structuredClone(s), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
-    g.step();
-    expect(g.last).toEqual({ type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-47', asNewRemote: true });
     expect(s.corp.hq.find(c => c.instanceId === 'inst-47')?.cardCode).toBe(C.PING);
+    const iceInHq = new Set(s.corp.hq.filter(c => cardDef(c).type_code === 'ice').map(c => c.instanceId));
+    expect(iceInHq.size).toBeGreaterThan(0);
+    const g = new GameRunner(structuredClone(s), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    const played: GameAction[] = [];
+    for (let k = 0; k < 40 && !g.state.winner && g.state.turnNumber === s.turnNumber && g.state.activePlayer === 'corp'; k++) {
+      if (!g.step()) break;
+      if (g.last?.player === 'corp') played.push(g.last);
+    }
+    expect(played.length).toBeGreaterThan(0);
+    const onRemote1 = (a: GameAction) => a.type === 'INSTALL_CARD' && iceInHq.has((a as { cardInstanceId?: string }).cardInstanceId ?? '') && (a as { targetServerId?: string }).targetServerId === 'remote-1';
+    expect(played.filter(onRemote1)).toEqual([]);
   });
 
   // 1b: reservedForAgenda keeps reading the pools as before fix 1 (the corrected input was counted and not built: its
