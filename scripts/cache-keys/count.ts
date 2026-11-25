@@ -27,7 +27,7 @@
  *   SHARD=0/64 npx vite-node scripts/cache-keys/count.ts -- GROUPS=t,d,c,all POOL=batch,nrdb SAMPLE_deckAverage=50
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameState } from '../../src/core';
 import { ALL_DECKS } from '../nsg-sample-decks';
@@ -50,7 +50,7 @@ const SLICE_K = Math.floor(shard / G_);
 const POOLS = (env.POOL ?? 'batch,nrdb').split(',');
 const DEALS = (env.DEALS ?? '').split(',').filter(Boolean);
 const SAMPLE: Record<MapName, number> = Object.fromEntries(MAPS.map(m => [m, Number(env[`SAMPLE_${m}`] ?? env.SAMPLE ?? 1)])) as Record<MapName, number>;
-const AUDIT = env.AUDIT !== '0';
+let AUDIT = env.AUDIT !== '0';
 // Own play: '1' every arm on every deal; 'changed' (default) only the arms with a changed decision in this deal's lockstep
 // (an arm that answers as the source at every decision plays the source's game: its record is the base record)
 const OWN = env.OWN ?? 'changed';
@@ -424,6 +424,65 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
   out({ kind: timing ? 'timedeal' : 'deal', group: GROUP, pool, seed: d.seed, steps, decisions: i, recordSame, winner: g.state.winner ?? null, recWinner: d.winner, lockMs, evalMs: Math.round(evalMs), plays, diffs, ms: Date.now() - started });
 }
 
+/**
+ * People's games (tests/fixtures/human-games, C only, the coordinator's addition 2): the person's game replayed move by
+ * move; before each move of the AI's side, a Normal agent that watched every board (its fields copied, as in the
+ * lockstep) is asked chooseAction on a copy, in the source and in every asked tree. A tree's answer is compared with
+ * the source's (not with the recorded move). The asks are chooseAction at every AI move (a recorded rez is asked as
+ * chooseAction too: the same question in every tree). Counts under pool 'people': D, CH, MS, ERR as the lockstep's.
+ */
+function person(file: string) {
+  const r = JSON.parse(readFileSync(file, 'utf8'));
+  const name = file.split('/').pop()!.replace('.json', '');
+  source = `people:${name}`;
+  for (const n of ASKED) T[n].clear();
+  S.clear();
+  let s: GameState = S.core.createInitialGameState(S.decks.deckGameSetup(r.config.seed, r.config.corpDeck, r.config.runnerDeck));
+  if (r.startStops) s = { ...s, stops: r.startStops };
+  if (r.startsAt === 'state') s = structuredClone(r.state);
+  const aiSide: string = r.config.ai;
+  const watcher: any = S.createAgent(aiSide, 'normal');
+  const diffs: Record<string, unknown>[] = [];
+  let i = 0;
+  const t0 = performance.now();
+  for (const [j, move] of (r.moves as any[]).entries()) {
+    watcher.observe?.(s);
+    if (move.player === aiSide) {
+      const idx = i++;
+      const kind = `${s.pendingPrompts.length ? 'prompt' : 'main'}:${move.type === 'REZ_CARD' ? 'rez' : 'act'}`;
+      const sAgent: any = S.createAgent(aiSide, 'normal');
+      copyFields(watcher, sAgent);
+      let sa: string;
+      try {
+        sa = pickKey(sAgent.chooseAction(structuredClone(s)));
+      } catch (e) {
+        sa = `error: ${(e as Error).message.slice(0, 100)}`;
+      }
+      const k = `${aiSide}|${kind}`;
+      inc(`D|${k}|n`);
+      const order = ASKED.map((_, q) => ASKED[(q + idx) % ASKED.length]);
+      for (const n of order) {
+        cur = { side: aiSide, kind, tree: n, T: s.turnNumber, i: idx };
+        const a = ask(n, aiSide, 'chooseAction', s, watcher);
+        cur = null;
+        inc(`MS|${n}|${k}`, a.ms);
+        if (a.a !== sa) {
+          inc(`CH|${n}|${k}`);
+          if (diffs.length < 40) diffs.push({ tree: n, kind, T: s.turnNumber, move: j, answer: a.a.slice(0, 300), source: sa.slice(0, 300) });
+        }
+        if (a.a.startsWith('error')) inc(`ERR|${n}`);
+      }
+    }
+    try {
+      s = S.core.executeAction(s, move);
+    } catch (e) {
+      out({ kind: 'error', pool: 'people', seed: name, at: j, error: (e as Error).message.slice(0, 120) });
+      break;
+    }
+  }
+  out({ kind: 'person', group: GROUP, pool: 'people', file: name, decisions: i, lockMs: Math.round(performance.now() - t0), diffs, ms: Date.now() - started });
+}
+
 /** D: the batch driver against plain play, on every tree of the group and the source. */
 async function driver(d: Deal) {
   for (const n of ['source', ...ASKED]) {
@@ -464,7 +523,7 @@ async function main() {
     g3: JSON.parse(readFileSync('scripts/cache-keys/deals-g3.json', 'utf8')),
   };
   const units: { pool: string; d: Deal }[] = [];
-  for (const pool of POOLS) for (const d of lists[pool]) if (!DEALS.length || DEALS.includes(String(d.seed)) || DEALS.includes(`${pool}:${d.seed}`)) units.push({ pool, d });
+  for (const pool of POOLS.filter(p => p !== 'people')) for (const d of lists[pool]) if (!DEALS.length || DEALS.includes(String(d.seed)) || DEALS.includes(`${pool}:${d.seed}`)) units.push({ pool, d });
   out({ kind: 'start', group: GROUP, asked: ASKED, units: units.filter((_, k) => k % SLICE === SLICE_K).length, sample: SAMPLE, audit: AUDIT, e: E_ON, modes: MODES });
   let pool = '';
   const flush = () => {
@@ -492,6 +551,25 @@ async function main() {
       if (MODES.includes('driver') && u.pool === 'g3') await driver(u.d);
     } catch (e) {
       out({ kind: 'error', pool: u.pool, seed: u.d.seed, error: (e as Error).stack?.slice(0, 800) });
+    }
+  }
+  // People's games after the deals, sharded the same way (C only: run with AUDIT=0)
+  if (POOLS.includes('people')) {
+    flush();
+    pool = 'people';
+    AUDIT = false;
+    const files = readdirSync('tests/fixtures/human-games').filter(f => f.endsWith('.json')).sort();
+    for (const [k, f] of files.entries()) {
+      if (k % SLICE !== SLICE_K) continue;
+      if (Date.now() - started > MAX_MS) {
+        out({ kind: 'stopped', at: `people:${f}`, reason: 'MAX_MS' });
+        break;
+      }
+      try {
+        person(join('tests/fixtures/human-games', f));
+      } catch (e) {
+        out({ kind: 'error', pool: 'people', seed: f, error: (e as Error).stack?.slice(0, 800) });
+      }
     }
   }
   flush();
