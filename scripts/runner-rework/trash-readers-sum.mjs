@@ -101,8 +101,7 @@ for (const pool of POOLS) {
     say(`\nThe people's shares: of the person's answers in each class, the share each reader agrees with (a class under 10 is "not shown").`);
     say(`| class | n | person trashed | price agrees | decision agrees | read |`);
     say(`|---|---:|---:|---:|---:|---|`);
-    for (const c of CLASSES) {
-      const x = A.filter(a => a.cls === c);
+    for (const [c, x] of CLASSES.flatMap(c => [[c, A.filter(a => a.cls === c)], [`${c} without report-33 (Hard Corp)`, A.filter(a => a.cls === c && !a.hardCorp)]])) {
       if (!x.length) continue;
       const pa = x.filter(a => a.priceTrash === a.answerTrash).length / x.length;
       const da = x.filter(a => a.decisionTrash === a.answerTrash).length / x.length;
