@@ -48,6 +48,23 @@ const WHY: Patch[] = [
   ['ai/effectValues.ts', `export function damageThreat(state: GameState, corpTurn = false): { burst: number; share: number } {\n`, `export function damageThreat(state: GameState, corpTurn = false): { burst: number; share: number } {\n  const __v = damageThreatWhy(state, corpTurn);\n  (globalThis as any).__whyThreat?.(new Error().stack, __v);\n  return __v;\n}\nfunction damageThreatWhy(state: GameState, corpTurn = false): { burst: number; share: number } {\n`],
 ];
 
+/**
+ * LINES=1: the Corp planner's lines taken apart (the Corp side's ask on report-48 move 42): each line's actions and end
+ * board as it goes to the Runner's reply, each reply sample's Runner actions, servers run, Runner credits and value, and
+ * the leaf's parts on the sample's last board (evaluate = the Corp's sideStrength less the Runner's; the Runner's rig).
+ */
+const LINES: Patch[] = [
+  ['ai/turnPlanner.ts', `import { evaluate } from './evaluate';`, `import { evaluate, sideStrength as __ss, runnerRigValue as __rig } from './evaluate';`],
+  ['ai/turnPlanner.ts', `    const replied = ai.reply(state, leaf);\n`, `    (globalThis as any).__whyLine?.(line.map(x => x.action), state);\n    const replied = ai.reply(state, leaf);\n    (globalThis as any).__whyLineEnd?.(replied);\n`],
+  [
+    'ai/turnPlanner.ts',
+    `  return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => evaluate(state, side));`,
+    `  return withPricing({ leaves: [...pricing().leaves, { side, plan: plan() }] }, () => {\n    const __v = evaluate(state, side);\n    if ((globalThis as any).__whyLeaf && !state.winner) (globalThis as any).__whyLeaf({ v: __v, corp: __ss(state, 'corp', side), runner: __ss(state, 'runner', side), rig: __rig(state) });\n    return __v;\n  });`,
+  ],
+  ['ai/runnerReply.ts', `          if (!gr.step()) break;\n`, `          if (!gr.step()) break;\n          (globalThis as any).__whyStep?.(gr);\n`],
+  ['ai/runnerReply.ts', `      values.push(value);\n`, `      values.push(value);\n      (globalThis as any).__whySample?.(k, last, value, settle);\n`],
+];
+
 function trees(): Record<'base' | 'draft', string> {
   rmSync(root, { recursive: true, force: true });
   const out = {} as Record<'base' | 'draft', string>;
@@ -60,6 +77,7 @@ function trees(): Record<'base' | 'draft', string> {
     const write = (p: string, t: string) => writeFileSync(p, t);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
     applyPatches(dir, WHY, `why ${name}`, read, write);
+    if (process.env.LINES === '1') applyPatches(dir, LINES, `lines ${name}`, read, write);
     // NOCLEAR=1: the deck average map is never cleared at its size cap (its key is kept incomplete, so when it is cleared
     // decides which board's value a hit serves; the draft adds 'later' keys and so moves the clears)
     // NOCACHE=1: no deck average is served from the map (each is worked out on the asking board: the exact value)
@@ -132,10 +150,39 @@ async function main() {
     };
     G.__whyPlan = (side: string, scored: [unknown, number][], best: unknown, value: number) => depth === 1 && R.plans.push({ side, scored: scored.map(([a, v]) => [short(a), +v.toFixed(4)]).sort((x, y) => y[1] - x[1]), best: short(best), value });
     G.__lkDecRank = (_s: GameState, ranked: any[]) => depth === 1 && R.ranks.push(ranked.slice(0, 6).map(x => [short(x.action), +Number(x.score).toFixed(4)]));
+    if (process.env.LINES === '1') {
+      R.lines = [];
+      let cur: any = null;
+      let leafParts: any = null;
+      let acts: string[] = [];
+      G.__whyLine = (line: unknown[], end: GameState) => {
+        if (depth !== 1) return;
+        cur = { line: line.map(a => short(a)), end: { corp: end.corp.credits, runner: end.runner.credits, servers: Object.values(end.corp.servers).map((v: any) => `${v.id}:${v.ice.map((c: any) => c.cardCode + (c.isRezzed ? 'r' : '')).join('+')}/${v.root.map((c: any) => c.cardCode).join('+')}`).join(' ') }, samples: [] };
+        R.lines.push(cur);
+      };
+      G.__whyLineEnd = (v: number) => {
+        if (depth !== 1 || !cur) return;
+        cur.value = v;
+        cur = null;
+      };
+      G.__whyLeaf = (p: any) => (leafParts = p);
+      G.__whyStep = (gr: any) => {
+        if (depth === 1 && gr.state.activePlayer === 'runner' && gr.last) acts.push(short(gr.last).replace(/"type":/, '').slice(0, 70));
+      };
+      G.__whySample = (k: number, last: GameState, value: number, settle: boolean) => {
+        if (depth !== 1) return;
+        const row = { k, value: +value.toFixed(3), settle, rc: last.runner.credits, tags: last.runner.tags, grip: last.runner.grip.length, acts, parts: settle ? null : leafParts && Object.fromEntries(Object.entries(leafParts).map(([a, b]) => [a, +Number(b).toFixed(3)])) };
+        if (cur) cur.samples.push(row);
+        else (R.outside ??= []).push(row);
+        acts = [];
+        leafParts = null;
+      };
+    }
     const s: GameState = g.state;
     R.board = { T: s.turnNumber, active: s.activePlayer, corp: s.corp.credits, runner: s.runner.credits, cc: s.corp.clicks, rc: s.runner.clicks };
     g.step();
     R.act = short(g.last);
+    G.__whyLine = G.__whyLineEnd = G.__whyLeaf = G.__whyStep = G.__whySample = undefined;
     G.__lkIn = G.__whyRate = G.__whyDraw = G.__whyThreat = G.__whyPlan = G.__lkDecRank = undefined;
   }
   const B = rec.base;
@@ -178,6 +225,15 @@ async function main() {
   const pb: number[] = (B as any).pre;
   const pd: number[] = (D as any).pre;
   console.log(`\nThe Runner's 'later' drawWorth answers on the way to the decision: base ${pb.length}, draft ${pd.length}; differing (in order): ${pb.filter((v, i) => v !== pd[i]).length}`);
+  if (process.env.LINES === '1')
+    for (const [name, x] of Object.entries(rec) as [string, any][]) {
+      console.log(`\n## ${name}: the planner's lines to the Runner's reply (top level)`);
+      for (const l of x.lines) {
+        console.log(`\n### ${l.line.join(' ; ')} = ${l.value?.toFixed(4)}; end ${JSON.stringify(l.end)}`);
+        for (const s of l.samples) console.log(`- sample ${s.k}: ${s.value}${s.settle ? ' (game ended)' : ''}, Runner ends at ${s.rc}c, ${s.tags} tags, ${s.grip} cards in grip; parts ${JSON.stringify(s.parts)}; Runner: ${s.acts.join(' | ')}`);
+      }
+      if (x.outside?.length) console.log(`- samples outside a line (extra / resample): ${x.outside.map((s: any) => `${s.k}:${s.value}`).join(', ')}`);
+    }
   pair('cardRate answers', B.rates, D.rates);
   pair('drawWorth answers (site = its caller)', B.draws, D.draws);
   pair('damageThreat answers (site = its caller; side column = burst or share)', B.threats, D.threats);
