@@ -142,7 +142,7 @@ function plazaTurns(edit?: (s: GameState) => void) {
 describe('issue #58: a trash priced into the run and declined at the access for its tag', () => {
   // Passes when the Runner either trashes the Plaza at its first access or, having declined it for the tag, does not run
   // its server again for it while the tag still stands (threat 2): the run's worth and the access answer agree
-  it.fails('#58 T3-T6: after declining the Plaza for its tag the Runner does not run its server again for it', { timeout: 60_000 }, () => {
+  it('#58 T3-T6: after declining the Plaza for its tag the Runner does not run its server again for it', { timeout: 60_000 }, () => {
     const { answers, runsAfter } = plazaTurns();
     expect(answers.length === 0 || answers[0].trash || runsAfter === 0).toBe(true);
   });

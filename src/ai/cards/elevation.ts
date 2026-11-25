@@ -499,6 +499,8 @@ export const ELEVATION: Record<string, CardAI> = {
   '35062': {
     turnIncome: { credits: 1 }, // When your turn begins, gain 1 credit
     synergy: { gives: { econ: 1 }, when: ['threat'] },
+    // Threat 2 -> When the Runner trashes this asset (while it is rezzed), give them 1 tag
+    runFacts: { trashedByRunner: { tags: 1, when: { threatAtLeast: 2 }, rezzed: true } },
     value: { keep: 3, econ: 2.5 },
     // 1 credit each turn
     corp: (state, _code, { cost, risk }) => {
