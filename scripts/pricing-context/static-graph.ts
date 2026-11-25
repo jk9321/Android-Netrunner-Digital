@@ -293,11 +293,11 @@ function targetsOf(e: ts.Expression): Unit[] {
 }
 
 // ------------------------------------------------------------------------------------------------ setters, readers, edges
-type Scope = { id: string; setter: SetterName; file: string; unit: string; line: number; node: ts.Node; cb: ts.Node | null; fields: string[]; values: Record<string, string> };
+type Scope = { id: string; setter: SetterName; file: string; unit: string; line: number; node: ts.Node; cb: ts.Node | null; fields: string[]; values: Record<string, string>; callee: [number, number] };
 const scopes: Scope[] = [];
 type Edge = { from: string; to: string; line: number; scopes: string[]; kind: 'call' | 'value' | 'name' };
 const edges: Edge[] = [];
-type Read = { what: string; field: string; file: string; unit: string; line: number; scopes: string[]; use: string; text: string };
+type Read = { what: string; field: string; file: string; unit: string; line: number; scopes: string[]; use: string; text: string; at: [number, number] };
 const reads: Read[] = [];
 
 /** Setter scopes (callbacks of setters in the same unit) that lexically hold `n`. */
@@ -379,7 +379,7 @@ function scanSetters(n: ts.Node) {
         else fields.push(`(${patch.getText()})`);
         if (setter === 'withPricing') cb = n.arguments[1];
       }
-      const sc: Scope = { id: `${u.file}:${lineOf(n)}:${setter}`, setter, file: u.file, unit: u.id, line: lineOf(n), node: n, cb, fields, values };
+      const sc: Scope = { id: `${u.file}:${lineOf(n)}:${setter}`, setter, file: u.file, unit: u.id, line: lineOf(n), node: n, cb, fields, values, callee: [n.expression.getStart(), n.expression.getEnd()] };
       scopes.push(sc);
       if (cb) scopeByCb.set(cb, sc);
     }
@@ -403,7 +403,7 @@ function scanCalls(n: ts.Node) {
     if (ex && (READERS as readonly string[]).includes(ex) && !inPricing && ts.isCallExpression(n)) {
       if (ex === 'pricing') {
         const p = n.parent;
-        const push = (field: string, at: ts.Node) => reads.push({ what: 'pricing()', field, file: u.file, unit: u.id, line: lineOf(at), scopes: scopesAt(at), use: useOf(at), text: at.parent.getText().slice(0, 140) });
+        const push = (field: string, at: ts.Node) => reads.push({ what: 'pricing()', field, file: u.file, unit: u.id, line: lineOf(at), scopes: scopesAt(at), use: useOf(at), text: at.parent.getText().slice(0, 140), at: [at.getStart(), at.getEnd()] });
         if (ts.isPropertyAccessExpression(p)) push(p.name.text, p);
         else if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) {
           // a local holding the context: each c.field read in the unit
@@ -416,7 +416,7 @@ function scanCalls(n: ts.Node) {
         } else push('(whole)', n);
       } else {
         const field = ex === 'plan' ? `plan.${planMember(n)}` : ex === 'actingSide' ? 'side' : ex === 'planSide' ? 'side' : ex === 'leafHandByCard' ? 'leaves' : '(key)';
-        reads.push({ what: `${ex}()`, field, file: u.file, unit: u.id, line: lineOf(n), scopes: scopesAt(n), use: useOf(n), text: n.parent.getText().slice(0, 140) });
+        reads.push({ what: `${ex}()`, field, file: u.file, unit: u.id, line: lineOf(n), scopes: scopesAt(n), use: useOf(n), text: n.parent.getText().slice(0, 140), at: [n.getStart(), n.getEnd()] });
       }
     } else if (!ex) {
       let ts_ = targetsOf(callee);
