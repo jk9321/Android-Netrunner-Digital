@@ -71,6 +71,12 @@ export const HOOKED: Patch[] = [
     `        if (bioroid) return bioroid;\n      }\n    }\n    return undefined;\n  }`,
     `        if (bioroid) return bioroid;\n      }\n    }\n    ${G}?.enc(this, state, blocking.length > 0 ? 'cannotBreakBlocking' : 'tankRest', { credits, ahead, blocking: blocking.length, clicks: state.runner.clicks });\n    return undefined;\n  }`,
   ],
+  // A run a prompt answer decides: Alarm Clock's turn-start HQ run (prompts.ts), called in the same order as before
+  [
+    'ai/prompts.ts',
+    `    const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;`,
+    `    const __o = { alarmClock: true, memory, wary: synergy && tuning.wary };\n    const __s = runScore(state, 'hq', __o);\n    ${G}?.pprice(memory, state, 'hq', __o, __s);\n    const go = __s + runClick(state) > 0;`,
+  ],
 ];
 
 const RS = `(globalThis as any).__dtRs`;

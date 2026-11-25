@@ -235,6 +235,7 @@ interface Enc {
 
 class Watch {
   stash: Price[] = [];
+  pstash: Price[] = [];
   root: { s: GameState; a: GameAction; stash: Price[] } | null = null;
   unit: any = null;
   units = 0;
@@ -252,6 +253,10 @@ class Watch {
   price(agent: any, state: GameState, action: GameAction, server: string, view: GameState, options: any, score: number) {
     // runScore's own record of this call (the hooked tree writes it; read, never asked)
     if (agent === this.top) this.stash.push({ agent, state, action, server, view, options, score, rs: G.__dtRs });
+  }
+  /** A run a prompt answer decides (Alarm Clock's turn-start run, prompts.ts): the top Runner's by its memory. */
+  pprice(memory: any, state: GameState, server: string, options: any, score: number) {
+    if (memory && memory === (this.top as any).memory) this.pstash.push({ agent: this.top, state, action: { type: 'RESOLVE_PROMPT' } as any, server, view: state, options, score, rs: G.__dtRs });
   }
   enc(agent: any, state: GameState, r: string, d: any) {
     if (agent === this.top) this.pending.push({ kind: 'enc', r, d });
@@ -287,12 +292,15 @@ class Watch {
 
   start(s: GameState, a: GameAction | null, next: GameState) {
     const server = next.activeRun!.server;
-    const root = this.root;
+    // A run started by a prompt answer that priced it (Alarm Clock): that price, on the board it was asked on
+    const pp = a?.type === 'RESOLVE_PROMPT' ? this.pstash.filter(x => x.server === server && x.state.turnNumber === s.turnNumber).pop() : undefined;
+    this.pstash = [];
+    const root = pp ? { s: pp.state, a: pp.action, stash: [pp] } : this.root;
     const fromRoot = root && root.s.turnNumber === s.turnNumber;
     const matches = fromRoot ? root!.stash.filter(p => p.server === server) : [];
     const exact = matches.filter(p => key(p.action) === key(root!.a));
     const p = exact[0] ?? matches[matches.length - 1];
-    const how = fromRoot ? `${root!.a.type}${'cardInstanceId' in root!.a && (root!.a as any).cardInstanceId ? ':' + (title(E.core.findCardAnywhere(root!.s, (root!.a as any).cardInstanceId)?.cardCode) ?? '?') : ''}` : `${a?.type ?? 'none'}`;
+    const how = pp ? `RESOLVE_PROMPT:${title(E.core.activePrompt(s)?.source?.cardCode) ?? 'prompt'}` : fromRoot ? `${root!.a.type}${'cardInstanceId' in root!.a && (root!.a as any).cardInstanceId ? ':' + (title(E.core.findCardAnywhere(root!.s, (root!.a as any).cardInstanceId)?.cardCode) ?? '?') : ''}` : `${a?.type ?? 'none'}`;
     // HIDDEN-READ: what was facedown at S0 (the board itself), to tell the cards the run met that the price could not know
     const s0 = fromRoot ? root!.s : s;
     const facedown = new Set<string>(Object.values(s0.corp.servers).flatMap(v => [...v.ice, ...v.root]).filter(c => !c.isRezzed).map(c => c.instanceId));
@@ -593,7 +601,7 @@ function classify(u: any): { cls: string; sub?: string; detail?: any } {
       const W = (u.encs as Enc[]).filter(e => e.clicksSpent > 0 || e.pricedClicks).map(e => ({ t: e.t, clicks: e.clicksSpent, subs: e.clickSubs, endsRun: e.clickSubs.map(i => !!e.blocks[i]), planned: e.pricedClicks }));
       return { cls: 'T2', detail: { ice: x.t, K, P: s0.P, Kbioroid: s0.bioroidClicks > s0.clicksS0 - 1, bioroidClicks: s0.bioroidClicks, clicksAfterRunClick: s0.clicksS0 - 1, W, end: end.kind, reasons, clicksAtEnc: enc?.clicks ?? null } };
     }
-    const wantCredits = end.kind === 'jack' || reasons.some(r => r === 'cannotGetThrough' || r === 'cannotPayAll' || r === 'cannotBreakBlocking' || r === 'noPlanAll');
+    const wantCredits = end.kind === 'jack' || reasons.some(r => r === 'cannotGetThrough' || r === 'cannotPayAll' || r === 'cannotBreakBlocking');
     if (wantCredits) {
       const i = Math.abs(Number(s0.known) - Number(s0.sumNeed)) > 1e-6;
       // (ii) rev 1: budget against availableCredits plus the credits that pay only during runs (runBudget's by design)
