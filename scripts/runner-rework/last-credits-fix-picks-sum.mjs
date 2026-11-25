@@ -9,6 +9,8 @@ import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const FORM = (args.find(a => a.startsWith('FORM=')) ?? 'FORM=k1').slice(5);
+// MOVED=runner: only that deck's money moved in the draft (rev 4: the Corp at today's credits), so only its rows count
+const MOVED = (args.find(a => a.startsWith('MOVED=')) ?? 'MOVED=runner,corp').slice(6).split(',');
 const [step0Dir, picksDir] = args.filter(a => !a.includes('='));
 const lines = dir => (statSync(dir).isDirectory() ? readdirSync(dir, { recursive: true }).map(f => join(dir, String(f))).filter(f => statSync(f).isFile()) : [dir]).flatMap(f => readFileSync(f, 'utf8').split('\n')).filter(l => l.startsWith('{')).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 const decs = new Map();
@@ -16,7 +18,7 @@ for (const r of lines(step0Dir)) if (r.kind === 'dec') decs.set(`${r.pool}|${r.s
 const deals = lines(picksDir).filter(r => r.kind === 'deal');
 const EMBEDDED = 'cards/elevation.ts:74';
 const p = (...x) => console.log(...x);
-p(`# R-14h step 0.2: first changed pick per deal (form ${FORM})\n`);
+p(`# R-14h step 0.2: first changed pick per deal (form ${FORM} on the ${MOVED.join(' and ')} deck)\n`);
 p(`Deals: ${deals.length}; with a changed pick: ${deals.filter(d => d.diff).length}; control differing: ${deals.filter(d => d.diff?.control).length}; errors: ${lines(picksDir).filter(r => r.kind === 'error').length}.\n`);
 for (const side of ['corp', 'runner']) {
   const rows = deals.filter(d => d.diff && d.diff.side === side);
@@ -29,7 +31,7 @@ for (const side of ['corp', 'runner']) {
   let unexplained = 0, embedded = 0;
   for (const d of rows) {
     const r = decs.get(`${d.pool}|${d.seed}|${d.diff.step}`);
-    const fired = r ? Object.keys(r.fires).filter(k => k.startsWith(`${FORM}|later|`)).map(k => k.split('|').slice(2).join(' ')) : null;
+    const fired = r ? Object.keys(r.fires).filter(k => k.startsWith(`${FORM}|later|`) && MOVED.includes(k.split('|')[2])).map(k => k.split('|').slice(2).join(' ')) : null;
     if (!fired?.length) unexplained++;
     if (fired?.some(f => f.endsWith(EMBEDDED))) embedded++;
     const decks = new Set((fired ?? []).map(f => f.split(' ')[0]));
