@@ -178,7 +178,8 @@ if (P.length) {
   print('\n## Pairs (trash minus keep; per-access mean over seeds, then mean ± SE over accesses)');
   const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
   const se = xs => (xs.length > 1 ? Math.sqrt(xs.reduce((a, b) => a + (b - mean(xs)) ** 2, 0) / (xs.length - 1) / xs.length) : NaN);
-  const cell = xs => (xs.length ? `${f3(mean(xs))} ± ${f3(se(xs))}${Math.abs(mean(xs)) > 2 * se(xs) ? ' **shown**' : ''}` : '');
+  // Under 10 accesses a cell shows nothing (the brief's rule): no 'shown' mark there
+  const cell = xs => (xs.length ? `${f3(mean(xs))} ± ${f3(se(xs))}${xs.length >= 10 && Math.abs(mean(xs)) > 2 * se(xs) ? ' **shown**' : ''}` : '');
   const money = (p, h) => (h === 2 ? p.at2 : p.at4) && (h === 2 ? p.at2.rc - p.at2.cc : p.at4.rc - p.at4.cc);
   print(line(['pool', 'dir', 'n', 'seeds', 'wins', 'point margin', 'money T+2', 'money T+4']));
   print(line(['---', '---', '---:', '---:', '---:', '---:', '---:', '---:']));
@@ -191,7 +192,7 @@ if (P.length) {
       const m = per(p => p.trash.rp - p.trash.cp - (p.keep.rp - p.keep.cp));
       const m2 = per(p => money(p.trash, 2) - money(p.keep, 2));
       const m4 = per(p => (p.trash.at4 && p.keep.at4 ? money(p.trash, 4) - money(p.keep, 4) : 0));
-      print(line([pool, d, xs.length, xs[0].pairs.length, cell(w), cell(m), cell(m2), cell(m4)]));
+      print(line([pool, d, xs.length < 10 ? `${xs.length} (under 10)` : xs.length, xs[0].pairs.length, cell(w), cell(m), cell(m2), cell(m4)]));
     }
   }
   const row = (label, xs) => {
@@ -200,7 +201,7 @@ if (P.length) {
     const m = per(p => p.trash.rp - p.trash.cp - (p.keep.rp - p.keep.cp));
     const m2 = per(p => money(p.trash, 2) - money(p.keep, 2));
     const m4 = per(p => money(p.trash, 4) - money(p.keep, 4));
-    print(line([label, xs.length, xs.length ? xs[0].pairs.length : '', xs.length >= 10 ? cell(w) : `${cell(w)} (under 10: shows nothing)`, cell(m), cell(m2), cell(m4)]));
+    print(line([label, xs.length, xs.length ? xs[0].pairs.length : '', xs.length >= 10 ? cell(w) : `${cell(w)} (under 10)`, cell(m), cell(m2), cell(m4)]));
   };
   print('\n### price trash, decision keep, by the access\'s tipping part (an access with several counts in each; reported only)');
   print(line(['pool / tipping part', 'n', 'seeds', 'wins', 'point margin', 'money T+2', 'money T+4']));
