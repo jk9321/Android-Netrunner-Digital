@@ -1,16 +1,17 @@
 import { GameAction, GameState, activePrompt, getLegalActions } from '../../core';
-import type { FreeActionGuard, ScoredAction } from '../agent';
-import type { PlanMemory } from '../turnPlanner';
+import type { ScoredAction } from '../agent';
 import type { RunnerMemory } from '../runs';
 import { decisionContext } from '../handValues';
 import { logNudge } from '../synergy';
+import { runAction } from './run';
 
 /**
  * R-B B1 (runner-rework briefs/b1-core.md rev 1): the Runner's order of questions, one function for every caller, as
  * corp/core.ts is the Corp's. The callers build a RunnerContext: the agent (runnerAI.ts HeuristicRunnerAI.runnerContext:
  * the Normal Runner, the planner's rollout, the reply's Runner, the Hard search's playout Runners, the oracle playout's
- * Runner) and the Hard Runner (search.ts SearchAI). The bodies (the ranking, the run, the prompt answer, the memory, the
- * planner) stay methods of the agent and are reached through the context's callbacks; nothing here prices anything.
+ * Runner) and the Hard Runner (search.ts SearchAI). The bodies (the ranking, the prompt answer, the memory, the planner)
+ * stay methods of the agent and are reached through the context's callbacks; the decision during a run is runner/run.ts's
+ * (R-B B2), the same for every caller. Nothing here prices anything.
  *
  *   runnerDecide   the decision context; [Hard: a prompt, a run under way or the Corp's turn-start step go to the base
  *                  Runner whole]; the memory brought up to date; a prompt; a run under way (its answer, else the first
@@ -35,28 +36,22 @@ export interface RunnerPick {
 }
 
 export interface RunnerContext {
-  /** Deck-aware rules (synergy.ts), the agent's own field. No reader in src until B2; read by tests/runnerCore.test.ts. */
-  synergy: boolean;
   /**
    * The state the bodies read: 'dealt', the deciding Runner's own deal (turnPlanner.ts runnerDecisionView), or 'given',
-   * the state as handed in; today the agent's planner flag (ownView), named apart from the look-ahead. No reader in src
-   * until B2; read by tests/runnerCore.test.ts.
+   * the state as handed in; today the agent's planner flag (ownView), named apart from the look-ahead. No reader in src:
+   * read by B3's prompt answer; until then the handle of table (a) in tests/runnerCore.test.ts (R-B B2, red team finding 3).
    */
   view: 'dealt' | 'given';
-  /** The live map of the Corp's cards the Runner has seen (knownCards()). No reader in src until B2; read by tests/runnerCore.test.ts. */
+  /**
+   * The live map of the Corp's cards the Runner has seen (knownCards()). No reader in src: read by B3's prompt answer;
+   * until then the handle of table (a) in tests/runnerCore.test.ts (R-B B2, red team finding 3).
+   */
   memory: RunnerMemory;
-  /** The loop guard, the agent's own (started by its ranking and off-turn scores). No reader in src until B2; read by tests/runnerCore.test.ts. */
-  guard: FreeActionGuard;
-  /** The rest of the planner's last line, the agent's own. No reader in src until B2; read by tests/runnerCore.test.ts. */
-  planMemory: PlanMemory;
-  /** savingFor and digForBreakers as this agent holds them (its ranking writes them). No reader in src until B2; read by tests/runnerCore.test.ts. */
-  offTurnState(): { savingFor: string | null; digForBreakers: boolean };
   /** Brings `memory` up to date with what the engine marks (runnerAI.ts remember; the Hard Runner's observe). */
   remember(state: GameState): void;
   /** Hard only: the base Runner's whole decision, for a prompt, a run under way and the Corp's turn-start step. */
   base?(state: GameState): GameAction;
   prompt(state: GameState): GameAction;
-  run(state: GameState, legal: GameAction[]): GameAction | undefined;
   /** The counted slot: what exists today and nothing else, a full Read-Write Share (r-b.md decision 1). */
   counted(state: GameState, legal: GameAction[]): GameAction | undefined;
   /** Whether the counted pick is noted in the loop guard (the agent: yes; the Hard Runner: no, as before B1). */
@@ -78,7 +73,7 @@ export function runnerDecide(state: GameState, ctx: RunnerContext): GameAction {
   ctx.remember(state);
   if (activePrompt(state)) return ctx.prompt(state);
   const legal = getLegalActions(state, 'runner');
-  if (state.activeRun) return ctx.run(state, legal) ?? legal[0];
+  if (state.activeRun) return runAction(state, legal) ?? legal[0];
   const full = ctx.counted(state, legal);
   if (full) {
     if (ctx.noteCounted) ctx.note(full);

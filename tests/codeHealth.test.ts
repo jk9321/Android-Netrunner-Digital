@@ -69,7 +69,8 @@ const MODULE_LETS: Record<string, string> = {
 const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit', 'handValues:clickAudit', 'handValues:drawAudit'];
 
 /**
- * R-A A-move (spec r-a.md Files, red team A4): every comparison with a card in runs.ts and runnerAI.ts, that is a
+ * R-A A-move (spec r-a.md Files, red team A4): every comparison with a card in runs.ts, runnerAI.ts and (R-B B2, red team
+ * 2026-11-25 finding 4) every file under runner/, that is a
  * `cardCode ===`/`!==`, a use of a card-code constant (defined there or imported from runs.ts), a card code literal, or a
  * `.title` compared, keyed by its line's text, with the reason it stays (R-B's work). May only shrink: a card fact goes to
  * its entry (src/ai/cards, RunFacts), not into a new comparison.
@@ -86,7 +87,7 @@ const CARD_COMPARISONS: Record<string, string> = {
     'Window of Opportunity (class P): its install simulated, then its run priced on the result; R-B: one door for a card that installs and runs',
   "runnerAI.ts: const options = { ...runEventOptions(WINDOW_OF_OPPORTUNITY, ready), memory: this.memory, wary: this.synergy && tuning.wary };":
     'Window of Opportunity (class P): the same procedure reads its run entry by its code; R-B',
-  'runnerAI.ts: const count = server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;':
+  'runner/run.ts: const count = server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;':
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
@@ -144,8 +145,11 @@ describe('AI code health (audit guards)', () => {
     expect(Object.keys(CODES_IN_VALUE_FILES).filter(key => !found.includes(key))).toEqual([]);
   });
 
-  it('compares with a card in runs.ts and runnerAI.ts only where the list says why (R-A A-move)', () => {
-    const files = ['runs.ts', 'runnerAI.ts'];
+  it('compares with a card in runs.ts, runnerAI.ts and runner/ only where the list says why (R-A A-move; R-B B2)', () => {
+    // runner/ stays inside this guard (R-B B2, red team finding 4): the branches after B2 (O3, B5) edit runner/run.ts
+    const runner = (readdirSync(new URL('../src/ai/runner/', import.meta.url)) as string[]).filter(f => f.endsWith('.ts')).map(f => `runner/${f}`);
+    expect(runner).toContain('runner/run.ts');
+    const files = ['runs.ts', 'runnerAI.ts', ...runner];
     const source = (f: string) => readFileSync(new URL(`../src/ai/${f}`, import.meta.url), 'utf8');
     // Card-code constants: defined in either file (`const NAME = '3dddd'`), whether used there or imported from runs.ts
     const constants = files.flatMap(f => [...source(f).matchAll(/const ([A-Z_]+) = '3\d{4}'/g)].map(m => m[1]));
@@ -196,7 +200,7 @@ describe('AI code health (audit guards)', () => {
       ['corp/hold.ts', 'from = run.icePosition === null ? -1 : Math.min(run.icePosition, sv.ice.length) - 1;', 'runStands, the Movement Phase or an empty position: icePosition - 1 is the next ice inward either way'],
       ['corp/hold.ts', 'from = run.icePosition ?? -1;', "runStands' encounter: an empty position takes the Movement branch before it"],
       ['corp/hold.ts', 'from = run.icePosition ?? sv.ice.length - 1;', "runStands' approach: an empty position takes the Movement branch before it"],
-      ['runnerAI.ts', "if (run.phase === 'movement' && run.icePosition !== null && server) {", `the jack-out check: a null check; creditsAhead reads ${INWARD}`],
+      ['runner/run.ts', "if (run.phase === 'movement' && run.icePosition !== null && server) {", `the jack-out check: a null check; creditsAhead reads ${INWARD}`],
       ['runs.ts', 'if (!run || !server || run.icePosition === null) return 0;', 'creditsAhead and iceCreditsAhead: null checks'],
       ['runs.ts', 'bioroidClicks(state, server.ice.slice(0, run.icePosition))', `creditsAhead: ${INWARD}`],
       ['runs.ts', 'const inner = server.ice.slice(0, run.icePosition);', `iceCreditsAhead: ${INWARD}`],
@@ -344,6 +348,75 @@ describe('AI code health (audit guards)', () => {
   it("keeps the Runner agent's own fields, under today's names, in today's order", async () => {
     const { HeuristicRunnerAI } = await import('../src/ai/runnerAI');
     expect(Object.keys(new HeuristicRunnerAI())).toEqual(['side', 'freeActions', 'memory', 'digForBreakers', 'savingFor', 'synergy', 'debug', 'planner', 'planMemory']);
+  });
+
+  // R-B B2 (brief b2-run.md rev 1, Guards): the files of src/ai that choose an in-run action. May only shrink
+  it('chooses an in-run action (jack out, break, a bioroid click, a boost, continue) only in these files', () => {
+    const ALLOWED: Record<string, string> = {
+      'runner/run.ts': "the Runner's decision during a run (runAction, encounterAction; R-B B2)",
+    };
+    const chosen = /'(JACK_OUT|BREAK_SUBROUTINE|BIOROID_BREAK|BOOST_BREAKER|CONTINUE_RUN)'/;
+    const found = aiFiles().map(f => f.replace(/\\/g, '/')).filter(f => chosen.test(aiText(f)));
+    expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
+    expect(Object.keys(ALLOWED).filter(f => !found.includes(f)), 'a file left the list: take it out of ALLOWED').toEqual([]);
+  });
+
+  // R-B B2 (part 3, red team 2026-11-25 finding 3): the context holds what the order reads, and the two fields B3 reads next
+  it("keeps RunnerContext's keys to this list, each read by runner/core.ts or listed with its reason", () => {
+    const core = aiText('runner/core.ts');
+    const body = core.slice(core.indexOf('export interface RunnerContext {'), core.indexOf('\n}\n', core.indexOf('export interface RunnerContext {')));
+    const keys = [...body.matchAll(/^ {2}(\w+)\??[(:]/gm)].map(m => m[1]);
+    expect(keys).toEqual(['view', 'memory', 'remember', 'base', 'prompt', 'counted', 'noteCounted', 'rank', 'lookahead', 'offTurnRank', 'note', 'debug']);
+    const UNREAD: Record<string, string> = {
+      view: "read by B3's prompt answer; until then the handle of table (a) in tests/runnerCore.test.ts",
+      memory: "read by B3's prompt answer; until then the handle of table (a) in tests/runnerCore.test.ts",
+    };
+    const read = (k: string) => new RegExp(`\\bctx\\.${k}\\b`).test(core);
+    expect(keys.filter(k => !read(k) && !(k in UNREAD)), 'a context field with no reader: read it in runner/core.ts or delete it').toEqual([]);
+    expect(Object.keys(UNREAD).filter(k => read(k)), 'a listed field is read now: take it off UNREAD').toEqual([]);
+  });
+
+  // R-B B2 (part 2, red team 2026-11-25 finding 5): the ranking's flat numbers are named in RUNNER_TERMS, one key per site
+  it('reads each RUNNER_TERMS key at exactly one site in src, and keeps the table to these keys', async () => {
+    const { RUNNER_TERMS } = await import('../src/ai/runner/terms');
+    const KEYS = [
+      'endTurn', 'tagRemovalResource', 'tagRemovalNoResource', 'runCard', 'bigHandDraw', 'digDraw', 'savingGain', 'savingSpend', 'freeActionCut',
+      'bigHandClicks', 'digStackFloor', 'savingSpendFloor', 'saveUpWorthFloor', 'saveUpShortfallCap',
+    ];
+    expect(Object.keys(RUNNER_TERMS)).toEqual(KEYS);
+    expect(Object.isFrozen(RUNNER_TERMS)).toBe(true);
+    const sites = aiFiles().flatMap(f => [...aiText(f).matchAll(/\bRUNNER_TERMS\.(\w+)/g)].map(m => m[1]));
+    for (const k of KEYS) expect(sites.filter(x => x === k).length, `RUNNER_TERMS.${k}: one key per site`).toBe(1);
+    expect(sites.filter(x => !KEYS.includes(x))).toEqual([]);
+  });
+
+  // R-B B2 (part 2): no numeric literal but 0 and 1 in the ranking's four functions, outside this list (may only shrink)
+  it('holds no numeric literal other than 0 and 1 in scoreMain, rankMainActions, offTurnRank and saveUpTarget but the listed ones', async () => {
+    const ts = (await import('typescript')).default;
+    const LISTED: Record<string, string> = {
+      'rankMainActions: rigCoverage(state.runner.rig.programs).covered.size < 3 &&': 'the three breaker types (barrier, code gate, sentry): a count of the game, not a score',
+      'scoreMain: for (let i = 0; i < 3; i++) {': 'the prompt-follow depth (twice: Window of Opportunity, our own prompts): a loop bound, not a score',
+      'scoreMain: score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;': "the trojan on an unrezzed host: B3's (a host's worth gets one owner, issue #68)",
+    };
+    const text = aiText('runnerAI.ts');
+    const src = ts.createSourceFile('runnerAI.ts', text, ts.ScriptTarget.Latest, true);
+    const lines = text.split('\n');
+    const want = new Set(['scoreMain', 'rankMainActions', 'offTurnRank', 'saveUpTarget']);
+    const found: string[] = [];
+    const seen = new Set<string>();
+    const visit = (n: import('typescript').Node, fn?: string) => {
+      let name = fn;
+      if ((ts.isMethodDeclaration(n) || ts.isFunctionDeclaration(n)) && n.name && want.has(n.name.getText(src))) {
+        name = n.name.getText(src);
+        seen.add(name);
+      }
+      if (name && ts.isNumericLiteral(n) && n.text !== '0' && n.text !== '1') found.push(`${name}: ${lines[src.getLineAndCharacterOfPosition(n.getStart(src)).line].trim()}`);
+      ts.forEachChild(n, c => visit(c, name));
+    };
+    visit(src);
+    expect([...seen].sort()).toEqual([...want].sort());
+    expect(found.filter(k => !(k in LISTED)), 'name the number in runner/terms.ts RUNNER_TERMS (R-C2 replaces it), or list it with a reason').toEqual([]);
+    expect(Object.keys(LISTED).filter(k => !found.includes(k)), 'a listed literal is gone: take it off the list').toEqual([]);
   });
 
   it('imports corp/ from outside it only in these files', () => {
@@ -619,16 +692,21 @@ describe('AI code health (audit guards)', () => {
   // measured against beta ff04f60: runner/core.ts + 107 (runnerDecide, runnerOffTurn, RunnerContext with a comment per
   // field), runnerAI.ts + 7 (runnerContext, offTurnRank; mainAction deleted), search.ts + 10 (the Hard Runner's context
   // and runnerLookahead)): corp/ 4,068, src/ai 16,363
-  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,363 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core)', () => {
+  // Then + 61 in src/ai, corp/ unchanged (ai-runner-run, R-B B2: the decision during a run moved and the Runner's terms
+  // named, measured against beta 57b02d6: runner/run.ts + 149 (runAction, encounterAction and approachClickReserve moved
+  // verbatim, 118 lines, with the file comment and imports), runner/terms.ts + 44 (RUNNER_TERMS, 14 keys with a comment
+  // each), runnerAI.ts - 127 (the three bodies out, the terms read), runner/core.ts - 5 (the run field and four unread
+  // fields out)): corp/ 4,068, src/ai 16,424
+  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,424 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(4068);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16363);
+    expect(all).toBeLessThanOrEqual(16424);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
     expect(4068 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16363 - all).toBeLessThanOrEqual(SLACK);
+    expect(16424 - all).toBeLessThanOrEqual(SLACK);
   });
 });
