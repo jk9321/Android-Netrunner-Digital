@@ -299,13 +299,15 @@ if (tags.length) {
       const res = SELF.map(p => {
         const xs = tags.filter(t => t.pool === p && f(t));
         const kept = B1[`${p}:clear`];
-        const target = clearing === 'a kept tag costs less than clearing' && kept ? kept.loss[0] : mean(xs, t => t.cost);
+        // The kept tag's realized loss over the clear units of the same split (first or later tag), keep leg, through the Corp's next turn
+        const ks = kept ? kept.us.filter(u => (name === 'first' ? u.split.first : !u.split.first)) : [];
+        const target = clearing === 'a kept tag costs less than clearing' && ks.length ? mean(ks, u => uMean(u, l => lost(l.keep))) : mean(xs, t => t.cost);
         const dist = Object.fromEntries(ARMS.map(a => [a, Math.abs(mean(xs, t => priceOf(t, a, v)) - target)]));
         const best = ARMS.reduce((b, a) => (dist[a] < dist[b] ? a : b), 'base');
         return { p, n: xs.length, target, dist, best };
       });
       const nearer = ARMS.slice(1).filter(a => res.every(r => r.dist[a] < r.dist.base));
-      say(`- **Nearest arm** (${v} view, ${name} tags; the cost is ${clearing === 'a kept tag costs less than clearing' ? "the kept tag's realized loss" : "the record's"}): ${res.map(r => `${r.p} (${r.n} tags, cost ${r2(r.target)}) ${r.best}`).join('; ')}. Nearer than base in both self-play pools: ${nearer.join(', ') || 'none'}.`);
+      say(`- **Nearest arm** (${v} view, ${name} tags; the cost is ${clearing === 'a kept tag costs less than clearing' ? `the kept tag's realized loss (B.1 clear units, ${name} tags, keep leg lost)` : "the record's"}): ${res.map(r => `${r.p} (${r.n} tags, cost ${r2(r.target)}) ${r.best} (distances ${ARMS.map(a => `${a} ${r2(r.dist[a])}`).join(', ')})`).join('; ')}. Nearer than base in both self-play pools: ${nearer.join(', ') || 'none'}.`);
     }
   }
 }
