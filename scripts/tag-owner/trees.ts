@@ -23,17 +23,23 @@
  *   ownerOnce    owner and once (= tags-once's onceNoRisk).
  *   noWait       base, payoutWait's tagged risk off. Split only (names the rig's part read by payoutWait).
  *   noPerTurn    base, perTurn's tagged risk off. Split only (names the rig's part read by perTurn).
+ *   ownerOnce5   ownerOnce and item 5 of the build brief (netrunner-ai/tag-owner/brief-build.md rev 1): B-1001's entry
+ *                without its `tag` term (liberation.ts:415, one text patch). The counted arm the build must equal.
+ *   branch       this checkout's src with the exports only, no other patch (the build's own tree, read as an arm).
  *   legs         src unchanged but one engine line: getLegalActions offers REMOVE_TAG only while the global
  *                `__tagOwnerBar` is not set (legalActions.ts:70). Part B's two legs play on this tree; the script sets
  *                the bar only on the keep leg, from the unit's board until the Runner's next turn begins. Unset, it is src.
  */
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type Patch = [file: string, at: string, to: string];
-export const ARMS = ['base', 'once', 'resOnly', 'resOnlyOnce', 'owner', 'ownerOnce'] as const;
+export const ARMS = ['base', 'once', 'resOnly', 'resOnlyOnce', 'owner', 'ownerOnce', 'ownerOnce5', 'branch'] as const;
 export type Arm = (typeof ARMS)[number];
 export type TreeName = 'source' | Arm | 'noWait' | 'noPerTurn' | 'legs';
+/** Trees copied from this checkout's src; every other tree from the arms' source directory (armSource). */
+const FROM_CHECKOUT: ReadonlySet<TreeName> = new Set<TreeName>(['source', 'branch', 'legs']);
 
 const G = `(globalThis as any)`;
 const EXPORTS: Patch[] = [['ai/evaluate.ts', `function addRigCard(state: GameState, card: CardInstance, value: number): number {`, `export function addRigCard(state: GameState, card: CardInstance, value: number): number {`]];
@@ -117,6 +123,12 @@ export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner' | 
 export function payoutWait(`,
   ],
 ];
+// Item 5 of the build brief: B-1001's tag term leaves its entry (the floor and the cost stay)
+const ITEM5: Patch = [
+  'ai/cards/liberation.ts',
+  `    corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, (state.runner.tags > 0 ? tag + 2 : 0.5) - cost) }),`,
+  `    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, (state.runner.tags > 0 ? 2 : 0.5) - cost) }),`,
+];
 const LEGS: Patch = [
   'core/engine/legalActions.ts',
   `if (side === 'runner' && hasClick && state.runner.tags > 0) candidates.push({ type: 'REMOVE_TAG', player: 'runner' });`,
@@ -131,20 +143,53 @@ export const PATCHES: Record<TreeName, Patch[]> = {
   resOnlyOnce: [...EXPORTS, ...TYPED, CORP_LINE],
   owner: [...EXPORTS, NO_PERTURN, NO_WAIT],
   ownerOnce: [...EXPORTS, NO_PERTURN, NO_WAIT, CORP_LINE],
+  ownerOnce5: [...EXPORTS, NO_PERTURN, NO_WAIT, CORP_LINE, ITEM5],
+  branch: EXPORTS,
   noWait: [...EXPORTS, NO_WAIT],
   noPerTurn: [...EXPORTS, NO_PERTURN],
   legs: [LEGS],
 };
 
-export function makeTrees(root: string, names: TreeName[]): Record<TreeName, string> {
+/**
+ * The src the patched arms are built from: with ARM_BASE set (a full commit SHA, the build branch's merge base), that
+ * commit's src taken with `git archive` into `<root>/armsrc` (fetched at depth 1 if the clone lacks it; the four shards
+ * of a CI job fetch at once and git's shallow lock lets one through, so the others wait and look again), never the
+ * checkout's: on the build branch the arms' patches name lines the build deletes. Unset: this checkout's src.
+ */
+export function armSource(root: string, shard = 0): string {
+  const base = process.env.ARM_BASE;
+  if (!base) return 'src';
+  for (let tries = 0; ; tries++) {
+    try {
+      execSync(`git cat-file -e ${base}^{commit}`, { stdio: 'ignore' });
+      break;
+    } catch {
+      try {
+        execSync(`git fetch --depth 1 origin ${base}`, { stdio: 'ignore' });
+      } catch (e) {
+        if (tries >= 8) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+      }
+    }
+  }
+  const dir = join(root, 'armsrc');
+  if (!existsSync(join(dir, 'src'))) {
+    mkdirSync(dir, { recursive: true });
+    execSync(`git archive ${base} src | tar -x -C ${dir}`);
+  }
+  return join(dir, 'src');
+}
+
+export function makeTrees(root: string, names: TreeName[], shard = 0): Record<TreeName, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
+  const from = armSource(root, shard);
   const dirs = {} as Record<TreeName, string>;
   for (const name of names) {
     const dir = join(root, name);
     dirs[name] = dir;
     mkdirSync(dir, { recursive: true });
-    cpSync('src', join(dir, 'src'), { recursive: true });
+    cpSync(FROM_CHECKOUT.has(name) ? 'src' : from, join(dir, 'src'), { recursive: true });
     for (const [f, at, to] of PATCHES[name]) {
       const path = join(dir, 'src', f);
       const text = readFileSync(path, 'utf8');

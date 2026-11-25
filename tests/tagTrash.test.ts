@@ -49,10 +49,11 @@ function ranked(s: GameState): string[] {
   );
 }
 
-const PLANS = ['tagTrashNow', 'ownTrashRisk', 'hqTrashCost'] as const;
+// ownTrashRisk is deleted (F108, 2026-11-25: the tagged rate it switched off for the deciding Corp is gone for both sides)
+const PLANS = ['tagTrashNow', 'hqTrashCost'] as const;
 const before = (list: string[], a: string, b: string) => list.indexOf(a) >= 0 && list.indexOf(a) < list.indexOf(b);
 
-describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow, ownTrashRisk, hqTrashCost)', () => {
+describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow, hqTrashCost)', () => {
   it('trashing Manuel Lattes de Moura beats a click for a credit or a card, and pays with a spare Ping', () => {
     const s = position();
     const list = ranked(s);
@@ -64,12 +65,15 @@ describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow
     expect(after.corp.hq.map(c => cardDef(c).title).sort()).toEqual(['Doomscroll', 'Offworld Office', 'Ping']);
   });
 
-  it('without the plans trashing ranked below a credit or a card', () => {
+  // The two plans are what lift Manuel. On this board tagTrashNow off alone changes no rank; hqTrashCost is the plan that
+  // lifts him (F108 step 0.5, 2026-11-25). Without both, the other two trashes still rank first
+  it('without tagTrashNow and hqTrashCost, Manuel ranks below a credit and a card, and Arruaceiras Crew and Lago rank first', () => {
     for (const p of PLANS) tuning.plan[p] = false;
     try {
       const list = ranked(position());
       expect(before(list, 'trash Manuel Lattes de Moura', 'GAIN_CREDIT')).toBe(false);
       expect(before(list, 'trash Manuel Lattes de Moura', 'DRAW_CARD')).toBe(false);
+      expect(list.slice(0, 2).sort()).toEqual(['trash Arruaceiras Crew', 'trash Lago Paranoá Shelter']);
     } finally {
       for (const p of PLANS) tuning.plan[p] = true;
     }

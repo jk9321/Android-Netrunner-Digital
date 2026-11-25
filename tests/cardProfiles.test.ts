@@ -62,10 +62,10 @@ describe('payouts keep their worth less the risk of losing the card (plan.payout
     expect(worth - 2 - 1.25).toBeGreaterThan(1);
   });
 
-  it('tagged, a Runner resource is at real risk of being trashed', () => {
+  it('tagged or not, a Runner card waits at the untagged rate (F108: a tag puts the card at risk in the tag clock only)', () => {
     const s = newGame();
     s.runner.tags = 1;
-    expect(payoutWait(s, CARD_PROFILES['35022'], 'runner')).toBeCloseTo(1 - PAYOUT_RISK.runnerTagged);
+    expect(payoutWait(s, CARD_PROFILES['35022'], 'runner')).toBeCloseTo(1 - PAYOUT_RISK.runnerUntagged);
   });
 
   it('Corp assets: safer behind ice; clicked payouts still wait so the AI cashes them', () => {

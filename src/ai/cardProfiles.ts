@@ -44,7 +44,8 @@ const WAIT = PAYOUT_RISK.wait;
 export function payoutWait(state: GameState, profile: CardProfile, owner: 'corp' | 'runner', iced = false, left = false): number {
   const time = profile.every === 'click' ? PAYOUT_RISK.clickWait : 1;
   if (left) return time;
-  const risk = owner === 'corp' ? assetRisk(state, iced) : (state.runner.tags > 0 ? PAYOUT_RISK.runnerTagged : PAYOUT_RISK.runnerUntagged);
+  // A Runner card: the untagged rate, tagged or not (F108, 2026-11-25): a tag's loss is priced once, by the tag clock
+  const risk = owner === 'corp' ? assetRisk(state, iced) : PAYOUT_RISK.runnerUntagged;
   return time * (1 - risk);
 }
 

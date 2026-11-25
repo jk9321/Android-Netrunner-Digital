@@ -411,8 +411,9 @@ export const LIBERATION: Record<string, CardAI> = {
   '34065': {
     synergy: { wants: { tags: 1.5 } },
     value: { keep: 1.5 },
-    // A tag spent to end a run elsewhere
-    corp: (state, _code, { cost, tag }) => ({ keep: Math.max(0.3, (state.runner.tags > 0 ? tag + 2 : 0.5) - cost) }),
+    // A tag spent to end a run elsewhere; the tag itself is the clock's (F108, 2026-11-25: no second read). 2 and 0.5 are
+    // placeholders: no AI path uses B-1001 yet; its use, max(0, R - the clock's price of the tag removed) and its run fact: F111
+    corp: (state, _code, { cost }) => ({ keep: Math.max(0.3, (state.runner.tags > 0 ? 2 : 0.5) - cost) }),
   },
   // Sebastião Souza Pessoa: Activist Organizer
   '34066': { synergy: { gives: { install: 1 }, wants: { tags: 1 } } },

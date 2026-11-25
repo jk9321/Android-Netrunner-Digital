@@ -460,7 +460,7 @@ describe('O1b the price of a trash holds the tag the trash gives (tracker R-14f,
 
   // Known failure (tracker R-14f with the Corp side's F108): the price prices the trash at about +0.75 while the access
   // decision declines it, reading the tag several times; it turns when the decision reads a tag once
-  it.fails("#58 T6: the sign of the price's Plaza term is the forced access's answer", { timeout: 60_000 }, () => {
+  it("#58 T6: the sign of the price's Plaza term is the forced access's answer", { timeout: 60_000 }, () => {
     const b = plaza58(6);
     expect(b.value > 0).toBe(forcedAccess(b.state, b.server.id));
   });
