@@ -48,7 +48,9 @@ const se = xs => (xs.length > 1 ? Math.sqrt(xs.reduce((n, x) => n + (x - mean(xs
 const f3 = x => (Number.isFinite(x) ? x.toFixed(3) : String(x));
 const seedOf = src => Number(String(src).split(':')[1]);
 
-const acc = recs.filter(r => r.kind === 'a');
+// A re-read (kind a2, the pairs run) replaces the count's record of the same access (fields added after the count)
+const a2 = new Map(recs.filter(r => r.kind === 'a2').map(r => [r.key, r]));
+const acc = recs.filter(r => r.kind === 'a').map(r => (a2.has(r.key) ? { ...a2.get(r.key), kind: 'a', reread: true } : r));
 const errs = recs.filter(r => r.kind === 'err');
 const games = recs.filter(r => r.kind === 'g');
 const heads = recs.filter(r => r.kind === 'h');
@@ -81,6 +83,7 @@ for (const pool of POOLS) {
       const y = x.filter(a => a.card === t);
       if (y.length) say(`| ${c}, of them ${t} | ${y.length} | ${DIRS.map(d => y.filter(a => a.dir === d).length).join(' | ')} | ${y.filter(a => a.answerTrash).length} |`);
     }
+    for (const [n, y] of [['rezzed', x.filter(a => a.rezzed)], ['seen', x.filter(a => !a.rezzed)]]) if (y.length) say(`| ${c}, ${n} | ${y.length} | ${DIRS.map(d => y.filter(a => a.dir === d).length).join(' | ')} | ${y.filter(a => a.answerTrash).length} |`);
     const z = x.filter(a => !SUSPECT.includes(a.card));
     if (z.length !== x.length) say(`| ${c}, without the three | ${z.length} | ${DIRS.map(d => z.filter(a => a.dir === d).length).join(' | ')} | ${z.filter(a => a.answerTrash).length} |`);
   }
@@ -101,13 +104,29 @@ for (const pool of POOLS) {
     say(`\nThe people's shares: of the person's answers in each class, the share each reader agrees with (a class under 10 is "not shown").`);
     say(`| class | n | person trashed | price agrees | decision agrees | read |`);
     say(`|---|---:|---:|---:|---:|---|`);
-    for (const [c, x] of CLASSES.flatMap(c => [[c, A.filter(a => a.cls === c)], [`${c} without report-33 (Hard Corp)`, A.filter(a => a.cls === c && !a.hardCorp)]])) {
+    for (const [c, x] of CLASSES.flatMap(c => [
+      [c, A.filter(a => a.cls === c)],
+      [`${c}, rezzed`, A.filter(a => a.cls === c && a.rezzed)],
+      [`${c}, seen`, A.filter(a => a.cls === c && !a.rezzed)],
+      [`${c} without report-33 (Hard Corp)`, A.filter(a => a.cls === c && !a.hardCorp)],
+      [`${c} without report-33, rezzed`, A.filter(a => a.cls === c && !a.hardCorp && a.rezzed)],
+      [`${c} without report-33, seen`, A.filter(a => a.cls === c && !a.hardCorp && !a.rezzed)],
+    ])) {
       if (!x.length) continue;
       const pa = x.filter(a => a.priceTrash === a.answerTrash).length / x.length;
       const da = x.filter(a => a.decisionTrash === a.answerTrash).length / x.length;
       const read = x.length < 10 ? 'not shown' : pa < 0.5 && da > 2 / 3 ? 'price shown wrong' : da < 0.5 && pa > 2 / 3 ? 'decision shown wrong' : 'neither shown wrong';
       say(`| ${c} | ${x.length} | ${x.filter(a => a.answerTrash).length} | ${(pa * 100).toFixed(0)}% | ${(da * 100).toFixed(0)}% | ${read} |`);
     }
+  }
+  const tagged = A.filter(a => a.rigSplit);
+  if (tagged.length) {
+    const by = new Map();
+    for (const a of tagged) for (const [k, v] of Object.entries(a.rigSplit.byCard)) {
+      const name = k.replace(/ inst-\d+$/, '');
+      by.set(name, [...(by.get(name) ?? []), v]);
+    }
+    say(`\nThe rig term on the ${tagged.length} accesses whose trash gives a tag, by rig card (its own term, trash board less keep board): ${[...by].sort((a, b) => a[1].reduce((n, v) => n + v, 0) - b[1].reduce((n, v) => n + v, 0)).map(([k, v]) => `${k} n ${v.length} median ${median(v)}`).join('; ')}; rest (coverage, plans) median ${median(tagged.map(a => a.rigSplit.rest))}. Tag terms beside it, medians: Runner's ${median(tagged.map(a => a.parts.tagsRunner))}, Corp's ${median(tagged.map(a => a.parts.tagsCorp))}, rig ${median(tagged.map(a => a.parts.rig))}.`);
   }
   say(`\nFirst five records of each class with at least five (by deal and turn):`);
   for (const c of CLASSES) {
@@ -126,19 +145,23 @@ function order(a) {
 const P = recs.filter(r => r.kind === 'p');
 if (P.length) {
   say(`\n## The pairs (both answers played on to the end of the game; per access the mean over its seeds, then the mean over accesses with its standard error; trash minus keep)`);
-  say(`| pool | class | direction | n | seeds | Runner wins | SE | point margin (Runner less Corp) | SE | shown | Corp credits at T+2 | Runner credits at T+2 | Corp scored by T+2 | Runner stole by T+2 | card's payouts taken by T+2 |`);
-  say(`|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|`);
+  say(`| pool | class | direction | n | seeds | Runner wins | SE | point margin (Runner less Corp) | SE | T+2 money (Runner less Corp credits) | SE | shown (2 SE) | Corp credits at T+2 | Runner credits at T+2 | Corp scored by T+2 | Runner stole by T+2 | card's payouts taken by T+2 |`);
+  say(`|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|`);
   for (const pool of POOLS)
     for (const c of CLASSES)
       for (const d of [...DIRS, 'agree']) {
-        const x = P.filter(p => p.pool === pool && p.cls === c && (d === 'agree' ? p.dir === 'bothTrash' || p.dir === 'bothKeep' : p.dir === d));
+       for (const rz of ['all', 'rezzed', 'seen']) {
+        const x = P.filter(p => p.pool === pool && p.cls === c && (rz === 'all' || (rz === 'rezzed') === !!p.rezzed) && (d === 'agree' ? p.dir === 'bothTrash' || p.dir === 'bothKeep' : p.dir === d));
         if (!x.length || (d !== 'agree' && (d === 'bothTrash' || d === 'bothKeep'))) continue;
+        if (rz !== 'all' && x.length === P.filter(p => p.pool === pool && p.cls === c && (d === 'agree' ? p.dir === 'bothTrash' || p.dir === 'bothKeep' : p.dir === d)).length) continue;
         const per = f => x.map(p => mean(p.pairs.map(f)));
         const win = per(q => (q.trash.w === 'runner' ? 1 : 0) - (q.keep.w === 'runner' ? 1 : 0));
         const mar = per(q => q.trash.rp - q.trash.cp - (q.keep.rp - q.keep.cp));
         const at = k => mean(per(q => q.trash.at2[k] - q.keep.at2[k]));
-        const shown = (m, s) => (x.length < 10 ? 'not shown (n<10)' : Math.abs(m) > 2 * s ? 'shown' : 'not shown');
-        say(`| ${pool} | ${c} | ${d} | ${x.length} | ${x[0].pairs.length} | ${f3(mean(win))} | ${f3(se(win))} | ${f3(mean(mar))} | ${f3(se(mar))} | wins ${shown(mean(win), se(win))}; margin ${shown(mean(mar), se(mar))} | ${f3(at('cc'))} | ${f3(at('rc'))} | ${f3(at('cs'))} | ${f3(at('rs'))} | ${f3(at('payout'))} |`);
+        const money = per(q => q.trash.at2.rc - q.trash.at2.cc - (q.keep.at2.rc - q.keep.at2.cc));
+        const shown = (m, s) => (x.length < 10 ? 'not shown (n<10)' : Math.abs(m) > 2 * s ? 'SHOWN' : 'not shown');
+        say(`| ${pool} | ${c}${rz === 'all' ? '' : `, ${rz}`} | ${d} | ${x.length} | ${x[0].pairs.length} | ${f3(mean(win))} | ${f3(se(win))} | ${f3(mean(mar))} | ${f3(se(mar))} | ${f3(mean(money))} | ${f3(se(money))} | wins ${shown(mean(win), se(win))}; margin ${shown(mean(mar), se(mar))}; money ${shown(mean(money), se(money))} | ${f3(at('cc'))} | ${f3(at('rc'))} | ${f3(at('cs'))} | ${f3(at('rs'))} | ${f3(at('payout'))} |`);
+       }
       }
 }
 
@@ -149,12 +172,14 @@ if (opt('select')) {
     const A = acc.filter(a => a.pool === pool).sort((a, b) => order(a) - order(b) || String(a.src).localeCompare(String(b.src)) || a.T - b.T || a.idx - b.idx);
     let n = 0;
     for (const a of A) {
-      if (!a.agree) sel.push({ key: a.key, pool, cls: a.cls, dir: a.dir, card: a.card });
-      else if (n++ % K === 0) sel.push({ key: a.key, pool, cls: a.cls, dir: a.dir, card: a.card, control: true });
+      const reread = a.cls === 'C' && (a.sub ?? '').includes('tag') ? { reread: true } : {};
+      if (!a.agree) sel.push({ key: a.key, pool, cls: a.cls, dir: a.dir, card: a.card, rezzed: a.rezzed, ...reread });
+      else if (n++ % K === 0) sel.push({ key: a.key, pool, cls: a.cls, dir: a.dir, card: a.card, rezzed: a.rezzed, control: true, ...reread });
+      else if (reread.reread) sel.push({ key: a.key, pool, cls: a.cls, dir: a.dir, card: a.card, rezzed: a.rezzed, pairs: false, reread: true });
     }
   }
   writeFileSync(opt('out') ?? 'scripts/runner-rework/trash-readers-pairs.json', JSON.stringify(sel, null, 0) + '\n');
-  say(`\nPairs selected: ${sel.length} (${sel.filter(x => !x.control).length} disagreeing, ${sel.filter(x => x.control).length} controls, k=${K}) by pool: ${['batch', 'nrdb', 'people'].map(p => `${p} ${sel.filter(x => x.pool === p).length}`).join(', ')}.`);
+  say(`\nPairs selected: ${sel.filter(x => x.pairs !== false).length} (${sel.filter(x => !x.control && x.pairs !== false).length} disagreeing, ${sel.filter(x => x.control).length} controls, k=${K}); re-reads of tag accesses ${sel.filter(x => x.reread).length}; by pool: ${['batch', 'nrdb', 'people'].map(p => `${p} ${sel.filter(x => x.pool === p).length}`).join(', ')}.`);
 }
 const text = lines.join('\n');
 if (opt('md')) writeFileSync(opt('md'), text + '\n');

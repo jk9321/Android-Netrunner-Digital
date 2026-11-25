@@ -229,6 +229,21 @@ function read(s0: GameState, memory: Map<string, string>) {
       }
     }
     const pt = tS && kS ? parts(tS, kS, card.instanceId) : null;
+    // The rig term split by rig card (each card's own term, trash board less keep board; the rest is coverage and plans),
+    // on accesses whose trash gives a tag (coordinator 02:37Z addition 3, for the Corp side's F104 c count)
+    let rigSplit: any = null;
+    if (tS && kS && pt && !pt.missing && tS.after.runner.tags > kS.after.runner.tags) {
+      const rigOf = (st: GameState) => [...st.runner.rig.programs, ...st.runner.rig.hardware, ...st.runner.rig.resources];
+      const by: Record<string, number> = {};
+      for (const c of rigOf(kS.after)) {
+        const ct = rigOf(tS.after).find(x => x.instanceId === c.instanceId);
+        const v = (ct ? (E.evaluate.addRigCard(tS.after, ct, 0) as number) : 0) - (E.evaluate.addRigCard(kS.after, c, 0) as number);
+        const name = `${def(E, c).title} ${c.instanceId}`;
+        if (Math.abs(v) > 1e-9) by[name] = r3(v) as number;
+      }
+      const sumCards = Object.values(by).reduce((n, v) => n + Number(v), 0);
+      rigSplit = { byCard: by, rest: r3(Number(pt.rig) - sumCards) };
+    }
     const margin = tS && kS ? tS.total - kS.total : null;
     const decisionTrash = answerTrashes(best);
     const priceTrash = raw > 0;
@@ -277,6 +292,7 @@ function read(s0: GameState, memory: Map<string, string>) {
       },
       decision: { trash: r3(tS?.total), keep: r3(kS?.total), margin: r3(margin), pick: best ? ((best as any).choice?.alternativeId ? 'alt' : (best as any).choice?.trash ? 'trash' : 'keep') : null, scores },
       parts: pt,
+      rigSplit,
       conseq,
       creditsAfter,
       cheapest,
@@ -375,8 +391,22 @@ function unit(pool: string, src: string, idx: number, s: GameState, answer: Game
   if (MODE === 'pairs') {
     const w = wanted!.get(k);
     if (w) {
+      // A re-read (an access the count run read before a field was added): its full record again, kind 'a2'
+      if (w.reread) {
+        try {
+          const r = timed('read', () => read(s, new Map(memory)));
+          const made = answer ? ((answer as any).choice?.alternativeId ? 'alt' : (answer as any).choice?.trash ? 'trash' : 'keep') : null;
+          out({ kind: 'a2', pool, src, idx, T: s.turnNumber, key: k, ...extra, answer: made, answerTrash: answer ? answerTrashes(answer) : null, pickMatches: made === null ? null : r.decision.pick === made, ...r });
+        } catch (err) {
+          out({ kind: 'err', pool, src, idx, error: (err as Error).stack?.slice(0, 400) });
+        }
+      }
+      if (w.pairs === false) {
+        wanted!.delete(k);
+        return;
+      }
       try {
-        pairs(s, new Map(memory), { pool, src, idx, T: s.turnNumber, cls: w.cls, dir: w.dir, card: w.card });
+        pairs(s, new Map(memory), { pool, src, idx, T: s.turnNumber, cls: w.cls, dir: w.dir, card: w.card, rezzed: w.rezzed, control: !!w.control });
       } catch (err) {
         out({ kind: 'err', pool, src, idx, error: (err as Error).stack?.slice(0, 400) });
       }
