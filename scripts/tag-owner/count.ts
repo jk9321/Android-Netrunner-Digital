@@ -784,6 +784,7 @@ function leg(s0: GameState, k: number, mode: 'clear' | 'keepBar' | 'keepAs', src
   let punishWin: { s: GameState; code: string } | null = null;
   let seenCorp = false;
   let at: any = null;
+  let fate: { T: number; active: string; by: string } | null = null;
   let steps = 1;
   const snap = (st: GameState) => ({ T: st.turnNumber, rc: st.runner.credits, rk: st.runner.clicks, grip: st.runner.grip.length, rig: st.runner.rig.programs.length + st.runner.rig.hardware.length + st.runner.rig.resources.length, res: st.runner.rig.resources.length, tags: st.runner.tags, rs: st.runner.score, cs: st.corp.score, cc: st.corp.credits, w: st.winner ?? null, ev: st.winner ? null : r3(evalIn(A.base, st, 'runner')) });
   const barOn = () => mode === 'keepBar' && !seenCorp;
@@ -806,6 +807,8 @@ function leg(s0: GameState, k: number, mode: 'clear' | 'keepBar' | 'keepAs', src
     if (!more) break;
     const a: any = g.last;
     const after: GameState = g.state;
+    // What became of the tag after B.1's read (coordinator 08:23Z): the first step that leaves the Runner untagged
+    if (at && !fate && after.runner.tags === 0 && before.runner.tags > 0) fate = { T: before.turnNumber, active: before.activePlayer, by: `${a.player}:${a.type}` };
     if (!at) {
       if (TRACE && (a.player === 'corp' || a.type !== 'PASS')) trace.push(`T${before.turnNumber} ${a.player} ${a.type}${a.targetServerId ? ':' + a.targetServerId : ''}${a.cardInstanceId ? ':' + titleOf(S.core.findCardAnywhere(before, a.cardInstanceId)?.cardCode ?? '?') : ''}${a.choice ? ' ' + JSON.stringify(a.choice).slice(0, 60) : ''} | tags ${after.runner.tags} res ${after.runner.rig.resources.length} cc ${after.corp.credits} ck ${after.corp.clicks}`);
       if (punishWin && !after.pendingPrompts.length) {
@@ -841,7 +844,7 @@ function leg(s0: GameState, k: number, mode: 'clear' | 'keepBar' | 'keepAs', src
     }
   }
   if (!at) at = snap(g.state);
-  const end = TO_END ? { w: g.state.winner ?? null, rp: g.state.runner.score, cp: g.state.corp.score, T: g.state.turnNumber } : undefined;
+  const end = TO_END ? { w: g.state.winner ?? null, rp: g.state.runner.score, cp: g.state.corp.score, T: g.state.turnNumber, tags: g.state.runner.tags, fate } : undefined;
   return { first: firstKey, took: { trash: r3(took.trash) as number, punish: r3(took.punish) as number, other: took.other }, takes, corpSpent: r3(corpSpent) as number, corpCould, corpTrashed, at, end, steps, ms: Math.round(performance.now() - t0), trace: TRACE ? trace : undefined };
 }
 

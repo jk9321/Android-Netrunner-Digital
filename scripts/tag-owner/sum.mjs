@@ -253,7 +253,7 @@ if (countGames.length) {
 const acc = decs.filter(d => d.access?.tagTrash);
 if (acc.length) {
   say('\n## Part D: accesses whose trash gives a tag (issue58: the #58 pin\'s boards T3 to T6; old150: the declined Plaza accesses of the decided-twice count met again by today\'s source; batch / nrdb / people: every such access)');
-  say('Unit: one access_trash prompt where trashing gives the Runner a tag. Answers by arm; the tag\'s part of trash less keep (Runner view): the two tagsWorth lines, the rig, the Corp board; base\'s rig split by reader.\n');
+  say('Unit: one access_trash prompt where trashing gives the Runner a tag. Answers by arm; trash less keep (Runner view, above 0 favours trashing), each answer\'s board priced in its own context (the answer itself is scored in the access board\'s: probe.ts): total = the whole of evaluate, then its parts: the two tagsWorth lines, the rig, the Corp board, credits; base\'s rig split by reader.\n');
   for (const p of [...new Set(acc.map(d => d.pool))]) {
     const xs = acc.filter(d => d.pool === p);
     say(`\n### ${p} (${xs.length} accesses)`);
