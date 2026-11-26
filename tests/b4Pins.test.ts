@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, executeAction, GameState, getLegalActions, InstallCardAction } from '../src/core';
-import { revealInHand } from '../src/core/engine/helpers';
-import { hqAgendaOdds } from '../src/ai/runs';
+import { revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
+import { rdSharesKnownToRunner, runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
+import { hqAgendaOdds, serverValue } from '../src/ai/runs';
 import { agendaOdds } from '../src/ai/effectValues';
 import { newGame } from './helpers';
 import '../src/ai';
 
 // B4 pins (brief b4-hidden-zones rev 1c, bar 6): each fails without its change.
+
+/** Applies `change` to a copy of `s` the way an action would, then runs the engine's two knowledge updates. */
+function act(s: GameState, change: (next: GameState) => void): GameState {
+  const next = structuredClone(s);
+  change(next);
+  updateRdKnowledge(s, next);
+  updateHandKnowledge(s, next);
+  return next;
+}
 
 describe('B4a 7(a): HQ odds read only the seen cards surely still there', () => {
   // Red team b4 probe-hq-stale (R-100): the Runner saw all of HQ (3 ice); the Corp draws and installs a seen ice
@@ -34,5 +44,39 @@ describe('B4a 7(a): HQ odds read only the seen cards surely still there', () => 
     const odds = agendaOdds(s).odds;
     expect(odds).toBeGreaterThan(0);
     expect(hqAgendaOdds(s, odds)).toBeCloseTo(odds, 9);
+  });
+});
+
+describe('B4a 7(b): after a shuffle, R&D is priced from the shares of the cards seen there', () => {
+  // A shuffle hides where each card is, not that it is in R&D (4.2.2, 8.7.3, 10.2.2b). The Runner saw all five cards
+  // of R&D, none an agenda; after the shuffle R&D cannot hold an agenda, so it is worth nothing to access. Before 7(b)
+  // the shuffle emptied the Runner's memory and R&D was priced at the deck's odds.
+  function seenThenShuffled(): GameState {
+    const s0 = newGame(3);
+    const type = (c: { cardCode: string }) => cardDef(c as never).type_code;
+    s0.corp.hq.push(...s0.corp.rd.filter(c => type(c) === 'agenda'));
+    s0.corp.rd = s0.corp.rd.filter(c => type(c) !== 'agenda').slice(0, 5);
+    let s = act(s0, n => n.corp.rd.forEach(c => runnerSeesRd(n, c)));
+    s = act(s, n => shuffleRD(n));
+    return s;
+  }
+  it('five seen non-agendas shuffled: R&D is worth nothing, also after a draw the share prices', () => {
+    let s = seenThenShuffled();
+    expect(rdSharesKnownToRunner(s)).toHaveLength(5);
+    expect(agendaOdds(s).odds).toBeGreaterThan(0);
+    expect(serverValue(s, 'rd')).toBeCloseTo(0, 9);
+    s = act(s, n => n.corp.hq.push(...n.corp.rd.splice(0, 1)));
+    expect(serverValue(s, 'rd')).toBeCloseTo(0, 9);
+  });
+  it('a share whose card has surely left does not lower the price', () => {
+    let s = seenThenShuffled();
+    // The top card is trashed faceup from R&D: the Runner sees it leave (4.4.6, 10.2.3a)
+    s = act(s, n => n.corp.archives.faceUp.push(...n.corp.rd.splice(0, 1)));
+    expect(rdSharesKnownToRunner(s)).toHaveLength(4);
+    const without = structuredClone(s);
+    without.corp.rdKnownToRunner = [];
+    // The four left lower the price; the trashed card's share no longer does, so R&D is not priced at 0
+    expect(serverValue(s, 'rd')).toBeLessThan(serverValue(without, 'rd'));
+    expect(serverValue(s, 'rd')).toBeGreaterThan(0);
   });
 });

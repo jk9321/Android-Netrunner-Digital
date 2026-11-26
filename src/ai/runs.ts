@@ -14,6 +14,7 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
 import { certainInHand } from '../core/engine/helpers';
+import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -1010,13 +1011,16 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * here, so a second run on the same top cards is not worth making.
  */
 function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
+  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where an exact mark is
   const known = knownInRd(state);
+  const exact = new Set(known.filter(e => e.lo === e.hi && !e.left).map(e => e.lo));
+  const marks = [...known, ...rdSharesKnownToRunner(state)];
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
     let seen = 0;
-    for (const e of known) {
-      if (i < e.lo || i > e.hi) continue;
-      const share = 1 / (e.hi - e.lo + 1);
+    for (const e of marks) {
+      if (i < e.lo || i > e.hi || (e.n0 && exact.has(i))) continue;
+      const share = 1 / (e.n0 ?? e.hi - e.lo + 1);
       seen += share;
       const def = getCardDefinition(e.code);
       if (def.type_code === 'agenda') value += share * (stealWorth(state, def.agenda_points ?? 1, DENY.central) - knownStealHit(state, e.code, grip));

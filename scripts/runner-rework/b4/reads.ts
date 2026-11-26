@@ -17,4 +17,12 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  known = Math.min(known, size);\n  const __new = (Math.min(agendas, known) + (size - known) * odds) / size;\n  const __k = (state.corp.knownToRunner ?? []).slice(-size);\n  const __old = (__k.filter(k => getCardDefinition(k.code).type_code === 'agenda').length + (size - __k.length) * odds) / size;\n${L}  if (__new !== __old) ${fire('a')};\n  return __new;\n}`,
     ],
   ],
+  // 7(b) rdWorth: a shuffle's share counted at a place (today's reader read no share)
+  b: [
+    [
+      'ai/runs.ts',
+      `      if (i < e.lo || i > e.hi || (e.n0 && exact.has(i))) continue;\n`,
+      `      if (i < e.lo || i > e.hi || (e.n0 && exact.has(i))) continue;\n${L}      if (e.n0) ${fire('b')};\n`,
+    ],
+  ],
 };
