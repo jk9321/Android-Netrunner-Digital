@@ -80,4 +80,12 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  const __ids = actingSide() === 'corp' ? new Set((state.runner.knownToCorp ?? []).map(k => k.id)) : undefined;\n  const __old = state.runner.grip.filter(c => cardDef(c).type_code === 'program' && (!__ids || __ids.has(c.instanceId))).reduce((n, c) => n + (cardDef(c).memory_cost ?? 0), 0);\n${L}  if ((state.runner.memoryUnitsUsed + grip > BASE_MU) !== (state.runner.memoryUnitsUsed + __old > BASE_MU)) ${fire('g2')};\n  return state.runner.memoryUnitsUsed + grip > BASE_MU ? 2 * MU : MU;\n`,
     ],
   ],
+  // Ruling 6, winNow's blind grip: the cards the Corp counts as seen by code and count against today's list by id
+  g3: [
+    [
+      'ai/winNow.ts',
+      `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n`,
+      `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id));\n${L}  if (state.runner.grip.some(c => known.has(c.instanceId) !== __old.has(c.instanceId))) ${fire('g3')};\n`,
+    ],
+  ],
 };
