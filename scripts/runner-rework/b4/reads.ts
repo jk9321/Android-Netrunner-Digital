@@ -88,4 +88,33 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id));\n${L}  if (state.runner.grip.some(c => known.has(c.instanceId) !== __old.has(c.instanceId))) ${fire('g3')};\n`,
     ],
   ],
+  // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D
+  G1: [
+    [
+      'core/engine/helpers.ts',
+      `    if (followed?.size) known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));\n`,
+      `    if (followed?.size) {\n      const __n = known.length;\n      known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));\n${L}      if (known.length !== __n || (owner === 'corp' ? prev.corp.hq : prev.runner.grip).some(c => !inHand.has(c.instanceId) && !after.has(c.instanceId) && followed.has(c.instanceId))) ${fire('G1')};\n    }\n`,
+    ],
+  ],
+  // Gap 3 (trace only; the engine at 9f9d039): a card from the open joins the other side's list as it goes back to a hand
+  G3: [['core/engine/helpers.ts', `    if (seen.length > 0) revealInHand(state, owner, seen);\n`, `${L}    if (seen.length > 0) ${fire('G3')};\n    if (seen.length > 0) revealInHand(state, owner, seen);\n`]],
+  // Gap 4 (trace only; the engine at 1889861): a shuffle's action applies its other moves to the shares, a card seen in
+  // the action before the shuffle gets a share, a drawn share joins HQ
+  G4: [
+    ['core/engine/rdKnowledge.ts', `    if (card && !marks.some(e => e.id === id)) marks.push(share(id, card.cardCode));\n`, `${L}    if (card && !marks.some(e => e.id === id)) ${fire('G4')};\n    if (card && !marks.some(e => e.id === id)) marks.push(share(id, card.cardCode));\n`],
+    [
+      'core/engine/rdKnowledge.ts',
+      `  if (note?.shuffled) known = afterShuffle(prev, state, known);\n`,
+      `  if (note?.shuffled) {\n    const __k = JSON.stringify(known);\n    known = afterShuffle(prev, state, known);\n${L}    if (JSON.stringify(known) !== __k) ${fire('G4')};\n  }\n`,
+    ],
+    ['core/engine/rdKnowledge.ts', `  const drawn = gone.filter(e => e.left === 'hq')`, `${L}  if (gone.some(e => e.left === 'hq' && e.n0)) ${fire('G4')};\n  const drawn = gone.filter(e => e.left === 'hq')`],
+  ],
+  // Gap 2 (trace only; the engine at c7bc53a): a card from the open shuffled into R&D gets a share
+  G2: [
+    [
+      'core/engine/rdKnowledge.ts',
+      `    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
+      `${L}    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) ${fire('G2')};\n    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
+    ],
+  ],
 };
