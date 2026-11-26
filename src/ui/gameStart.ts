@@ -7,11 +7,24 @@ import { ViewMode } from './viewer';
 
 export const VIEW_MODE_KEY = 'netrunner.viewMode';
 
-/** The view mode last used in a two-player game. */
+/** The view mode last used in a two-player game (pass and play when none was saved). */
 export function savedViewMode(): ViewMode {
   const v = readStorage(VIEW_MODE_KEY);
   if (v === 'open' || v === 'hotseat' || v === 'corp' || v === 'runner') return v;
-  return 'open';
+  return 'hotseat';
+}
+
+/**
+ * Whose view a game opens in. Against the computer, the person's own side. A new two-player game
+ * opens in pass and play, which hides each side's secret cards from the other (the menu choice is
+ * called "Pass and play"; issue #74: it used to open on the last mode used, Open table by default,
+ * so the Runner saw the Corp's facedown cards). Open table stays one tap away in the game menu.
+ * A resumed two-player game keeps the mode last used.
+ */
+export function startViewMode(ai: SideCode | null | undefined, resuming: boolean): ViewMode {
+  if (ai === 'corp') return 'runner';
+  if (ai === 'runner') return 'corp';
+  return resuming ? savedViewMode() : 'hotseat';
 }
 
 export function randomSeed(): number {

@@ -9,7 +9,7 @@ import { autoContinueRun, autoStartTurn, nextAccessed, nextSelection, useCardFat
 import { showAlert, showConfirm } from './components/Dialog';
 import { ViewMode, Viewer, canActAs, corpRezWindow } from './viewer';
 import { playForAction } from './sound';
-import { VIEW_MODE_KEY, savedViewMode } from './gameStart';
+import { VIEW_MODE_KEY, startViewMode } from './gameStart';
 import { LocalTable, TableMove, newTableState } from './table';
 import type { OnlineInfo } from './useOnlineController';
 
@@ -57,10 +57,8 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   // Who is looking. Pass and play shows one side at a time and hands over
   // (behind a cover screen) whenever the other side has to act.
   // Against the computer a game starts in the person's own view (Open table is
-  // still in the menu); two-player games start in the last mode used.
-  const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    config.ai === 'corp' ? 'runner' : config.ai === 'runner' ? 'corp' : savedViewMode(),
-  );
+  // still in the menu); a new two-player game starts in pass and play, a resumed one in the last mode used.
+  const [viewMode, setViewMode] = useState<ViewMode>(() => startViewMode(config.ai, saved !== null));
   const [hotseatSide, setHotseatSide] = useState<SideCode>(saved?.table.hotseatSide ?? 'corp');
   // Cards the Runner accessed in the latest run, as each viewer saw them, shown until dismissed or the next run
   const [accessed, setAccessed] = useState<Accessed>(() => saved?.table.accessed ?? noAccesses());
