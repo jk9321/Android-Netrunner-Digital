@@ -99,7 +99,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1); "Hosted virus counter: Break 1 subroutine on host ice."
     // breaksHostSubroutine is read by both sides (R-A A-move): the walk, and the Runner's botulusBreaks and encounter (runs.ts, runnerAI.ts)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } },
-    // A second Botulus on the same host adds its own counters (runnerAI.ts trojanHostValue prices it)
+    // A second Botulus on the same host adds its own counters (counterValues.ts trojanHostWorth: worth while the host's subroutines take them)
     runFacts: { trojan: { second: 'adds' } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
@@ -208,7 +208,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // "When your turn begins, place 1 virus counter ... Then, if there are 3 or more hosted virus counters, derez host ice"
     // Corp-only (the walk): the Runner's price holds no copy of the derez (A-log L3, a B5 item)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } },
-    // A second Tranquilizer on the same host does nothing the first doesn't: each derezzes at its own 3 counters (trojanHostValue)
+    // A second Tranquilizer on the same host does nothing the first doesn't: each derezzes at its own 3 counters (trojanHostWorth: worth 0)
     runFacts: { trojan: { second: 'idle' } },
     value: { rig: 2.5 },
     // A virus counter a turn; 3 derez its host

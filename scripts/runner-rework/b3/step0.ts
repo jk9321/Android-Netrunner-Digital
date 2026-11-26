@@ -42,7 +42,7 @@ import type { GameAction, GameState } from '../../../src/core';
 import { ALL_DECKS } from '../../nsg-sample-decks';
 import { NRDB_TEST_DECKS } from '../../nrdb-test-decks';
 import { Tree, loadTree } from '../facts-trees';
-import { ARMS, Arm, makeB3Trees } from './trees';
+import { Arm, makeB3Trees } from './trees';
 
 for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.split(/\s+/).filter(x => x.includes('='))) {
   const [k, v] = kv.split('=');
@@ -61,7 +61,8 @@ const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 const r4 = (x: number | null | undefined) => (x === null || x === undefined ? null : Number.isFinite(x) ? Math.round(x * 10000) / 10000 : x > 0 ? 'Inf' : '-Inf');
 const key = (a: unknown) => JSON.stringify(a ?? null);
 const MUSLIHAT = '35013';
-const FIX_ARMS: Arm[] = ['in1', 'capA', 'capC'];
+const FIX_ARMS = (process.env.FIX_ARMS ?? 'in1,capA,capC').split(',') as Arm[]; // B3b: FIX_ARMS=capA,built reads the built tree
+const TREE_ARMS: Arm[] = ['today', ...FIX_ARMS];
 
 interface ArmTree {
   T: Tree;
@@ -396,10 +397,10 @@ type Rec = { seed: number; corpDeck: string; runnerDeck: string; winner: string 
 const DECK_POOL = [...ALL_DECKS, ...NRDB_TEST_DECKS];
 
 async function main() {
-  const dirs = makeB3Trees(root, ARMS, shard);
+  const dirs = makeB3Trees(root, TREE_ARMS, shard);
   S = await loadTree('source', dirs.source);
   A = {} as Record<Arm, ArmTree>;
-  for (const arm of ARMS) {
+  for (const arm of TREE_ARMS) {
     const m = (p: string) => import(/* @vite-ignore */ join(dirs[arm], 'src', p));
     A[arm] = { T: await loadTree(arm, dirs[arm]), P: await m('ai/prompts.ts'), CV: await m('ai/counterValues.ts'), RR: await m('ai/runnerReply.ts'), TP: await m('ai/turnPlanner.ts') };
     if (!A[arm].P.HOSTLOG || !A[arm].P.B3REC) throw new Error(`${arm} tree: hooks missing`);
@@ -418,7 +419,7 @@ async function main() {
     const t0 = performance.now();
     time.clear();
     S.clear();
-    for (const arm of ARMS) A[arm].T.clear();
+    for (const arm of TREE_ARMS) A[arm].T.clear();
     const c = DECK_POOL.find(d => d.side === 'corp' && d.name === rec.corpDeck);
     const r = DECK_POOL.find(d => d.side === 'runner' && d.name === rec.runnerDeck);
     if (!c || !r) throw new Error(`deal ${rec.seed}: deck not found`);

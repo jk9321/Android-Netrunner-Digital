@@ -30,7 +30,9 @@ import { armSource } from '../../tag-owner/trees';
 
 type Patch = [file: string, at: string, to: string];
 export const ARMS = ['today', 'in1', 'capA', 'capC'] as const;
-export type Arm = (typeof ARMS)[number];
+/** `built` (B3b, read on the built tree): this checkout's own src with the hooks only, whatever ARM_BASE names; the
+ * source and the other arms come from ARM_BASE as before. Asked for by name (step0.ts FIX_ARMS), never in ARMS. */
+export type Arm = (typeof ARMS)[number] | 'built';
 
 const HOOKS: Patch[] = [
   [
@@ -114,6 +116,7 @@ function b3Expect(state: GameState, host: CardInstance, one: (h: CardInstance) =
 
 const ARM_PATCHES: Record<Arm, Patch[]> = {
   today: HOOKS,
+  built: HOOKS,
   in1: [...HOOKS, ...POOL, ...fixWorth(Infinity)],
   capA: [...HOOKS, ...POOL, ...fixWorth(1)],
   capC: [...HOOKS, ...POOL, ...fixWorth(3)],
@@ -128,7 +131,7 @@ export function makeB3Trees(root: string, arms: readonly Arm[], shard = 0): Reco
   for (const arm of arms) {
     const dir = join(root, arm);
     dirs[arm] = dir;
-    cpSync(from, join(dir, 'src'), { recursive: true });
+    cpSync(arm === 'built' ? 'src' : from, join(dir, 'src'), { recursive: true });
     for (const [f, at, to] of ARM_PATCHES[arm]) {
       const path = join(dir, 'src', f);
       const text = readFileSync(path, 'utf8');

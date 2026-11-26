@@ -77,7 +77,7 @@ const AUDIT_FLAGS = ['corp/rezMoney:rezMoneyAudit', 'effectValues:threatsAudit',
  */
 const CARD_COMPARISONS: Record<string, string> = {
   'runs.ts: return state.runner.rig.programs.filter(c => c.cardCode === code && c.hostedOnId === ice.instanceId);':
-    'hostedTrojans: generic, the code its caller passes (trojanHostValue: copies of the same trojan on a host)',
+    'hostedTrojans: generic, the code its caller passes (counterValues.ts hostShare since B3b: the first copy of an idle trojan on a host)',
   'runs.ts: if (!card.isRezzed || card.cardCode !== MANEGARM) continue;': 'Manegarm (class P): approachCost, one of three toll readers with three formulas; R-B: one approach toll owner',
   "runs.ts: if (state.runner.clicks - 1 - bioroidClicks(state, server.ice) < 2) known += 5 * server.root.filter(c => c.isRezzed && c.cardCode === MANEGARM).length;":
     "Manegarm (class P): runShortfall's own flat 5; R-B: one approach toll owner",
@@ -386,7 +386,7 @@ describe('AI code health (audit guards)', () => {
   it('reads each RUNNER_TERMS key at exactly one site in src, and keeps the table to these keys', async () => {
     const { RUNNER_TERMS } = await import('../src/ai/runner/terms');
     const KEYS = [
-      'endTurn', 'tagRemovalResource', 'tagRemovalNoResource', 'runCard', 'bigHandDraw', 'digDraw', 'savingGain', 'savingSpend', 'freeActionCut',
+      'endTurn', 'tagRemovalResource', 'tagRemovalNoResource', 'runCard', 'bigHandDraw', 'digDraw', 'savingGain', 'savingSpend', 'freeActionCut', 'facedownTrojanHost',
       'bigHandClicks', 'digStackFloor', 'savingSpendFloor', 'saveUpWorthFloor', 'saveUpShortfallCap',
     ];
     expect(Object.keys(RUNNER_TERMS)).toEqual(KEYS);
@@ -402,7 +402,6 @@ describe('AI code health (audit guards)', () => {
     const LISTED: Record<string, string> = {
       'rankMainActions: rigCoverage(state.runner.rig.programs).covered.size < 3 &&': 'the three breaker types (barrier, code gate, sentry): a count of the game, not a score',
       'scoreMain: for (let i = 0; i < 3; i++) {': 'the prompt-follow depth (twice: Window of Opportunity, our own prompts): a loop bound, not a score',
-      'scoreMain: score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;': "the trojan on an unrezzed host: B3's (a host's worth gets one owner, issue #68)",
     };
     const text = aiText('runnerAI.ts');
     const src = ts.createSourceFile('runnerAI.ts', text, ts.ScriptTarget.Latest, true);
@@ -721,11 +720,16 @@ describe('AI code health (audit guards)', () => {
   // breaksRezzedIce, systemGateway.ts + 47 with taoSwap: each entry restates its card's guard and keeps its comment),
   // cards/types.ts + 17 (PromptAsk and the promptAnswer field), cards/answers.ts + 7 (the two helpers the three
   // effect_cards answers share)): corp/ 3,982, src/ai 16,531
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,531 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
+  // Then + 67 in src/ai, corp/ unchanged (ai-runner-prompt-view, B3b: a trojan's host gets one owner, issue #68, measured
+  // against beta 58ced2b (16,531): counterValues.ts + 65 (trojanHostWorth's two inputs, unseenHostPool and hostShare, their
+  // comments, two imports), runs.ts + 10 (unseenIcePool extracted from unrezzedDamageRisk with its comment), runner/terms.ts
+  // + 3 (facedownTrojanHost and its comment), runnerAI.ts - 11 (trojanHostValue and two imports out, the term read)):
+  // corp/ 3,982, src/ai 16,598
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,598 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16531);
+    expect(all).toBeLessThanOrEqual(16598);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
