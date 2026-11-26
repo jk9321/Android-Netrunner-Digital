@@ -79,15 +79,20 @@ function todaysAnswer(state: GameState, ports: PromptViewPorts): GameAction {
 }
 
 /** The ids of the cards the engine shows the Runner face up in its active prompt (core/view.ts, the prompt's cards). */
-export function promptShownIds(state: GameState): Set<string> {
+export function promptShownIds(state: GameState): ReadonlySet<string> {
+  const known = shownByState.get(state);
+  if (known) return known;
   const prompt = activePrompt(state);
   const out = new Set<string>();
+  shownByState.set(state, out);
   if (!prompt || prompt.side !== 'runner') return out;
   const { view, ids } = viewFor(state, 'runner', newViewIds(), state.id);
   const mine = view.pendingPrompts.find(p => p.id === prompt.id);
   for (const c of mine?.cards ?? []) if (c.cardCode !== undefined && ids.real[c.instanceId]) out.add(ids.real[c.instanceId]);
   return out;
 }
+/** promptShownIds per state (the engine's whole view is built once a prompt; a state is never edited once read). */
+const shownByState = new WeakMap<GameState, ReadonlySet<string>>();
 
 /** The cards the active prompt shows in place: its source entry's `promptShows.inPlace` key of the prompt's data. */
 export function promptInPlaceIds(state: GameState): Set<string> {

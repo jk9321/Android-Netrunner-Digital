@@ -730,15 +730,15 @@ describe('AI code health (audit guards)', () => {
   // comments, two imports), runs.ts + 10 (unseenIcePool extracted from unrezzedDamageRisk with its comment), runner/terms.ts
   // + 3 (facedownTrojanHost and its comment), runnerAI.ts - 11 (trojanHostValue and two imports out, the term read)):
   // corp/ 3,982, src/ai 16,598
-  // Then + 194 in src/ai, corp/ unchanged (ai-runner-prompt-view, B3 commit 2: the honest prompt view, measured against beta
-  // 9c10d7f (16,598)): runner/prompt.ts + 192 (new: the three classes, the swap, the fallbacks, today's path for in-run
+  // Then + 199 in src/ai, corp/ unchanged (ai-runner-prompt-view, B3 commit 2: the honest prompt view, measured against beta
+  // 9c10d7f (16,598)): runner/prompt.ts + 197 (new: the three classes, the swap, the fallbacks, today's path for in-run
   // hosts and R-93's class, their comments), cards/elevation.ts + 4 and cards/types.ts + 3 (MuslihaT's promptShows and
-  // the field), runnerAI.ts - 5 (promptAnswer reads runner/prompt.ts): corp/ 3,982, src/ai 16,792
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,792 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
+  // the field), runnerAI.ts - 5 (promptAnswer reads runner/prompt.ts): corp/ 3,982, src/ai 16,797
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,797 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16792);
+    expect(all).toBeLessThanOrEqual(16797);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
