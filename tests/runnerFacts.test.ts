@@ -42,15 +42,34 @@ describe('the golden boards (leg 1c)', () => {
   // Runner card at the untagged rate, tagged or not, so the click costs 1.9694 on this board and runScore goes 1.6284 to
   // 0.9018. Breach, the ice's price, credits, approach and tagsWorth (3.25) are unchanged; so are the twin and every other board.
   const F108: Record<string, Record<string, number>> = { 'Funhouse / rezzed, tagged': { runScore: 0.9018 } };
+  // B3b (2026-11-26, brief b3-prompt-view rev 2 S2; the Runner rework coordinator's ruling in runner-rework/b3/
+  // b3b-cap-question.md): trojanHostValue left the install action (the host's worth is counterValues.ts trojanHostWorth's,
+  // which the outcome already reads). On the six in-grip trojan boards (and their twins) each install on a rezzed host scores
+  // the recorded number less the recorded trojanHostValue of its host (the same on every rezzed host of these boards: 3.7;
+  // an unrezzed host recorded none and keeps the -3, now RUNNER_TERMS.facedownTrojanHost) and the list sorts again. The extra
+  // itself has no reader left, so it leaves the readers and the live list. Every other recorded number compares as recorded;
+  // the file is not edited.
+  const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const B3B = (readers: Record<string, any>) => {
+    if (!('trojanHostValue' in readers)) return readers;
+    const { trojanHostValue, ...rest } = readers;
+    const term = [...new Set(trojanHostValue as number[])];
+    if (term.length > 1) throw new Error('a board whose hosts differ in trojanHostValue: name each host');
+    if (!term.length) return rest;
+    const trojan = /^INSTALL_CARD:(Botulus|Tranquilizer)@/;
+    const ranked = (rest.rankMainActions as { a: string; score: number }[]).map(r => (trojan.test(r.a) ? { ...r, score: r4(r.score - term[0]) } : r));
+    return { ...rest, rankMainActions: [...ranked].sort((x, y) => y.score - x.score) };
+  };
+  const B3BLive = (live: string[]) => live.filter(k => k !== 'trojanHostValue');
   for (const [i, want] of (GOLDEN.boards as any[]).entries()) {
     it(`${want.case} / ${want.branch}: every reader gives the golden number`, () => {
       const got = asFile(golden[i]);
       got.readers = lessDraws(got.readers);
       got.twin = lessDraws(got.twin);
       expect(got.board).toEqual(want.board);
-      expect(got.readers).toEqual({ ...want.readers, ...F108[`${want.case} / ${want.branch}`] });
-      expect(got.twin).toEqual(want.twin);
-      expect(got.live).toEqual(want.live);
+      expect(got.readers).toEqual({ ...B3B(want.readers), ...F108[`${want.case} / ${want.branch}`] });
+      expect(got.twin).toEqual(B3B(want.twin));
+      expect(got.live).toEqual(B3BLive(want.live));
     });
   }
 
