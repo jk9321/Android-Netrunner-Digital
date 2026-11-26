@@ -97,6 +97,8 @@ export const READ_HOOKS: Record<string, Patch[]> = {
   Bb: [['ai/runs.ts', `  if (fact && !fact.kinds.includes('agenda')) return 0;\n`, `${L}  if (fact && (!fact.kinds.includes('agenda') || fact.joint.length)) ${fire('Bb')};\n  if (fact && !fact.kinds.includes('agenda')) return 0;\n`]],
   // B4b (c) the trap share by kind: a root card that can only be an upgrade (today's share was min(1 - agenda, trap))
   Bc: [['ai/runs.ts', `      const trapShare = runnerRootKinds(state, card)?.kinds.length === 1 ? 0 : Math.min(1 - agenda, trap);\n`, `      const trapShare = runnerRootKinds(state, card)?.kinds.length === 1 ? 0 : Math.min(1 - agenda, trap);\n${L}      if (trapShare !== Math.min(1 - agenda, trap)) ${fire('Bc')};\n`]],
+  // B4b (d) corpBoardValue's agenda share by kind (evaluate.ts, the Runner's view of the board): a root that allows none
+  Bd: [['ai/evaluate.ts', `        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 :`, `${L}        if (runnerRootKinds(state, card)?.kinds.includes('agenda') === false) ${fire('Bd')};\n        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 :`]],
   // Bar 3's part (trace only): the Hard determinize ran (SearchAI, Hard only; Hard is off in the batch pools)
   H: [['ai/search.ts', `        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`, `${L}        ${fire('H')};\n        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`]],
   // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D
