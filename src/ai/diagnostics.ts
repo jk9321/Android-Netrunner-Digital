@@ -1,7 +1,7 @@
 import type { GameAction, GameState, SideCode } from '../core';
 import type { TwoTurnLine } from './corp/lines';
 import type { SearchRow } from './turnPlanner';
-import { holdPricing, pricing, withPricing } from './pricing';
+import { installTop, pricing, withPricing } from './pricing';
 
 /**
  * Diagnostics sink (audit Step 3 group B, AI-STATS-IN-SRC). Measurement scripts and tests install one sink in the pricing
@@ -99,9 +99,9 @@ export function inReply(): () => void {
   return () => (d.replying = outer);
 }
 
-/** Installs `d` (a fresh sink by default) for the rest of the run: a measurement script's setup. Returns the sink. */
+/** Installs `d` (a fresh sink by default) for the rest of the run: a measurement script's setup, outside every pricing scope (installTop throws inside one). Returns the sink. */
 export function installDiagnostics(d: Diagnostics = newDiagnostics()): Diagnostics {
-  holdPricing({ diagnostics: d });
+  installTop({ diagnostics: d });
   return d;
 }
 

@@ -24,7 +24,7 @@ import { answerPrompt, runTermStats, scoreOutcome, settledStand } from '../src/a
 import { runStands, serverHold } from '../src/ai/corp/hold';
 import { runRestWorth } from '../src/ai/runs';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { approachIce, beginEncounter, enterMovement } from '../src/core/engine/ice';
 import { trashInstalledCorpCard } from '../src/core/engine/helpers';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
@@ -707,7 +707,7 @@ describe("the settle: the Corp's follow-up prompts as its choice (ruling 10, opt
 });
 
 describe('the run reads of the audit of 2026-11-18 (AI-RUN-POSITION-EMPTY, AI-SOLVERUN-CHEAPEST-UNPINNED)', () => {
-  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
   // The audit's board (probes/position-empty.ts). remote1, innermost first: Palisade (unrezzed, the Corp at 0: it cannot
   // be rezzed), Kessleroid (rezzed, the Runner's position), Kessleroid (rezzed, outermost, passed). No breaker, an agenda
@@ -790,7 +790,7 @@ describe('the run reads of the audit of 2026-11-18 (AI-RUN-POSITION-EMPTY, AI-SO
  * tagged. Trash 1 program or piece of hardware."; Read-Write Share 36022 "you may host 1 card from your grip facedown".
  */
 describe("the run term's correction: a program trash priced by the rig's movement alone (V-C item 1)", () => {
-  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+  const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
   /** The pin's board (tests/exploitPins.test.ts, rez-toll.json: the Corp 8, Offworld Office out of HQ), `edit` places the ice. */
   const pinBoard = (edit: (s: GameState, mk: (code: string, rezzed?: boolean) => CardInstance, agenda: CardInstance) => void): GameState => {
     const s = structuredClone(JSON.parse(readFileSync(new URL('./fixtures/rez-toll.json', import.meta.url), 'utf8')).state as GameState);

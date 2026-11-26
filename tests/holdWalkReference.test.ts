@@ -26,7 +26,7 @@ import { rezMoney } from '../src/ai/corp/rezMoney';
 import { SubEffect, SubFacts, bioroidBreakClicks, subroutineFacts } from '../src/ai/runs';
 import { CARDS } from '../src/ai/cards';
 import { asSide, withPricing } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { breakerCodes, iceCodes } from '../scripts/stage-d/golden-prices';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 
@@ -391,7 +391,7 @@ function randomBoard(r: () => number, first?: string, probe = false): { s: GameS
   return { s, rez: unrezzed.filter(id => (probe && id === outer) || r() < 0.6) };
 }
 
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 /**
  * The brute force's answer for serverHold's `holds` ('runnerTurn'): some rez set the Corp can afford (each subset of the

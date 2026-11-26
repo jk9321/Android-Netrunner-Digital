@@ -15,7 +15,7 @@ import { createAgent } from '../src/ai';
 import { countedRez, matchPoint, matchPointRez } from '../src/ai/corp/rez';
 import { agendasUnseen, rdAgendaOdds, reachablePoints } from '../src/ai/corp/pools';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 /** Jeff's game #51 replayed to before move `n` (#222: approaching the outer N-Pot, #219: Paywall). */
 function at(n: number): GameState {
@@ -90,7 +90,7 @@ describe('rez at match point (game #51)', () => {
  * #48 #118's board (holes-48-118.json, turn 9): the Runner on 5 points runs R&D, unrezzed Sleipnir (rez 4, strength 4)
  * inside, the outer ice unrezzed, Corp 4 credits. reachablePoints is 3, so every window is at match point.
  */
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 function rdBoard(): GameState {
   const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/holes-48-118.json', import.meta.url), 'utf8'));
   // A plain run (not the recorded S-Dobrado one), so the bypass in each case is the one the test sets up

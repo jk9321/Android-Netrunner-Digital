@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
+import { withDiagnostics } from '../src/ai/diagnostics';
 import { describe, expect, it } from 'vitest';
 import { CardInstance, GameAction, GameState, activePrompt, executeAction, getLegalActions } from '../src/core';
 import { revealInHand } from '../src/core/engine/helpers';
 import { HeuristicCorpAI } from '../src/ai';
 import { rezCandidates } from '../src/ai/playout';
 import { asSide, plan, pricing, withPricing } from '../src/ai/pricing';
-import { clearHandCaches, decisionContext } from '../src/ai/handValues';
+import { clearHandCaches, inDecision } from '../src/ai/handValues';
 import { decideRez } from '../src/ai/corp/rez';
 import { corpSeenGrip } from '../src/ai/oracle';
 import { knownRdSlots } from '../src/ai/runnerReply';
@@ -259,10 +260,7 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
       const cards = rezCandidates(s, s.priority!.step as 'approach_ice');
       const on = (st: GameState) => {
         reset();
-        return honest(() => {
-          decisionContext(st, 'corp');
-          return key(decideRez(st, cards, true));
-        });
+        return honest(() => inDecision(st, 'corp', () => key(decideRez(st, cards, true))));
       };
       const view = on(honest(() => planner.corpDecisionView(s)));
       expect(answer(s), name).toBe(view);
@@ -275,17 +273,24 @@ describe("the deciding Corp's whole decision reads no hidden card (rule 10.2.2a)
   it("decides a rez under the rez decision's own context, on its view", () => {
     const s = read('rez-toll.json');
     const view = honest(() => planner.corpDecisionView(s));
-    let root: unknown;
+    const roots = new Set<unknown>();
+    let before: unknown;
     honest(() => {
-      // An earlier decision's context: a different board
+      // An earlier decision on a different board, then the rez: every value the rez asks is asked in a frame on its view
+      // (B1b: the frame is gone as the decision returns, so the roots are read as each value is priced)
       const a = agent();
-      const before = drawPlays();
-      a.rankMainActions(before);
+      before = drawPlays();
+      a.rankMainActions(before as GameState);
       const cards = rezCandidates(s, s.priority!.step as 'approach_ice');
-      a.chooseRez(s, cards);
-      root = pricing().anchor?.root;
+      withDiagnostics(d => {
+        d.onValue = () => void roots.add(pricing().anchor?.root);
+        a.chooseRez(s, cards);
+      });
     });
-    expect(root).toBe(view);
+    expect(roots.size).toBeGreaterThan(0);
+    expect(roots.has(view), 'the rez is priced on its view').toBe(true);
+    expect(roots.has(before), "no value of the rez is priced on the earlier decision's board").toBe(false);
+    expect(roots.has(undefined), 'no value of the rez is priced outside a decision frame').toBe(false);
   });
 
   // Fix 2 and red team finding 3: an answer not legal on the real state is taken again on the real state before

@@ -15,7 +15,7 @@ import { reachOrder, reachQuestion, reachSets, restOfTurn, serverHold, turnEndDe
 import { runnerEarnings } from '../src/ai/nextTurnMoney';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 const C = {
   BRAN: '30039', ANSEL: '30038', PALISADE: '30072', CLEAVER: '30006', PHAROS: '30063', FLY: '35079', AUDREY: '34004',
@@ -44,7 +44,7 @@ function hosted(s: GameState, code: string, host: string, virus: number) {
   s.runner.rig.programs.push(c);
 }
 const counters = (s: GameState, id: string, virus: number) => (s.runner.rig.programs.find(c => c.instanceId === id)!.tokens = { virus });
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 /** The walk's answer for remote1 on the Runner's next turn, the Corp's rezzes limited to `corp` credits. */
 const walk = (s: GameState, corp = s.corp.credits) => inCorp(s, () => serverHold(s, 'remote1', { when: 'runnerTurn', corpCredits: corp }));

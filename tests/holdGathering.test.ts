@@ -17,7 +17,7 @@ import { RunQuestion, runStands, serverHold } from '../src/ai/corp/hold';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { iceCost } from '../src/ai/runs';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
@@ -39,7 +39,7 @@ function board(setup: (s: GameState) => void): GameState {
   setup(s);
   return s;
 }
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 const nextTurn = (s: GameState, server: string) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: s.corp.credits }));
 const turnTruth = (s: GameState, server: string, rez: string[] = []) => oracleGetsIn(s, server, 'runnerTurn', rez, undefined, undefined, true).answer;
 /** The walk on the run under way as it stands (runStands, the run term's reader), and the engine's answer, nothing rezzed. */

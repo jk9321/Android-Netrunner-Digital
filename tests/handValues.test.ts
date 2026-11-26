@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HAND_FLOOR, SOON, clickPrice, clickWorth, heldWorth, decisionContext, ownHandValue, playedWorth } from '../src/ai/handValues';
+import { HAND_FLOOR, SOON, clickPrice, clickWorth, heldWorth, inDecision, ownHandValue, playedWorth } from '../src/ai/handValues';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { CLICK } from '../src/ai/valueModel';
 import { tuning } from '../src/ai/synergy';
@@ -28,36 +28,36 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
   });
 
   it('a card drawn in a look-ahead is worth the deck average, not what it is', () => {
-    let s = newGame();
-    decisionContext(s, 'runner');
-    const known = ownHandValue(s, 'runner');
-    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
-    const drawn = s.runner.stack.shift()!;
-    s.runner.grip.push(drawn);
-    const withDraw = ownHandValue(s, 'runner');
-    // Swap the drawn card for any other deck card: same worth, since it's unseen
-    const other = structuredClone(s);
-    const swap = other.runner.stack.findIndex(c => c.cardCode !== drawn.cardCode);
-    [other.runner.grip[other.runner.grip.length - 1], other.runner.stack[swap]] = [other.runner.stack[swap], other.runner.grip[other.runner.grip.length - 1]];
-    other.runner.grip[other.runner.grip.length - 1].instanceId = drawn.instanceId + '-x';
-    expect(withDraw).toBeGreaterThan(known);
-    expect(ownHandValue(other, 'runner')).toBeCloseTo(withDraw, 1);
+    const root = newGame();
+    inDecision(root, 'runner', () => {
+      let s = root;
+      const known = ownHandValue(s, 'runner');
+      s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
+      const drawn = s.runner.stack.shift()!;
+      s.runner.grip.push(drawn);
+      const withDraw = ownHandValue(s, 'runner');
+      // Swap the drawn card for any other deck card: same worth, since it's unseen
+      const other = structuredClone(s);
+      const swap = other.runner.stack.findIndex(c => c.cardCode !== drawn.cardCode);
+      [other.runner.grip[other.runner.grip.length - 1], other.runner.stack[swap]] = [other.runner.stack[swap], other.runner.grip[other.runner.grip.length - 1]];
+      other.runner.grip[other.runner.grip.length - 1].instanceId = drawn.instanceId + '-x';
+      expect(withDraw).toBeGreaterThan(known);
+      expect(ownHandValue(other, 'runner')).toBeCloseTo(withDraw, 1);
+    });
   });
 
   it('only the best cards up to the hand limit count; one over is a small filter', () => {
     let s = newGame();
-    decisionContext(s, 'corp');
     s.corp.hq = s.corp.hq.slice(0, s.corp.handSizeLimit);
-    decisionContext(s, 'corp');
-    const full = ownHandValue(s, 'corp');
+    const full = inDecision(s, 'corp', () => ownHandValue(s, 'corp'));
     // Two more copies of the weakest card: only the first adds the filter
     const worst = [...s.corp.hq].sort((a, b) => heldWorth(s, a, 'corp') - heldWorth(s, b, 'corp'))[0];
     s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.hq.push({ ...worst, instanceId: 'w1' }, { ...worst, instanceId: 'w2' });
-    decisionContext(s, 'corp');
+    const more = s;
     // The 0.3 filter, and the two added copies' small change to the Corp's damage pool (damageThreat's key counts the
     // Corp's cards since ai-runner-unknowns; before, the copies were served the 5-card hand's cached threat)
-    expect(ownHandValue(s, 'corp') - full).toBeCloseTo(0.3, 1);
+    expect(inDecision(more, 'corp', () => ownHandValue(more, 'corp')) - full).toBeCloseTo(0.3, 1);
   });
 });
 

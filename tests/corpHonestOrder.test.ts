@@ -4,7 +4,7 @@ import { CardInstance, GameAction, GameState, getLegalActions } from '../src/cor
 import { HeuristicCorpAI } from '../src/ai';
 import { breakerScript, iceSubtypes } from '../src/core/engine/ice';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
-import { decisionContext, clearHandCaches } from '../src/ai/handValues';
+import { inDecision, clearHandCaches } from '../src/ai/handValues';
 import { RankedCandidate, corpCandidates } from '../src/ai/corp/candidates';
 import { isCorpMain } from '../src/ai/corp/lines';
 import { corpSeenGrip } from '../src/ai/oracle';
@@ -103,8 +103,7 @@ const viewOrder = (s: GameState): string[] => {
   reset();
   return honest(() => {
     const view = decidingView(s);
-    decisionContext(view, 'corp');
-    return keyed(s, view);
+    return inDecision(view, 'corp', () => keyed(s, view));
   });
 };
 
@@ -140,7 +139,7 @@ describe("the deciding Corp's order reads no hidden card (rule 10.2.2a)", () => 
   it('the variants change the order or its keys built on the real state (the pins test something)', () => {
     const real = (s: GameState) => {
       reset();
-      return honest(() => (decisionContext(s, 'corp'), keyed(s, s)));
+      return honest(() => inDecision(s, 'corp', () => keyed(s, s)));
     };
     const moved = (s: GameState, kind: string) => variants(s).filter(([n]) => n.startsWith(kind)).some(([, v]) => JSON.stringify(real(v)) !== JSON.stringify(real(s)));
     expect(moved(drawPlays(), 'R&D')).toBe(true);

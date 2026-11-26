@@ -5,7 +5,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { knownTrap, placedCounterWorth } from '../src/ai/effectValues';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 /**
  * Part D (spec-jeff-games-48-50.md): a trap the Runner has accessed (card.runnerKnows) is known to it (7.1.2: both sides
@@ -38,7 +38,7 @@ describe('Part D: a trap the Runner has accessed', () => {
   it('r2g2 #155: the counter is worth 0 known and today\'s price unknown', () => {
     const { s, played } = at('known-trap-r2g2.json', 155);
     const card = trapOf(s, played);
-    const price = (c: typeof card) => asSide('corp', () => (decisionContext(s, 'corp'), placedCounterWorth(s, c)));
+    const price = (c: typeof card) => asSide('corp', () => inDecision(s, 'corp', () => placedCounterWorth(s, c)));
     expect(price(card)).toBe(0);
     const unknown = { ...card, runnerKnows: false };
     expect(knownTrap(unknown)).toBe(false);

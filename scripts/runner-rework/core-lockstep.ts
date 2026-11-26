@@ -25,6 +25,8 @@
  *   offrank R-B B2: the deciding Runner's off-turn score list at every top-level off-turn question (top scope only)
  *   legacy  facts-lockstep.ts's stream (every Runner chooseAction answer made inside the step, nested ones first): the
  *           continuity column, the old script's `inner`
+ *   value   R-B B1b bar 1 (the value stream): every value handed to the diagnostics sink's onValue (valueModel logValue:
+ *           quantity, site and the value bit for bit), in order, in every scope; one sink per tree (VALUES=0: none)
  * Each record carries its scope path (top>reply, top>oracle>..., top>hardR), so a record made in another place differs.
  *
  * POOL=batch (the 221 deals of g1 45444888753), nrdb (the 110 of NRDB=1 g1 45458221138), human
@@ -69,12 +71,31 @@ const SEED = Number(process.env.SEED ?? 12345);
 const SAMPLES = Number(process.env.SAMPLES ?? 3);
 const HARD_DEALS = Number(process.env.HARD_DEALS ?? 10);
 const ORACLE_DEALS = Number(process.env.ORACLE_DEALS ?? 4);
+// VALUES=0: no diagnostics sink (the value column stays empty), for a time-only run
+const VALUES = process.env.VALUES !== '0';
+// TIMES=1 (R-B B1b bar 4): the Corp's two hot named entries timed in every tree (hold.ts counted: countingHold;
+// cardPlans.ts handPlanWorth: planning), outermost call only, and each decision's ms by side and kind; same patch in
+// every tree, so it costs them alike
+const TIMES = process.env.TIMES === '1';
+const TIME_PATCHES: Patch[] = [
+  [
+    'ai/corp/hold.ts',
+    'const counted = <T>(f: () => T): T => (pricing().countingHold ? f() : withPricing({ countingHold: true }, f));',
+    "const counted = <T>(f: () => T): T => (pricing().countingHold ? f() : (globalThis as any).__lkTime('countingHold', () => withPricing({ countingHold: true }, f)));",
+  ],
+  [
+    'ai/cardPlans.ts',
+    'export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {',
+    "export function handPlanWorth(state: GameState, card: CardInstance): number | undefined {\n  return (globalThis as any).__lkTime('planning', () => __handPlanWorth(state, card));\n}\nfunction __handPlanWorth(state: GameState, card: CardInstance): number | undefined {",
+  ],
+];
+type Named = Record<string, { ms: number; n: number }>;
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(FAULT_LIST.length ? { fault: FAULT || 'none', ...x } : x));
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
 type Name = (typeof NAMES)[number];
-const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'drank', 'offrank', 'legacy'] as const;
+const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'drank', 'offrank', 'legacy', 'value'] as const;
 type Column = (typeof COLUMNS)[number];
 
 // ------------------------------------------------------------------------------------------------ trees
@@ -105,6 +126,7 @@ function makeTrees(): Record<Name, string> {
     if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
+    if (TIMES) applyPatches(dir, TIME_PATCHES, `times ${name}`, read, write);
     if (name === 'branch' && FAULT) {
       const fault: Patch[] | undefined = FAULTS[FAULT];
       if (!fault) throw new Error(`no fault ${FAULT} (core-faults.ts: ${Object.keys(FAULTS).join(', ')})`);
@@ -135,8 +157,22 @@ const fresh = (): Rec => Object.fromEntries(COLUMNS.map(c => [c, { n: 0, h: 0x81
 const show = (r: Rec) => Object.fromEntries(COLUMNS.map(c => [c, `${r[c].n}:${r[c].h.toString(16)}`]));
 
 /** Sets the hooks' globals to write into `rec` for tree `t` (cleared again by the returned function). */
-function listen(t: Tree, rec: Rec): () => void {
+function listen(t: Tree, rec: Rec, named: Named = {}): () => void {
   const scopes: string[] = [];
+  const timing = new Set<string>();
+  G.__lkTime = <T,>(name: string, fn: () => T): T => {
+    if (timing.has(name)) return fn();
+    timing.add(name);
+    const t0 = performance.now();
+    try {
+      return fn();
+    } finally {
+      timing.delete(name);
+      const a = (named[name] ??= { ms: 0, n: 0 });
+      a.ms += performance.now() - t0;
+      a.n++;
+    }
+  };
   const path = () => scopes.join('>');
   const core = t.core;
   G.__lkIn = (gr: any) => {
@@ -169,12 +205,14 @@ function listen(t: Tree, rec: Rec): () => void {
     if (path() === 'top') fnv(rec.offrank, scoreList(ranked));
   };
   G.__lkRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => fnv(rec.rank, `${path()}|${JSON.stringify(ranked.map(r => [r.action, String(r.score)]))}`);
+  // R-B B1b bar 1 (the value stream): every value an owner or copy hands the diagnostics sink, in order, in every scope
+  G.__lkVal = (quantity: string, site: string, value: number) => fnv(rec.value, `${path()}|${quantity}|${site}|${Object.is(value, -0) ? '-0' : String(value)}`);
   G.__lkAns = (where: string, _s: GameState, action: unknown) => {
     fnv(rec.prompt, `${path()}>${where}|runner|${key(action)}`);
     fnv(rec.legacy, String(JSON.stringify(action)));
   };
   return () => {
-    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = undefined;
+    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__lkVal = G.__lkTime = undefined;
   };
 }
 
@@ -229,6 +267,8 @@ function deal(pool: string, d: Deal, level: 'normal' | 'hard', checkRecord: bool
   let steps = 0;
   let diff: Record<string, unknown> | null = null;
   const sums = { base: fresh(), branch: fresh(), control: fresh() } as Record<Name, Rec>;
+  const named = { base: {}, branch: {}, control: {} } as Record<Name, Named>;
+  const kinds = { base: {}, branch: {}, control: {} } as Record<Name, Named>;
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.base.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -243,7 +283,7 @@ function deal(pool: string, d: Deal, level: 'normal' | 'hard', checkRecord: bool
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     for (const n of order) {
       res[n] = fresh();
-      const stop = listen(T[n], res[n]);
+      const stop = listen(T[n], res[n], named[n]);
       const t0 = performance.now();
       try {
         more[n] = g[n].step();
@@ -252,6 +292,11 @@ function deal(pool: string, d: Deal, level: 'normal' | 'hard', checkRecord: bool
       }
       const dt = performance.now() - t0;
       if (dec && more[n]) tms[n][dec.side].push(Math.round(dt * 10) / 10);
+      if (dec && more[n] && TIMES) {
+        const k = (kinds[n][`${dec.side}:${dec.kind}`] ??= { ms: 0, n: 0 });
+        k.ms += dt;
+        k.n++;
+      }
     }
     if (!more.base && !more.branch && !more.control) break;
     steps++;
@@ -271,7 +316,7 @@ function deal(pool: string, d: Deal, level: 'normal' | 'hard', checkRecord: bool
   const recordSame = checkRecord ? !diff && (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const side of ['corp', 'runner'] as const) ms[n][side].push(...tms[n][side]);
   const counts = Object.fromEntries(COLUMNS.map(c => [c, sums.base[c].n]));
-  out({ kind: 'deal', pool, seed: d.seed, steps, counts, recordSame, winner: B.winner ?? null, T: B.turnNumber, diff, ms: tms });
+  out({ kind: 'deal', pool, seed: d.seed, steps, counts, recordSame, winner: B.winner ?? null, T: B.turnNumber, diff, ms: tms, ...(TIMES ? { named, kinds } : {}) });
 }
 
 // ------------------------------------------------------------------------------------------------ human files
@@ -350,18 +395,29 @@ async function main() {
     // createAgent with SearchOptions (the Hard leg's seed and samples): the tree's own ai/index.ts
     const ai = await import(/* @vite-ignore */ join(dirs[n], 'src', 'ai/index.ts'));
     T[n].createAgentWith = (side: string, level: string, opts: object) => ai.createAgent(side, level, opts);
+    if (VALUES) {
+      // R-B B1b: one sink per tree for the whole run, installed at the top level (after the tree's graph has loaded, so
+      // the load order is the tree's own); it only hands each value to the column
+      const diag = await import(/* @vite-ignore */ join(dirs[n], 'src', 'ai/diagnostics.ts'));
+      const sink = diag.installDiagnostics();
+      sink.onValue = (quantity: string, site: string, _state: unknown, value: number) => G.__lkVal?.(quantity, site, value);
+    }
     if (POOLS.includes('oracle')) {
       if (POOLS.length !== 1) throw new Error('POOL=oracle runs alone (plan.oracle.safestRemote is set for the whole process)');
       T[n].synergy.applyPlanOff('+oracle.safestRemote');
     }
   }
-  const batch: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/facts-deals-45444888753.json', 'utf8'));
-  const nrdb: Deal[] = JSON.parse(readFileSync('scripts/runner-rework/facts-deals-45458221138.json', 'utf8'));
+  // RECORDS_BATCH / RECORDS_NRDB / RECORDS_G3 (R-B B1b bar 1): the base tree's own records (a base run's deals.json), so
+  // recordSame checks the base against the run it stands for; g3 (its deals, 3 games each) only with RECORDS_G3
+  const records = (name: string, fallback: string) => JSON.parse(readFileSync(process.env[name] ?? fallback, 'utf8')) as Deal[];
+  const batch = records('RECORDS_BATCH', 'scripts/runner-rework/facts-deals-45444888753.json');
+  const nrdb = records('RECORDS_NRDB', 'scripts/runner-rework/facts-deals-45458221138.json');
   const pick = (recs: Deal[]) => recs.filter(r => !DEALS.length || DEALS.includes(String(r.seed)));
   const sources: { pool: string; id: any }[] = [];
   for (const pool of POOLS) {
     if (pool === 'batch') for (const r of pick(batch)) sources.push({ pool, id: r });
     else if (pool === 'nrdb') for (const r of pick(nrdb)) sources.push({ pool, id: r });
+    else if (pool === 'g3') for (const r of pick(records('RECORDS_G3', 'RECORDS_G3 is required for POOL=g3'))) sources.push({ pool, id: r });
     else if (pool === 'hard') for (const r of pick(batch).slice(0, HARD_DEALS)) sources.push({ pool, id: r });
     else if (pool === 'oracle') for (const r of pick(batch).slice(0, ORACLE_DEALS)) sources.push({ pool, id: r });
     else if (pool === 'human') {
@@ -374,7 +430,7 @@ async function main() {
     if (Date.now() - started > MAX_MS) break;
     try {
       if (src.pool === 'human') human(src.id);
-      else deal(src.pool, src.id, src.pool === 'hard' ? 'hard' : 'normal', src.pool === 'batch' || src.pool === 'nrdb');
+      else deal(src.pool, src.id, src.pool === 'hard' ? 'hard' : 'normal', src.pool === 'batch' || src.pool === 'nrdb' || src.pool === 'g3');
     } catch (e) {
       out({ kind: 'error', pool: src.pool, src: src.pool === 'human' ? src.id : src.id.seed, error: (e as Error).stack?.slice(0, 400) });
     }

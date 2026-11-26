@@ -15,7 +15,7 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { evaluate } from '../src/ai/evaluate';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { rezCandidates } from '../src/ai/playout';
 import { bestBreakPlan } from '../src/ai/runs';
 import { countedRez } from '../src/ai/corp/rez';
@@ -36,7 +36,7 @@ function states(from: number, to: number): GameState[] {
   return out;
 }
 
-const finite = (s: GameState) => (['corp', 'runner'] as const).every(side => Number.isFinite(asSide(side, () => (decisionContext(s, side), evaluate(s, side)))));
+const finite = (s: GameState) => (['corp', 'runner'] as const).every(side => Number.isFinite(asSide(side, () => inDecision(s, side, () => evaluate(s, side)))));
 const title = (c: CardInstance | undefined) => (c ? cardDef(c).title : '');
 const iceById = (s: GameState, id: string) => Object.values(s.corp.servers).flatMap(v => v.ice).find(c => c.instanceId === id);
 
@@ -70,7 +70,7 @@ describe('issue #47: no NaN board value with Slap Vandal installed', () => {
       expect(title(approached)).toBe(ice);
       // The counted rule has no opinion (the Runner can pay through: Principia breaks Pharos for 6 of its 9 credits,
       // Bumi 1.0 has no end-the-run subroutine), so the rez model decides, and it is no longer NaN
-      expect(asSide('corp', () => (decisionContext(s, 'corp'), countedRez(s, approached)))).toBeNull();
+      expect(asSide('corp', () => inDecision(s, 'corp', () => countedRez(s, approached)))).toBeNull();
       expect(corp.chooseRez!(s, rezCandidates(s, 'approach_ice'))).toMatchObject({ type: 'REZ_CARD', cardInstanceId: approached.instanceId });
     }
   }, 60_000);

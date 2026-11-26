@@ -5,7 +5,7 @@ import { assetCover, assetPartner, scoreInTwoPick } from '../src/ai/corp/placeme
 import { scoringRemote } from '../src/ai/corp/lines';
 import { withDiagnostics } from '../src/ai/diagnostics';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
@@ -30,7 +30,7 @@ const position = (edit?: (s: GameState) => void): GameState => {
   return s;
 };
 const newRemote = { type: 'INSTALL_CARD', player: 'corp', cardInstanceId: 'inst-23', asNewRemote: true } as GameAction;
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 describe('assetCover: an econ asset behind the cheapest ice in HQ', () => {
   it('plays Whitespace (rez 2, under Palisade 3 and Brân 6) onto a new remote, then Nico Campaign behind it', () => {

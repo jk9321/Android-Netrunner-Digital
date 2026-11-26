@@ -15,7 +15,7 @@ import { GameAction, GameState, activePrompt, cardDef, createCardInstance, execu
 import { createAgent } from '../src/ai';
 import { rezCandidates } from '../src/ai/playout';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { rezMoney } from '../src/ai/corp/rezMoney';
 import { agendasUnseen } from '../src/ai/corp/pools';
 import { countedRez, spendsKept } from '../src/ai/corp/rez';
@@ -26,7 +26,7 @@ const C = {
   PROPRIONEGATION: '35048', SLEIPNIR: '36030',
 };
 const T = 120_000;
-const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 /** A Corp turn-7 board (as tests/reviewPins.test.ts): empty rig and HQ, the Runner at $0, the Corp at $20. */
 function board(setup: (s: GameState) => void): GameState {

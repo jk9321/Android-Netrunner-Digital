@@ -10,11 +10,11 @@ import { GameState, cardDef } from '../src/core';
 import { createCardInstance } from '../src/core/engine/gameState';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
-import { clearHandCaches, clickAudit, clickWorth, drawAudit } from '../src/ai/handValues';
+import { anchorAt, clearHandCaches, clickAudit, clickWorth, drawAudit, inDecision } from '../src/ai/handValues';
 import { clearDamageThreats, damageThreat, threatsAudit } from '../src/ai/effectValues';
-import { Pricing, contextKey, withPricing } from '../src/ai/pricing';
+import { Pricing, asSide, frameKeys, pricing, withPricing } from '../src/ai/pricing';
 import { askedFreeze, cardRate } from '../src/ai/valueModel';
-import { tuning } from '../src/ai/synergy';
+import { planWith, tuning } from '../src/ai/synergy';
 import { newGame } from './helpers';
 import { dealState } from '../scripts/stage-a/harness';
 
@@ -130,44 +130,132 @@ describe('the by-position maps key every field that is not in the state', () => 
     });
   }, 60_000);
 
-  it('every Pricing field is in pricingKey, in contextKey, or on the not-read list', () => {
+  // L-26 (B1b): the three maps are const; each clear helper moves its maps to a new generation (valueModel
+  // clearStateEntries), so they miss on the next ask, and leaves the other helper's map as it was (scripts/cache-bisect
+  // clears them one at a time). No module-level counter: codeHealth MODULE_LETS has none of the three
+  it("the clear helpers: each makes its own maps miss on the next ask, and only its own", () => {
+    const s = midGame();
+    const draw = () => cardRate(s, 'runner', 'now');
+    const click = () => clickWorth(s, 'runner');
+    const threat = () => damageThreat(s, false);
+    const all = () => [hits(drawAudit, draw), hits(clickAudit, click), hits(threatsAudit, threat)];
+    audited(drawAudit, () =>
+      audited(clickAudit, () =>
+        audited(threatsAudit, () => {
+          clearHandCaches();
+          clearDamageThreats();
+          all();
+          expect(all(), 'asked twice: every map hits').toEqual([1, 1, 1]);
+          clearHandCaches();
+          expect(all(), 'after clearHandCaches: drawWorth and clickWorth miss, damageThreat hits').toEqual([0, 0, 1]);
+          clearDamageThreats();
+          expect(all(), 'after clearDamageThreats: damageThreat misses, the hand maps hit').toEqual([1, 1, 0]);
+          clearHandCaches();
+          clearDamageThreats();
+          expect(all(), 'after both: all three miss').toEqual([0, 0, 0]);
+          expect(all()).toEqual([1, 1, 1]);
+        }),
+      ),
+    );
+  }, 60_000);
+
+  it('every frame field moves a key, or is on the not-read list (B1b: a behaviour pin, rev 1 item 5)', () => {
+    const s = midGame();
     const src = readFileSync(new URL('../src/ai/pricing.ts', import.meta.url), 'utf8');
     const iface = src.slice(src.indexOf('export interface Pricing {'), src.indexOf('\n}\n', src.indexOf('export interface Pricing {')));
-    const fields = [...iface.matchAll(/^ {2}(\w+):/gm)].map(m => m[1]);
-    const body = (name: string) => src.slice(src.indexOf(`export function ${name}(`), src.indexOf('\n}\n', src.indexOf(`export function ${name}(`)));
-    const read = `${body('pricingKey')}\n${body('contextKey')}`;
-    // Read through a helper, or by no value
-    const NOT_IN_KEYS: Record<string, string> = {
-      plan: "pricingKey's planSide (which side's plan) and leafHandByCard read it",
-      leaves: "pricingKey's leafHandByCard reads it",
-      diagnostics: 'no decision reads it (diagnostics.ts writes only)',
-    };
-    expect(fields.length).toBeGreaterThan(10);
-    expect(fields.filter(f => !new RegExp(`\\bc\\.${f}\\b`).test(read) && !(f in NOT_IN_KEYS))).toEqual([]);
-    expect(Object.keys(NOT_IN_KEYS).filter(f => !fields.includes(f) || new RegExp(`\\bc\\.${f}\\b`).test(read))).toEqual([]);
+    const fields = [...iface.matchAll(/^ {2}readonly (\w+):/gm)].map(m => m[1]);
+    expect(fields.length).toBeGreaterThan(15);
+    const keysIn = (patch: Partial<Pricing>) => withPricing(patch, () => JSON.stringify(frameKeys()));
+    // Each moved field: a frame `base` and the same frame with that field (and only it) changed
+    const cases = FIELD_CASES(s);
+    for (const f of fields) {
+      if (f in NOT_READ) {
+        expect(cases[f], `${f} is on the not-read list and has a case`).toBeUndefined();
+        continue;
+      }
+      expect(cases[f], `${f}: a case, or a reason on the not-read list`).toBeDefined();
+      for (const [label, base, changed] of cases[f]) {
+        const only = Object.keys(changed).filter(k => !Object.is((changed as Record<string, unknown>)[k], (base as Record<string, unknown>)[k]));
+        expect(only, `${label}: the variant differs from its base in ${f} only`).toEqual([f]);
+        expect(keysIn({ ...base, ...changed }), label).not.toBe(keysIn(base));
+      }
+    }
+    expect(Object.keys(NOT_READ).filter(f => !fields.includes(f))).toEqual([]);
+    expect(Object.keys(cases).filter(f => !fields.includes(f))).toEqual([]);
   });
 
-  it("contextKey changes with each field it holds", () => {
-    const s = midGame();
-    const base = contextKey();
-    for (const [field, patch] of CONTEXT_FIELDS(s)) expect(withPricing(patch, contextKey), field).not.toBe(base);
+  it('a frame that only changes the plan object keeps its keys: the plan is named by its side (not-read list)', () => {
+    const p1 = planWith(tuning.plan, []);
+    expect(withPricing({ plan: p1 }, () => frameKeys())).toEqual(frameKeys());
   });
+
+  it("the parts B1b drops are not in a frame at all: a top-level decision's frame has no other side's hand and no earlier anchor", () => {
+    const s = midGame();
+    // A Runner decision, then the Corp's: the Corp's frame starts from the top-level frame, not from what the Runner noted
+    let seen: { known: Pricing['known']; anchor: Pricing['anchor'] } | null = null;
+    asSide('runner', () => inDecision(s, 'runner', () => frameKeys()));
+    asSide('corp', () => inDecision(s, 'corp', () => (seen = { known: pricing().known, anchor: pricing().anchor })));
+    expect(seen!.known.runner).toBeNull();
+    expect(seen!.anchor?.side).toBe('corp');
+    // Nothing is left current after a decision, either side's
+    const game = new GameRunner(dealState(1001), { corp: createAgent('corp', 'normal'), runner: createAgent('runner', 'normal') });
+    for (let i = 0; i < 30 && game.step(); i++) {
+      expect(pricing().anchor, `after step ${i}`).toBeNull();
+      expect(pricing().known, `after step ${i}`).toEqual({ corp: null, runner: null });
+      expect(pricing().depth, `after step ${i}`).toBe(0);
+    }
+  }, 60_000);
 });
 
-/** Each contextKey field, changed one at a time from the default context. */
-function CONTEXT_FIELDS(s: GameState): [string, Partial<Pricing>][] {
+/** Frame fields no key holds, each with why (B1b rev 1a rider (a): and the two parts N2 drops, which are not fields). */
+const NOT_READ: Record<string, string> = {
+  plan: "named by its side in the pricing key (sideOff: the switches are the same for every position in a run); leafHandByCard reads its identity, pinned by the leaves case",
+  diagnostics: 'no decision reads it (diagnostics.ts writes only)',
+  depth: 'how many scopes deep the frame is: read by installTop only',
+  // Not fields: the other side's leftover known slot and a leftover anchor (an earlier decision's) were in the
+  // context key until B1b; a frame never holds them (the test above), so they are the only many-to-one change
+};
+
+type Case = [label: string, base: Partial<Pricing>, changed: Partial<Pricing>];
+/** Per moved field, frames that differ in it only (from a base that makes the field read, where one is needed). */
+function FIELD_CASES(s: GameState): Record<string, Case[]> {
   const root = structuredClone(s);
-  return [
-    ['frozen', { frozen: true }],
-    ['known.corp', { known: { corp: new Set([s.corp.hq[0]?.instanceId ?? 'x']), runner: null } }],
-    ['known.runner', { known: { corp: null, runner: new Set([s.runner.grip[0]?.instanceId ?? 'x']) } }],
-    ['anchor.id', { anchor: { id: 'a', credits: 0 } }],
-    ['anchor.credits', { anchor: { id: '', credits: 3 } }],
-    ['anchor.side', { anchor: { id: '', credits: 0, side: 'corp' } }],
-    ['anchor.root', { anchor: { id: '', credits: 0, root } }],
-    ['decisionSeed', { decisionSeed: 7 }],
-    ['rezzingToUse', { rezzingToUse: new Set(['inst-1']) }],
-  ];
+  const p = planWith(tuning.plan, []);
+  const one = (f: keyof Pricing, v: unknown, base: Partial<Pricing> = {}): Case => [`${f}=${String(v)}`, base, { [f]: v } as Partial<Pricing>];
+  return {
+    side: [one('side', 'corp'), one('side', 'runner')],
+    basePlan: [['basePlan, read by a leaf of the base plan', { plan: planWith(tuning.plan, []), leaves: [{ side: 'corp', plan: p }] }, { basePlan: p }]],
+    frozen: [one('frozen', true)],
+    known: [
+      ['known.corp', {}, { known: { corp: new Set([s.corp.hq[0]?.instanceId ?? 'x']), runner: null } }],
+      ['known.runner', {}, { known: { corp: null, runner: new Set([s.runner.grip[0]?.instanceId ?? 'x']) } }],
+    ],
+    anchor: [
+      ['anchor.id', {}, { anchor: { id: 'a', credits: 0 } }],
+      ['anchor.credits', { anchor: { id: '', credits: 0 } }, { anchor: { id: '', credits: 3 } }],
+      ['anchor.side', { anchor: { id: '', credits: 0 } }, { anchor: { id: '', credits: 0, side: 'corp' } }],
+      ['anchor.root', { anchor: anchorAt(s, 'corp') }, { anchor: anchorAt(root, 'corp') }],
+    ],
+    leaves: [['leaves, a leaf of the plan in force', { plan: p }, { leaves: [{ side: 'runner', plan: p }] }]],
+    averaging: [one('averaging', true)],
+    pricingRootDeck: [one('pricingRootDeck', true)],
+    pricingTagLoss: [one('pricingTagLoss', true)],
+    pricingIce: [one('pricingIce', true)],
+    countingHold: [one('countingHold', true)],
+    planning: [one('planning', true)],
+    decisionSeed: [one('decisionSeed', 7)],
+    rezzingToUse: [['rezzingToUse', {}, { rezzingToUse: new Set(['inst-1']) }]],
+    pricingBreaker: [one('pricingBreaker', true)],
+    oracleRunning: [one('oracleRunning', true)],
+  };
+}
+
+/** Each contextKey field, changed one at a time from the default context (the by-position maps' audits above). */
+function CONTEXT_FIELDS(s: GameState): [string, Partial<Pricing>][] {
+  return Object.values(FIELD_CASES(s))
+    .flat()
+    .filter(([label]) => /^(frozen|known|anchor|decisionSeed|rezzingToUse)/.test(label))
+    .map(([label, base, changed]) => [label, { ...base, ...changed }]);
 }
 
 /**

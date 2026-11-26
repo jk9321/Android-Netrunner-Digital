@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameAction, GameState, cardDef, getLegalActions } from '../src/core';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { iceRedirect } from '../src/ai/corp/placement';
 import { runnerBudget, serverHold } from '../src/ai/corp/hold';
 import { lineFloor, rezMoney, stakedServers } from '../src/ai/corp/rezMoney';
@@ -21,7 +21,7 @@ import { HeldLine } from '../src/ai/corp/lines';
  *  - Hidden information (10.2.2a): none of them reads R&D's order or the Runner's grip.
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 /** The same board with R&D's order reversed and the grip's cards replaced: what the Corp cannot see (10.2.2a). */
 const blind = (s: GameState): GameState => {
   const t = structuredClone(s);
