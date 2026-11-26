@@ -54,7 +54,7 @@ async function main() {
   const hv = m['ai/handValues.ts'];
   const s = core.createInitialGameState(decks.deckGameSetup(1001, decks.STARTER_DECKS.find((d: any) => d.side === 'corp'), decks.STARTER_DECKS.find((d: any) => d.side === 'runner')));
   console.log(`  hv exports: ${Object.keys(hv).filter(k => /cache|Cache/.test(k)).join(', ')}`);
-  let ok = 'not read';
+  let ok: string;
   try {
     const agent = ai.createAgent(s.activePlayer, 'normal');
     agent.chooseAction(structuredClone(s));
