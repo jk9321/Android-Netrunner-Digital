@@ -1,4 +1,4 @@
-import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -13,6 +13,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
+import { certainInHand } from '../core/engine/helpers';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -1070,9 +1071,16 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
 export function hqAgendaOdds(state: GameState, odds: number): number {
   const size = state.corp.hq.length;
   if (size === 0) return odds;
-  const known = knownInHand(state, 'corp').slice(-size);
-  const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
-  return (agendas + (size - known.length) * odds) / size;
+  // B4a 7(a): only the seen cards surely still there, by code and count (certainInHand: a card that left unseen and
+  // could be one of them takes it out; red team b4 finding 2, R-100); the list itself only says "could be"
+  let known = 0;
+  let agendas = 0;
+  for (const [code, n] of certainInHand(state, 'corp')) {
+    known += n;
+    if (getCardDefinition(code).type_code === 'agenda') agendas += n;
+  }
+  known = Math.min(known, size);
+  return (Math.min(agendas, known) + (size - known) * odds) / size;
 }
 
 /** A steal's worth less its additional costs (0 when they can't be paid). */

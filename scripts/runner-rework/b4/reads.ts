@@ -5,4 +5,16 @@
  */
 import type { Patch } from '../core-hooks';
 
-export const READ_HOOKS: Record<string, Patch[]> = {};
+const L = '  // eslint-disable-next-line @typescript-eslint/no-explicit-any\n';
+const fire = (name: string) => `(globalThis as any).__b4Fire?.('${name}')`;
+
+export const READ_HOOKS: Record<string, Patch[]> = {
+  // 7(a) hqAgendaOdds: the count against today's list (`slice(-size)`, every entry taken as there)
+  a: [
+    [
+      'ai/runs.ts',
+      `  known = Math.min(known, size);\n  return (Math.min(agendas, known) + (size - known) * odds) / size;\n}`,
+      `  known = Math.min(known, size);\n  const __new = (Math.min(agendas, known) + (size - known) * odds) / size;\n  const __k = (state.corp.knownToRunner ?? []).slice(-size);\n  const __old = (__k.filter(k => getCardDefinition(k.code).type_code === 'agenda').length + (size - __k.length) * odds) / size;\n${L}  if (__new !== __old) ${fire('a')};\n  return __new;\n}`,
+    ],
+  ],
+};
