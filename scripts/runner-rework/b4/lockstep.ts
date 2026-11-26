@@ -27,7 +27,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameState } from '../../../src/core';
 import { ALL_DECKS } from '../../nsg-sample-decks';
@@ -77,6 +77,23 @@ const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
 type Name = (typeof NAMES)[number];
 
+/** A commit's src into `dir`, checked file by file against the commit's tree and retried: on CI four processes share one
+ * shallow .git, and a `git archive | tar` racing another process's fetch once left a tree short of files (runs
+ * 45870911124 and 45888174090 each lost a shard to it). */
+function archive(sha: string, dir: string) {
+  const want = execSync(`git ls-tree -r --name-only ${sha} src`, { encoding: 'utf8', maxBuffer: 1 << 26 }).split('\n').filter(Boolean);
+  for (let tries = 0; ; tries++) {
+    rmSync(join(dir, 'src'), { recursive: true, force: true });
+    try {
+      execSync(`set -o pipefail; git archive ${sha} src | tar -x -C ${dir}`, { shell: '/bin/bash', stdio: 'ignore' });
+      if (want.every(f => existsSync(join(dir, f)))) return;
+    } catch {
+      /* retried below */
+    }
+    if (tries >= 8) throw new Error(`could not extract ${sha} src into ${dir}`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+  }
+}
 function makeTrees(): Record<Name, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
@@ -101,9 +118,9 @@ function makeTrees(): Record<Name, string> {
   for (const name of NAMES) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
-    if (name === 'branch' && BRANCH) execSync(`git archive ${BRANCH} src | tar -x -C ${dir}`);
+    if (name === 'branch' && BRANCH) archive(BRANCH, dir);
     else if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
-    else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
+    else archive(BASE, dir);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
     if (name === 'branch') for (const r of READS) applyPatches(dir, READ_HOOKS[r] ?? [], `reads ${r}`, read, write);
     dirs[name] = dir;
@@ -221,6 +238,17 @@ function knDiff(a: GameState, b: GameState) {
   }
   return res;
 }
+/** MEM_DUMP=1: on each listed difference, the agents' memory fields that differ between base and branch before the step
+ * (what an AI side carried from an earlier decision: the Corp's held line and planned line, the Runner's memory). */
+const MEM_DUMP = process.env.MEM_DUMP === '1';
+const memFields = (gr: any): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const side of ['corp', 'runner']) {
+    const a = gr.agents?.[side];
+    for (const f of ['memory', 'planMemory']) if (a && f in a) out[`${side}.${f}`] = key(a[f] instanceof Map ? [...a[f]] : a[f]);
+  }
+  return out;
+};
 const ms: Record<Name, Record<string, number>> = { base: {}, branch: {}, control: {} };
 const addMs = (m: Record<string, number>, k: string, x: number) => (m[k] = (m[k] ?? 0) + x);
 function deal(pool: string, d: Deal) {
@@ -256,6 +284,12 @@ function deal(pool: string, d: Deal) {
     const stepFires: Record<string, number> = {};
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     const prevBranch: GameState = g.branch.state;
+    let memAt: string[] = [];
+    const knBefore = KN_DUMP ? knDiff(g.base.state, g.branch.state) : undefined;
+    if (MEM_DUMP) {
+      const [mb, mr] = [memFields(g.base), memFields(g.branch)];
+      memAt = Object.keys(mb).filter(f => mb[f] !== mr[f]);
+    }
     for (const n of order) {
       res[n] = fresh();
       if (CLEAR) T[n].clear();
@@ -278,9 +312,9 @@ function deal(pool: string, d: Deal) {
     const pick = (n: Name) => key(g[n].last).slice(0, 160);
     const samePick = more.base === more.branch && key(g.base.last) === key(g.branch.last);
     if (PICKS && same('base', 'control') && !same('base', 'branch') && samePick) {
-      sameAt.push({ step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, pick: pick('base') });
+      sameAt.push({ step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, pick: pick('base'), ...(MEM_DUMP && { mem: memAt }), ...(KN_DUMP && { knAt: knBefore }) });
     } else if (FOLLOW && same('base', 'control') && !samePick && more.base && more.branch) {
-      const at: Record<string, unknown> = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, picks: { base: pick('base'), branch: pick('branch') } };
+      const at: Record<string, unknown> = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, picks: { base: pick('base'), branch: pick('branch') }, ...(MEM_DUMP && { mem: memAt }), ...(KN_DUMP && { knAt: knBefore }) };
       if (CONT && dec?.side === 'corp') {
         const branchPick = g.branch.last;
         at.contBase = replayWith(d, played, forced, clears, g.base.last);
