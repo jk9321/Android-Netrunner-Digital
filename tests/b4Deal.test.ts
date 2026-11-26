@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance, createRng, GameState, nextFloat } from '../src/core';
 import { certainInHand, revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
 import { runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
-import { dealRunnerUnknowns, guessHidden } from '../src/ai/runnerReply';
+import { dealRunnerUnknowns, guessHidden, knownRdSlots } from '../src/ai/runnerReply';
+import { determinize } from '../src/ai/search';
 import { newGame } from './helpers';
 import '../src/ai';
 
@@ -78,5 +79,35 @@ describe('B4a 7(e): the deal places what the Runner knows by code and count', ()
       places.add(g.corp.rd.findIndex(c => c.instanceId === share.id));
     }
     expect(places.size).toBeGreaterThan(5);
+  });
+});
+
+describe('B4a 7(f): the Hard determinize reads the marks through the same deal (red team b4 finding 11: no pool reaches it)', () => {
+  const lcg = (seed: number) => {
+    let n = seed;
+    return () => ((n = (n * 9301 + 49297) % 233280), n / 233280);
+  };
+  it("the Runner's worlds hold the seen HQ code in HQ and the exact R&D place, and read no id", () => {
+    const { s, fund } = board();
+    const top = s.corp.rd[0];
+    const seen = act(s, n => runnerSeesRd(n, n.corp.rd[0]));
+    const other = structuredClone(seen);
+    other.corp.knownToRunner = other.corp.knownToRunner!.map(e => (e.id === fund ? { ...e, id: other.corp.hq[0].instanceId } : e));
+    for (let k = 1; k <= 20; k++) {
+      const w = determinize(seen, 'runner', lcg(k));
+      expect(count(w.corp.hq, SG.hedgeFund)).toBeGreaterThanOrEqual(1);
+      expect(w.corp.rd[0].cardCode).toBe(top.cardCode);
+      expect(determinize(other, 'runner', lcg(k)).corp.hq.map(c => c.cardCode)).toEqual(w.corp.hq.map(c => c.cardCode));
+    }
+  });
+  it("after a shuffle no R&D place is kept for a share, in the Runner's worlds or the Corp's (4.2.2, 8.7.3)", () => {
+    const { s } = board();
+    let t = act(s, n => runnerSeesRd(n, n.corp.rd[0]));
+    expect([...knownRdSlots(t)]).toEqual([0]);
+    t = act(t, n => shuffleRD(n));
+    expect([...knownRdSlots(t)]).toEqual([]);
+    const codes = new Set<string>();
+    for (let k = 1; k <= 20; k++) codes.add(determinize(t, 'corp', lcg(k)).corp.rd[0].cardCode);
+    expect(codes.size).toBeGreaterThan(1);
   });
 });
