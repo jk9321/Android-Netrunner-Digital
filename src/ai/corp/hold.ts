@@ -2,11 +2,12 @@ import { CardInstance, GameState, activePrompt, cardDef, getCardScript, isLegalA
 import { rezCost, stealthCredits, threatLevel, TurnFlag, turnFlag } from '../../core/engine/cardEffects';
 import { canBreakSubroutinesWith, iceScript, iceSubroutines, iceSubtypes, isBioroid } from '../../core/engine/ice';
 import { SubEffect, SubFacts, bioroidBreakClicks, breakPlans, bypassesAhead, plannedSubroutines, runBypasses, subroutineFacts } from '../runs';
-import { CARDS, clickMoneyOf, turnIncomeOf } from '../cards';
+import { CARDS } from '../cards';
 import type { HoldFacts } from '../cards/types';
 import { counters } from '../../core/engine/cardEffects';
 import { plan, pricing, withPricing } from '../pricing';
 import { memo } from '../valueModel';
+import { TurnFrom, counterCredits, hosted, nextTurn, runnerEarnings } from '../nextTurnMoney';
 
 /**
  * Owner: does a server hold (Step 4 Stage A, spec-step4-corp-core.md 1.4; registry row "what holds a server").
@@ -85,31 +86,8 @@ export const CHECK = { runnerExtra: 0 };
  */
 export const runnerBudget = (s: GameState, from: TurnFrom = nextTurn(s)): number => from.credits + runnerEarnings(s, from)[Math.max(0, from.clicks - 1)] + CHECK.runnerExtra;
 
-/**
- * Where a turn's walk starts (Stage D item 3, F1). The Runner's next turn (`rest` false): its turn begins (5.7.1: the
- * turn-start money and counters), every click (maxClicks), its credits now. The rest of the turn under way once its run
- * is over (`rest` true): the clicks it has left, the credits it is left with (`credits`), nothing of the turn's start
- * again; a once-per-turn click ability already used this turn is counted again (toward a richer Runner).
- */
-export interface TurnFrom {
-  rest: boolean;
-  clicks: number;
-  credits: number;
-}
-export const nextTurn = (s: GameState): TurnFrom => ({ rest: false, clicks: Math.max(0, s.runner.maxClicks), credits: s.runner.credits });
+/** Where the walk starts for the rest of the Runner's turn under way (TurnFrom, nextTurnMoney.ts). */
 export const restOfTurn = (s: GameState, credits = s.runner.credits): TurnFrom => ({ rest: true, clicks: Math.max(0, s.runner.clicks), credits });
-
-const hosted = (c: CardInstance) => counters(c, 'credit');
-
-/**
- * The credits a Runner card's hosted counters pay, no click, during the Runner's turn (HoldFacts.counterCredits,
- * Coalescence: "Hosted power counter: Gain 2 credits. Use this ability only during your turn."; 9.5.1, 1.10.3a). The
- * counters as they stand: a used one is gone, so a turn's start and the rest of a turn read them alike.
- */
-export const counterCredits = (c: CardInstance): number => {
-  const f = CARDS[c.cardCode]?.holdFacts?.counterCredits;
-  return f ? f.credits * counters(c, f.counter) : 0;
-};
 
 /**
  * The credits the Runner's installed cards and its clicks but the run's make on its next turn: each installed card's
@@ -119,48 +97,6 @@ export const counterCredits = (c: CardInstance): number => {
  */
 export function runnerMoney(s: GameState): number {
   return runnerEarnings(s)[Math.max(0, s.runner.maxClicks - 1)];
-}
-
-/**
- * What k earning clicks make on the Runner's next turn, for k = 0 .. maxClicks (runnerMoney is k = maxClicks - 1): each
- * installed card's turn-start payment (no more than it holds), then the best set of its paying click abilities within
- * the k clicks (one use each), the other clicks 1 credit each (5.2.7a). The hold walk splits the turn's clicks between
- * earning and the rest (brief 5.3) and reads this for both. From the rest of a turn (`from.rest`): k = 0 .. its clicks left,
- * with no turn-start payment or turn-start counter (paid or placed already this turn).
- */
-export function runnerEarnings(s: GameState, from: TurnFrom = nextTurn(s)): number[] {
-  const rig = [...s.runner.rig.programs, ...s.runner.rig.hardware, ...s.runner.rig.resources];
-  let drip = 0;
-  const uses: { clicks: number; credits: number }[] = [];
-  for (const c of rig) {
-    const pay = turnIncomeOf(c.cardCode);
-    if (pay && !from.rest) drip += pay.hosted ? Math.min(pay.credits, hosted(c)) : pay.credits;
-    drip += counterCredits(c);
-    const m = clickMoneyOf(c.cardCode);
-    if (!m) continue;
-    let credits = m.credits;
-    if (m.hosted === 'cap') credits = Math.min(credits, hosted(c));
-    if (m.hosted === 'add') credits += hosted(c);
-    if (m.perVirus) credits += m.perVirus.credits * (counters(c, 'virus') + (from.rest ? 0 : m.perVirus.turnStart));
-    if (credits > m.clicks) uses.push({ clicks: m.clicks, credits });
-  }
-  const max = from.clicks;
-  const n = Math.min(uses.length, 10);
-  const out: number[] = [];
-  for (let clicks = 0; clicks <= max; clicks++) {
-    let best = clicks;
-    for (let mask = 1; mask < 1 << n; mask++) {
-      let k = 0;
-      let got = 0;
-      for (let i = 0; i < n; i++) if (mask & (1 << i)) {
-        k += uses[i].clicks;
-        got += uses[i].credits;
-      }
-      if (k <= clicks) best = Math.max(best, got + clicks - k);
-    }
-    out.push(drip + best);
-  }
-  return out;
 }
 
 /** Does the server hold, and by how much (see the file comment)? */

@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../core';
-import { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, knownIncome, legalShape, lineHolds, nextTurnCredits, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';
+import { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, legalShape, lineHolds, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';
+import { knownIncome, nextTurnCredits } from '../nextTurnMoney';
 import { ScoreLine, keepsScore } from '../winNow';
 import { isEconAsset } from '../cardValues';
 import { isTrap } from '../runs';

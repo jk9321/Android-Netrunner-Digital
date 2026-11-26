@@ -123,7 +123,7 @@ export const profileOf = (code: string): CardProfile | undefined => CARD_PROFILE
 export function unrezzedWorth(state: GameState, code: string, iced = false): number | undefined {
   const profile = profileOf(code);
   if (!profile) return undefined;
-  return logValue('cardBeforeInstall', 'unrezzedWorth', state, payoutWorth(profile, turnsLeft(state), profile.load, payoutWait(state, profile, 'corp', iced), cardRate(state, 'corp')) - (getCardDefinition(code).cost ?? 0), code, iced);
+  return logValue('cardBeforeInstall', 'unrezzedWorth', state, payoutWorth(profile, turnsLeft(state), profile.load, payoutWait(state, profile, 'corp', iced), cardRate(state, 'corp', 'later')) - (getCardDefinition(code).cost ?? 0), code, iced);
 }
 
 /** The install score a profiled Corp econ asset gets, on the scale of corpAI's install scores. */

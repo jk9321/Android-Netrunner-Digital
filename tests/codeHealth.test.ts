@@ -304,12 +304,17 @@ describe('AI code health (audit guards)', () => {
     return out;
   };
 
-  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 16 modules (29 before R8)', () => {
+  // 16 to 17 (R-14h fix commit 3, ruled in rulings 16 (f)): handValues.ts imports nextTurnMoney.ts (the Runner's next-turn
+  // money, read for a card drawn 'later'), and nextTurnMoney.ts imports cards/ (turnIncomeOf, clickMoneyOf), which is in
+  // the valuation cycle, so nextTurnMoney.ts joins it: cardPlans, cardProfiles, cardValues, cards/{elevation, index,
+  // liberation, systemGateway, vantagePoint}, counterValues, effectValues, evaluate, handValues, iceValues, nextTurnMoney,
+  // prompts, runs, threatModel. A copy of the money in handValues would keep 16 and break one owner per quantity.
+  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 17 modules (29 before R8)', () => {
     const found = cycles(importGraph());
     expect(found.filter(c => c.some(f => f.startsWith('corp/'))), 'corp/ reads the valuation layer; the layer reads corp/ only through corpPorts.ts').toEqual([]);
     // R-B B1 (and the Corp side's conditions for parking the cycle below, tracker R-28): runner/ holds the order only
     expect(found.filter(c => c.some(f => f.startsWith('runner/'))), 'runner/ reads the agent only through its context (runner/core.ts RunnerContext)').toEqual([]);
-    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(16);
+    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(17);
   });
 
   // R-B B1, tracker R-28 (parked by both coordinators 2026-11-24): the cycle that holds the Runner agent is these four and
@@ -424,7 +429,6 @@ describe('AI code health (audit guards)', () => {
       'corpAI.ts': 'the Corp agent, and the one corpPorts registration',
       'search.ts': 'the Hard Corp agent (corpDecide)',
       'index.ts': 'the AI entry',
-      'incomeLine.ts': "the counted lines' knownIncome (corp/lines.ts), which incomeLine prices a line with",
       'rezModel.ts': 'the Corp agenda pool (corp/pools.ts) inside the priced rez',
     };
     const graph = importGraph();
@@ -701,16 +705,24 @@ describe('AI code health (audit guards)', () => {
   // offer and the tag a trash gives, measured against beta ad25482: runs.ts + 14 (trashNet's engine test and the tag, its
   // comment, two imports), cards/types.ts + 3 (RunFacts.trashedByRunner and its comment), cards/elevation.ts + 2 (the
   // Plaza's fact and its card text)): corp/ 4,068, src/ai 16,442
-  it('keeps src/ai/corp at or under 4,068 lines and src/ai at or under 16,442 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner)', () => {
+  // Then + 15 in src/ai, corp/ - 86 (ai-runner-last-credits-fix, R-14h commit 1: the next-turn money moved out of corp/,
+  // bodies unchanged, measured against beta 4d85e9f (16,440): nextTurnMoney.ts + 101 (the moved bodies, the file comment,
+  // three imports), corp/hold.ts - 64, corp/lines.ts - 24, the callers' import lines + 2): corp/ 3,982, src/ai 16,455
+  // Then + 20 in src/ai, corp/ unchanged (R-14h commit 2: every read of the deck's average card says when the card is
+  // played: valueModel.ts + 6 (DrawWhen and its comment), handValues.ts + 14 (drawMoney and its comment, the money in
+  // drawWorth's key, heldFromPlayed's credits argument)): corp/ 3,982, src/ai 16,475
+  // Then + 9 in src/ai, corp/ unchanged (R-14h commit 3: the Runner's 'later' money, handValues.ts + 9 (drawMoney's body
+  // reads runnerEarnings once per board, laterMoneys, the import and the comment's form)): corp/ 3,982, src/ai 16,484
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,484 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(4068);
+    expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16442);
+    expect(all).toBeLessThanOrEqual(16484);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
-    expect(4068 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16442 - all).toBeLessThanOrEqual(SLACK);
+    expect(3982 - corp).toBeLessThanOrEqual(SLACK);
+    expect(16484 - all).toBeLessThanOrEqual(SLACK);
   });
 });

@@ -27,7 +27,8 @@ import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
 import { cardSynergy } from '../src/ai/synergyTags';
-import { HeldLine, knownIncome } from '../src/ai/corp/lines';
+import { HeldLine } from '../src/ai/corp/lines';
+import { knownIncome } from '../src/ai/nextTurnMoney';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');
 

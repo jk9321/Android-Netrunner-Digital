@@ -23,7 +23,8 @@ import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardI
 import { createAgent } from '../../src/ai';
 import { rezCandidates } from '../../src/ai/playout';
 import { approachCost, breakPlans, bypassesAhead, chainReactionBonus, iceCost, iceCreditNeed, isTrap, plannedSubroutines, runBypasses, runScore } from '../../src/ai/runs';
-import { serverHold, runnerEarnings, restOfTurn, counterCredits } from '../../src/ai/corp/hold';
+import { serverHold, restOfTurn } from '../../src/ai/corp/hold';
+import { runnerEarnings, counterCredits } from '../../src/ai/nextTurnMoney';
 import { HeuristicRunnerAI, readWriteFullShuffle, trojanHostValue } from '../../src/ai/runnerAI';
 import { runEventOptions } from '../../src/ai/prompts';
 import { CARDS } from '../../src/ai/cards';

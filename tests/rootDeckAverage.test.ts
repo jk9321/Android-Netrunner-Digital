@@ -23,12 +23,12 @@ describe('deck average at the decision root', () => {
     const root = withCredits(newGame(3), 8);
     const [rich, broke] = asSide('corp', () => {
       decisionContext(root, 'corp');
-      return playout(() => [cardRate(root, 'corp'), cardRate(withCredits(root, 0), 'corp')]);
+      return playout(() => [cardRate(root, 'corp', 'now'), cardRate(withCredits(root, 0), 'corp', 'now')]);
     });
     expect(broke).toBeLessThan(rich);
     // Outside the decision (the per-board price) the same order holds
-    const freshRich = cardRate(root, 'corp');
-    const freshBroke = cardRate(withCredits(root, 0), 'corp');
+    const freshRich = cardRate(root, 'corp', 'now');
+    const freshBroke = cardRate(withCredits(root, 0), 'corp', 'now');
     expect(freshBroke).toBeLessThan(freshRich);
   });
 
@@ -38,11 +38,11 @@ describe('deck average at the decision root', () => {
     const [full, drawn, again] = asSide('corp', () => {
       decisionContext(root, 'corp');
       return playout(() => {
-        const a = cardRate(root, 'corp');
+        const a = cardRate(root, 'corp', 'now');
         // A line that drew the top card: the same prices, one card fewer
         const after: GameState = { ...root, corp: { ...root.corp, rd: root.corp.rd.slice(1) } };
-        const b = cardRate(after, 'corp');
-        const c = cardRate(root, 'corp');
+        const b = cardRate(after, 'corp', 'now');
+        const c = cardRate(root, 'corp', 'now');
         return [a, b, c];
       });
     });
@@ -56,8 +56,8 @@ describe('deck average at the decision root', () => {
     const before = deckAvgStats.served;
     asSide('corp', () => {
       decisionContext(root, 'corp');
-      cardRate(root, 'corp');
-      playout(() => cardRate(root, 'runner'));
+      cardRate(root, 'corp', 'now');
+      playout(() => cardRate(root, 'runner', 'now'));
     });
     expect(deckAvgStats.served).toBe(before);
   });

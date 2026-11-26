@@ -109,7 +109,7 @@ export const CARD_PLANS: Record<string, CardPlan> = {
   // Sell Out: trash an installed resource as a cost; 4 credits and 2 cards
   '36011': {
     side: 'runner',
-    hand: { payoff: (state, card) => net(state, card, 4 + 2 * cardRate(state, 'runner')), ready: state => (state.runner.rig.resources.length > 0 ? 1 : 0) },
+    hand: { payoff: (state, card) => net(state, card, 4 + 2 * cardRate(state, 'runner', 'now')), ready: state => (state.runner.rig.resources.length > 0 ? 1 : 0) },
   },
   // Scrounge: install a program from the heap
   '35004': {
@@ -132,7 +132,7 @@ const installable = (state: GameState, card: CardInstance) => state.runner.grip.
 /** An installed Principia's worth as Knickknack fuel. */
 export function principiaFuel(state: GameState, card: CardInstance): number {
   if (card.cardCode !== PRINCIPIA || !state.runner.rig.resources.some(r => r.cardCode === KNICKKNACK)) return 0;
-  return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner'));
+  return 0.6 * ((cardDef(card).cost ?? 0) + cardRate(state, 'runner', 'now'));
 }
 
 

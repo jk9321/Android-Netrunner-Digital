@@ -21,7 +21,8 @@ import { GameAction, GameState, actingSide, executeAction, getLegalActions } fro
 import { createAgent } from '../src/ai';
 import { tuning } from '../src/ai/synergy';
 import { scoreInTwoPick } from '../src/ai/corp/placement';
-import { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
+import { scoreInTwo } from '../src/ai/corp/lines';
+import { knownIncome } from '../src/ai/nextTurnMoney';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { inDecision } from './helpers/pricing';
 

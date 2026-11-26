@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions } from '../core';
 import { answerPrompt } from './prompts';
 import { cardSynergy } from './synergyTags';
-import { knownIncome } from './corp/lines';
+import { knownIncome } from './nextTurnMoney';
 import { scoreNowPlan } from './winNow';
 import { tally } from './diagnostics';
 

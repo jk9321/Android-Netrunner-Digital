@@ -71,7 +71,7 @@ describe('V-B B6: a spent Spin Doctor prices Archives as the viewer knows it', (
     s.corp.archives.faceDown.push(createCardInstance(s, '30069'), ...s.corp.hq.splice(0, 2));
     s.corp.archives.faceUp.push(s.corp.hq.splice(0, 1)[0]);
     const { agenda, agendaPoints } = hiddenCardOdds(s);
-    const card = 0.3 * cardRate(s, 'corp');
+    const card = 0.3 * cardRate(s, 'corp', 'later');
     const worth = [card, ...s.corp.archives.faceDown.map(() => agenda * archivedAgendaLoss(s, agendaPoints) + (1 - agenda) * card)].sort((a, b) => b - a);
     expect(Object.is(spent(s, 'runner', spin), 0.3 + worth[0] + worth[1])).toBe(true);
   });
@@ -80,10 +80,10 @@ describe('V-B B6: a spent Spin Doctor prices Archives as the viewer knows it', (
 // V-B B6 review M1b: inside a noted decision, the cards the Corp cannot know are those in R&D at the decision's root;
 // everything else in Archives (already there, or discarded from a hand) it prices by what it is.
 describe('V-B B6 M1b: a spent Spin Doctor inside a decision', () => {
-  const known = (s: GameState, c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(s, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(s, 'corp'));
+  const known = (s: GameState, c: CardInstance) => (cardDef(c).type_code === 'agenda' ? archivedAgendaLoss(s, cardDef(c).agenda_points ?? 1) : 0.3 * cardRate(s, 'corp', 'later'));
   const odds = (s: GameState) => {
     const { agenda, agendaPoints } = hiddenCardOdds(s);
-    return agenda * archivedAgendaLoss(s, agendaPoints) + (1 - agenda) * 0.3 * cardRate(s, 'corp');
+    return agenda * archivedAgendaLoss(s, agendaPoints) + (1 - agenda) * 0.3 * cardRate(s, 'corp', 'later');
   };
   const top2 = (xs: number[]) => xs.sort((a, b) => b - a).slice(0, 2).reduce((a, b) => a + b, 0);
 

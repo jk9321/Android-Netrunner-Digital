@@ -14,7 +14,8 @@ import { GameRunner } from '../src/ai/playout';
 import { valueLoops } from '../src/ai/valueModel';
 import { applyPlanOff } from '../src/ai/synergy';
 import { holdCost } from './plan-measure-lib';
-import { isCorpMain, knownIncome } from '../src/ai/corp/lines';
+import { isCorpMain } from '../src/ai/corp/lines';
+import { knownIncome } from '../src/ai/nextTurnMoney';
 import { lineFloor as afterLineFloor } from '../src/ai/corp/rezMoney';
 
 applyPlanOff(process.env.PLAN_OFF ?? '');

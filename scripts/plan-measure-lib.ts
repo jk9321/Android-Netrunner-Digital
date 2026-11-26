@@ -376,7 +376,8 @@ export function holdCost(state: GameState, ice: CardInstance[], corpCredits: num
   const h = serverHold(state, server.id, { when: 'runnerTurn', corpCredits });
   return h.holds ? h.rezCost : null;
 }
-export { knownIncome, scoreInTwo } from '../src/ai/corp/lines';
+export { scoreInTwo } from '../src/ai/corp/lines';
+export { knownIncome } from '../src/ai/nextTurnMoney';
 export type { TwoTurnLine } from '../src/ai/corp/lines';
 
 /** Agendas the counting cannot cost: a requirement missing, or text that changes a requirement or places counters. */

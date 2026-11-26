@@ -57,7 +57,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     // Companions and connections a credit cheaper, +2 hand size with one of each
     runner: state => {
       const hosts = deckCount(state, 'runner', c => cardDef(c).type_code === 'resource' && !!cardDef(c).uniqueness && /companion|connection/i.test(cardDef(c).keywords ?? ''));
-      return Math.min(3, hosts) * 0.8 + (hosts >= 2 ? 0.6 * cardRate(state, 'runner') : 0);
+      return Math.min(3, hosts) * 0.8 + (hosts >= 2 ? 0.6 * cardRate(state, 'runner', 'now') : 0);
     },
   },
   // Nurse Hạnh
@@ -68,7 +68,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     // 2 cards when an Archives breach turns 2 or more cards faceup
     runner: state => {
       const facedown = state.corp.archives.faceDown.length >= 2 ? 1 : 0.4;
-      return perTurn(state, PACE.runs * PACE.archivesShare * runSuccess(state, 'archives') * facedown * 2 * cardRate(state, 'runner'), 'runner');
+      return perTurn(state, PACE.runs * PACE.archivesShare * runSuccess(state, 'archives') * facedown * 2 * cardRate(state, 'runner', 'later'), 'runner');
     },
   },
   // Stick and Poke
@@ -156,7 +156,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     // 2 cards each turn the Corp rezzes ice, trashed the first turn it doesn't
     runner: state => {
       const p = PACE.rezzes;
-      return (2 * cardRate(state, 'runner') * p) / (1 - p);
+      return (2 * cardRate(state, 'runner', 'later') * p) / (1 - p);
     },
   },
   // Hiram
@@ -197,7 +197,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { draw: 1 } },
     value: { rig: 1, draws: 1 },
     // A card in the grip parked for a fresh draw each turn, 4 at most
-    runner: state => perTurn(state, 0.3 * cardRate(state, 'runner'), 'runner', 0, 4),
+    runner: state => perTurn(state, 0.3 * cardRate(state, 'runner', 'later'), 'runner', 0, 4),
   },
   // Sipa
   '36023': {
@@ -222,7 +222,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { gives: { econ: 1, draw: 0.5 }, when: ['notInstalledThisTurn'] },
     value: { rig: 2 },
     // A tax on fast advances, then 4 credits and a card when the Corp scores a card it installed earlier
-    runner: state => 0.6 * (4 + cardRate(state, 'runner')) + 0.5,
+    runner: state => 0.6 * (4 + cardRate(state, 'runner', 'later')) + 0.5,
   },
   // Méliès City Luxury Line
   '36026': { synergy: { when: ['onScore'] } },

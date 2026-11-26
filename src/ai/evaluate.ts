@@ -125,7 +125,7 @@ export function runnerRigValue(state: GameState): number {
 function addRigCard(state: GameState, card: CardInstance, value: number): number {
   // Step 4: a card that pays out money is worth what it will still pay
   const profile = profileOf(card.cardCode);
-  if (profile) return value + payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner')) * payoutSlide(state, 'runner', counters(card, 'credit'));
+  if (profile) return value + payoutWorth(profile, turnsLeft(state), counters(card, 'credit'), payoutWait(state, profile, 'runner'), cardRate(state, 'runner', 'later')) * payoutSlide(state, 'runner', counters(card, 'credit'));
   // A breaker is worth its coverage above (plan.flatRates.breakers: no flat extra for having one)
   value += isIcebreaker(card) ? 0 : RATES.rigCardScale * runnerCardValue(card.cardCode, state, card);
   // Counters by what they do on this card (step 3), or the step-1 rates
@@ -156,7 +156,7 @@ function corpCardWorth(card: CardInstance, state: GameState | undefined, viewer:
   const hosted = counters(card, 'credit');
   const power = state && card.isRezzed ? countersWorth(state, card, 'power') : 0;
   const profile = state ? profileOf(card.cardCode) : undefined;
-  if (state && profile && !(card.isRezzed && hosted > 0)) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp')) : corpKeepValue(card.cardCode, state); // hosted credits: the owner's, below (V-B B6 item 33)
+  if (state && profile && !(card.isRezzed && hosted > 0)) return card.isRezzed ? payoutWorth(profile, turnsLeft(state), hosted, payoutWait(state, profile, 'corp', inIcedServer(state, card), left), cardRate(state, 'corp', 'later')) : corpKeepValue(card.cardCode, state); // hosted credits: the owner's, below (V-B B6 item 33)
   if (card.isRezzed && hosted > 0) {
     return 1 + (state ? countersWorth(state, card, 'credit') : hosted * RATES.counters.hostedCredit) + power;
   }

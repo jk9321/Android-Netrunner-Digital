@@ -364,7 +364,7 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
         const needed = breaksRezzedIce(state, c);
         return Math.min(lost, back ? reinstall : Infinity) * (needed ? 1 : 0.5);
       };
-      const spent = cards.map(c => ({ c, net: loss(c) - 0.5 * ((cardDef(c).cost ?? 0) + cardRate(state, 'runner')) })).filter(x => x.net < 0).sort((a, b) => a.net - b.net);
+      const spent = cards.map(c => ({ c, net: loss(c) - 0.5 * ((cardDef(c).cost ?? 0) + cardRate(state, 'runner', 'now')) })).filter(x => x.net < 0).sort((a, b) => a.net - b.net);
       return pick(spent[0]?.c);
     }
   }

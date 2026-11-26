@@ -313,7 +313,7 @@ export function damageWorth(state: GameState, n: number, drawBack = false, grip 
   const spent = state.activePlayer === 'runner' && !state.activeRun && state.runner.clicks === 0;
   const held = spent ? Math.min(state.runner.handSizeLimit ?? 5, grip) : grip;
   if (n > held) return logValue('damage', 'damageWorth', state, flatlineWorth(state), n, drawBack, grip);
-  const card = cardRate(state, 'runner');
+  const card = cardRate(state, 'runner', 'now');
   // The damage clock: the cards, and the step closer to a flatline the smaller grip leaves
   // Cards over the hand limit are discarded before the Corp's turn: they are no life against its damage
   const life = (g: number) => flatlineOdds(state, lifeGrip(state, g, false));
@@ -461,7 +461,7 @@ export const CORE_SLOT_USE = 0.5;
 
 /** Worth of a hand slot already lost to core damage (plan.flatRates.coreDamage; the damage clock already reads the lower limit). Owner of registry V19. */
 export function coreSlotWorth(state: GameState): number {
-  return CORE_SLOT_USE * cardRate(state, 'runner');
+  return CORE_SLOT_USE * cardRate(state, 'runner', 'now');
 }
 
 /**
@@ -490,7 +490,7 @@ export function corpEffect(state: GameState, code: string, rezzed = false): Corp
   const cost = rezzed ? 0 : getCardDefinition(code).cost ?? 0;
   const risk = getCardDefinition(code).type_code === 'asset' ? assetRisk(state, false) : PAYOUT_RISK.corpBare;
   const agenda = pointGain(state.corp.score, agendaOdds(state).points);
-  const card = cardRate(state, 'corp');
+  const card = cardRate(state, 'corp', 'now');
   // A tag on the Runner (ai-value-time step 2): 4 of the formulas read it, so it is worked out on the first read, at the
   // formula's entry (the readers destructure it there: same order, same pricing context) and kept for a second read
   let tag: number | undefined;

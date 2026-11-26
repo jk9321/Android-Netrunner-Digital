@@ -248,7 +248,7 @@ function fineParts(t: any, k: any, cardId: string, board: GameState) {
   void board;
   // The deck's average card (cardRate: drawWorth, heldWorth's SOON on the stack) on each board: the channel by which the
   // credits reach draw cards' and payout cards' worth in the rig and a click's worth
-  const cardRate = { trash: E.vm.cardRate(t.after, 'runner') as number, keep: E.vm.cardRate(k.after, 'runner') as number };
+  const cardRate = { trash: E.vm.cardRate(t.after, 'runner', 'later') as number, keep: E.vm.cardRate(k.after, 'runner', 'later') as number };
   return { base, fine, byCard, fineGap, pricedOut: out, cardRate };
 }
 const dd = (t: any, k: any, f: (c: any) => number) => f(t.cap) - f(k.cap);
@@ -754,7 +754,7 @@ function fixture(name: string) {
 }
 
 async function main() {
-  const dirs = makeTrees(root);
+  const dirs = makeTrees(root, shard);
   PL = await loadTree('play', dirs.play);
   const e = await loadTree('eval', dirs.eval);
   const m = (p: string) => import(/* @vite-ignore */ join(dirs.eval, 'src', p));
@@ -770,8 +770,10 @@ async function main() {
   const sources: { pool: string; id: any }[] = [];
   for (const pool of POOLS) {
     if (pool === 'batch' || pool === 'nrdb') {
+      // RECORDS=<batch run>,<nrdb run> (R-14h fix bar 3): the same deals, another base pair's records (last-credits-fix-deals-<run>.json)
+      const recFiles = process.env.RECORDS?.split(',').map(r => `scripts/runner-rework/last-credits-fix-deals-${r}.json`);
       const run = pool === 'batch' ? '45574713678' : '45593231799';
-      const recs: Rec[] = JSON.parse(readFileSync(`scripts/runner-rework/last-credits-deals-${run}.json`, 'utf8'));
+      const recs: Rec[] = JSON.parse(readFileSync(recFiles ? recFiles[pool === 'batch' ? 0 : 1] : `scripts/runner-rework/last-credits-deals-${run}.json`, 'utf8'));
       for (const r of recs) if (!DEALS.length || DEALS.includes(String(r.seed))) sources.push({ pool, id: r });
     } else if (pool === 'people') {
       const dir = 'tests/fixtures/human-games';

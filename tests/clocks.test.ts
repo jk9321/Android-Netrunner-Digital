@@ -28,7 +28,7 @@ describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
     // 4 cards, a card above the Corp's biggest hit of 4 (5 and 3 cards sit either side of the clock's middle: as close as 5)
     s.runner.grip = s.runner.grip.slice(0, 4);
     expect(damageWorth(s, 1)).toBeGreaterThan(roomy);
-    expect(roomy).toBeGreaterThan(cardRate(s, 'runner'));
+    expect(roomy).toBeGreaterThan(cardRate(s, 'runner', 'now'));
     s.runner.grip = s.runner.grip.slice(0, 1);
     expect(damageWorth(s, 2)).toBe(flatlineWorth(s));
   });
@@ -36,7 +36,7 @@ describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
   it('cards over the hand limit are no life against damage: they are discarded first', () => {
     const s = newGame();
     s.runner.grip = [...s.runner.grip.slice(0, 5), ...s.runner.stack.slice(0, 3)];
-    expect(damageWorth(s, 1)).toBeCloseTo(cardRate(s, 'runner'));
+    expect(damageWorth(s, 1)).toBeCloseTo(cardRate(s, 'runner', 'now'));
   });
 
   it('no damage in the Corp’s deck: no clock', () => {
