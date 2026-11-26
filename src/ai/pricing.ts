@@ -144,22 +144,15 @@ export function noteDecision(known: Partial<Record<SideCode, Set<string>>>, anch
  * plan, so the Corp's Runner reply plays the Runner with the Runner's own plan.
  */
 let basePlan: Plan | null = null;
-/** DIAGNOSTIC ONLY, NOT FOR MERGE (R-14h fix, bar 5's split): the side of the game's own decision, the outermost asSide. */
-let rootSide: SideCode | null = null;
-export const rootDecider = (): SideCode | null => rootSide;
 export function asSide<T>(side: SideCode, fn: () => T): T {
   if (context.side === side) return fn();
   const outer = basePlan === null;
   const base = basePlan ?? plan();
   basePlan = base;
-  if (outer) rootSide = side;
   try {
     return withPricing({ side, plan: sideOff[side].length ? planWith(base, sideOff[side]) : base }, fn);
   } finally {
-    if (outer) {
-      basePlan = null;
-      rootSide = null;
-    }
+    if (outer) basePlan = null;
   }
 }
 
