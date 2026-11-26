@@ -1,0 +1,779 @@
+Batch: DIAGNOSTIC (not for merge) R-14h fix bar 5 split: g3 on e7d8a46 (commit 3, the Runner's 'later' = today's credits inside the Corp's decisions) vs base 45717969976 | ref e7d8a4655277b246516614445b11f40f46e78bca | games 0-3 | PLAN_OFF= | decks  | corp-losses corp | added run  | paired with run 45717969976
+PAIRED vs base batch (same deals): 663 games counted (this batch 663, base 663)
+  Corp win: 46.2% this vs 47.7% base
+  Paired Corp win diff: -1.5 pts ± 1.5 SE over 663 games, inside noise (under 2 SE); unpaired SE would be ± 2.7
+  deals that changed winner: 46 to Corp, 56 to Runner, 561 the same
+  alarms per 100 games (this / base, paired diff ± SE):
+    Corp stayed broke: 48.7 / 47.4, +1.4 ± 1.9
+    Corp went broke: 73.3 / 72.5, +0.8 ± 2.5
+    agenda stuck in HQ: 28.7 / 28.4, +0.3 ± 1.9
+    fruitless runs: 3.2 / 4.7, -1.5 ± 0.7
+    open target skipped: 0.5 / 0.6, -0.2 ± 0.2
+    tag not used: 6.6 / 6.0, +0.6 ± 1.0
+  per game (this / base, paired diff ± SE, in SE):
+    steals from remotes: 0.710 / 0.718, -0.008 ± 0.027 (-0.3 SE) over 663 games
+    points from remotes: 1.623 / 1.649, -0.026 ± 0.063 (-0.4 SE) over 663 games
+    steals from remotes with a rezzed bioroid: 0.029 / 0.047, -0.018 ± 0.007 (-2.6 SE) over 663 games
+    points from remotes with a rezzed bioroid: 0.068 / 0.109, -0.041 ± 0.018 (-2.2 SE) over 663 games
+    agendas installed behind a rezzed bioroid: 0.234 / 0.243, -0.009 ± 0.019 (-0.5 SE) over 663 games
+    agendas advanced behind a rezzed bioroid: 0.249 / 0.243, +0.006 ± 0.021 (0.3 SE) over 663 games
+    agenda installs into a new remote: 0.656 / 0.632, +0.024 ± 0.020 (1.2 SE) over 663 games
+    agenda installs into a bare remote: 0.017 / 0.020, -0.003 ± 0.003 (-1.0 SE) over 663 games
+    agenda installs into an iced remote: 2.151 / 2.187, -0.036 ± 0.040 (-0.9 SE) over 663 games
+    agenda installs into a bioroid remote: 0.234 / 0.243, -0.009 ± 0.019 (-0.5 SE) over 663 games
+    steals from bioroid remotes per agenda installed behind a rezzed bioroid: 0.123 / 0.193
+
+
+Counted scoring C3: broke after scoring (a Corp turn begun under 3 credits, in the 3 after a score)
+  this batch: 1147 Corp scores in 663 games; next 3 turns under 3 credits: mean 0.64, at least 1 32.6%, at least 2 20.3%
+  base: 1163 Corp scores in 663 games; next 3 turns under 3 credits: mean 0.65, at least 1 32.7%, at least 2 20.5%
+  games with a broke spell (2+ of the 3 turns) after a score: 180; Corp won 52.8% of 180, base on the same deals 53.3% of 180
+  other games with a score: 364; Corp won 53.6% of 364, base on the same deals 54.1% of 364
+  broke spell, lost here, won in the base (19): 2291 Peculiarity v Sabbatical (turns 7); 1772 Brutal Efficiency v Sabbatical (turns 2); 2222 Peculiarity v Dashing Mad (turns 2,13); 2012 Fashion Lab v Flow and Ebb (turns 7); 1592 Quick and Dirty v Tickets, please (turns 11); 1812 Agency v Planning Ahead (turns 14); 1813 Agency v Planning Ahead (turns 12); 2033 Fashion Lab v Sabbatical (turns 9,12); 1403 Hyper Velocity v Party Hard (turns 2); 2472 Fine Print v Bowel Movements (turns 2); 1242 Discretion Advised v Enthusiasm (turns 6,9,16); 1891 Agency v Enthusiasm (turns 12); 2313 Glyph of Warding v Party Hard (turns 2); 1681 Brutal Efficiency v Planning Ahead (turns 9); 1042 The Syndicate (starter) v Bowel Movements (turns 2); 1902 Agency v Sabbatical (turns 12); 2992 Pork Chops v Bowel Movements (turns 12); 1083 The Syndicate (starter) v Shootin’ ‘n’ Lootin’ (turns 17); 1953 Fashion Lab v Bowel Movements (turns 10)
+ALARMS (per 100 games; dump a position: SEED=<deal> DUMP_TURN=<turn> DUMP_SIDE=<side> DUMP_FILE=x.json corp-losses.ts):
+  Corp stayed broke: 48.7 (323 in 263 games)
+    really: recovered 249, never recovered 74
+    most: Fashion Lab 48, Agency 39, Brutal Efficiency 38
+    deal 1001 The Syndicate (starter) vs The Catalyst (starter), turn 4 corp: under 3 credits at 3 turn starts in a row from turn 3, back to 3 on turn 6
+    deal 1212 Discretion Advised vs Shootin’ ‘n’ Lootin’, turn 4 corp: under 3 credits at 2 turn starts in a row from turn 3, 1 credits now; the game ended on turn 4 still under 3
+    deal 1852 Agency vs Tickets, please, turn 10 corp: under 3 credits at 3 turn starts in a row from turn 9, back to 5 on turn 12
+  Corp went broke: 73.3 (486 in 336 games)
+    really: advance 193, rez ice in a run 185, operation/install 33, rez asset/upgrade 31, install ice 24, runner's turn 15, other 5
+    most: Fashion Lab 60, Agency 51, Brutal Efficiency 48
+    deal 1212 Discretion Advised vs Shootin’ ‘n’ Lootin’, turn 3 corp: 0 credits; since last turn spent: rez ice in a run 3; gained: nothing; HQ operations: none; assets: Urtica Cipher
+    deal 1641 Quick and Dirty vs Sabbatical, turn 3 corp: 2 credits; since last turn spent: advance 2; gained: nothing; HQ operations: Retribution (1), Public Trail (4), Sprint (0); assets: none
+    deal 1852 Agency vs Tickets, please, turn 9 corp: 0 credits; since last turn spent: operation/install 4, advance 3; gained: turn start/assets 2; HQ operations: none; assets: none
+  agenda stuck in HQ: 28.7 (190 in 126 games)
+    really: empty iced remote ready 92, broke (under 3 credits) 42, queued behind a scoring remote 24, iced remotes taken 17, no iced remote 15
+    most: Gimbatul 28, Quick Returns 20, Pork Chops 17
+    deal 1431 Hyper Velocity vs Bowel Movements, turn 9 corp: Superconducting Hub in HQ since turn 3; the Runner got into HQ 2 times; 9 credits
+    deal 2711 Gimbatul vs Stolen Goods, turn 18 corp: Embedded Reporting in HQ since turn 12; the Runner got into HQ 2 times; 21 credits
+    deal 3133 Quick Returns vs Dashing Mad, turn 4 corp: Off the Books in HQ since turn 1; the Runner got into HQ 2 times; 15 credits
+  fruitless runs: 3.2 (21 in 21 games)
+    most: Professional Opportunities 3, Stolen Goods 3, Dashing Mad 3
+    deal 1642 Quick and Dirty vs Sabbatical, turn 19 runner: 3 turns in a row into archives for nothing
+    deal 2282 Peculiarity vs Enthusiasm, turn 19 runner: 3 turns in a row into archives for nothing
+    deal 3063 Pork Chops vs Enthusiasm, turn 16 runner: 3 turns in a row into archives for nothing
+  open target skipped: 0.5 (3 in 2 games)
+    really: agenda 3
+    most: Tickets, please 2, Party Hard 1
+    deal 1141 Discretion Advised vs Party Hard, turn 18 runner: remote-1: Offworld Office (3 counters) behind 5 rezzed ice costing about 15.3, Runner had 20 credits
+    deal 2243 Peculiarity vs Tickets, please, turn 11 runner: remote-1: Sericulture Expansion (1 counters) behind 1 rezzed ice costing about 5.0, Runner had 10 credits
+    deal 2243 Peculiarity vs Tickets, please, turn 12 runner: remote-1: Sericulture Expansion (1 counters) behind 1 rezzed ice costing about 5.0, Runner had 5 credits
+  tag not used: 6.6 (44 in 38 games)
+    most: Hyper Velocity 9, Hidden Funds 6, Gimbatul 6
+    deal 1423 Hyper Velocity vs Planning Ahead, turn 14 corp: 1 tag(s), 5 credits, resources: Smartware Distributor
+    deal 1641 Quick and Dirty vs Sabbatical, turn 13 corp: 1 tag(s), 9 credits, resources: Telework Contract
+    deal 2071 Hidden Funds vs Planning Ahead, turn 14 corp: 1 tag(s), 13 credits, resources: Telework Contract
+663 games: Corp 46.2%, Runner 53.8%
+How games end:
+  runner runner points: 317 (47.8%)
+  corp corp points: 240 (36.2%)
+  corp flatline: 66 (10.0%)
+  runner corp decked: 40 (6.0%)
+Runner points in Corp losses, by server:
+  rd: 879 (33.6%)
+  hq: 808 (30.9%)
+  remote: 773 (29.6%)
+  archives: 154 (5.9%)
+Remote steals (338):
+  by ice on the server (rezzed/total):
+  1/1: 98 (29.0%)
+  0/0: 67 (19.8%)
+  2/2: 44 (13.0%)
+  3/3: 27 (8.0%)
+  0/1: 20 (5.9%)
+  1/2: 17 (5.0%)
+  2/3: 16 (4.7%)
+  4/4: 11 (3.3%)
+  1/4: 8 (2.4%)
+  2/4: 6 (1.8%)
+  1/3: 5 (1.5%)
+  3/4: 3 (0.9%)
+  5/5: 3 (0.9%)
+  0/2: 3 (0.9%)
+  2/5: 2 (0.6%)
+  1/5: 2 (0.6%)
+  3/5: 2 (0.6%)
+  4/5: 1 (0.3%)
+  0/3: 1 (0.3%)
+  4/9: 1 (0.3%)
+  1/6: 1 (0.3%)
+  unrezzed ice at remote steals: none 250 (74.0%), declined 47 (13.9%), broke 41 (12.1%); broke since: turn start 28, during turn 13
+    broke remote steals of agendas installed the Corp's last turn: 20 of 41
+  unrezzed ice at R&D steals: declined 46 (11.7%), none 299 (75.9%), broke 49 (12.4%); broke since: turn start 40, during turn 9
+  unrezzed ice at HQ steals: none 275 (77.7%), declined 46 (13.0%), broke 33 (9.3%); broke since: turn start 27, during turn 6
+  already scoreable when stolen: 3
+  advanced at least once: 123
+  Corp credits when stolen: avg 8.1
+HQ steals (354): avg 2.4 agendas in a 4.1-card HQ, ice avg 1.1 (0.8 rezzed)
+R&D steals (394): ice avg 1.0 (0.7 rezzed)
+Corp losses:
+  Corp score at loss: avg 2.6; at 5+: 72
+  game length: avg 14.2 turns (Corp wins 15.5)
+  board in Corp losses (avg per turn): 1.5 remotes, 1.0 with ice, 1.7 remote ice (best remote 1.3), HQ 1.1, R&D 1.1
+  board in Corp wins (avg per turn): 1.7 remotes, 1.2 with ice, 2.0 remote ice (best remote 1.4), HQ 1.1, R&D 1.1
+  remote steals by iced remotes at the time: 0: 27, 1: 166, 2: 103, 3: 30, 4: 11, 5: 1
+  turns with an agenda in HQ and none in a remote: avg 9.1 (Corp wins 7.9)
+  agendas still in HQ at the end: avg 1.6
+Runner runs: 10219; paid to break then failed: 249 (2.4%), 901 credits wasted
+  jacked out before rezzed ice: known at run start 17, rezzed during the run 0
+  stopped by ice: known at run start 29, rezzed during the run 203
+Corp money in Corp losses (per Corp turn):
+  spent 2.24/turn: rez ice in a run 0.91, advance 0.38, install ice 0.33, rez asset/upgrade 0.27, operation/install 0.18, runner's turn 0.13, other 0.04, turn start/assets 0.00
+  gained 2.60/turn: operation/install 0.92, turn start/assets 0.70, click for credit 0.47, other 0.28, runner's turn 0.19, advance 0.03
+  credits at end of turn 10.0; clicks for a credit 15.3%
+  credits at start of turn 8.8; turn starts under 3 credits 15.1%
+Corp money in Corp wins (per Corp turn):
+  spent 2.59/turn: rez ice in a run 0.90, advance 0.79, install ice 0.29, rez asset/upgrade 0.27, operation/install 0.19, runner's turn 0.10, other 0.04, turn start/assets 0.00
+  gained 2.74/turn: operation/install 0.94, turn start/assets 0.94, click for credit 0.34, other 0.29, runner's turn 0.19, advance 0.04
+  credits at end of turn 10.2; clicks for a credit 10.4%
+  credits at start of turn 9.1; turn starts under 3 credits 13.3%
+Assets/upgrades rezzed (in a run / on the Corp's turn, credits per game): Regolith Mining License 0/437 1.26, Manegarm Skunkworks 245/0 0.74, Mahkota Langit Grid 0/193 0.58, Mercia B4LL4RD 0/120 0.36, Otto Campaign 0/132 0.33, Nico Campaign 0/96 0.28, Malapert Data Vault 0/89 0.13, Anthill Excavation Contract 0/30 0.10, Phật Gioan Baotixita 0/56 0.08, Idiosyncresis 0/44 0.06, Public Access Plaza 0/39 0.05, AMAZE Amusements 21/0 0.03, Humanoid Resources 0/8 0.01, Spin Doctor 315/618 0.00, Anoetic Void 151/0 0.00, Clearinghouse 0/53 0.00, Plutus 0/39 0.00, Mitra Aman 49/0 0.00
+  unrezzed ice approached that the Corp couldn't pay for: 995; affordable without asset/upgrade rezzes since its turn began: 75
+Traps installed and accessed: all 404/533 (75.8%); Urtica Cipher 169/254, Clearinghouse 118/150, Byte! 117/129
+Money assets (rezzed: credits paid out / rez cost each, Corp turns out, trashed in a run / emptied / still out at the end):
+  Regolith Mining License: 437: paid 5.6 / cost 1.9, 1.9 turns, 50.3% / 17.6% / 32.0%
+  Otto Campaign: 132: paid 3.9 / cost 1.7, 0.9 turns, 3.0% / 86.4% / 10.6%
+  Nico Campaign: 96: paid 5.5 / cost 1.9, 0.8 turns, 9.4% / 79.2% / 11.5%
+  Anthill Excavation Contract: 30: paid 4.0 / cost 2.3, 0.4 turns, 0.0% / 93.3% / 6.7%
+  trash risk per Runner turn: behind ice 5.3% of 1767, bare 21.7% of 640
+Placement (steals from runs in Corp losses: 1086):
+  Runner paid to get in: avg 1.6; nothing 588, 1-3 309, 4+ 189
+  ice that would have stopped them:
+  none: 593 (54.6%)
+  low-value server: 362 (33.3%)
+  hq: 131 (12.1%)
+    remote: hq 42, none 208, low-value server 88
+    rd: low-value server 166, none 176, hq 52
+    hq: hq 37, low-value server 108, none 209
+  broke steals where a rez on a low-value server in the last 2 turns would have paid for the ice: 10 of 123
+Runner's turn 1 (663 games): R&D bare 58.8%, HQ bare 58.8%, ice on remotes avg 0.3
+  with a bare central: 549; Corp held ice 379, ice it could rez 342; credits avg 7.4; HQ agendas avg 0.9
+Runner's turn 2 (662 games): R&D bare 39.7%, HQ bare 39.1%, ice on remotes avg 0.5
+  with a bare central: 375; Corp held ice 226, ice it could rez 159; credits avg 6.3; HQ agendas avg 0.9
+Rezzes in runs (all games): 2678 (8595 credits); on low-value servers 625 (23.3%), 1846 credits (21.5%)
+  most stolen agendas:
+  Offworld Office: 276 (24.0%)
+  Send a Message: 247 (21.4%)
+  Orbital Superiority: 138 (12.0%)
+  Embedded Reporting: 72 (6.3%)
+  Off the Books: 64 (5.6%)
+  Next Big Thing: 64 (5.6%)
+  Project Ingatan: 53 (4.6%)
+  Sericulture Expansion: 52 (4.5%)
+  Proprionegation: 37 (3.2%)
+  Luminal Transubstantiation: 34 (3.0%)
+  Above the Law: 30 (2.6%)
+  Superconducting Hub: 27 (2.3%)
+  Longevity Serum: 22 (1.9%)
+  Tomorrowʼs Headline: 21 (1.8%)
+  Aggressive Trendsetting: 10 (0.9%)
+  Greenmail: 5 (0.4%)
+SPEND AUDIT (Corp credits spent per Corp turn, and the share that bought nothing; operations gross; see scripts/spend-audit.ts):
+  kind                 losses (357 games)            wins (306 games)              all (663 games)               
+  rez ice in a run     0.91/turn, nothing 0.00 (0%)  0.90/turn, nothing 0.00 (0%)  0.90/turn, nothing 0.00 (0%)  
+  rez ice              0.00/turn, nothing 0.00 (0%)  0.00/turn, nothing 0.00 (0%)  0.00/turn, nothing 0.00 (0%)  
+  rez asset/upgrade    0.28/turn, nothing 0.08 (29%) 0.28/turn, nothing 0.06 (21%) 0.28/turn, nothing 0.07 (25%) 
+  advance              0.37/turn, nothing 0.05 (14%) 0.77/turn, nothing 0.03 (4%)  0.56/turn, nothing 0.04 (8%)  
+  install ice          0.33/turn, nothing 0.15 (46%) 0.29/turn, nothing 0.12 (42%) 0.31/turn, nothing 0.14 (44%) 
+  operation            1.35/turn, nothing 0.00 (0%)  1.35/turn, nothing 0.00 (0%)  1.35/turn, nothing 0.00 (0%)  
+  runner's turn        0.13/turn, nothing 0.00 (0%)  0.10/turn, nothing 0.00 (0%)  0.11/turn, nothing 0.00 (0%)  
+  ability              0.01/turn, nothing 0.00 (0%)  0.02/turn, nothing 0.00 (0%)  0.01/turn, nothing 0.00 (0%)  
+  trash resource       0.04/turn, nothing 0.00 (0%)  0.04/turn, nothing 0.00 (0%)  0.04/turn, nothing 0.00 (0%)  
+  all but income ops   2.14/turn, nothing 0.28 (13%) 2.48/turn, nothing 0.22 (9%)  2.30/turn, nothing 0.25 (11%) 
+  all                  3.41/turn, nothing 0.28 (8%)  3.75/turn, nothing 0.22 (6%)  3.57/turn, nothing 0.25 (7%)  
+  top "bought nothing" in losses: install ice 0.15, rez asset/upgrade 0.08, advance 0.05
+  top "bought nothing" in wins: install ice 0.12, rez asset/upgrade 0.06, advance 0.03
+  outcomes (credits per Corp turn, share of the kind's credits, count): columns losses | wins | all
+  rez ice in a run, by outcome:
+    stopped this run                             0.32 (35%, n 493)       0.41 (46%, n 583)       0.36 (40%, n 1076)      
+    passed, nothing lost                         0.20 (22%, n 319)       0.18 (20%, n 254)       0.19 (21%, n 573)       
+    passed, agenda stolen                        0.20 (22%, n 449)       0.09 (10%, n 198)       0.15 (16%, n 647)       
+    passed, card trashed                         0.10 (11%, n 163)       0.08 (9%, n 124)        0.09 (10%, n 287)       
+    passed, run stopped later                    0.05 (5%, n 70)         0.08 (9%, n 93)         0.06 (7%, n 163)        
+    Runner jacked out after it                   0.04 (4%, n 50)         0.05 (6%, n 55)         0.05 (5%, n 105)        
+    run ended at it otherwise                    0.00 (0%, n 3)          0.00 (0%, n 5)          0.00 (0%, n 8)          
+  rez ice, by outcome:
+    nothing                                      0.00 (0%, n 25)         0.00 (0%, n 54)         0.00 (0%, n 79)         
+    taxed only, >= rez cost                      0.00 (0%, n 8)          0.00 (0%, n 16)         0.00 (0%, n 24)         
+    subs fired                                   0.00 (0%, n 7)          0.00 (0%, n 14)         0.00 (0%, n 21)         
+    stopped a run                                0.00 (0%, n 2)          0.00 (0%, n 2)          0.00 (0%, n 4)          
+  rez asset/upgrade, by outcome:
+    paid back                                    0.10 (37%, n 302)       0.12 (43%, n 312)       0.11 (40%, n 614)       
+    fired                                        0.10 (34%, n 815)       0.10 (36%, n 745)       0.10 (35%, n 1560)      
+    unfired                                      0.05 (17%, n 175)       0.03 (11%, n 110)       0.04 (14%, n 285)       
+    trashed unfired                              0.03 (12%, n 156)       0.03 (10%, n 120)       0.03 (11%, n 276)       
+  advance, by outcome:
+    scored                                       0.29 (77%, n 470)       0.71 (92%, n 945)       0.48 (87%, n 1415)      
+    non-agenda, fired                            0.01 (4%, n 57)         0.02 (3%, n 58)         0.02 (3%, n 115)        
+    non-agenda, never fired                      0.01 (4%, n 50)         0.02 (2%, n 50)         0.02 (3%, n 100)        
+    stolen                                       0.02 (6%, n 80)         0.01 (1%, n 25)         0.01 (3%, n 105)        
+    advanced ice, nothing                        0.01 (3%, n 29)         0.00 (1%, n 12)         0.01 (1%, n 41)         
+    still installed at end                       0.01 (2%, n 20)         0.00 (1%, n 14)         0.01 (1%, n 34)         
+    advanced ice, stopped a run                  0.00 (1%, n 12)         0.01 (1%, n 13)         0.01 (1%, n 25)         
+    advanced ice, subs fired                     0.01 (2%, n 19)         0.00 (0%, n 3)          0.01 (1%, n 22)         
+    advanced ice, taxed only, >= rez cost        0.00 (1%, n 12)         0.00 (0%, n 7)          0.00 (1%, n 19)         
+    advanced ice, taxed only, < rez cost         0.00 (0%, n 1)          0.00 (0%, n 0)          0.00 (0%, n 1)          
+  install ice, by outcome:
+    rezzed                                       0.18 (54%, n 1574)      0.17 (58%, n 1389)      0.17 (56%, n 2963)      
+    never rezzed                                 0.15 (46%, n 957)       0.12 (42%, n 807)       0.14 (44%, n 1764)      
+  operation, by outcome:
+    income                                       1.27 (94%, n 1560)      1.27 (94%, n 1374)      1.27 (94%, n 2934)      
+    other effect                                 0.07 (5%, n 215)        0.08 (6%, n 269)        0.07 (5%, n 484)        
+    part refund                                  0.00 (0%, n 6)          0.00 (0%, n 2)          0.00 (0%, n 8)          
+    nothing observed                             0.00 (0%, n 0)          0.00 (0%, n 3)          0.00 (0%, n 3)          
+  rez ice (in a run or not), by the ice's life and the server's stake when rezzed:
+    stopped a run; stake                         0.34 (37%, n 512)       0.44 (49%, n 595)       0.39 (43%, n 1107)      
+    subs fired; stake                            0.20 (22%, n 355)       0.15 (17%, n 228)       0.18 (20%, n 583)       
+    taxed only, >= rez cost; stake               0.12 (13%, n 205)       0.09 (10%, n 126)       0.10 (12%, n 331)       
+    subs fired; empty                            0.09 (10%, n 156)       0.08 (9%, n 137)        0.09 (10%, n 293)       
+    stopped a run; empty                         0.05 (6%, n 82)         0.05 (6%, n 87)         0.05 (6%, n 169)        
+    taxed only, >= rez cost; empty               0.04 (5%, n 96)         0.05 (5%, n 82)         0.04 (5%, n 178)        
+    taxed only, < rez cost; stake                0.05 (6%, n 65)         0.02 (3%, n 26)         0.04 (4%, n 91)         
+    taxed only, < rez cost; empty                0.01 (2%, n 19)         0.01 (1%, n 13)         0.01 (1%, n 32)         
+    nothing; stake                               0.00 (0%, n 62)         0.00 (0%, n 60)         0.00 (0%, n 122)        
+    nothing; empty                               0.00 (0%, n 37)         0.00 (0%, n 44)         0.00 (0%, n 81)         
+  install ice, by whether the server was ever run while it stood:
+    rezzed, server run                           0.17 (53%, n 1506)      0.16 (56%, n 1320)      0.17 (54%, n 2826)      
+    never rezzed, server never run               0.09 (27%, n 566)       0.09 (30%, n 527)       0.09 (28%, n 1093)      
+    never rezzed, server run                     0.06 (18%, n 391)       0.04 (12%, n 280)       0.05 (16%, n 671)       
+    rezzed, server never run                     0.00 (1%, n 68)         0.01 (2%, n 69)         0.01 (2%, n 137)        
+  operations by card (losses | wins: count, credits, bought nothing; outcomes over all)
+    Touch-ups: 34, 68 cr, nothing 0 | 22, 44 cr, nothing 4; other effect 54, nothing observed 2
+    Neurospike: 0, 0 cr, nothing 0 | 1, 3 cr, nothing 3; nothing observed 1
+    Hedge Fund: 619, 3095 cr, nothing 0 | 524, 2620 cr, nothing 0; income 1143
+    Government Subsidy: 140, 1400 cr, nothing 0 | 140, 1400 cr, nothing 0; income 280
+    Petty Cash: 252, 756 cr, nothing 0 | 216, 648 cr, nothing 0; income 468
+    Hansei Review: 123, 615 cr, nothing 0 | 100, 500 cr, nothing 0; income 223
+    Peer Review: 125, 500 cr, nothing 0 | 116, 464 cr, nothing 0; income 241
+    Measured Response: 15, 75 cr, nothing 0 | 19, 95 cr, nothing 0; other effect 34
+    Nanomanagement: 21, 84 cr, nothing 0 | 20, 80 cr, nothing 0; other effect 41
+    Public Trail: 27, 108 cr, nothing 0 | 10, 40 cr, nothing 0; other effect 29, part refund 8
+    Key Performance Indicators: 68, 68 cr, nothing 0 | 67, 67 cr, nothing 0; income 129, other effect 6
+    Seamless Launch: 32, 32 cr, nothing 0 | 85, 85 cr, nothing 0; other effect 117
+    Retribution: 6, 6 cr, nothing 0 | 8, 8 cr, nothing 0; other effect 14
+    Top-Down Solutions: 1, 2 cr, nothing 0 | 4, 8 cr, nothing 0; other effect 5
+    Predictive Planogram: 271, 0 cr, nothing 0 | 245, 0 cr, nothing 0; income 397, other effect 119
+  assets/upgrades rezzed, by card (losses | wins: count, credits, bought nothing; outcomes over all)
+    Regolith Mining License: 236, 448 cr, nothing 96 | 201, 388 cr, nothing 78; paid back 314, trashed unfired 71, fired 33, unfired 19
+    Mahkota Langit Grid: 117, 234 cr, nothing 110 | 76, 152 cr, nothing 40; fired 117, unfired 62, trashed unfired 13, paid back 1
+    Manegarm Skunkworks: 138, 276 cr, nothing 62 | 107, 214 cr, nothing 46; fired 191, unfired 40, trashed unfired 14
+    Mercia B4LL4RD: 66, 132 cr, nothing 48 | 54, 108 cr, nothing 34; fired 79, trashed unfired 24, unfired 17
+    Malapert Data Vault: 53, 53 cr, nothing 42 | 36, 36 cr, nothing 29; unfired 63, fired 17, trashed unfired 8, paid back 1
+    Phật Gioan Baotixita: 32, 32 cr, nothing 32 | 24, 24 cr, nothing 24; trashed unfired 37, unfired 19
+    AMAZE Amusements: 12, 12 cr, nothing 12 | 9, 9 cr, nothing 9; unfired 16, trashed unfired 5
+    Idiosyncresis: 23, 19 cr, nothing 1 | 21, 19 cr, nothing 1; paid back 41, unfired 2, trashed unfired 1
+    Humanoid Resources: 6, 5 cr, nothing 1 | 2, 2 cr, nothing 1; paid back 6, trashed unfired 2
+    Otto Campaign: 48, 82 cr, nothing 0 | 84, 140 cr, nothing 0; paid back 103, fired 29
+    Nico Campaign: 39, 78 cr, nothing 0 | 57, 108 cr, nothing 0; paid back 87, fired 9
+    Anthill Excavation Contract: 8, 20 cr, nothing 0 | 22, 48 cr, nothing 0; paid back 29, fired 1
+    Public Access Plaza: 19, 15 cr, nothing 0 | 20, 19 cr, nothing 0; paid back 29, fired 10
+    Spin Doctor: 501, 0 cr, nothing 0 | 432, 0 cr, nothing 0; fired 927, unfired 5, paid back 1
+    Anoetic Void: 86, 0 cr, nothing 0 | 65, 0 cr, nothing 0; fired 107, trashed unfired 42, unfired 2
+  advances, by card (losses | wins: count, credits, bought nothing; outcomes over all)
+    Clearinghouse: 42, 61 cr, nothing 48 | 35, 59 cr, nothing 27; non-agenda, never fired 52, non-agenda, fired 25
+    Send a Message: 82, 248 cr, nothing 52 | 185, 788 cr, nothing 14; scored 222, stolen 37, still installed at end 8
+    Urtica Cipher: 49, 61 cr, nothing 18 | 56, 89 cr, nothing 47; non-agenda, fired 65, non-agenda, never fired 40
+    Syailendra: 42, 92 cr, nothing 38 | 13, 25 cr, nothing 12; advanced ice, nothing 24, advanced ice, subs fired 22, advanced ice, taxed only, >= rez cost 6, advanced ice, stopped a run 3
+    Offworld Office: 109, 329 cr, nothing 32 | 221, 748 cr, nothing 12; scored 294, stolen 29, still installed at end 7
+    Pharos: 31, 56 cr, nothing 20 | 22, 46 cr, nothing 10; advanced ice, stopped a run 22, advanced ice, nothing 17, advanced ice, taxed only, >= rez cost 13, advanced ice, taxed only, < rez cost 1
+    Orbital Superiority: 53, 161 cr, nothing 16 | 64, 226 cr, nothing 9; scored 98, stolen 12, still installed at end 7
+    Next Big Thing: 14, 30 cr, nothing 19 | 30, 134 cr, nothing 5; scored 30, stolen 9, still installed at end 5
+    Idiosyncresis: 16, 21 cr, nothing 5 | 17, 23 cr, nothing 4; non-agenda, fired 25, non-agenda, never fired 8
+    Proprionegation: 13, 45 cr, nothing 1 | 38, 130 cr, nothing 4; scored 46, stolen 3, still installed at end 2
+    Off the Books: 31, 84 cr, nothing 1 | 54, 136 cr, nothing 3; scored 82, still installed at end 2, stolen 1
+    Luminal Transubstantiation: 19, 47 cr, nothing 3 | 49, 122 cr, nothing 1; scored 65, stolen 2, still installed at end 1
+    Project Ingatan: 39, 114 cr, nothing 3 | 69, 207 cr, nothing 0; scored 106, stolen 2
+    Above the Law: 21, 50 cr, nothing 1 | 21, 44 cr, nothing 2; scored 39, stolen 3
+    Embedded Reporting: 46, 118 cr, nothing 2 | 67, 187 cr, nothing 0; scored 111, stolen 2
+  Runner's-turn costs, paid abilities and resource trashes, by card (losses | wins: count, credits, bought nothing; outcomes over all)
+    Byte!: 68, 272 cr, nothing 0 | 58, 232 cr, nothing 0; other effect 105, part refund 21
+    Anoetic Void: 129, 258 cr, nothing 0 | 82, 164 cr, nothing 0; other effect 211
+    trash resource: 112, 224 cr, nothing 0 | 81, 162 cr, nothing 0; other effect 193
+    PT Untaian: Life's Building Blocks: 44, 44 cr, nothing 0 | 92, 92 cr, nothing 0; other effect 136
+    CONTINUE_RUN: 33, 94 cr, nothing 0 | 12, 32 cr, nothing 0; other effect 45
+    PASS: 4, 10 cr, nothing 0 | 3, 9 cr, nothing 0; other effect 5, part refund 2
+    Plutus: 1, 1 cr, nothing 0 | 3, 3 cr, nothing 0; income 3, other effect 1
+Corp decks (win %):
+  Discretion Advised: 66.7% of 39
+  Peculiarity: 61.5% of 39
+  Hidden Funds: 51.3% of 39
+  Fine Print: 51.3% of 39
+  Fashion Lab: 51.3% of 39
+  Brick Stack: 48.7% of 39
+  Quick Returns: 48.7% of 39
+  Advanced Yomi: 48.7% of 39
+  The Syndicate (starter): 46.2% of 39
+  Quick and Dirty: 46.2% of 39
+  Brutal Efficiency: 46.2% of 39
+  Glyph of Warding: 41.0% of 39
+  Not so subtle: 41.0% of 39
+  Agency: 38.5% of 39
+  Gimbatul: 35.9% of 39
+  Hyper Velocity: 30.8% of 39
+  Pork Chops: 30.8% of 39
+Runner decks (win %):
+  Shootin’ ‘n’ Lootin’: 70.6% of 51
+  Tickets, please: 70.6% of 51
+  The Catalyst (starter): 64.7% of 51
+  Flow and Ebb: 64.7% of 51
+  Stolen Goods: 58.8% of 51
+  Bowel Movements: 56.9% of 51
+  Planning Ahead: 54.9% of 51
+  Sabbatical: 54.9% of 51
+  Party Hard: 49.0% of 51
+  Dashing Mad: 49.0% of 51
+  Enthusiasm: 37.3% of 51
+  Prick Thyself: 35.3% of 51
+  Professional Opportunities: 33.3% of 51
+Identities (per game: prompts taken/offered by step, abilities used, log lines naming it; win %):
+  corp AU Co.: The Gold Standard in Clones: 41.0% of 39; own turns 13.72; abilities 0.00; logs 1.51; prompts use 1.51/1.51, trash 1.51/1.51
+  corp BANGUN: When Disaster Strikes: 30.8% of 39; own turns 14.87; abilities 0.00; logs 0.00; agendas faceup 0.18
+  corp Haas-Bioroid: Precision Design: 56.4% of 78; own turns 14.62; abilities 0.00; logs 0.00; prompts archives 1.71/1.71
+  corp Jinteki: Restoring Humanity: 50.0% of 78; own turns 15.79; abilities 0.00; logs 0.00
+  corp LEO Construction: Labor Solutions: 38.5% of 39; own turns 15.90; abilities 1.92; logs 3.85; prompts trash 1.92/1.92
+  corp NBN: Reality Plus: 41.0% of 78; own turns 13.08; abilities 0.00; logs 0.00; prompts choice 4.15/4.15
+  corp Nebula Talent Management: Making Stars: 41.0% of 39; own turns 13.15; abilities 0.00; logs 15.85
+  corp Poétrï Luxury Brands: All the Rage: 51.3% of 39; own turns 12.56; abilities 0.00; logs 2.28; prompts pick 2.41/3.67, server 2.41/2.41
+  corp PT Untaian: Life's Building Blocks: 61.5% of 39; own turns 13.69; abilities 0.00; logs 3.49; prompts advance 3.49/4.23
+  corp Synapse Global: Faster than Thought: 35.9% of 39; own turns 14.62; abilities 0.92; logs 3.82; prompts pick 1.97/3.44, server 1.97/1.97
+  corp The Syndicate: Profit over Principle: 46.2% of 39; own turns 14.67; abilities 0.00; logs 0.00
+  corp The Zwicky Group: Invisible Hands: 48.7% of 39; own turns 13.56; abilities 0.00; logs 6.10; prompts draw 6.10/6.74
+  corp Weyland Consortium: Built to Last: 47.4% of 78; own turns 15.35; abilities 0.00; logs 0.00
+  runner Barry “Baz” Wong: Tri-Maf Veteran: 33.3% of 51; own turns 14.02; abilities 0.00; logs 0.00; prompts install 0.61/3.69
+  runner Dewi Subrotoputri: Pedagogical Dhalang: 37.3% of 51; own turns 14.24; abilities 0.00; logs 2.08; prompts flip 1.04/1.20
+  runner Magdalene Keino-Chemutai: Cryptarchitect: 54.9% of 51; own turns 16.00; abilities 0.00; logs 0.31; prompts install 0.37/1.25, host 0.12/0.12
+  runner MuslihaT: Multifarious Marketeer: 70.6% of 51; own turns 12.00; abilities 0.00; logs 6.57; prompts top 6.57/6.69
+  runner René “Loup” Arcemont: Party Animal: 52.9% of 102; own turns 13.53; abilities 0.00; logs 7.31
+  runner Ryō “Phoenix” Ōno: Out of the Ashes: 49.0% of 51; own turns 15.35; abilities 0.00; logs 5.22; prompts trash 2.55/2.55
+  runner Tāo Salonga: Telepresence Magician: 59.8% of 102; own turns 13.54; abilities 0.00; logs 1.58; prompts swap 1.58/3.26
+  runner The Catalyst: Convention Breaker: 64.7% of 51; own turns 13.25; abilities 0.00; logs 0.00
+  runner Topan: Ormas Leader: 35.3% of 51; own turns 15.14; abilities 6.37; logs 6.37; prompts install 6.37/6.37, host 1.41/1.41
+  runner Zahya Sadeghi: Versatile Smuggler: 64.7% of 102; own turns 12.81; abilities 0.00; logs 3.63; prompts gain 3.63/5.82
+BANGUN faceup agendas (by ice when installed: stolen / scored / still out / gone; games won by flatline, won):
+  no ice: 6; stolen 83%, scored 17%, out 0%, gone 0%; flatline wins 33%, wins 33%
+  2+ ice: 1; stolen 0%, scored 100%, out 0%, gone 0%; flatline wins 0%, wins 0%
+  no ice, grip <= 2: 1; stolen 100%, scored 0%, out 0%, gone 0%; flatline wins 0%, wins 0%
+  no ice, tag punisher held: 2; stolen 100%, scored 0%, out 0%, gone 0%; flatline wins 0%, wins 0%
+
+=== Weak Corp deck: Hyper Velocity ===
+ALARMS (per 100 games; dump a position: SEED=<deal> DUMP_TURN=<turn> DUMP_SIDE=<side> DUMP_FILE=x.json corp-losses.ts):
+  Corp stayed broke: 51.3 (20 in 16 games)
+    really: recovered 13, never recovered 7
+    most: Hyper Velocity 20
+    deal 1432 Hyper Velocity vs Bowel Movements, turn 9 corp: under 3 credits at 2 turn starts in a row from turn 8, back to 3 on turn 10
+    deal 1441 Hyper Velocity vs Dashing Mad, turn 8 corp: under 3 credits at 3 turn starts in a row from turn 7, 1 credits now; the game ended on turn 9 still under 3
+    deal 1442 Hyper Velocity vs Dashing Mad, turn 14 corp: under 3 credits at 2 turn starts in a row from turn 13, 1 credits now; the game ended on turn 14 still under 3
+  Corp went broke: 84.6 (33 in 20 games)
+    really: advance 23, rez ice in a run 8, install ice 1, rez asset/upgrade 1
+    most: Hyper Velocity 33
+    deal 1432 Hyper Velocity vs Bowel Movements, turn 6 corp: 2 credits; since last turn spent: rez ice in a run 4, install ice 3, advance 1; gained: nothing; HQ operations: Public Trail (4); assets: none
+    deal 1432 Hyper Velocity vs Bowel Movements, turn 8 corp: 1 credits; since last turn spent: advance 2; gained: nothing; HQ operations: Public Trail (4), Hansei Review (5); assets: none
+    deal 1432 Hyper Velocity vs Bowel Movements, turn 11 corp: 2 credits; since last turn spent: advance 1, install ice 1; gained: click for credit 1; HQ operations: Hansei Review (5), Public Trail (4), Hansei Review (5), Predictive Planogram (0); assets: none
+  agenda stuck in HQ: 33.3 (13 in 8 games)
+    really: empty iced remote ready 8, queued behind a scoring remote 3, broke (under 3 credits) 2
+    most: Hyper Velocity 13
+    deal 1431 Hyper Velocity vs Bowel Movements, turn 9 corp: Superconducting Hub in HQ since turn 3; the Runner got into HQ 2 times; 9 credits
+    deal 1451 Hyper Velocity vs Prick Thyself, turn 14 corp: Superconducting Hub in HQ since turn 3; the Runner got into HQ 2 times; 1 credits
+    deal 1391 Hyper Velocity vs The Catalyst (starter), turn 4 corp: Tomorrowʼs Headline in HQ since turn 1; the Runner got into HQ 2 times; 2 credits
+  fruitless runs: 2.6 (1 in 1 games)
+    most: Professional Opportunities 1
+    deal 1483 Hyper Velocity vs Professional Opportunities, turn 13 runner: 3 turns in a row into hq for nothing
+  tag not used: 23.1 (9 in 9 games)
+    most: Hyper Velocity 9
+    deal 1423 Hyper Velocity vs Planning Ahead, turn 14 corp: 1 tag(s), 5 credits, resources: Smartware Distributor
+    deal 1391 Hyper Velocity vs The Catalyst (starter), turn 8 corp: 3 tag(s), 2 credits, resources: Smartware Distributor
+    deal 1393 Hyper Velocity vs The Catalyst (starter), turn 14 corp: 1 tag(s), 2 credits, resources: Smartware Distributor, Smartware Distributor
+39 games: Corp 30.8%, Runner 69.2%
+How games end:
+  runner runner points: 23 (59.0%)
+  corp corp points: 10 (25.6%)
+  runner corp decked: 4 (10.3%)
+  corp flatline: 2 (5.1%)
+Runner points in Corp losses, by server:
+  remote: 75 (38.1%)
+  hq: 54 (27.4%)
+  rd: 53 (26.9%)
+  archives: 15 (7.6%)
+Remote steals (31):
+  by ice on the server (rezzed/total):
+  0/0: 9 (29.0%)
+  1/2: 5 (16.1%)
+  3/3: 5 (16.1%)
+  2/2: 4 (12.9%)
+  1/1: 4 (12.9%)
+  4/4: 2 (6.5%)
+  2/3: 1 (3.2%)
+  3/5: 1 (3.2%)
+  unrezzed ice at remote steals: none 24 (77.4%), declined 7 (22.6%); broke since: 
+    broke remote steals of agendas installed the Corp's last turn: 0 of 0
+  unrezzed ice at R&D steals: declined 2 (8.3%), none 22 (91.7%); broke since: 
+  unrezzed ice at HQ steals: declined 4 (18.2%), none 18 (81.8%); broke since: 
+  already scoreable when stolen: 0
+  advanced at least once: 9
+  Corp credits when stolen: avg 8.1
+HQ steals (22): avg 2.5 agendas in a 4.9-card HQ, ice avg 1.4 (1.1 rezzed)
+R&D steals (24): ice avg 1.1 (1.0 rezzed)
+Corp losses:
+  Corp score at loss: avg 2.6; at 5+: 5
+  game length: avg 13.6 turns (Corp wins 14.4)
+  board in Corp losses (avg per turn): 1.4 remotes, 1.1 with ice, 1.8 remote ice (best remote 1.5), HQ 1.2, R&D 1.2
+  board in Corp wins (avg per turn): 1.3 remotes, 1.0 with ice, 1.7 remote ice (best remote 1.5), HQ 1.2, R&D 1.1
+  remote steals by iced remotes at the time: 0: 5, 1: 16, 2: 10
+  turns with an agenda in HQ and none in a remote: avg 9.0 (Corp wins 6.8)
+  agendas still in HQ at the end: avg 2.1
+Runner runs: 564; paid to break then failed: 20 (3.5%), 47 credits wasted
+  jacked out before rezzed ice: known at run start 4, rezzed during the run 0
+  stopped by ice: known at run start 2, rezzed during the run 14
+Corp money in Corp losses (per Corp turn):
+  spent 2.17/turn: rez ice in a run 0.87, install ice 0.41, advance 0.40, operation/install 0.19, other 0.15, rez asset/upgrade 0.12, runner's turn 0.02
+  gained 2.63/turn: operation/install 1.27, click for credit 0.51, turn start/assets 0.47, runner's turn 0.37
+  credits at end of turn 9.5; clicks for a credit 17.0%
+  credits at start of turn 8.4; turn starts under 3 credits 12.0%
+Corp money in Corp wins (per Corp turn):
+  spent 2.27/turn: advance 0.95, rez ice in a run 0.67, install ice 0.32, rez asset/upgrade 0.16, operation/install 0.09, other 0.07, runner's turn 0.01
+  gained 2.27/turn: operation/install 1.02, turn start/assets 0.56, click for credit 0.40, runner's turn 0.30
+  credits at end of turn 7.8; clicks for a credit 12.4%
+  credits at start of turn 7.1; turn starts under 3 credits 18.5%
+Assets/upgrades rezzed (in a run / on the Corp's turn, credits per game): Manegarm Skunkworks 34/0 1.74, AMAZE Amusements 9/0 0.23, Spin Doctor 31/45 0.00
+  unrezzed ice approached that the Corp couldn't pay for: 17; affordable without asset/upgrade rezzes since its turn began: 1
+Traps installed and accessed: all 0/0 (0.0%); 
+Money assets (rezzed: credits paid out / rez cost each, Corp turns out, trashed in a run / emptied / still out at the end):
+  trash risk per Runner turn: behind ice 0.0% of 0, bare 0.0% of 0
+Placement (steals from runs in Corp losses: 77):
+  Runner paid to get in: avg 1.4; nothing 35, 1-3 34, 4+ 8
+  ice that would have stopped them:
+  none: 41 (53.2%)
+  low-value server: 20 (26.0%)
+  hq: 16 (20.8%)
+    remote: none 22, hq 6, low-value server 3
+    rd: low-value server 9, none 9, hq 6
+    hq: low-value server 8, hq 4, none 10
+  broke steals where a rez on a low-value server in the last 2 turns would have paid for the ice: 0 of 0
+Runner's turn 1 (39 games): R&D bare 43.6%, HQ bare 59.0%, ice on remotes avg 0.3
+  with a bare central: 27; Corp held ice 19, ice it could rez 19; credits avg 8.5; HQ agendas avg 0.8
+Runner's turn 2 (39 games): R&D bare 30.8%, HQ bare 28.2%, ice on remotes avg 0.4
+  with a bare central: 14; Corp held ice 10, ice it could rez 7; credits avg 5.6; HQ agendas avg 1.3
+Rezzes in runs (all games): 176 (425 credits); on low-value servers 30 (17.0%), 72 credits (16.9%)
+  most stolen agendas:
+  Send a Message: 40 (48.8%)
+  Orbital Superiority: 24 (29.3%)
+  Tomorrowʼs Headline: 11 (13.4%)
+  Superconducting Hub: 7 (8.5%)
+SPEND AUDIT (Corp credits spent per Corp turn, and the share that bought nothing; operations gross; see scripts/spend-audit.ts):
+  kind                 losses (27 games)             wins (12 games)               all (39 games)                
+  rez ice in a run     0.87/turn, nothing 0.01 (1%)  0.67/turn, nothing 0.00 (0%)  0.81/turn, nothing 0.00 (0%)  
+  rez ice              0.00/turn, nothing 0.00 (0%)  0.00/turn, nothing 0.00 (0%)  0.00/turn, nothing 0.00 (0%)  
+  rez asset/upgrade    0.14/turn, nothing 0.05 (37%) 0.16/turn, nothing 0.02 (15%) 0.15/turn, nothing 0.04 (30%) 
+  advance              0.40/turn, nothing 0.05 (12%) 0.95/turn, nothing 0.02 (2%)  0.57/turn, nothing 0.04 (7%)  
+  install ice          0.41/turn, nothing 0.11 (27%) 0.32/turn, nothing 0.12 (37%) 0.38/turn, nothing 0.11 (30%) 
+  operation            1.63/turn, nothing 0.00 (0%)  1.27/turn, nothing 0.02 (1%)  1.52/turn, nothing 0.01 (0%)  
+  runner's turn        0.01/turn, nothing 0.00 (0%)  0.00/turn, nothing 0.00 (0%)  0.01/turn, nothing 0.00 (0%)  
+  trash resource       0.15/turn, nothing 0.00 (0%)  0.07/turn, nothing 0.00 (0%)  0.13/turn, nothing 0.00 (0%)  
+  all but income ops   2.17/turn, nothing 0.21 (10%) 2.27/turn, nothing 0.18 (8%)  2.20/turn, nothing 0.20 (9%)  
+  all                  3.62/turn, nothing 0.21 (6%)  3.45/turn, nothing 0.18 (5%)  3.56/turn, nothing 0.20 (6%)  
+  top "bought nothing" in losses: install ice 0.11, rez asset/upgrade 0.05, advance 0.05
+  top "bought nothing" in wins: install ice 0.12, rez asset/upgrade 0.02, advance 0.02
+
+=== Weak Corp deck: Pork Chops ===
+ALARMS (per 100 games; dump a position: SEED=<deal> DUMP_TURN=<turn> DUMP_SIDE=<side> DUMP_FILE=x.json corp-losses.ts):
+  Corp stayed broke: 43.6 (17 in 17 games)
+    really: recovered 15, never recovered 2
+    most: Pork Chops 17
+    deal 3052 Pork Chops vs Flow and Ebb, turn 4 corp: under 3 credits at 2 turn starts in a row from turn 3, back to 6 on turn 5
+    deal 3053 Pork Chops vs Flow and Ebb, turn 4 corp: under 3 credits at 2 turn starts in a row from turn 3, back to 3 on turn 5
+    deal 3071 Pork Chops vs Sabbatical, turn 6 corp: under 3 credits at 2 turn starts in a row from turn 5, back to 7 on turn 7
+  Corp went broke: 64.1 (25 in 19 games)
+    really: rez ice in a run 11, advance 9, operation/install 3, install ice 1, runner's turn 1
+    most: Pork Chops 25
+    deal 3071 Pork Chops vs Sabbatical, turn 5 corp: 0 credits; since last turn spent: rez ice in a run 5, advance 1; gained: click for credit 1; HQ operations: Retribution (1); assets: Spin Doctor*
+    deal 3072 Pork Chops vs Sabbatical, turn 4 corp: 2 credits; since last turn spent: advance 3; gained: turn start/assets 2; HQ operations: none; assets: none
+    deal 2951 Pork Chops vs The Catalyst (starter), turn 9 corp: 2 credits; since last turn spent: advance 1; gained: nothing; HQ operations: Measured Response (5), Hedge Fund (5), Touch-ups (2); assets: none
+  agenda stuck in HQ: 43.6 (17 in 10 games)
+    really: empty iced remote ready 14, no iced remote 1, broke (under 3 credits) 1, iced remotes taken 1
+    most: Pork Chops 17
+    deal 3052 Pork Chops vs Flow and Ebb, turn 13 corp: Off the Books in HQ since turn 7; the Runner got into HQ 2 times; 9 credits
+    deal 3052 Pork Chops vs Flow and Ebb, turn 13 corp: Orbital Superiority in HQ since turn 9; the Runner got into HQ 2 times; 9 credits
+    deal 3053 Pork Chops vs Flow and Ebb, turn 5 corp: Above the Law in HQ since turn 1; the Runner got into HQ 2 times; 3 credits
+  fruitless runs: 5.1 (2 in 2 games)
+    most: Enthusiasm 1, Dashing Mad 1
+    deal 3063 Pork Chops vs Enthusiasm, turn 16 runner: 3 turns in a row into archives for nothing
+    deal 3003 Pork Chops vs Dashing Mad, turn 8 runner: 3 turns in a row into hq for nothing
+  tag not used: 7.7 (3 in 3 games)
+    most: Pork Chops 3
+    deal 3063 Pork Chops vs Enthusiasm, turn 12 corp: 1 tag(s), 5 credits, resources: Telework Contract
+    deal 2962 Pork Chops vs Party Hard, turn 13 corp: 1 tag(s), 3 credits, resources: Smartware Distributor, Smartware Distributor, Smartware Distributor
+    deal 3042 Pork Chops vs Professional Opportunities, turn 15 corp: 1 tag(s), 9 credits, resources: Fransofia Ward
+39 games: Corp 30.8%, Runner 69.2%
+How games end:
+  runner runner points: 25 (64.1%)
+  corp flatline: 10 (25.6%)
+  corp corp points: 2 (5.1%)
+  runner corp decked: 2 (5.1%)
+Runner points in Corp losses, by server:
+  rd: 74 (35.2%)
+  hq: 70 (33.3%)
+  remote: 54 (25.7%)
+  archives: 12 (5.7%)
+Remote steals (27):
+  by ice on the server (rezzed/total):
+  0/0: 8 (29.6%)
+  1/1: 4 (14.8%)
+  2/2: 3 (11.1%)
+  2/4: 3 (11.1%)
+  3/3: 3 (11.1%)
+  1/3: 2 (7.4%)
+  3/4: 2 (7.4%)
+  2/3: 1 (3.7%)
+  0/1: 1 (3.7%)
+  unrezzed ice at remote steals: none 18 (66.7%), declined 8 (29.6%), broke 1 (3.7%); broke since: during turn 1
+    broke remote steals of agendas installed the Corp's last turn: 1 of 1
+  unrezzed ice at R&D steals: declined 8 (21.6%), none 24 (64.9%), broke 5 (13.5%); broke since: turn start 4, during turn 1
+  unrezzed ice at HQ steals: none 26 (76.5%), declined 5 (14.7%), broke 3 (8.8%); broke since: during turn 1, turn start 2
+  already scoreable when stolen: 1
+  advanced at least once: 8
+  Corp credits when stolen: avg 7.9
+HQ steals (34): avg 2.5 agendas in a 4.2-card HQ, ice avg 0.9 (0.7 rezzed)
+R&D steals (37): ice avg 1.2 (0.8 rezzed)
+Corp losses:
+  Corp score at loss: avg 2.1; at 5+: 3
+  game length: avg 16.2 turns (Corp wins 12.8)
+  board in Corp losses (avg per turn): 1.2 remotes, 0.9 with ice, 1.5 remote ice (best remote 1.3), HQ 0.9, R&D 1.1
+  board in Corp wins (avg per turn): 1.7 remotes, 1.4 with ice, 1.8 remote ice (best remote 1.2), HQ 0.7, R&D 0.7
+  remote steals by iced remotes at the time: 0: 5, 1: 11, 2: 10, 3: 1
+  turns with an agenda in HQ and none in a remote: avg 11.4 (Corp wins 6.4)
+  agendas still in HQ at the end: avg 1.9
+Runner runs: 618; paid to break then failed: 1 (0.2%), 1 credits wasted
+  jacked out before rezzed ice: known at run start 0, rezzed during the run 0
+  stopped by ice: known at run start 0, rezzed during the run 1
+Corp money in Corp losses (per Corp turn):
+  spent 1.97/turn: rez ice in a run 0.68, advance 0.35, runner's turn 0.28, install ice 0.25, rez asset/upgrade 0.23, operation/install 0.15, other 0.03
+  gained 2.26/turn: operation/install 0.90, click for credit 0.50, other 0.33, turn start/assets 0.33, runner's turn 0.21
+  credits at end of turn 9.9; clicks for a credit 16.6%
+  credits at start of turn 8.9; turn starts under 3 credits 8.9%
+Corp money in Corp wins (per Corp turn):
+  spent 2.68/turn: rez ice in a run 0.70, advance 0.62, rez asset/upgrade 0.42, operation/install 0.41, runner's turn 0.33, install ice 0.19, other 0.01
+  gained 2.76/turn: operation/install 0.99, turn start/assets 0.65, other 0.50, runner's turn 0.33, click for credit 0.30
+  credits at end of turn 8.5; clicks for a credit 9.4%
+  credits at start of turn 7.7; turn starts under 3 credits 15.6%
+Assets/upgrades rezzed (in a run / on the Corp's turn, credits per game): Mahkota Langit Grid 0/32 1.64, Regolith Mining License 0/31 1.28, Anthill Excavation Contract 0/19 1.21, Spin Doctor 26/35 0.00, Clearinghouse 0/3 0.00
+  unrezzed ice approached that the Corp couldn't pay for: 65; affordable without asset/upgrade rezzes since its turn began: 2
+Traps installed and accessed: all 55/61 (90.2%); Byte! 34/39, Clearinghouse 21/22
+Money assets (rezzed: credits paid out / rez cost each, Corp turns out, trashed in a run / emptied / still out at the end):
+  Regolith Mining License: 31: paid 7.0 / cost 1.6, 1.3 turns, 32.3% / 29.0% / 38.7%
+  Anthill Excavation Contract: 19: paid 4.0 / cost 2.5, 0.4 turns, 0.0% / 94.7% / 5.3%
+  trash risk per Runner turn: behind ice 2.2% of 89, bare 28.6% of 28
+Placement (steals from runs in Corp losses: 98):
+  Runner paid to get in: avg 1.4; nothing 57, 1-3 22, 4+ 19
+  ice that would have stopped them:
+  none: 45 (45.9%)
+  low-value server: 45 (45.9%)
+  hq: 8 (8.2%)
+    remote: none 12, low-value server 12, hq 3
+    rd: low-value server 19, none 17, hq 1
+    hq: none 16, low-value server 14, hq 4
+  broke steals where a rez on a low-value server in the last 2 turns would have paid for the ice: 2 of 9
+Runner's turn 1 (39 games): R&D bare 48.7%, HQ bare 59.0%, ice on remotes avg 0.2
+  with a bare central: 32; Corp held ice 25, ice it could rez 22; credits avg 7.3; HQ agendas avg 0.8
+Runner's turn 2 (39 games): R&D bare 38.5%, HQ bare 38.5%, ice on remotes avg 0.5
+  with a bare central: 24; Corp held ice 13, ice it could rez 10; credits avg 6.5; HQ agendas avg 0.9
+Rezzes in runs (all games): 120 (395 credits); on low-value servers 36 (30.0%), 95 credits (24.1%)
+  most stolen agendas:
+  Offworld Office: 34 (32.7%)
+  Orbital Superiority: 30 (28.8%)
+  Off the Books: 29 (27.9%)
+  Above the Law: 11 (10.6%)
+SPEND AUDIT (Corp credits spent per Corp turn, and the share that bought nothing; operations gross; see scripts/spend-audit.ts):
+  kind                 losses (27 games)             wins (12 games)               all (39 games)                
+  rez ice in a run     0.68/turn, nothing 0.00 (0%)  0.70/turn, nothing 0.00 (0%)  0.68/turn, nothing 0.00 (0%)  
+  rez asset/upgrade    0.23/turn, nothing 0.05 (22%) 0.42/turn, nothing 0.06 (13%) 0.28/turn, nothing 0.05 (19%) 
+  advance              0.35/turn, nothing 0.09 (27%) 0.62/turn, nothing 0.06 (10%) 0.42/turn, nothing 0.09 (20%) 
+  install ice          0.25/turn, nothing 0.14 (56%) 0.19/turn, nothing 0.11 (59%) 0.23/turn, nothing 0.13 (57%) 
+  operation            1.39/turn, nothing 0.00 (0%)  1.56/turn, nothing 0.01 (1%)  1.43/turn, nothing 0.00 (0%)  
+  runner's turn        0.28/turn, nothing 0.00 (0%)  0.33/turn, nothing 0.00 (0%)  0.29/turn, nothing 0.00 (0%)  
+  trash resource       0.03/turn, nothing 0.00 (0%)  0.01/turn, nothing 0.00 (0%)  0.03/turn, nothing 0.00 (0%)  
+  all but income ops   1.97/turn, nothing 0.28 (14%) 2.68/turn, nothing 0.24 (9%)  2.14/turn, nothing 0.27 (13%) 
+  all                  3.20/turn, nothing 0.28 (9%)  3.83/turn, nothing 0.24 (6%)  3.36/turn, nothing 0.27 (8%)  
+  top "bought nothing" in losses: install ice 0.14, advance 0.09, rez asset/upgrade 0.05
+  top "bought nothing" in wins: install ice 0.11, advance 0.06, rez asset/upgrade 0.06
+
+OPENING AUDIT (Phase 2 O1, scripts/opening-audit.ts): 663 games
+First Corp turn of each (mean over games where it happened; share that never did by turn 6):
+  losses (357): ice 1.2 (none by T6 0.3%), central first 72.8%; remote 1.5 (none by T6 0.6%); agenda install 5.0 (none by T6 33.6%); advance 5.9 (none by T6 50.1%); score 6.4 (none by T6 58.5%)
+  wins (306): ice 1.2 (none by T6 0.0%), central first 69.0%; remote 1.4 (none by T6 0.3%); agenda install 4.1 (none by T6 19.9%); advance 5.0 (none by T6 31.4%); score 5.7 (none by T6 38.6%)
+  all (663): ice 1.2 (none by T6 0.2%), central first 71.0%; remote 1.4 (none by T6 0.5%); agenda install 4.5 (none by T6 27.3%); advance 5.4 (none by T6 41.5%); score 6.0 (none by T6 49.3%)
+Credits at the start of Corp turns 1-6 (mean):
+  losses: 5.0 / 6.3 / 6.7 / 7.8 / 8.4 / 8.6
+  wins: 5.0 / 6.6 / 6.8 / 7.8 / 8.3 / 8.7
+  all: 5.0 / 6.4 / 6.8 / 7.8 / 8.3 / 8.7
+Clicks on Corp turns 1-3 | 4-6, by kind:
+  losses T1-3 (3195 clicks): agenda: install 5.2%, agenda: advance 8.6%, asset 13.8%, upgrade 6.9%, ice: central 18.2%, ice: remote 7.2%, operation: money 10.9%, operation: other 3.7%, credit click 12.1%, draw 8.6%, advance: asset 1.5%, advance: ice 0.4%, ability 2.4%, trash resource 0.1%, purge 0.3%
+  losses T4-6 (3042 clicks): agenda: install 5.7%, agenda: advance 11.6%, asset 9.5%, upgrade 4.8%, ice: central 6.6%, ice: remote 9.0%, operation: money 7.3%, operation: other 3.4%, credit click 17.8%, draw 16.2%, advance: asset 0.9%, advance: ice 1.2%, ability 3.8%, trash resource 0.6%, purge 1.7%
+  wins T1-3 (2732 clicks): agenda: install 6.0%, agenda: advance 11.5%, asset 14.9%, upgrade 5.2%, ice: central 17.5%, ice: remote 8.5%, operation: money 10.7%, operation: other 3.7%, credit click 10.0%, draw 7.6%, advance: asset 0.8%, advance: ice 0.3%, ability 2.7%, trash resource 0.1%, purge 0.5%
+  wins T4-6 (2658 clicks): agenda: install 7.2%, agenda: advance 18.5%, asset 10.3%, upgrade 4.1%, ice: central 6.8%, ice: remote 8.8%, operation: money 7.2%, operation: other 3.6%, credit click 12.8%, draw 12.0%, advance: asset 1.3%, advance: ice 0.7%, ability 3.9%, trash resource 0.5%, purge 2.1%
+  all T1-3 (5927 clicks): agenda: install 5.6%, agenda: advance 9.9%, asset 14.3%, upgrade 6.1%, ice: central 17.9%, ice: remote 7.8%, operation: money 10.8%, operation: other 3.7%, credit click 11.1%, draw 8.1%, advance: asset 1.1%, advance: ice 0.4%, ability 2.6%, trash resource 0.1%, purge 0.4%
+  all T4-6 (5700 clicks): agenda: install 6.4%, agenda: advance 14.8%, asset 9.9%, upgrade 4.5%, ice: central 6.7%, ice: remote 8.9%, operation: money 7.2%, operation: other 3.5%, credit click 15.5%, draw 14.3%, advance: asset 1.1%, advance: ice 1.0%, ability 3.9%, trash resource 0.6%, purge 1.9%
+Agenda windows (a safe advance or agenda install was open; opening-audit.ts windowAt), all turns:
+  losses advance windows: 3201 (0.63 a Corp turn); agenda move taken 53.8%
+    instead (1478): asset 11.6%, upgrade 4.3%, ice: central 3.6%, ice: remote 13.5%, operation: money 8.9%, operation: other 8.6%, credit click 21.4%, draw 13.9%, advance: asset 1.6%, advance: ice 2.5%, ability 6.4%, rez asset 2.0%, rez upgrade 0.7%, trash resource 0.3%, purge 0.7%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 0.0%; open but ranked lower 100.0% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 32.1%
+    open-but-lower windows, chosen: asset 11.6%, upgrade 4.3%, ice: central 3.6%, ice: remote 13.5%, operation: money 8.9%, operation: other 8.6%, credit click 21.4%, draw 13.9%, advance: asset 1.6%, advance: ice 2.5%, ability 6.4%, rez asset 2.0%, rez upgrade 0.7%, trash resource 0.3%, purge 0.7%
+  losses install windows: 5910 (1.17 a Corp turn); agenda move taken 12.2%
+    instead (5189): asset 10.6%, upgrade 4.7%, ice: central 5.4%, ice: remote 9.8%, operation: money 8.8%, operation: other 3.4%, credit click 19.1%, draw 18.4%, advance: asset 1.3%, advance: ice 2.1%, ability 6.7%, rez asset 2.8%, rez upgrade 1.0%, trash resource 1.6%, purge 4.5%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 1.4%; open but ranked lower 98.6% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 35.7%
+    ruled-out windows by the agenda move that was ruled out:  100.0%
+    open-but-lower windows, chosen: asset 10.8%, upgrade 4.7%, ice: central 5.5%, ice: remote 8.6%, operation: money 8.9%, operation: other 3.4%, credit click 19.3%, draw 18.7%, advance: asset 1.3%, advance: ice 2.1%, ability 6.8%, rez asset 2.8%, rez upgrade 1.0%, trash resource 1.6%, purge 4.6%
+  losses: Corp turns with a window: 3300; with no agenda move in it 2013 (61.0%); their window clicks went on: asset 11.3%, upgrade 4.7%, ice: central 5.4%, ice: remote 8.8%, operation: money 8.2%, operation: other 3.6%, credit click 20.5%, draw 17.7%, advance: asset 1.4%, advance: ice 2.2%, ability 6.4%, rez asset 2.9%, rez upgrade 1.0%, trash resource 1.4%, purge 4.6%
+  wins advance windows: 5058 (1.07 a Corp turn); agenda move taken 68.5%
+    instead (1592): asset 12.2%, upgrade 4.8%, ice: central 3.6%, ice: remote 14.7%, operation: money 9.6%, operation: other 11.6%, credit click 18.5%, draw 9.5%, advance: asset 1.0%, advance: ice 1.6%, ability 8.9%, rez asset 1.8%, rez upgrade 0.3%, trash resource 0.9%, purge 1.1%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 0.0%; open but ranked lower 100.0% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 40.2%
+    open-but-lower windows, chosen: asset 12.2%, upgrade 4.8%, ice: central 3.6%, ice: remote 14.7%, operation: money 9.6%, operation: other 11.6%, credit click 18.5%, draw 9.5%, advance: asset 1.0%, advance: ice 1.6%, ability 8.9%, rez asset 1.8%, rez upgrade 0.3%, trash resource 0.9%, purge 1.1%
+  wins install windows: 4323 (0.91 a Corp turn); agenda move taken 23.3%
+    instead (3315): asset 13.5%, upgrade 3.9%, ice: central 5.6%, ice: remote 14.1%, operation: money 10.3%, operation: other 3.9%, credit click 15.3%, draw 15.2%, advance: asset 2.3%, advance: ice 0.9%, ability 7.1%, rez asset 2.2%, rez upgrade 0.4%, trash resource 1.0%, purge 4.2%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 3.6%; open but ranked lower 96.4% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 38.7%
+    ruled-out windows by the agenda move that was ruled out:  100.0%
+    open-but-lower windows, chosen: asset 14.0%, upgrade 4.0%, ice: central 5.8%, ice: remote 11.3%, operation: money 10.6%, operation: other 4.0%, credit click 15.6%, draw 15.8%, advance: asset 2.4%, advance: ice 1.0%, ability 7.4%, rez asset 2.3%, rez upgrade 0.4%, trash resource 1.0%, purge 4.4%
+  wins: Corp turns with a window: 3295; with no agenda move in it 1242 (37.7%); their window clicks went on: asset 14.2%, upgrade 4.4%, ice: central 5.7%, ice: remote 10.9%, operation: money 9.8%, operation: other 3.9%, credit click 16.7%, draw 15.5%, advance: asset 2.4%, advance: ice 1.1%, ability 7.0%, rez asset 2.3%, rez upgrade 0.4%, trash resource 0.9%, purge 4.7%
+  all advance windows: 8259 (0.84 a Corp turn); agenda move taken 62.8%
+    instead (3070): asset 11.9%, upgrade 4.6%, ice: central 3.6%, ice: remote 14.1%, operation: money 9.3%, operation: other 10.1%, credit click 19.9%, draw 11.6%, advance: asset 1.3%, advance: ice 2.0%, ability 7.7%, rez asset 1.9%, rez upgrade 0.5%, trash resource 0.6%, purge 0.9%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 0.0%; open but ranked lower 100.0% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 36.3%
+    open-but-lower windows, chosen: asset 11.9%, upgrade 4.6%, ice: central 3.6%, ice: remote 14.1%, operation: money 9.3%, operation: other 10.1%, credit click 19.9%, draw 11.6%, advance: asset 1.3%, advance: ice 2.0%, ability 7.7%, rez asset 1.9%, rez upgrade 0.5%, trash resource 0.6%, purge 0.9%
+  all install windows: 10233 (1.04 a Corp turn); agenda move taken 16.9%
+    instead (8504): asset 11.8%, upgrade 4.4%, ice: central 5.5%, ice: remote 11.4%, operation: money 9.4%, operation: other 3.6%, credit click 17.6%, draw 17.2%, advance: asset 1.7%, advance: ice 1.6%, ability 6.8%, rez asset 2.6%, rez upgrade 0.8%, trash resource 1.3%, purge 4.4%
+    of those: every agenda move ruled out by the one-step rules (-Infinity) 2.2%; open but ranked lower 97.8% (rule-score gap chosen - best agenda move: median 3.00); the planner chose other than the one-step top 36.9%
+    ruled-out windows by the agenda move that was ruled out:  100.0%
+    open-but-lower windows, chosen: asset 12.0%, upgrade 4.5%, ice: central 5.6%, ice: remote 9.6%, operation: money 9.6%, operation: other 3.6%, credit click 17.9%, draw 17.6%, advance: asset 1.7%, advance: ice 1.7%, ability 7.0%, rez asset 2.6%, rez upgrade 0.8%, trash resource 1.4%, purge 4.5%
+  all: Corp turns with a window: 6595; with no agenda move in it 3255 (49.4%); their window clicks went on: asset 12.4%, upgrade 4.6%, ice: central 5.5%, ice: remote 9.6%, operation: money 8.8%, operation: other 3.7%, credit click 19.1%, draw 16.9%, advance: asset 1.8%, advance: ice 1.8%, ability 6.6%, rez asset 2.7%, rez upgrade 0.8%, trash resource 1.2%, purge 4.6%
+Window supply: how each Corp turn opens (first main-phase decision; opening-audit.ts supplyAt):
+  losses T1-6 (2100 turns): no remote 26.8%, no agenda in HQ 24.9%, window: install 15.2%, remote empty, no ice 9.1%, window: advance 8.9%, bare remote holds an asset 6.4%, remote holds an asset 5.4%, ice not holdable 2.6%, installed agenda, unsafe 0.6%, iced remotes hold agendas 0.1%
+    agenda in HQ, no window (1059): iced agenda-free remotes avg 0.18, those holding an asset avg 0.13, credits avg 7.5
+  losses all turns (5053 turns): window: install 35.8%, no agenda in HQ 20.1%, no remote 12.1%, window: advance 10.8%, remote holds an asset 7.7%, remote empty, no ice 5.7%, ice not holdable 3.4%, bare remote holds an asset 3.3%, installed agenda, unsafe 0.8%, iced remotes hold agendas 0.2%
+    agenda in HQ, no window (1639): iced agenda-free remotes avg 0.49, those holding an asset avg 0.33, credits avg 8.0
+  losses: first window on Corp turn 5.4 (none at all 7.6%); by T3 28.3%
+    first window by T3 (101 games): T1-3 clicks: agenda: install 11.3%, agenda: advance 25.7%, asset 9.2%, upgrade 3.4%, ice: central 10.6%, ice: remote 13.2%, operation: money 5.6%, operation: other 3.3%, credit click 10.5%, draw 4.1%, advance: asset 1.1%, advance: ice 0.4%, ability 1.1%, trash resource 0.1%, purge 0.3%
+    first window T4+ or never (256 games): T1-3 clicks: agenda: install 2.8%, agenda: advance 1.8%, asset 15.6%, upgrade 8.3%, ice: central 21.2%, ice: remote 4.8%, operation: money 13.0%, operation: other 3.9%, credit click 12.7%, draw 10.4%, advance: asset 1.6%, advance: ice 0.4%, ability 3.0%, trash resource 0.1%, purge 0.4%
+  wins T1-6 (1820 turns): no remote 25.3%, no agenda in HQ 22.9%, window: install 14.5%, window: advance 13.8%, bare remote holds an asset 7.9%, remote holds an asset 6.6%, remote empty, no ice 6.0%, ice not holdable 1.9%, installed agenda, unsafe 0.8%, iced remotes hold agendas 0.2%, other 0.1%
+    agenda in HQ, no window (873): iced agenda-free remotes avg 0.22, those holding an asset avg 0.17, credits avg 7.6
+  wins all turns (4739 turns): window: install 31.6%, no agenda in HQ 20.8%, window: advance 20.4%, no remote 10.1%, remote holds an asset 6.9%, bare remote holds an asset 3.7%, remote empty, no ice 3.3%, ice not holdable 1.9%, installed agenda, unsafe 1.1%, iced remotes hold agendas 0.1%, other 0.0%
+    agenda in HQ, no window (1236): iced agenda-free remotes avg 0.48, those holding an asset avg 0.36, credits avg 8.3
+  wins: first window on Corp turn 4.9 (none at all 1.6%); by T3 36.9%
+    first window by T3 (113 games): T1-3 clicks: agenda: install 11.5%, agenda: advance 27.4%, asset 10.3%, upgrade 2.6%, ice: central 9.9%, ice: remote 12.8%, operation: money 6.6%, operation: other 3.6%, credit click 9.4%, draw 3.6%, advance: asset 0.4%, advance: ice 0.1%, ability 1.5%, purge 0.3%
+    first window T4+ or never (193 games): T1-3 clicks: agenda: install 2.7%, agenda: advance 2.1%, asset 17.6%, upgrade 6.7%, ice: central 22.1%, ice: remote 6.0%, operation: money 13.1%, operation: other 3.8%, credit click 10.4%, draw 10.0%, advance: asset 1.0%, advance: ice 0.4%, ability 3.4%, trash resource 0.2%, purge 0.6%
+  all T1-6 (3920 turns): no remote 26.1%, no agenda in HQ 24.0%, window: install 14.9%, window: advance 11.2%, remote empty, no ice 7.7%, bare remote holds an asset 7.1%, remote holds an asset 6.0%, ice not holdable 2.3%, installed agenda, unsafe 0.7%, iced remotes hold agendas 0.1%, other 0.1%
+    agenda in HQ, no window (1932): iced agenda-free remotes avg 0.20, those holding an asset avg 0.15, credits avg 7.5
+  all all turns (9792 turns): window: install 33.8%, no agenda in HQ 20.5%, window: advance 15.5%, no remote 11.2%, remote holds an asset 7.3%, remote empty, no ice 4.5%, bare remote holds an asset 3.5%, ice not holdable 2.7%, installed agenda, unsafe 0.9%, iced remotes hold agendas 0.2%, other 0.0%
+    agenda in HQ, no window (2875): iced agenda-free remotes avg 0.48, those holding an asset avg 0.34, credits avg 8.2
+  all: first window on Corp turn 5.2 (none at all 4.8%); by T3 32.3%
+    first window by T3 (214 games): T1-3 clicks: agenda: install 11.4%, agenda: advance 26.6%, asset 9.8%, upgrade 3.0%, ice: central 10.3%, ice: remote 13.0%, operation: money 6.1%, operation: other 3.5%, credit click 9.9%, draw 3.8%, advance: asset 0.7%, advance: ice 0.3%, ability 1.3%, trash resource 0.1%, purge 0.3%
+    first window T4+ or never (449 games): T1-3 clicks: agenda: install 2.8%, agenda: advance 1.9%, asset 16.5%, upgrade 7.6%, ice: central 21.6%, ice: remote 5.3%, operation: money 13.1%, operation: other 3.9%, credit click 11.7%, draw 10.2%, advance: asset 1.4%, advance: ice 0.4%, ability 3.2%, trash resource 0.2%, purge 0.5%
+
+CARD VALUE AUDIT (Phase 2 O3, scripts/opening-audit.ts): 13950 cards installed or played in 663 games (worth = median evaluate delta of the move, score = median one-step rule score; Corp win % of games holding it)
+Overpriced (worth above realised credits), top 10 of 36 assets/upgrades/operations with 10+ copies:
+  Measured Response (operation, 34): worth 17.59 vs realised -6.25 = gap 23.84; paid 5.0 back 0.0 drew 0.0; score 10.00; win 56%
+  Nanomanagement (operation, 41): worth 9.29 vs realised -5.25 = gap 14.54; paid 4.0 back 0.0 drew 0.0; score 8.00; win 49%
+  Byte! (asset, 133): worth 8.94 vs realised -1.25 = gap 10.19; rezzed 0%, rez -, paid out 0.0, fired 0%; score 9.00; win 45%
+  Urtica Cipher (asset, 285): worth 7.29 vs realised -1.25 = gap 8.54; rezzed 0%, rez -, paid out 0.0, fired 23%; score 9.00; win 57%
+  Manegarm Skunkworks (upgrade, 382): worth 5.06 vs realised -3.25 = gap 8.31; rezzed 63%, rez 2.0, paid out 0.0, fired 49%; score 11.00; win 45%
+  Clearinghouse (asset, 166): worth 5.39 vs realised -1.25 = gap 6.64; rezzed 32%, rez 0.0, paid out 0.0, fired 22%; score 9.00; win 49%
+  Humanoid Resources (asset, 120): worth 3.52 vs realised -1.25 = gap 4.78; rezzed 7%, rez 0.9, paid out 0.2, fired 5%; score 9.00; win 51%
+  Mahkota Langit Grid (upgrade, 216): worth 1.02 vs realised -3.25 = gap 4.27; rezzed 88%, rez 2.0, paid out 0.0, fired 55%; score 12.00; win 39%
+  Mercia B4LL4RD (upgrade, 141): worth 0.88 vs realised -3.25 = gap 4.13; rezzed 83%, rez 2.0, paid out 0.0, fired 55%; score 13.00; win 44%
+  Public Trail (operation, 37): worth -1.56 vs realised -5.25 = gap 3.69; paid 4.0 back 0.4 drew 0.8; score 8.00; win 27%
+Underpriced (realised credits above worth), top 10:
+  Peer Review (operation, 241): worth -7.71 vs realised 1.75 = gap -9.46; paid 4.0 back 7.0 drew 0.1; score 7.00; win 48%
+  Bigger Picture (operation, 55): worth -2.94 vs realised 3.75 = gap -6.69; paid 0.0 back 4.6 drew 0.0; score 11.00; win 58%
+  Touch-ups (operation, 56): worth -9.01 vs realised -3.25 = gap -5.76; paid 2.0 back 0.0 drew 0.0; score 8.50; win 39%
+  Predictive Planogram (operation, 516): worth -2.80 vs realised 1.75 = gap -4.55; paid 0.0 back 2.3 drew 1.2; score 8.00; win 47%
+  Key Performance Indicators (operation, 135): worth -4.21 vs realised -0.25 = gap -3.96; paid 1.0 back 1.9 drew 0.4; score 4.00; win 50%
+  Seamless Launch (operation, 117): worth -6.03 vs realised -2.25 = gap -3.78; paid 1.0 back 0.0 drew 0.0; score 9.00; win 73%
+  Retribution (operation, 14): worth -5.37 vs realised -2.25 = gap -3.12; paid 1.0 back 0.0 drew 0.0; score 10.00; win 57%
+  Government Subsidy (operation, 280): worth 1.04 vs realised 3.75 = gap -2.71; paid 10.0 back 15.0 drew 0.0; score 8.00; win 50%
+  Hansei Review (operation, 223): worth 2.21 vs realised 3.75 = gap -1.54; paid 5.0 back 10.0 drew 0.0; score 8.00; win 45%
+  Idiosyncresis (asset, 72): worth -0.55 vs realised 0.75 = gap -1.30; rezzed 61%, rez 0.9, paid out 2.2, fired 57%; score 9.00; win 50%
+  (medians; realised = paid out - rez - 1.25 click, operations credits back - paid - the click; a card whose effect is not credits (draws, damage, ETR upgrades) reads low here: see its fired % / drew)
+Families (credit-priced):
+  family assets: 2887 copies, worth median 0.43 mean 1.39, realised median -1.25 mean -0.33, fired 58.6%
+  family upgrades: 1202 copies, worth median 1.46 mean 1.32, realised median -2.25 mean -2.24, fired 42.3%
+  family money operations: 2942 copies, worth median 0.65 mean -0.26, realised median 2.75 mean 2.25, fired 0.0%
+  family other operations: 487 copies, worth median -3.19 mean -3.16, realised median -2.25 mean -2.71, fired 0.0%
+Ice (23, 10+ installs), by worth: worth | rezzed | runs ended, subs fired, credits taxed per install | did nothing | on a central
+  Flyswatter (279): 3.35 | 73% | 0.70, 0.62, 1.10 | 29% | 44%; score 7.00
+  Scatter Field (126): 3.08 | 76% | 0.68, 1.25, 1.75 | 29% | 40%; score 6.00
+  Whitespace (400): 2.38 | 70% | 0.47, 1.15, 0.96 | 36% | 47%; score 7.00
+  Kessleroid (222): 2.35 | 71% | 0.51, 0.46, 1.95 | 32% | 50%; score 7.00
+  N-Pot (118): 2.21 | 82% | 0.34, 0.68, 5.12 | 18% | 45%; score 7.00
+  Pharos (144): 1.15 | 72% | 0.38, 0.48, 3.96 | 41% | 42%; score 7.00
+  Palisade (364): 1.11 | 68% | 0.44, 0.40, 2.16 | 38% | 41%; score 7.00
+  Ping (262): 0.94 | 74% | 0.49, 0.47, 1.40 | 27% | 47%; score 7.00
+  Karunā (148): 0.85 | 54% | 0.21, 0.32, 1.77 | 57% | 47%; score 7.00
+  Doomscroll (245): 0.44 | 61% | 0.06, 1.46, 1.20 | 40% | 61%; score 6.00
+  Syailendra (196): 0.30 | 57% | 0.06, 1.57, 1.14 | 46% | 49%; score 7.00
+  Semak-samun (272): 0.15 | 38% | 0.41, 0.43, 1.25 | 64% | 58%; score 7.00
+  Lamplighter (107): 0.15 | 57% | 0.24, 0.86, 1.26 | 43% | 60%; score 7.00
+  Tithe (480): -0.17 | 62% | 0.04, 1.57, 0.84 | 38% | 51%; score 7.00
+  Funhouse (121): -0.20 | 56% | 0.22, 0.85, 0.26 | 51% | 43%; score 6.00
+  Biawak (24): -0.29 | 79% | 0.88, 2.38, 1.83 | 33% | 21%; score 6.50
+  Empiricist (97): -0.35 | 62% | 0.13, 1.52, 1.02 | 46% | 39%; score 5.00
+  Diviner (94): -0.46 | 55% | 0.49, 0.71, 0.86 | 50% | 43%; score 6.00
+  Brân 1.0 (275): -0.50 | 59% | 0.18, 0.33, 2.50 | 52% | 51%; score 8.00
+  Ansel 1.0 (112): -0.50 | 63% | 0.21, 0.64, 2.18 | 46% | 50%; score 8.00
+  Ballista (93): -0.93 | 66% | 0.68, 0.87, 1.33 | 43% | 57%; score 6.00
+  Bumi 1.0 (195): -0.95 | 60% | 0.25, 0.30, 2.34 | 44% | 50%; score 7.00
+  Mycoweb (55): -1.85 | 56% | 0.25, 1.45, 2.33 | 53% | 38%; score 6.00
+Agendas (16): worth of the install | scored | stolen
+  Offworld Office (423): 0.39 | 70% | 24%; score 6.00
+  Send a Message (374): 5.69 | 59% | 33%; score 7.00
+  Orbital Superiority (153): 0.91 | 63% | 29%; score 6.00
+  Embedded Reporting (141): 3.95 | 73% | 18%; score 5.00
+  Project Ingatan (125): 2.34 | 85% | 13%; score 6.00
+  Off the Books (121): 2.93 | 68% | 24%; score 7.50
+  Sericulture Expansion (104): 3.16 | 79% | 13%; score 4.00
+  Luminal Transubstantiation (81): 2.34 | 81% | 16%; score 6.00
+  Next Big Thing (68): 3.56 | 43% | 40%; score 7.00
+  Tomorrowʼs Headline (66): 4.00 | 82% | 9%; score 5.00
+  Proprionegation (65): 3.48 | 71% | 22%; score 5.00
+  Greenmail (65): 0.45 | 85% | 0%; score 6.00
+  Longevity Serum (62): 2.34 | 71% | 23%; score 5.00
+  Above the Law (60): 2.63 | 67% | 32%; score 6.00
+  Superconducting Hub (57): -4.76 | 74% | 26%; score 5.00
+  Aggressive Trendsetting (38): -4.76 | 87% | 8%; score 5.00
+All assets/upgrades/operations (title, n, worth, realised, fired/drew):
+  Hedge Fund | operation | 1143 | 1.64 | 2.75 | drew 0.0
+  Spin Doctor | asset | 916 | 0.17 | -1.25 | fired 99%
+  Predictive Planogram | operation | 516 | -2.80 | 1.75 | drew 1.2
+  Regolith Mining License | asset | 486 | -0.31 | -0.25 | fired 70%
+  Petty Cash | operation | 468 | 0.76 | 0.75 | drew 0.1
+  Manegarm Skunkworks | upgrade | 382 | 5.06 | -3.25 | fired 49%
+  Urtica Cipher | asset | 285 | 7.29 | -1.25 | fired 23%
+  Government Subsidy | operation | 280 | 1.04 | 3.75 | drew 0.0
+  Peer Review | operation | 241 | -7.71 | 1.75 | drew 0.1
+  Anoetic Void | upgrade | 224 | 2.23 | -1.25 | fired 48%
+  Hansei Review | operation | 223 | 2.21 | 3.75 | drew 0.0
+  Mahkota Langit Grid | upgrade | 216 | 1.02 | -3.25 | fired 55%
+  Otto Campaign | asset | 202 | -0.81 | -1.25 | fired 65%
+  Nico Campaign | asset | 183 | 0.21 | -1.25 | fired 50%
+  Clearinghouse | asset | 166 | 5.39 | -1.25 | fired 22%
+  Mercia B4LL4RD | upgrade | 141 | 0.88 | -3.25 | fired 55%
+  Key Performance Indicators | operation | 135 | -4.21 | -0.25 | drew 0.4
+  Byte! | asset | 133 | 8.94 | -1.25 | fired 0%
+  Humanoid Resources | asset | 120 | 3.52 | -1.25 | fired 5%
+  Seamless Launch | operation | 117 | -6.03 | -2.25 | drew 0.0
+  Anthill Excavation Contract | asset | 113 | -0.02 | -1.25 | fired 25%
+  AMAZE Amusements | upgrade | 102 | -1.03 | -1.25 | fired 0%
+  Plutus | asset | 98 | -0.12 | -1.25 | fired 5%
+  Malapert Data Vault | upgrade | 83 | -2.05 | -2.25 | fired 20%
+  Idiosyncresis | asset | 72 | -0.55 | 0.75 | fired 57%
+  Phật Gioan Baotixita | asset | 57 | -1.76 | -2.25 | fired 0%
+  Touch-ups | operation | 56 | -9.01 | -3.25 | drew 0.0
+  Public Access Plaza | asset | 56 | -0.79 | -1.25 | fired 70%
+  Bigger Picture | operation | 55 | -2.94 | 3.75 | drew 0.0
+  Mitra Aman | upgrade | 54 | 1.98 | -1.25 | fired 2%
+  Sprint | operation | 48 | 0.65 | -1.25 | drew 1.0
+  Nanomanagement | operation | 41 | 9.29 | -5.25 | drew 0.0
+  Public Trail | operation | 37 | -1.56 | -5.25 | drew 0.8
+  Measured Response | operation | 34 | 17.59 | -6.25 | drew 0.0
+  IP Enforcement | operation | 15 | -2.48 | -1.25 | drew 0.0
+  Retribution | operation | 14 | -5.37 | -2.25 | drew 0.0
+  Top-Down Solutions | operation | 5 | -3.47 | -3.25 | drew 2.0
+  Neurospike | operation | 1 | 1032.38 | -4.25 | drew 0.0
