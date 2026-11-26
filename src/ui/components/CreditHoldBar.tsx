@@ -1,7 +1,32 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, getCardScript } from '../../core';
 import { Credits } from './CreditIcon';
 import { useSeat } from '../seat';
+import { readStorage, writeStorage } from '../storage';
+
+/** Saved once the player dismisses the first-time tip; it never shows again (issue #76). */
+export const HOLD_TIP_KEY = 'netrunner.creditHoldTipSeen';
+
+// One shared flag so every bar on screen (Corp and Runner, desktop and mobile) hides together
+const tipListeners = new Set<() => void>();
+let tipSeenMemo: boolean | null = null;
+function tipSeen(): boolean {
+  if (tipSeenMemo === null) tipSeenMemo = readStorage(HOLD_TIP_KEY) === '1';
+  return tipSeenMemo;
+}
+function dismissTip() {
+  tipSeenMemo = true;
+  writeStorage(HOLD_TIP_KEY, '1');
+  tipListeners.forEach(l => l());
+}
+function subscribeTip(listener: () => void) {
+  tipListeners.add(listener);
+  return () => { tipListeners.delete(listener); };
+}
+/** Test hook: forget the in-memory flag so the next read goes back to storage. */
+export function resetHoldTipForTests() {
+  tipSeenMemo = null;
+}
 
 interface CreditHoldBarProps {
   state: GameState;
@@ -29,10 +54,31 @@ export function payingCards(state: GameState, side: SideCode) {
 export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAction }) => {
   const seat = useSeat();
   const cards = payingCards(state, side);
+  const seen = useSyncExternalStore(subscribeTip, tipSeen, tipSeen);
   // A held (uncommitted) choice is open: a toggle would commit it and lose its Cancel
   if (cards.length === 0 || seat.cancel) return null;
+  const example = cardDef(cards[0]).title;
   return (
-    <div className="flex items-center gap-1.5 flex-wrap" data-testid={`credit-hold-bar-${side}`}>
+    <div className="flex flex-col gap-1.5" data-testid={`credit-hold-bar-${side}`}>
+    {!seen && (
+      <div
+        role="note"
+        className="flex items-start gap-2 text-[12px] leading-snug rounded-[2px] border border-amber-500/70 bg-amber-950/60 text-amber-100 px-2 py-1.5"
+        data-testid="credit-hold-tip"
+      >
+        <span>
+          <b>Tip:</b> payments spend hosted credits (like {example}) before your credit pool.
+          To keep a card&apos;s credits for something else, click its button below: your pool pays first and that card only covers the rest.
+        </span>
+        <button
+          onClick={dismissTip}
+          className="shrink-0 px-2 py-0.5 font-bold rounded-[2px] border border-amber-500/80 text-amber-100 hover:bg-amber-900/60"
+        >
+          Got it
+        </button>
+      </div>
+    )}
+    <div className="flex items-center gap-1.5 flex-wrap">
       <span className={`text-xs font-bold font-mono uppercase mr-1 ${side === 'corp' ? 'text-cyan-400' : 'text-pink-400'}`}>Hosted credits:</span>
       {cards.map(card => {
         const held = !!card.holdCredits;
@@ -50,6 +96,7 @@ export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAct
           </button>
         );
       })}
+    </div>
     </div>
   );
 };
