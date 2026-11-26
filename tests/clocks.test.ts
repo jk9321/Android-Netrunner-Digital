@@ -22,13 +22,15 @@ describe('the damage clock (Jeff, 2026-10-28; plan.damageClock)', () => {
   });
 
   it('a card lost is worth more the closer the grip is to a flatline (rule 10.4.4: flatlined on damage beyond the grip)', () => {
-    const s = newGame();
+    let s = newGame();
     s.runner.grip = s.runner.grip.slice(0, 5);
     const roomy = damageWorth(s, 1);
     // 4 cards, a card above the Corp's biggest hit of 4 (5 and 3 cards sit either side of the clock's middle: as close as 5)
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.runner.grip = s.runner.grip.slice(0, 4);
     expect(damageWorth(s, 1)).toBeGreaterThan(roomy);
     expect(roomy).toBeGreaterThan(cardRate(s, 'runner', 'now'));
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.runner.grip = s.runner.grip.slice(0, 1);
     expect(damageWorth(s, 2)).toBe(flatlineWorth(s));
   });
@@ -99,8 +101,9 @@ describe('tags on Vic (Jeff, 2026-10-30; plan.vicTags)', () => {
   });
 
   it('dearer once she has used her ability this turn, or with no click left', () => {
-    const s = vicGame();
+    let s = vicGame();
     const fresh = tagsWorth(s, 'runner', 1);
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.turnFlags[abilityUsedKey(s.runner.identity.instanceId, 0)] = 1;
     expect(tagsWorth(s, 'runner', 1)).toBeGreaterThan(fresh);
     const t = vicGame();
@@ -109,8 +112,9 @@ describe('tags on Vic (Jeff, 2026-10-30; plan.vicTags)', () => {
   });
 
   it('cheaper than for any other Runner', () => {
-    const s = vicGame();
+    let s = vicGame();
     const vic = tagsWorth(s, 'runner', 2);
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.runner.identity = createCardInstance(s, '30010');
     expect(vic).toBeLessThan(tagsWorth(s, 'runner', 2));
   });

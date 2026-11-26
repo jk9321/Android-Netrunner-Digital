@@ -69,3 +69,27 @@ export function clickPoints(dir: string, tree: string, v: PointVariant) {
   point(dir, F, new RegExp(esc('  if (clickCache.size > 2000) clickCache.clear();\n')), v === 'byState' ? '' : `  if (clickCache.size > 2000) {\n    clickCache.clear();\n    __H?.clear('${tree}', 'clickCache');\n  }\n`, w('cap'));
   point(dir, F, new RegExp(esc('  clickCache.set(key, value);\n')), `  ${v === 'byState' ? '__in' : 'clickCache'}.set(key, value);\n  __H?.fill('${tree}', 'clickCache', value, state, side, ${ref});\n`, w('set'));
 }
+
+/**
+ * The build branch's own lines (F3 build, ai-cache-keys): the same hooks as a byState arm, laid on the branch's key,
+ * lookup and set lines unchanged, so bar 1 compares the branch's calls, hits and misses with allP.byState's.
+ */
+export function branchPoints(dir: string, tree: string) {
+  const sites: [string, string, string, string, string][] = [
+    ['ai/effectValues.ts', 'threats', 'cached && !threatsAudit.on', 'threat', 'corpTurn'],
+    ['ai/handValues.ts', 'deckAverage', 'cached !== undefined && !drawAudit.on', 'value', hasWhen(dir) ? '[side, when]' : 'side'],
+    ['ai/handValues.ts', 'clickCache', 'cached !== undefined && !clickAudit.on', 'value', 'side'],
+  ];
+  for (const [F, map, test, v, x] of sites) {
+    const w = (what: string) => `${tree} ${map} ${what}`;
+    point(dir, F, new RegExp(`^ {2}const entries = stateEntries\\(${map}, state\\);\\n {2}const cached = entries\\.get\\(key\\);\\n {2}if \\(${esc(test)}\\) return cached;\\n`, 'm'), `  const __H = ${H};\n  __H?.call('${tree}', '${map}');\n  const entries = stateEntries(${map}, state);\n  const cached = entries.get(key);\n  if (${test}) return __H ? __H.hit('${tree}', '${map}', cached, state, ${x}, [state, key]) : cached;\n  __H?.miss('${tree}', '${map}');\n`, w('lookup'));
+    // The set line: the one `entries.set(key, <v>);` after this map's lookup
+    const path = join(dir, 'src', F);
+    const src = readFileSync(path, 'utf8');
+    const at = src.indexOf(`__H?.miss('${tree}', '${map}');`);
+    const set = `  entries.set(key, ${v});\n`;
+    const i = src.indexOf(set, at);
+    if (at < 0 || i < 0) throw new Error(`${w('set')}: not found in ${F}`);
+    writeFileSync(path, src.slice(0, i) + set + `  __H?.fill('${tree}', '${map}', ${v}, state, ${x}, [state, key]);\n` + src.slice(i + set.length));
+  }
+}

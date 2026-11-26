@@ -28,7 +28,7 @@ import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } f
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { HOOKS, applyPatches } from '../runner-rework/core-hooks';
-import { PointVariant, clickPoints, deckPoints, threatsPoints } from './points';
+import { PointVariant, branchPoints, clickPoints, deckPoints, threatsPoints } from './points';
 
 export type Slice = [file: string, from: string, to: string, text: string];
 export type Variant = 'base' | 'exact' | 'byState' | 'off' | 'table' | 'fault';
@@ -360,6 +360,8 @@ const write = (p: string, t: string) => writeFileSync(p, t);
 export function armTree(dir: string, tree: string, arm: Arm) {
   if (arm.asIs) {
     applyPatches(dir, HOOKS.filter(h => h[2].includes('__lkIn') || h[2].includes('__lkScope')), `${tree} scopes`, read, write);
+    // The branch's own key, lookup and set lines, with the count's hooks (bar 1: calls, hits, misses; bar 2: the audit)
+    branchPoints(dir, tree);
     return;
   }
   if (arm.point) {
@@ -436,6 +438,7 @@ const NOT_VALUE_CACHES = new Set([
   'INERT', 'typeFlags', 'factsCache', 'firstIceByOption', 'keywordRes', 'labelRules', 'placesOf', // card text / labels
   'runnerOtherKinds', 'valueLoops', // counters for reports
   'mapGames', 'stateIds', // scopeToGame's and positionSerial's bookkeeping
+  'rootIds', // pricing contextKey's object ids for the decision root (not a value)
 ]);
 export function unlistedMaps(dir: string): string[] {
   const out: string[] = [];

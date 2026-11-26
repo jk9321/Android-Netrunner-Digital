@@ -64,9 +64,10 @@ describe('Runner AI and Manegarm Skunkworks (rules 6.9.4g, 1.16.11b)', () => {
 
   it("doesn't start a run it can't pay Manegarm for", () => {
     // 2 clicks: the run takes one, Bumi's subroutines are tanked, 1 click and 4 credits can't pay Manegarm
-    const state = manegarmGame(2, 4);
+    let state = manegarmGame(2, 4);
     state.corp.servers.rd.ice = [];
     expect(runScore(state, 'rd')).toBe(-Infinity);
+    state = structuredClone(state); // asked boards are frozen (F3 askedFreeze): edit a copy
     state.runner.credits = 5;
     expect(runScore(state, 'rd')).toBeGreaterThan(-Infinity);
   });

@@ -7,7 +7,7 @@ import { installIceForTest, newGame } from './helpers';
 
 describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', () => {
   it('a card in hand holds part of its played worth, so playing a good card gains the rest', () => {
-    const s = newGame();
+    let s = newGame();
     s.runner.credits = 10;
     const verbal = createCardInstance(s, '30034'); // Verbal Plasticity
     const played = playedWorth(s, verbal);
@@ -15,6 +15,7 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
     expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(SOON.now * played);
     // Can't afford it yet: worth less while it waits (its played worth too is priced at 0 credits: the cards it draws
     // are worth less to a Runner who can't pay for them, plan.drawWorthCredits)
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.runner.credits = 0;
     expect(heldWorth(s, verbal, 'runner')).toBeCloseTo(Math.max(HAND_FLOOR, SOON.later * playedWorth(s, verbal)));
   });
@@ -27,9 +28,10 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
   });
 
   it('a card drawn in a look-ahead is worth the deck average, not what it is', () => {
-    const s = newGame();
+    let s = newGame();
     decisionContext(s, 'runner');
     const known = ownHandValue(s, 'runner');
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     const drawn = s.runner.stack.shift()!;
     s.runner.grip.push(drawn);
     const withDraw = ownHandValue(s, 'runner');
@@ -43,13 +45,14 @@ describe('cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard)', ()
   });
 
   it('only the best cards up to the hand limit count; one over is a small filter', () => {
-    const s = newGame();
+    let s = newGame();
     decisionContext(s, 'corp');
     s.corp.hq = s.corp.hq.slice(0, s.corp.handSizeLimit);
     decisionContext(s, 'corp');
     const full = ownHandValue(s, 'corp');
     // Two more copies of the weakest card: only the first adds the filter
     const worst = [...s.corp.hq].sort((a, b) => heldWorth(s, a, 'corp') - heldWorth(s, b, 'corp'))[0];
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.hq.push({ ...worst, instanceId: 'w1' }, { ...worst, instanceId: 'w2' });
     decisionContext(s, 'corp');
     // The 0.3 filter, and the two added copies' small change to the Corp's damage pool (damageThreat's key counts the
@@ -67,12 +70,13 @@ describe('a click priced by the best play in hand (Jeff, 2026-10-28; plan.clickB
   });
 
   it('a strong card in hand raises it, by what playing it now adds over holding it', () => {
-    const s = newGame();
+    let s = newGame();
     s.runner.credits = 10;
     s.runner.grip = [];
     s.runner.stack = [];
     installIceForTest(s, '35041', 'hq'); // a rezzed sentry for Carmen to break
     const bare = clickWorth(s, 'runner');
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     const carmen = createCardInstance(s, '30015');
     s.runner.grip = [carmen];
     s.runner.clicks = 1;
