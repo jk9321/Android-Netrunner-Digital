@@ -7,7 +7,7 @@ import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
 import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, rootDecider, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 import { nextTurn, runnerEarnings } from './nextTurnMoney';
 
@@ -169,6 +169,8 @@ const laterMoneys = new WeakMap<GameState, number>();
 function drawMoney(state: GameState, side: SideCode, when: DrawWhen): number {
   if (side === 'corp') return state.corp.credits;
   if (when === 'now') return state.runner.credits;
+  // DIAGNOSTIC ONLY, NOT FOR MERGE (bar 5's split): inside the Corp's decision (its look-ahead and reply samples too), today's credits
+  if (rootDecider() === 'corp') return state.runner.credits;
   let money = laterMoneys.get(state);
   if (money === undefined) laterMoneys.set(state, (money = state.runner.credits + runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - 2)]));
   return money;
