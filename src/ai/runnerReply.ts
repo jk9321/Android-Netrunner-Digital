@@ -74,8 +74,8 @@ export function corpKnownRdSlots(state: GameState): Set<number> {
  * names the first dealt card in its range no other entry took (dropped if none): it never points at a moved card.
  */
 function runnerRdMemoryOnDeal(state: GameState, rd: CardInstance[], fixed: Set<number>): GameState['corp']['rdKnownToRunner'] {
-  const known = state.corp.rdKnownToRunner;
-  if (!known?.length) return known;
+  const known = knownInRd(state); // B4a step 1 (play identical): not yet the shares a shuffle left (n0)
+  if (!known.length) return known;
   const corpKnows = new Set([...fixed].map(i => rd[i].instanceId));
   const taken = new Set([...fixed]);
   const out: NonNullable<typeof known> = [];

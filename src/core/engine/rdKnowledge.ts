@@ -10,8 +10,10 @@ import { publicCards, revealInHand } from './helpers';
  * added to the top or bottom, or taken from places they can see. When the
  * Corp secretly acts on the top cards (looks at them and installs one,
  * Cultivate, arranges them "in any order", 8.3.3, 1.12.3) the Runner only
- * knows the card is somewhere among them. A shuffle forgets everything.
- * A card follows to HQ only once it has certainly been drawn.
+ * knows the card is somewhere among them. A shuffle forgets where each card
+ * is (4.2.2, 8.7.3) but not that it is in R&D (10.2.2b): each mark becomes a
+ * share of the whole deck (RdKnownCard.n0). A card follows to HQ only once it
+ * has certainly been drawn.
  *
  * Effects call shuffleRD(), noteRdPrivate() and runnerSeesRd() while an
  * action resolves; updateRdKnowledge() then works out the rest from how R&D
@@ -29,13 +31,19 @@ const notes = (state: GameState): RdNotes => (state.corp.rdNotes ??= {});
  */
 export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>(), trial: 0 };
 
-/** Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3). */
+/**
+ * Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3), but the Runner still knows
+ * which cards it saw there (10.2.2b): each mark of a card that is surely still in R&D becomes a share of the whole deck,
+ * 1 / n0 per place (a uniform shuffle). A mark that may already have left R&D is dropped, as before. The Corp's own
+ * memory of R&D is about places only, so it is emptied.
+ */
 export function shuffleRD(state: GameState): void {
   shuffleInPlace(state.rng, state.corp.rd);
   notes(state).shuffled = true;
   notes(state).seen = [];
   notes(state).corpSeen = [];
-  state.corp.rdKnownToRunner = [];
+  const n0 = state.corp.rd.length;
+  state.corp.rdKnownToRunner = (state.corp.rdKnownToRunner ?? []).filter(e => !e.left).map(e => ({ id: e.id, code: e.code, lo: 0, hi: Math.max(0, n0 - 1), n0 }));
   state.corp.rdKnownToCorp = [];
   if (rdShuffleProbe.trial === 0) {
     rdShuffleProbe.shuffles++;
@@ -113,9 +121,15 @@ export function runnerSeesRd(state: GameState, card: CardInstance): void {
   (notes(state).seen ??= []).push(card.instanceId);
 }
 
-/** The R&D cards the Runner remembers, top first. */
+/** The R&D cards the Runner remembers the place of, top first (not the shares a shuffle left: rdSharesKnownToRunner). */
 export function knownInRd(state: GameState): RdKnownCard[] {
-  return state.corp.rdKnownToRunner ?? [];
+  const all = state.corp.rdKnownToRunner ?? [];
+  return all.some(e => e.n0) ? all.filter(e => !e.n0) : all;
+}
+
+/** The R&D cards the Runner knows are in R&D since a shuffle, each with share 1 / n0 per place between `lo` and `hi`. */
+export function rdSharesKnownToRunner(state: GameState): RdKnownCard[] {
+  return (state.corp.rdKnownToRunner ?? []).filter(e => e.n0);
 }
 
 /** Ids of `after` that kept their relative order from `before` (longest increasing run of old positions). */
@@ -153,7 +167,7 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   const note = state.corp.rdNotes;
   delete state.corp.rdNotes;
   updateCorpRdKnowledge(prev, state, note);
-  let known = knownInRd(state);
+  let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
   if (known.length === 0 && seen.length === 0) return;
 
@@ -215,7 +229,9 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
     const surfaced = [...publicCards(state)].filter(([id]) => !publicBefore.has(id));
     for (const [id, code] of surfaced) {
       const same = known.findIndex(e => e.id === id);
-      const i = same >= 0 ? same : known.findIndex(e => e.left && e.code === code);
+      // A mark with a place first; a shuffled share only if no such mark has the name
+      const placed = same >= 0 ? same : known.findIndex(e => e.left && !e.n0 && e.code === code);
+      const i = placed >= 0 ? placed : known.findIndex(e => e.left && e.code === code);
       if (i >= 0) known = known.filter((_, j) => j !== i);
     }
   }
@@ -232,7 +248,8 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   // 7. Cards that have certainly left: drawn ones join the cards known in HQ
   for (const e of known) if (e.lo > e.hi) gone.push(e);
   known = known.filter(e => e.lo <= e.hi);
-  const drawn = gone.filter(e => e.left === 'hq').map(e => state.corp.hq.find(c => c.instanceId === e.id) ?? ({ instanceId: e.id, cardCode: e.code } as CardInstance));
+  // B4a step 1 (play identical): a shuffled share that has surely been drawn is not yet added to HQ
+  const drawn = gone.filter(e => e.left === 'hq' && !e.n0).map(e => state.corp.hq.find(c => c.instanceId === e.id) ?? ({ instanceId: e.id, cardCode: e.code } as CardInstance));
   if (drawn.length > 0) revealInHand(state, 'corp', drawn);
 
   const last = state.corp.rd.length - 1;
