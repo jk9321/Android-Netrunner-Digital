@@ -36,7 +36,7 @@ export type MapName = 'threats' | 'deckAverage' | 'clickCache';
 export const MAPS: MapName[] = ['threats', 'deckAverage', 'clickCache'];
 /** buildTargets (F113, the coordinator's addition after step 0): optional, base when absent. */
 /** `point`: the maps' base and byState variants as point patches (points.ts: key, lookup, set and cap lines only; F3 build). */
-export type Arm = Record<MapName, Variant> & { buildTargets?: 'base' | 'exact' | 'byState' | 'off'; point?: boolean; asIs?: boolean };
+export type Arm = Record<MapName, Variant> & { buildTargets?: 'base' | 'exact' | 'byState' | 'off'; point?: boolean; asIs?: boolean; fault?: MapName; freeze?: boolean };
 
 const B: Arm = { threats: 'base', deckAverage: 'base', clickCache: 'base' };
 const A3 = (v: Variant): Arm => ({ threats: v, deckAverage: v, clickCache: v });
@@ -69,6 +69,12 @@ export const ARMS: Record<string, Arm> = {
   'allP.byState': { ...A3('byState'), point: true },
   // The build branch itself: this checkout's src with the GameRunner scope labels only (BASE_REF gives the others the base's src)
   branch: { ...B, asIs: true },
+  // Step 0.5: the planted faults on the branch's own lines
+  'branch.fT': { ...B, asIs: true, fault: 'threats' },
+  'branch.fD': { ...B, asIs: true, fault: 'deckAverage' },
+  'branch.fC': { ...B, asIs: true, fault: 'clickCache' },
+  // Step 0.3: the branch with the asked-board freeze on (valueModel askedFreeze), in the lockstep and in its own play
+  'branch.frz': { ...B, asIs: true, freeze: true },
   'f.threat': { ...B, threats: 'fault' },
   'f.deck': { ...B, deckAverage: 'fault' },
 };
@@ -87,6 +93,10 @@ export const GROUPS: Record<string, string[]> = {
   p: ['ctlP', 'tP.byState', 'dP.byState', 'cP.byState', 'allP.byState'],
   // Bar 1 and the time bar (rev 1, findings 4, 5b): control and the counted arm on the base (BASE_REF), the branch beside them
   bar1: ['ctlP', 'allP.byState', 'branch'],
+  // Step 0.5 (bar 4): the branch beside its three planted faults; each must stop in the lockstep
+  bf: ['branch', 'branch.fT', 'branch.fD', 'branch.fC'],
+  // Step 0.3 (bar 3): the freeze in self-play; a write to an asked board is an ask error or a deal error
+  bfz: ['branch', 'branch.frz'],
 };
 
 const H = `(globalThis as any).__ck`;
@@ -361,7 +371,13 @@ export function armTree(dir: string, tree: string, arm: Arm) {
   if (arm.asIs) {
     applyPatches(dir, HOOKS.filter(h => h[2].includes('__lkIn') || h[2].includes('__lkScope')), `${tree} scopes`, read, write);
     // The branch's own key, lookup and set lines, with the count's hooks (bar 1: calls, hits, misses; bar 2: the audit)
-    branchPoints(dir, tree);
+    branchPoints(dir, tree, arm.fault);
+    if (arm.freeze) {
+      const vm = join(dir, 'src/ai/valueModel.ts');
+      const text = read(vm);
+      if (!text.includes('export const askedFreeze = { on: false, frozen: 0 };')) throw new Error(`${tree}: no askedFreeze switch`);
+      write(vm, text.replace('export const askedFreeze = { on: false, frozen: 0 };', 'export const askedFreeze = { on: true, frozen: 0 };'));
+    }
     return;
   }
   if (arm.point) {
@@ -494,8 +510,8 @@ export function makeTrees(root: string, names: string[], withEval: boolean, base
     const dir = join(root, name.replace(/\./g, '_'));
     dirs[name] = dir;
     mkdirSync(dir, { recursive: true });
-    // BASE_REF=<sha>: every tree but `branch` on that commit's src (git archive), `branch` on this checkout's
-    if (baseRef && name !== 'branch') execSync(`git cat-file -e ${baseRef}^{commit} 2>/dev/null || git fetch -q --depth 1 origin ${baseRef}; git archive ${baseRef} src | tar -x -C ${dir}`, { shell: '/bin/bash' });
+    // BASE_REF=<sha>: every tree but the branch's (asIs) on that commit's src (git archive), the branch's on this checkout's
+    if (baseRef && !ARMS[name]?.asIs) execSync(`git cat-file -e ${baseRef}^{commit} 2>/dev/null || git fetch -q --depth 1 origin ${baseRef}; git archive ${baseRef} src | tar -x -C ${dir}`, { shell: '/bin/bash' });
     else cpSync('src', join(dir, 'src'), { recursive: true });
     // The batch driver (scripts/lossLog.ts playLogged) for D, played on this tree's own src
     cpSync('scripts', join(dir, 'scripts'), { recursive: true, filter: s => !s.includes('/cache-keys') && !s.includes('node_modules') });

@@ -74,7 +74,7 @@ export function clickPoints(dir: string, tree: string, v: PointVariant) {
  * The build branch's own lines (F3 build, ai-cache-keys): the same hooks as a byState arm, laid on the branch's key,
  * lookup and set lines unchanged, so bar 1 compares the branch's calls, hits and misses with allP.byState's.
  */
-export function branchPoints(dir: string, tree: string) {
+export function branchPoints(dir: string, tree: string, fault?: 'threats' | 'deckAverage' | 'clickCache') {
   const sites: [string, string, string, string, string][] = [
     ['ai/effectValues.ts', 'threats', 'cached && !threatsAudit.on', 'threat', 'corpTurn'],
     ['ai/handValues.ts', 'deckAverage', 'cached !== undefined && !drawAudit.on', 'value', hasWhen(dir) ? '[side, when]' : 'side'],
@@ -82,7 +82,11 @@ export function branchPoints(dir: string, tree: string) {
   ];
   for (const [F, map, test, v, x] of sites) {
     const w = (what: string) => `${tree} ${map} ${what}`;
-    point(dir, F, new RegExp(`^ {2}const entries = stateEntries\\(${map}, state\\);\\n {2}const cached = entries\\.get\\(key\\);\\n {2}if \\(${esc(test)}\\) return cached;\\n`, 'm'), `  const __H = ${H};\n  __H?.call('${tree}', '${map}');\n  const entries = stateEntries(${map}, state);\n  const cached = entries.get(key);\n  if (${test}) return __H ? __H.hit('${tree}', '${map}', cached, state, ${x}, [state, key]) : cached;\n  __H?.miss('${tree}', '${map}');\n`, w('lookup'));
+    // Step 0.5's planted faults (on the branch): a threats hit served share + 0.01, a deckAverage hit served the entry
+    // stored just before it, a clickCache hit served + 0.01
+    const last = `(globalThis as any).__ckLast_${map}`;
+    const served = fault !== map ? 'cached' : map === 'threats' ? '{ burst: cached.burst, share: cached.share + 0.01 }' : map === 'deckAverage' ? `(${last} ?? cached)` : '(cached + 0.01)';
+    point(dir, F, new RegExp(`^ {2}const entries = stateEntries\\(${map}, state\\);\\n {2}const cached = entries\\.get\\(key\\);\\n {2}if \\(${esc(test)}\\) return cached;\\n`, 'm'), `  const __H = ${H};\n  __H?.call('${tree}', '${map}');\n  const entries = stateEntries(${map}, state);\n  const cached = entries.get(key);\n  if (${test}) return __H ? __H.hit('${tree}', '${map}', ${served}, state, ${x}, [state, key]) : ${served};\n  __H?.miss('${tree}', '${map}');\n`, w('lookup'));
     // The set line: the one `entries.set(key, <v>);` after this map's lookup
     const path = join(dir, 'src', F);
     const src = readFileSync(path, 'utf8');
@@ -90,6 +94,7 @@ export function branchPoints(dir: string, tree: string) {
     const set = `  entries.set(key, ${v});\n`;
     const i = src.indexOf(set, at);
     if (at < 0 || i < 0) throw new Error(`${w('set')}: not found in ${F}`);
-    writeFileSync(path, src.slice(0, i) + set + `  __H?.fill('${tree}', '${map}', ${v}, state, ${x}, [state, key]);\n` + src.slice(i + set.length));
+    const remember = fault === map && map === 'deckAverage' ? `  ${last} = ${v};\n` : '';
+    writeFileSync(path, src.slice(0, i) + set + `  __H?.fill('${tree}', '${map}', ${v}, state, ${x}, [state, key]);\n` + remember + src.slice(i + set.length));
   }
 }
