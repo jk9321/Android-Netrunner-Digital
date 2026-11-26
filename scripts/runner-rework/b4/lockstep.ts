@@ -209,6 +209,18 @@ function replayWith(d: Deal, played: string[], forced: Set<number>, clears: Set<
 }
 
 const knowledge = (s: GameState) => key([s.corp.knownToRunner ?? [], s.runner.knownToCorp ?? [], s.corp.rdKnownToRunner ?? [], (s.corp as any).archKnownToRunner ?? []]);
+/** KN_DUMP=1: at the first difference, the knowledge entries only one of base and branch holds, by field. */
+const KN_DUMP = process.env.KN_DUMP === '1';
+function knDiff(a: GameState, b: GameState) {
+  const fields = (s: GameState): Record<string, unknown[]> => ({ knownToRunner: s.corp.knownToRunner ?? [], knownToCorp: s.runner.knownToCorp ?? [], rdKnownToRunner: s.corp.rdKnownToRunner ?? [], archKnownToRunner: (s.corp as any).archKnownToRunner ?? [] });
+  const fa = fields(a), fb = fields(b), res: Record<string, unknown> = {};
+  for (const f of Object.keys(fa)) {
+    const ka = new Set(fa[f].map(key)), kb = new Set(fb[f].map(key));
+    const onlyBase = [...ka].filter(x => !kb.has(x)), onlyBranch = [...kb].filter(x => !ka.has(x));
+    if (onlyBase.length || onlyBranch.length) res[f] = { base: onlyBase, branch: onlyBranch };
+  }
+  return res;
+}
 const ms: Record<Name, Record<string, number>> = { base: {}, branch: {}, control: {} };
 const addMs = (m: Record<string, number>, k: string, x: number) => (m[k] = (m[k] ?? 0) + x);
 function deal(pool: string, d: Deal) {
@@ -290,6 +302,7 @@ function deal(pool: string, d: Deal) {
         control: !same('base', 'control'),
         firesAt: stepFires,
         picks: { base: pick('base'), branch: pick('branch') },
+        ...(KN_DUMP && { knAt: knDiff(g.base.state, g.branch.state) }),
       };
       break;
     }
