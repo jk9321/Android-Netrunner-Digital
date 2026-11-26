@@ -88,6 +88,11 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id));\n${L}  if (state.runner.grip.some(c => known.has(c.instanceId) !== __old.has(c.instanceId))) ${fire('g3')};\n`,
     ],
   ],
+  // B4b (a) the deal by kind: an upgrade-only slot, or a remote root that already holds its one agenda or asset
+  Ba: [
+    ['ai/runnerReply.ts', `  for (const card of upgradeOnly) card.cardCode =`, `${L}  if (upgradeOnly.size) ${fire('Ba')};\n  for (const card of upgradeOnly) card.cardCode =`],
+    ['ai/runnerReply.ts', `    const server = serverOf.get(card);\n`, `    const server = serverOf.get(card);\n${L}    if (holdsOne.has(server)) ${fire('Ba')};\n`],
+  ],
   // Bar 3's part (trace only): the Hard determinize ran (SearchAI, Hard only; Hard is off in the batch pools)
   H: [['ai/search.ts', `        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`, `${L}        ${fire('H')};\n        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`]],
   // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D
