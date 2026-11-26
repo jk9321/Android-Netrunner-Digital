@@ -1,4 +1,5 @@
 import { CardInstance, SideCode } from '../types/card';
+import type { GameAction, PaymentPlan } from '../types/actions';
 import { GameState, SettledEvent } from '../types/state';
 import { cardDef } from '../cards';
 import { getCardScript } from '../scripts';
@@ -279,6 +280,28 @@ function payFromCard(state: GameState, side: SideCode, source: CardInstance, amo
  * pay after the pool. Callers check availableCredits beforehand.
  */
 export function spendCredits(state: GameState, side: SideCode, amount: number, purpose: PaymentPurpose = { kind: 'other' }): void {
+  // The player's own split, for the action's first payment of theirs (manual payment, rules 1.10.3c)
+  const ctx = planContext;
+  if (ctx && !ctx.done && ctx.side === side && amount > 0) {
+    ctx.done = true;
+    if (payByPlan(state, side, amount, purpose, ctx.plan)) return;
+    addLog(state, side, 'The chosen payment no longer fits this cost: paid in the usual order instead.');
+  }
+  const recording = quoteRecorder && !quoteRecorder.quote && quoteRecorder.side === side && amount > 0 ? quoteRecorder : null;
+  const before = recording ? paymentSourcesNow(state, side, purpose) : null;
+  autoSpendCredits(state, side, amount, purpose);
+  if (recording && before) {
+    const after = new Map(paymentSourcesNow(state, side, purpose, before).map(s => [s.key, s.max]));
+    recording.quote = {
+      side,
+      amount,
+      sources: before.map(s => ({ ...s, auto: Math.min(s.max, Math.max(0, s.max - (after.get(s.key) ?? 0))) })),
+    };
+  }
+}
+
+/** The default order (see spendCredits). */
+function autoSpendCredits(state: GameState, side: SideCode, amount: number, purpose: PaymentPurpose): void {
   let remaining = amount;
   let fromPoolTotal = 0;
   const run = runnerRun(state, side);
@@ -309,6 +332,110 @@ export function spendCredits(state: GameState, side: SideCode, amount: number, p
   state[side].credits -= remaining;
   const outside = amount - remaining - fromPoolTotal;
   if (run && outside > 0) fireTrigger(state, { type: 'credits_spent_outside_pool', amount: outside });
+}
+
+// --- Manual payment (rules 1.10.3c) ------------------------------------------------
+
+/** One place a payment can take credits from, with how many it holds and how many the default order takes. */
+export interface PaymentSource {
+  /** 'pool', 'run', 'badPublicity', or a card's instance id. */
+  key: string;
+  cardInstanceId?: string;
+  max: number;
+  auto: number;
+}
+
+/** A payment an action is about to make, and where its credits may come from (manual payment). */
+export interface PaymentQuote {
+  side: SideCode;
+  amount: number;
+  sources: PaymentSource[];
+}
+
+/** The plan of the action being carried out (withPaymentPlan), until its player's first payment uses it. */
+let planContext: { side: SideCode; plan: PaymentPlan; done: boolean } | null = null;
+
+/** Set while paymentQuote() watches an action: its player's first payment is written down here. */
+let quoteRecorder: { side: SideCode; quote: PaymentQuote | null } | null = null;
+
+/** Carries out an action's handler with its payment plan, if it has one (the plan never outlives the handler). */
+export function withPaymentPlan(action: GameAction, run: () => void): void {
+  const prev = planContext;
+  planContext = action.payment ? { side: action.player, plan: action.payment, done: false } : null;
+  try {
+    run();
+  } finally {
+    planContext = prev;
+  }
+}
+
+/** Watches `run` (a trial of an action on a copy) and returns the first payment `side` makes in it. */
+export function recordPayment(side: SideCode, run: () => void): PaymentQuote | null {
+  const prev = quoteRecorder;
+  const rec: { side: SideCode; quote: PaymentQuote | null } = { side, quote: null };
+  quoteRecorder = rec;
+  try {
+    run();
+  } finally {
+    quoteRecorder = prev;
+  }
+  return rec.quote;
+}
+
+/**
+ * Where a payment for `purpose` may take credits from right now (rules 1.10.3c, 1.10.4b-c):
+ * the pool (not for stealth-only costs, not while Aircheck locks it), the run's own credits,
+ * and each card whose hosted credits may pay. `keep` lists sources to report even if empty now.
+ */
+function paymentSourcesNow(state: GameState, side: SideCode, purpose: PaymentPurpose, keep: PaymentSource[] = []): PaymentSource[] {
+  const run = runnerRun(state, side);
+  const stealth = purpose.kind === 'stealth';
+  const out: PaymentSource[] = [];
+  if (!stealth) {
+    out.push({ key: 'pool', max: Math.max(0, spendablePool(state, side)), auto: 0 });
+    if (run) {
+      out.push({ key: 'run', max: run.bonusCredits, auto: 0 });
+      out.push({ key: 'badPublicity', max: run.badPublicityCredits ?? 0, auto: 0 });
+    }
+  }
+  for (const c of creditSources(state, side, purpose)) out.push({ key: c.instanceId, cardInstanceId: c.instanceId, max: counters(c, 'credit'), auto: 0 });
+  // A card emptied (and trashed) by the payment is no longer a source, but it was one
+  for (const k of keep) if (k.cardInstanceId && !out.some(o => o.key === k.key)) out.push({ ...k, max: 0 });
+  return keep.length > 0 ? out : out.filter(s => s.max > 0);
+}
+
+/**
+ * Pays `amount` the way the player divided it (rules 1.10.3c), if the plan fits: whole
+ * numbers adding up to the cost, each from a location allowed for this payment, none more
+ * than it holds. Returns false (nothing paid) if it doesn't fit.
+ */
+function payByPlan(state: GameState, side: SideCode, amount: number, purpose: PaymentPurpose, plan: PaymentPlan): boolean {
+  const run = runnerRun(state, side);
+  const stealth = purpose.kind === 'stealth';
+  const fromRun = plan.run ?? 0;
+  const fromFund = plan.badPublicity ?? 0;
+  const parts = [plan.pool, fromRun, fromFund, ...plan.cards.map(c => c.credits)];
+  if (!parts.every(n => Number.isInteger(n) && n >= 0)) return false;
+  if (parts.reduce((a, b) => a + b, 0) !== amount) return false;
+  if (plan.pool > (stealth ? 0 : Math.max(0, spendablePool(state, side)))) return false;
+  if (fromRun > (run && !stealth ? run.bonusCredits : 0)) return false;
+  if (fromFund > (run && !stealth ? (run.badPublicityCredits ?? 0) : 0)) return false;
+  const sources = creditSources(state, side, purpose);
+  const picked: [CardInstance, number][] = [];
+  for (const part of plan.cards) {
+    const source = sources.find(c => c.instanceId === part.cardInstanceId);
+    if (!source || picked.some(([c]) => c === source) || part.credits > counters(source, 'credit')) return false;
+    picked.push([source, part.credits]);
+  }
+  for (const [source, credits] of picked) payFromCard(state, side, source, credits);
+  if (run) {
+    if (fromFund > 0) run.badPublicityCredits = (run.badPublicityCredits ?? 0) - fromFund;
+    run.bonusCredits -= fromRun;
+  }
+  state[side].credits -= plan.pool;
+  const outside = amount - plan.pool;
+  if (run && outside > 0) fireTrigger(state, { type: 'credits_spent_outside_pool', amount: outside });
+  return true;
 }
 
 /**

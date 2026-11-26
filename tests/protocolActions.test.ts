@@ -33,7 +33,9 @@ describe('The online sanitizer knows every engine action', () => {
       expect(decl, `${name} declares its type`).not.toBeNull();
       return decl![1];
     });
-    const handled = cases(body(protocol, 'sanitizeAction'));
+    // sanitizeAction adds the payment split (manual payment) to what sanitizeActionKeys rebuilt, case by case
+    expect(body(protocol, 'sanitizeAction')).toContain('sanitizeActionKeys(raw)');
+    const handled = cases(body(protocol, 'sanitizeActionKeys'));
     expect(types.filter(t => !handled.has(t))).toEqual([]);
   });
 

@@ -34,6 +34,24 @@ export type GameActionType =
 export interface BaseAction {
   type: GameActionType;
   player: SideCode;
+  /**
+   * The player's own split of this action's first credit payment (manual payment, rules 1.10.3c:
+   * "the player chooses how to divide the credits they are spending from among the allowed
+   * locations"). Without it, or when it no longer fits the payment, the engine's default order pays.
+   * Never set by the AIs or listed in legal actions.
+   */
+  payment?: PaymentPlan;
+}
+
+/** How a payment is divided: credits from the pool, the run's own credits, and each card's hosted credits. */
+export interface PaymentPlan {
+  pool: number;
+  /** Credits for this run only (Overclock's, rules 10.6.2's bad publicity fund is `badPublicity`). */
+  run?: number;
+  /** The run's bad publicity credits (rules 10.6.2). */
+  badPublicity?: number;
+  /** Hosted credits (recurring, restricted, spend-during-runs: rules 1.10.4b-c), by card. */
+  cards: { cardInstanceId: string; credits: number }[];
 }
 
 export interface GainCreditAction extends BaseAction {
