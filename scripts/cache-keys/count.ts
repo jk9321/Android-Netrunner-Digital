@@ -41,10 +41,11 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
 }
 const env = process.env;
 const [shard, shards] = (env.SHARD ?? '0/1').split('/').map(Number);
-const MODES = (env.MODE ?? 'lockstep').split(',');
 const GROUP_LIST = (env.GROUPS ?? 't').split(',');
 const G_ = GROUP_LIST.length;
 const GROUP = GROUP_LIST[shard % G_];
+// MODE_<group> overrides MODE for that group's shards (bars 6 and 7 in one run)
+const MODES = (env[`MODE_${GROUP}`] ?? env.MODE ?? 'lockstep').split(',');
 const SLICE = Math.max(1, Math.floor(shards / G_));
 const SLICE_K = Math.floor(shard / G_);
 const POOLS = (env.POOL ?? 'batch,nrdb').split(',');
@@ -525,6 +526,8 @@ async function main() {
     nrdb: JSON.parse(readFileSync('scripts/pricing-context/deals-45555227992.json', 'utf8')),
     g3: JSON.parse(readFileSync('scripts/cache-keys/deals-g3.json', 'utf8')),
   };
+  // REC_<pool>=<deals.json>: that pool's deals and records from another batch (bars 6 and 7: the pairs' records)
+  for (const p of Object.keys(lists)) if (env[`REC_${p}`]) lists[p] = JSON.parse(readFileSync(env[`REC_${p}`]!, 'utf8'));
   const units: { pool: string; d: Deal }[] = [];
   for (const pool of POOLS.filter(p => p !== 'people')) for (const d of lists[pool]) if (!DEALS.length || DEALS.includes(String(d.seed)) || DEALS.includes(`${pool}:${d.seed}`)) units.push({ pool, d });
   out({ kind: 'start', group: GROUP, asked: ASKED, units: units.filter((_, k) => k % SLICE === SLICE_K).length, sample: SAMPLE, audit: AUDIT, e: E_ON, modes: MODES });
@@ -552,6 +555,12 @@ async function main() {
       if (MODES.includes('lockstep')) lockstep(u.pool, u.d, false);
       if (MODES.includes('time') && (nth++ % TIME_EVERY === 0)) lockstep(u.pool, u.d, true);
       if (MODES.includes('driver') && u.pool === 'g3') await driver(u.d);
+      // MODE=own (bar 6): each asked tree plays the deal itself, hooks off, against the pool's record
+      if (MODES.includes('own')) for (const n of ASKED) {
+        const p = playOwn(T[n], u.d);
+        const firstTurn = p.cr.findIndex((c, k) => c !== u.d.cr[k] || p.sc[k] !== u.d.sc[k]);
+        out({ kind: 'own', group: GROUP, pool: u.pool, seed: u.d.seed, tree: n, same: p.winner === u.d.winner && key(p.cr) === key(u.d.cr) && key(p.sc) === key(u.d.sc), winner: p.winner, recWinner: u.d.winner, firstTurn, turns: p.cr.length, ms: p.ms });
+      }
     } catch (e) {
       out({ kind: 'error', pool: u.pool, seed: u.d.seed, error: (e as Error).stack?.slice(0, 800) });
     }

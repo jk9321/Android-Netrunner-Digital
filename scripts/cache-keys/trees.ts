@@ -36,7 +36,7 @@ export type MapName = 'threats' | 'deckAverage' | 'clickCache';
 export const MAPS: MapName[] = ['threats', 'deckAverage', 'clickCache'];
 /** buildTargets (F113, the coordinator's addition after step 0): optional, base when absent. */
 /** `point`: the maps' base and byState variants as point patches (points.ts: key, lookup, set and cap lines only; F3 build). */
-export type Arm = Record<MapName, Variant> & { buildTargets?: 'base' | 'exact' | 'byState' | 'off'; point?: boolean; asIs?: boolean; fault?: MapName; freeze?: boolean };
+export type Arm = Record<MapName, Variant> & { buildTargets?: 'base' | 'exact' | 'byState' | 'off'; point?: boolean; asIs?: boolean; fault?: MapName; freeze?: boolean; plain?: boolean };
 
 const B: Arm = { threats: 'base', deckAverage: 'base', clickCache: 'base' };
 const A3 = (v: Variant): Arm => ({ threats: v, deckAverage: v, clickCache: v });
@@ -75,6 +75,8 @@ export const ARMS: Record<string, Arm> = {
   'branch.fC': { ...B, asIs: true, fault: 'clickCache' },
   // Step 0.3: the branch with the asked-board freeze on (valueModel askedFreeze), in the lockstep and in its own play
   'branch.frz': { ...B, asIs: true, freeze: true },
+  // Bar 6: the branch's own src exactly as checked out (no hook, no patch), for its plain play against its batch records
+  'branch.plain': { ...B, asIs: true, plain: true },
   'f.threat': { ...B, threats: 'fault' },
   'f.deck': { ...B, deckAverage: 'fault' },
 };
@@ -97,6 +99,10 @@ export const GROUPS: Record<string, string[]> = {
   bf: ['branch', 'branch.fT', 'branch.fD', 'branch.fC'],
   // Step 0.3 (bar 3): the freeze in self-play; a write to an asked board is an ask error or a deal error
   bfz: ['branch', 'branch.frz'],
+  // Bar 7 (rev 1, note 2): the count's lockstep, control against the branch, on the pairs' base tree and its records
+  b7: ['ctlP', 'branch'],
+  // Bar 6 (rev 1, finding 6): the branch's plain play (MODE=own) against its own batch records
+  b6: ['branch.plain'],
 };
 
 const H = `(globalThis as any).__ck`;
@@ -368,6 +374,7 @@ const write = (p: string, t: string) => writeFileSync(p, t);
 
 /** An asked tree: the arm's three map variants, the hooks, the GameRunner scope labels (reply, oracle, hard). */
 export function armTree(dir: string, tree: string, arm: Arm) {
+  if (arm.plain) return;
   if (arm.asIs) {
     applyPatches(dir, HOOKS.filter(h => h[2].includes('__lkIn') || h[2].includes('__lkScope')), `${tree} scopes`, read, write);
     // The branch's own key, lookup and set lines, with the count's hooks (bar 1: calls, hits, misses; bar 2: the audit)
