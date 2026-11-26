@@ -9,6 +9,7 @@
  *  - READS=<name,...>: the branch tree's reader hooks (b4/reads.ts) count, per step, the calls where the new reading
  *    differs from today's (`fires`, by reader | scope | side), so a reader commit's first difference is traced to its own
  *    reader (`firesAt` at the differing step);
+ *  - CHAIN=<label>:<branch>:<base>[:<reads+...>];...: several pairs in one run, each in a child process (`pair` on its lines);
  *  - BRANCH=<sha>: the branch tree is that commit's src (this checkout's hooks and READS still apply), so an older
  *    commit's lockstep can carry today's trace hooks;
  *  - CLEAR=1 clears every tree's caches before each step, for bar 7's time (ms by tree and side; and by decision kind);
@@ -25,7 +26,7 @@
  *   SHARD=0/64 npx vite-node scripts/runner-rework/b4/lockstep.ts -- BASE=<sha> POOL=batch,nrdb [READS=a] [CLEAR=1] [PICKS=1 [FOLLOW=1 [CONT=1]]]
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameState } from '../../../src/core';
@@ -38,6 +39,21 @@ import { READ_HOOKS } from './reads';
 for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.split(/\s+/).filter(x => x.includes('='))) {
   const [k, v] = kv.split('=');
   process.env[k] = v;
+}
+// CHAIN=<label>:<branch sha>:<base sha>[:<reads+reads>];... runs each pair in turn, in a child process with this run's
+// other settings, and prints its lines with `pair` set (one queue slot for several commits' locksteps)
+if (process.env.CHAIN) {
+  const troot = process.env.TROOT ?? 'node_modules/.cache/b4-lockstep';
+  for (const [i, item] of process.env.CHAIN.split(';').filter(Boolean).entries()) {
+    const [label, branch, base, reads = ''] = item.split(':');
+    const dir = join(troot, `chain-${i}`);
+    const env = { ...process.env, CHAIN: '', ARGS: '', BRANCH: branch, BASE: base, READS: reads.replace(/\+/g, ','), TROOT: dir };
+    const run = spawnSync('npx', ['vite-node', 'scripts/runner-rework/b4/lockstep.ts'], { env, encoding: 'utf8', maxBuffer: 1 << 30 });
+    for (const line of (run.stdout ?? '').split('\n')) if (line.startsWith('{')) console.log(`{"pair":${JSON.stringify(label)},${line.slice(1)}`);
+    if (run.status !== 0) console.log(JSON.stringify({ kind: 'error', pair: label, error: (run.stderr ?? '').slice(-400) }));
+    rmSync(dir, { recursive: true, force: true });
+  }
+  process.exit(0);
 }
 const BASE = process.env.BASE ?? '';
 if (!BASE) throw new Error('BASE=<sha> is required');

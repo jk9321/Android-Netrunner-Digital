@@ -1,5 +1,5 @@
 // Sums a b4 lockstep.ts run: node scripts/runner-rework/b4/lockstep-sum.mjs <dir with out/*.txt> [--list]
-// Deals, first differences (by side and kind, by the reader hook that fired at them), the first knowledge difference
+// With CHAIN, each pair apart. Deals, first differences (by side and kind, by the reader hook that fired at them), the first knowledge difference
 // (kn), deals whose base tree left its source record, errors, and time by caller kind: branch and control against base.
 // With PICKS=1 (bar 3): every Corp decision that differs (same pick or not) by part: the Hard determinize (H fired), the
 // reply's Runner (a Runner reader fired inside the Corp's decision), neither (what fired, if anything); and for CONT=1 the
@@ -33,8 +33,10 @@ for (const f of readdirSync(out).filter(f => /\.(txt|err)$/.test(f))) {
 const by = (xs, key) => xs.reduce((m, x) => m.set(key(x), (m.get(key(x)) ?? 0) + 1), new Map());
 const fired = f => (Array.isArray(f) ? f : Object.keys(f ?? {})).join('+') || 'none';
 const show = m => [...m].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ');
-for (const pool of [...new Set(deals.map(d => d.pool))]) {
-  const ds = deals.filter(d => d.pool === pool);
+const pairs = [...new Set(deals.map(d => d.pair))];
+for (const [pair, pool] of pairs.flatMap(p => [...new Set(deals.filter(d => d.pair === p).map(d => d.pool))].map(pool => [p, pool]))) {
+  const ds = deals.filter(d => d.pool === pool && d.pair === pair);
+  if (pair !== undefined) console.log(`== ${pair}`);
   const diff = ds.filter(d => d.diff);
   console.log(`${pool}: ${ds.length} deals, ${diff.length} with a first difference, ${ds.filter(d => d.kn != null).length} with a knowledge difference, ${ds.filter(d => d.recordSame === false).length} off their record`);
   if (diff.length) {
