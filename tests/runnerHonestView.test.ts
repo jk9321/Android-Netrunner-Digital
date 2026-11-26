@@ -120,20 +120,27 @@ describe('the deciding Runner reads only what it can know of the Corp (rule 10.2
 });
 
 describe("the Runner's view keeps what the Runner has seen", () => {
-  it('a card it has seen in HQ stays in HQ as it is (and only cards still in HQ are kept)', () => {
+  // B4a 7(e) (brief b4-hidden-zones ruling 5, replacing the test that kept the seen card by instance): what the Runner
+  // knows of HQ is dealt back by code and count. A seen card is certain until a card that could be it leaves HQ unseen.
+  it('a card it has seen in HQ is dealt to HQ by code while it is surely there (10.2.2b), and not once it may have left (1.12.3)', () => {
     const s = t6();
     const bran = byId(s, 'inst-18').cardCode;
-    // inst-27 left HQ (installed on R&D): a stale entry is not kept as an HQ card
-    s.corp.knownToRunner = [{ id: 'inst-18', code: bran }, { id: 'inst-27', code: byId(s, 'inst-27').cardCode }];
+    s.corp.knownToRunner = [{ id: 'inst-18', code: bran }];
     let dealt = 0;
     for (let k = 0; k < 8; k++) {
       const view = honest(() => guessRunnerView(s, k));
-      expect(view.corp.hq.find(c => c.instanceId === 'inst-18')!.cardCode).toBe(bran);
+      expect(view.corp.hq.some(c => c.cardCode === bran)).toBe(true);
       if (view.corp.hq.some((c, i) => c.cardCode !== s.corp.hq[i].cardCode)) dealt++;
       expect(view.corp.hq.length).toBe(s.corp.hq.length);
       expect(view.corp.rd.length).toBe(s.corp.rd.length);
     }
     expect(dealt).toBeGreaterThan(0); // the other HQ cards are dealt
+    // inst-27 (Tithe, seen in HQ) went to an ice slot on R&D unseen, as the engine records it: one ice loss on each entry
+    // (4.6.6d). Either seen ice may be the one installed, so neither is certain and HQ is dealt free
+    const t = t6();
+    t.corp.knownToRunner = [{ id: 'inst-18', code: bran, lost: { ice: 1 } }, { id: 'inst-27', code: byId(t, 'inst-27').cardCode, lost: { ice: 1 } }];
+    const views = Array.from({ length: 12 }, (_, k) => honest(() => guessRunnerView(t, k)));
+    expect(views.some(v => !v.corp.hq.some(c => c.cardCode === bran))).toBe(true);
   });
 
   it('a card it knows the place of in R&D stays there', () => {
