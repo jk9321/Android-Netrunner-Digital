@@ -102,7 +102,8 @@ export class HeuristicRunnerAI implements Agent {
   /**
    * Root cards it has seen = the engine's marks (rezzed, faceup, `runnerKnows`; core/view.ts), only those: seen on access (rules 7.2.1; not as a candidate, 7.4.1a; not
    * on a replaced breach, 6.9.5b, 10.2.2b), new and unknown after HQ, R&D or facedown Archives (1.12.1, 1.12.3) unless seen going in (7.3.1a), kept through a derez (1.12.5).
-   * Entries for cards no longer installed stay as they were (docs/ai-priced-quantities.md, "what the Runner has seen of the Corp's cards"; settled in R-B).
+   * An entry for a card gone back to HQ, R&D or facedown Archives goes (B4a 7(i)): what the Runner knows of those zones is
+   * the engine's marks (rdKnowledge.ts, helpers.ts); other entries for cards no longer installed stay as they were.
    */
   private remember(state: GameState) {
     for (const server of Object.values(state.corp.servers)) {
@@ -111,6 +112,7 @@ export class HeuristicRunnerAI implements Agent {
         else this.memory.delete(card.instanceId);
       }
     }
+    for (const card of [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown]) this.memory.delete(card.instanceId);
   }
 
   /** Counts actions in a row that spent no click (loop guard). */
