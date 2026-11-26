@@ -18,7 +18,7 @@ const OFFWORLD_OFFICE = '30067';
 const defaultOn = tuning.plan.iceProtects;
 afterEach(() => { tuning.plan.iceProtects = defaultOn; });
 
-function remoteWithJaguarundi(agenda: boolean): { s: GameState; worth: (viewer?: 'corp' | 'runner') => number } {
+function remoteWithJaguarundi(agenda: boolean): { s: GameState; worth: (viewer?: 'corp' | 'runner', at?: GameState) => number } {
   const s = newGame();
   s.corp.credits = 10;
   s.corp.hq = [];
@@ -31,7 +31,8 @@ function remoteWithJaguarundi(agenda: boolean): { s: GameState; worth: (viewer?:
     root.push(offworld);
   }
   s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [ice], root };
-  return { s, worth: (viewer = 'corp') => inDecision(s, viewer, () => iceWorth(s, ice, viewer)) };
+  // `at`: a copy of s to price on instead (asked boards are frozen, F3 askedFreeze)
+  return { s, worth: (viewer = 'corp', at = s) => inDecision(at, viewer, () => iceWorth(at, at.corp.servers['remote-1'].ice[0], viewer)) };
 }
 
 describe('plan.iceProtects', () => {
@@ -68,8 +69,9 @@ describe('plan.iceProtects: the scoring remote', () => {
     tuning.plan.iceProtects = true;
     const { s, worth } = remoteWithJaguarundi(false);
     const idle = worth();
-    s.corp.rd.unshift(createCardInstance(s, OFFWORLD_OFFICE));
-    expect(worth()).toBeGreaterThan(idle);
+    const t = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
+    t.corp.rd.unshift(createCardInstance(t, OFFWORLD_OFFICE));
+    expect(worth('corp', t)).toBeGreaterThan(idle);
   });
 });
 

@@ -20,26 +20,30 @@ const BARRIER_BREAKER = '30006';
 
 describe('AI judgement in fixed positions', () => {
   it('prices subroutines by what they do to this Runner', () => {
-    const state = newGame();
+    let state = newGame();
     expect(subroutineCost(state, 'End the run.')).toBe(Infinity);
+    state = structuredClone(state); // asked boards are frozen (F3 askedFreeze): edit a copy
     state.runner.grip = state.runner.grip.slice(0, 5);
     expect(subroutineCost(state, 'Do 1 net damage.')).toBeCloseTo(damageWorth(state, 1)); // a card lost and a step on the damage clock (plan.subCosts)
     expect(damageWorth(state, 1)).toBeGreaterThanOrEqual(RATES.drawnCard);
     // Rule 10.4.4: flatlined by MORE damage than the cards in the grip: 1 damage on 1 card is survived, 2 is not
+    state = structuredClone(state); // asked boards are frozen (F3 askedFreeze): edit a copy
     state.runner.grip = state.runner.grip.slice(0, 1);
     expect(subroutineCost(state, 'Do 1 net damage.')).toBeLessThan(Infinity);
     expect(subroutineCost(state, 'Do 2 net damage.')).toBe(Infinity); // would flatline
   });
 
   it("won't run into rezzed ice it can't break or afford", () => {
-    const state = newGame();
+    let state = newGame();
     startRunnerTurn(state);
     installIceForTest(state, PALISADE, 'hq');
     expect(runScore(state, 'hq')).toBe(-Infinity);
 
+    state = structuredClone(state); // asked boards are frozen (F3 askedFreeze): edit a copy
     installProgramForTest(state, BARRIER_BREAKER);
     state.runner.credits = 20;
     expect(runScore(state, 'hq')).toBeGreaterThan(-Infinity);
+    state = structuredClone(state); // asked boards are frozen (F3 askedFreeze): edit a copy
     state.runner.credits = 0;
     expect(runScore(state, 'hq')).toBe(-Infinity);
   });

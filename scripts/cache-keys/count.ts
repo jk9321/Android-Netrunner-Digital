@@ -41,15 +41,18 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
 }
 const env = process.env;
 const [shard, shards] = (env.SHARD ?? '0/1').split('/').map(Number);
-const MODES = (env.MODE ?? 'lockstep').split(',');
 const GROUP_LIST = (env.GROUPS ?? 't').split(',');
 const G_ = GROUP_LIST.length;
 const GROUP = GROUP_LIST[shard % G_];
+// MODE_<group> overrides MODE for that group's shards (bars 6 and 7 in one run)
+const MODES = (env[`MODE_${GROUP}`] ?? env.MODE ?? 'lockstep').split(',');
 const SLICE = Math.max(1, Math.floor(shards / G_));
 const SLICE_K = Math.floor(shard / G_);
 const POOLS = (env.POOL ?? 'batch,nrdb').split(',');
 // DEALS_<group> (a top-up run) overrides DEALS for that group's shards
-const DEALS = (env[`DEALS_${(env.GROUPS ?? 't').split(',')[Number((env.SHARD ?? '0/1').split('/')[0]) % (env.GROUPS ?? 't').split(',').length]}`] ?? env.DEALS ?? '').split(',').filter(Boolean);
+// A value starting with @ names a file holding the comma-separated list (bar 7: the pairs' changed deals)
+const DEALS_ARG = env[`DEALS_${(env.GROUPS ?? 't').split(',')[Number((env.SHARD ?? '0/1').split('/')[0]) % (env.GROUPS ?? 't').split(',').length]}`] ?? env.DEALS ?? '';
+const DEALS = (DEALS_ARG.startsWith('@') ? readFileSync(DEALS_ARG.slice(1), 'utf8').trim() : DEALS_ARG).split(',').filter(Boolean);
 const SAMPLE: Record<MapName, number> = Object.fromEntries(MAPS.map(m => [m, Number(env[`SAMPLE_${m}`] ?? env.SAMPLE ?? 1)])) as Record<MapName, number>;
 let AUDIT = env.AUDIT !== '0';
 // Own play: '1' every arm on every deal; 'changed' (default) only the arms with a changed decision in this deal's lockstep
@@ -66,6 +69,8 @@ const G = globalThis as any;
 const started = Date.now();
 const ASKED = GROUPS[GROUP];
 if (!ASKED) throw new Error(`unknown group ${GROUP}`);
+/** The group's control arm: `ctl`, or the group's first tree (ctlP in the point groups). Slow decisions and stale-hit records read it. */
+const CTL = ASKED.includes('ctl') ? 'ctl' : ASKED[0];
 
 // ------------------------------------------------------------------------------------------------ no-store maps (eval)
 class NoStoreMap {
@@ -171,7 +176,7 @@ function evalIn<X>(tree: string, f: () => X): X {
 function own(tree: string, map: MapName, state: GameState, x: any): any {
   const e0 = evalMs;
   try {
-    return evalIn(tree, () => (map === 'threats' ? E!.ev.damageThreat(state, x) : map === 'deckAverage' ? E!.hv.drawWorth(state, x) : E!.hv.clickWorth(state, x)));
+    return evalIn(tree, () => (map === 'threats' ? E!.ev.damageThreat(state, x) : map === 'deckAverage' ? E!.hv.drawWorth(state, ...(Array.isArray(x) ? x : [x])) : E!.hv.clickWorth(state, x)));
   } finally {
     inc(`EV|${map}`, evalMs - e0);
   }
@@ -228,7 +233,7 @@ function listen() {
         inc(`Z|${tree}|${map}|${Number(d.toPrecision(2))}`);
         const rec = { tree, map, side: cur?.side, kind: kindNow(tree), T: state.turnNumber, decision: cur?.i, why, served: map === 'threats' ? { ...served } : served, own: fresh };
         keep(`hit|${tree}|${map}|${why}`, rec);
-        if (tree === 'ctl' && ctlWrong.length < 3) ctlWrong.push(rec);
+        if (tree === CTL && ctlWrong.length < 3) ctlWrong.push(rec);
       }
       return served;
     },
@@ -278,7 +283,11 @@ const pickKey = (a: unknown): string => {
   return JSON.stringify(sort(a));
 };
 type Method = 'chooseAction' | 'chooseRez' | 'chooseOffTurn';
-function ask(tree: string, side: string, method: Method, s: GameState, from: any): { a: string; ms: number } {
+/** FIELDS=1 (bar 7): an answer also carries the agent's fields after it (its plan memory), so a decision that keeps the
+ * answer but changes the plan the agent stores for its next decision counts as changed. */
+const FIELDS = env.FIELDS === '1';
+const fieldsKey = (agent: any) => pickKey(Object.fromEntries(Object.keys(agent).filter(k => typeof agent[k] !== 'function').map(k => [k, agent[k]])));
+function ask(tree: string, side: string, method: Method, s: GameState, from: any): { a: string; ms: number; f?: string } {
   const t = T[tree];
   const agent: any = t.createAgent(side, 'normal');
   copyFields(from, agent);
@@ -288,7 +297,8 @@ function ask(tree: string, side: string, method: Method, s: GameState, from: any
   const t0 = performance.now();
   try {
     const a = agent[method](...args);
-    return { a: pickKey(a), ms: performance.now() - t0 - (evalMs - e0) };
+    const ms = performance.now() - t0 - (evalMs - e0);
+    return { a: pickKey(a), ms, f: FIELDS ? fieldsKey(agent) : undefined };
   } catch (e) {
     return { a: `error: ${(e as Error).message.slice(0, 100)}`, ms: performance.now() - t0 - (evalMs - e0) };
   }
@@ -351,7 +361,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
     const idx = i++;
     const kind = kindOf(s, method);
     const order = ASKED.map((_, k) => ASKED[(k + idx) % ASKED.length]);
-    const r: Record<string, { a: string; ms: number }> = {};
+    const r: Record<string, { a: string; ms: number; f?: string }> = {};
     ctlWrong = [];
     for (const n of order) {
       cur = { side, kind, tree: n, T: s.turnNumber, i: idx };
@@ -362,7 +372,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
     const sa = pickKey(result);
     const k = `${side}|${kind}`;
     inc(`${P}D|${k}|n`);
-    const slow = r.ctl.ms > 1000;
+    const slow = r[CTL].ms > 1000;
     if (slow) inc(`${P}D|${k}|slow`);
     for (const n of ASKED) {
       inc(`${P}MS|${n}|${k}`, r[n].ms);
@@ -370,7 +380,11 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
       if (r[n].a !== sa) {
         changedTrees.add(n);
         inc(`${P}CH|${n}|${k}`);
-        if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, answer: r[n].a.slice(0, 300), source: sa.slice(0, 300), ctlWrong: n === 'ctl' ? undefined : ctlWrong });
+        if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, answer: r[n].a.slice(0, 300), source: sa.slice(0, 300), ctlWrong: n === CTL ? undefined : ctlWrong });
+      } else if (FIELDS && r[n].f !== undefined && r[n].f !== fieldsKey(from)) {
+        changedTrees.add(n);
+        inc(`${P}CHF|${n}|${k}`);
+        if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, fields: true, answer: r[n].f!.slice(0, 600), source: fieldsKey(from).slice(0, 600), ctlWrong: n === CTL ? undefined : ctlWrong });
       }
       if (r[n].a.startsWith('error')) inc(`${P}ERR|${n}`);
     }
@@ -412,7 +426,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
     G.__ck = undefined;
     try {
       for (const n of ASKED) {
-        if (n === 'ctl' && env.OWN_CTL !== '1') continue;
+        if (n === CTL && env.OWN_CTL !== '1') continue;
         if (OWN === 'changed' && !changedTrees.has(n)) continue;
         const p = playOwn(T[n], d);
         const firstTurn = p.cr.findIndex((c, k) => c !== d.cr[k] || p.sc[k] !== d.sc[k]);
@@ -502,6 +516,74 @@ async function driver(d: Deal) {
   }
 }
 
+// ------------------------------------------------------------------------------------------------ pair (bar 7's dig)
+/** MODE=pair: the source and each asked tree play the deal themselves, step by step; at the first decision where the
+ * tree's answer leaves the source's, it says whether the tree answers as the source when asked lockstep-style (fresh
+ * agent, the source agent's fields, a copy of the board) and which agent fields differ between the two games. */
+function pair(pool: string, d: Deal) {
+  for (const n of ASKED) {
+    S.clear();
+    T[n].clear();
+    const src: { a: string; snap: any; after: any }[] = [];
+    let fieldsAt: Record<string, unknown> | null = null;
+    const mine: string[] = [];
+    let found: Record<string, unknown> | null = null;
+    const wrap = (t: Tree, agent: any, side: string, own: boolean) =>
+      new Proxy(agent, {
+        get(target, prop, recv) {
+          const v = Reflect.get(target, prop, recv);
+          if (prop !== 'chooseAction' && prop !== 'chooseRez' && prop !== 'chooseOffTurn') return v;
+          return (s: GameState, ...rest: unknown[]) => {
+            const snap = own ? null : (() => {
+              const x: any = S.createAgent(side, 'normal');
+              copyFields(target, x);
+              return { agent: x, state: structuredClone(s), method: prop };
+            })();
+            const r = v.apply(target, [s, ...rest]);
+            if (!own) {
+              const after: any = {};
+              for (const k of Object.keys(target)) if (typeof target[k] !== 'function') after[k] = structuredClone(classInstance(target[k]) ? { ...target[k] } : target[k]);
+              src.push({ a: pickKey(r), snap, after });
+            }
+            else {
+              const i = mine.length;
+              mine.push(pickKey(r));
+              if (!fieldsAt && src[i]) {
+                const sa = src[i].after;
+                const diff = Object.keys(target).filter(k => typeof target[k] !== 'function' && pickKey(target[k]) !== pickKey(sa?.[k]));
+                if (diff.length) fieldsAt = { decision: i, side, method: prop, T: s.turnNumber, answerSame: src[i].a === mine[i], fields: Object.fromEntries(diff.map(k => [k, { own: pickKey(target[k]).slice(0, 600), source: pickKey(sa?.[k]).slice(0, 600) }])) };
+              }
+              if (!found && src[i] && src[i].a !== mine[i]) {
+                const sn = src[i].snap;
+                const lock = ask(n, side, sn.method, sn.state, sn.agent);
+                const fields = Object.keys(target).filter(k => typeof target[k] !== 'function' && pickKey(target[k]) !== pickKey(sn.agent[k]));
+                found = { decision: i, side, method: prop, T: s.turnNumber, own: mine[i].slice(0, 200), source: src[i].a.slice(0, 200), lockstepSame: lock.a === src[i].a, lockstep: lock.a.slice(0, 200), stateSame: pickKey(s) === pickKey(sn.state), fields };
+              }
+            }
+            return r;
+          };
+        },
+      });
+    const gs = new S.GameRunner(dealStateOf(S, d), { corp: wrap(S, S.createAgent('corp', 'normal'), 'corp', false), runner: wrap(S, S.createAgent('runner', 'normal'), 'runner', false) });
+    const t = T[n];
+    const gb = new t.GameRunner(dealStateOf(t, d), { corp: wrap(t, t.createAgent('corp', 'normal'), 'corp', true), runner: wrap(t, t.createAgent('runner', 'normal'), 'runner', true) });
+    const ck = G.__ck;
+    G.__ck = undefined;
+    try {
+      let a = true;
+      let b = true;
+      for (let k = 0; k < 4000 && (a || b) && !found; k++) {
+        if (a) a = gs.step();
+        while (b && mine.length < src.length && !found) b = gb.step();
+        if (!a && b && !found) b = gb.step();
+      }
+    } finally {
+      G.__ck = ck;
+    }
+    out({ kind: 'pair', pool, seed: d.seed, tree: n, decisions: src.length, found, fieldsAt });
+  }
+}
+
 // ------------------------------------------------------------------------------------------------ main
 let dirs: Record<string, string> = {};
 async function main() {
@@ -523,6 +605,12 @@ async function main() {
     nrdb: JSON.parse(readFileSync('scripts/pricing-context/deals-45555227992.json', 'utf8')),
     g3: JSON.parse(readFileSync('scripts/cache-keys/deals-g3.json', 'utf8')),
   };
+  // REC_<pool>=<deals.json> (REC_<group>_<pool> for one group's shards): that pool's deals and records from another batch
+  // (bars 6 and 7: the pairs' records)
+  for (const p of Object.keys(lists)) {
+    const f = env[`REC_${GROUP}_${p}`] ?? env[`REC_${p}`];
+    if (f) lists[p] = JSON.parse(readFileSync(f, 'utf8'));
+  }
   const units: { pool: string; d: Deal }[] = [];
   for (const pool of POOLS.filter(p => p !== 'people')) for (const d of lists[pool]) if (!DEALS.length || DEALS.includes(String(d.seed)) || DEALS.includes(`${pool}:${d.seed}`)) units.push({ pool, d });
   out({ kind: 'start', group: GROUP, asked: ASKED, units: units.filter((_, k) => k % SLICE === SLICE_K).length, sample: SAMPLE, audit: AUDIT, e: E_ON, modes: MODES });
@@ -550,6 +638,13 @@ async function main() {
       if (MODES.includes('lockstep')) lockstep(u.pool, u.d, false);
       if (MODES.includes('time') && (nth++ % TIME_EVERY === 0)) lockstep(u.pool, u.d, true);
       if (MODES.includes('driver') && u.pool === 'g3') await driver(u.d);
+      if (MODES.includes('pair')) pair(u.pool, u.d);
+      // MODE=own (bar 6): each asked tree plays the deal itself, hooks off, against the pool's record
+      if (MODES.includes('own')) for (const n of ASKED) {
+        const p = playOwn(T[n], u.d);
+        const firstTurn = p.cr.findIndex((c, k) => c !== u.d.cr[k] || p.sc[k] !== u.d.sc[k]);
+        out({ kind: 'own', group: GROUP, pool: u.pool, seed: u.d.seed, tree: n, same: p.winner === u.d.winner && key(p.cr) === key(u.d.cr) && key(p.sc) === key(u.d.sc), winner: p.winner, recWinner: u.d.winner, firstTurn, turns: p.cr.length, ms: p.ms });
+      }
     } catch (e) {
       out({ kind: 'error', pool: u.pool, seed: u.d.seed, error: (e as Error).stack?.slice(0, 800) });
     }

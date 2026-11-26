@@ -58,7 +58,7 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
   });
 
   it('an agenda let go goes to Archives, where the Runner steals it: never the first card to discard (rule 7.3.2)', () => {
-    const s = newGame();
+    let s = newGame();
     const agenda = s.corp.rd.find(c => cardDef(c).type_code === 'agenda')!;
     const ice = s.corp.rd.find(c => cardDef(c).type_code === 'ice')!;
     s.corp.hq = [agenda, ice];
@@ -67,6 +67,7 @@ describe('agendas on the board (Jeff, 2026-10-28; plan.agendaBoard)', () => {
     expect(archivedAgendaLoss(s, 2)).toBeLessThanOrEqual(pointValue(2));
     // On the board too: the Corp sees its facedown agenda in Archives as a likely steal
     const before = evaluate(s, 'corp');
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.archives.faceDown.push(s.corp.hq.shift()!);
     expect(evaluate(s, 'corp')).toBeLessThan(before);
   });

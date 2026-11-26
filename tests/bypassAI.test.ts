@@ -77,20 +77,22 @@ describe('Runner AI bypass (plan.bypass)', () => {
   });
 
   it('Window of Opportunity: ice the Corp cannot rez again is not encountered (6.9.1c, 6.9.2c)', () => {
-    const s = setup();
+    let s = setup();
     s.corp.credits = 0;
     expect(runScore(s, 'hq', runEventOptions(WINDOW, s))).toBeGreaterThan(0);
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.credits = 10; // the Corp rezzes it again: the Runner still has no way past
     expect(runScore(s, 'hq', runEventOptions(WINDOW, s))).toBe(-Infinity);
   });
 
   it('Malandragem in the rig makes small ice passable, once a turn (counter price)', () => {
-    const s = setup();
+    let s = setup();
     const m = installProgramForTest(s, MALANDRAGEM);
     s.runner.rig.programs.find(c => c.instanceId === m)!.tokens.power = 2;
     expect(withPlan(false, () => runScore(s, 'hq'))).toBe(-Infinity);
     expect(runScore(s, 'hq')).toBeGreaterThan(0);
     expect(runShortfall(s, 'hq')).not.toBeNull();
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.turnFlags[`once:${m}:0`] = 1; // used this turn
     expect(runScore(s, 'hq')).toBe(-Infinity);
   });

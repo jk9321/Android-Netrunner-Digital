@@ -44,11 +44,14 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     const agenda = createCardInstance(s, AGENDA);
     agenda.installedTurn = 'earlier';
     s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote Server 1', isRemote: true, ice: [], root: [agenda] };
+    // each price on its own copy (asked boards are frozen, F3 askedFreeze)
     const spendCost = (st: GameState) => {
-      st.corp.credits = 10;
-      const saved = evaluate(st, 'corp');
-      st.corp.credits = 7;
-      return saved - evaluate(st, 'corp');
+      const at10 = structuredClone(st);
+      at10.corp.credits = 10;
+      const saved = evaluate(at10, 'corp');
+      const at7 = structuredClone(st);
+      at7.corp.credits = 7;
+      return saved - evaluate(at7, 'corp');
     };
     const without = spendCost(s);
     inHand(s, 'corp', '36061');
@@ -75,6 +78,7 @@ describe('card plans (Jeff, 2026-10-30; plan.cardPlans)', () => {
     const scrounge = inHand(s, 'runner', '35004');
     const bareSell = handPlanWorth(s, sellOut)!;
     const bareScrounge = handPlanWorth(s, scrounge)!;
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     [s] = runnerInstall(s, '30034'); // Verbal Plasticity
     s.runner.heap.push(createCardInstance(s, '35032')); // Principia
     expect(s.runner.rig.resources).toHaveLength(1);
