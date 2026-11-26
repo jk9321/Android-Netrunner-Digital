@@ -342,7 +342,8 @@ describe('AI code health (audit guards)', () => {
     const ALLOWED: Record<string, string> = {
       'runs.ts': 'the owner (runScore itself)',
       'runnerAI.ts': "the Runner's ranking, its planner's runWorth and its run events",
-      'prompts.ts': 'a prompt that picks a server to run (run events) and Alarm Clock',
+      'prompts.ts': 'a prompt that picks a server to run (run events)',
+      'cards/liberation.ts': "Alarm Clock's prompt answer, its HQ run (its entry since B3 commit 1)",
     };
     const found = aiFiles().map(f => f.replace(/\\/g, '/')).filter(f => /\brunScore\(/.test(aiText(f)));
     expect(found.filter(f => !(f in ALLOWED))).toEqual([]);
@@ -713,16 +714,23 @@ describe('AI code health (audit guards)', () => {
   // drawWorth's key, heldFromPlayed's credits argument)): corp/ 3,982, src/ai 16,475
   // Then + 9 in src/ai, corp/ unchanged (R-14h commit 3: the Runner's 'later' money, handValues.ts + 9 (drawMoney's body
   // reads runnerEarnings once per board, laterMoneys, the import and the comment's form)): corp/ 3,982, src/ai 16,484
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,484 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix)', () => {
+  // Then + 47 in src/ai, corp/ unchanged (ai-runner-prompt-view, B3 commits 0 and 1, measured against beta 8005562 (16,484):
+  // runnerReply.ts + 2 (commit 0's rule 1.12.5 comment); commit 1, the Runner's per-card prompt answers moved into the
+  // cards' entries, bodies unchanged: prompts.ts - 129 (14 cases, taoSwap, breaksRezzedIce and their imports out, the
+  // dispatch point in), the entries + 150 (liberation.ts + 27, vantagePoint.ts + 42, elevation.ts + 34 with
+  // breaksRezzedIce, systemGateway.ts + 47 with taoSwap: each entry restates its card's guard and keeps its comment),
+  // cards/types.ts + 17 (PromptAsk and the promptAnswer field), cards/answers.ts + 7 (the two helpers the three
+  // effect_cards answers share)): corp/ 3,982, src/ai 16,531
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,531 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16484);
+    expect(all).toBeLessThanOrEqual(16531);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
     expect(3982 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16484 - all).toBeLessThanOrEqual(SLACK);
+    expect(16531 - all).toBeLessThanOrEqual(SLACK);
   });
 });

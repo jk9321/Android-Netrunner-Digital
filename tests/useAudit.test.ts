@@ -55,11 +55,12 @@ const read = (list: string[]) => list.map(f => readFileSync(`src/ai/${f}`, 'utf8
 const logic = { runner: read(files.filter(f => f !== 'corpAI.ts')), corp: read(files.filter(f => f !== 'runnerAI.ts')) };
 /** The card's code is named by its own side's decision logic (not just its own entry in src/ai/cards/). */
 // R-A A-move (Jeff 2026-11-24): the Runner's run facts moved from code literals into the card entries, so an entry with
-// runFacts, or with a holdFacts field the Runner's readers take, is the run logic knowing the card
+// runFacts, or with a holdFacts field the Runner's readers take, is the run logic knowing the card. B3 commit 1: the
+// Runner's per-card prompt answers moved from prompts.ts's code literals into the entries (`promptAnswer`), likewise
 const readsEntry = (code: string) => {
   const e = CARDS[code];
   const enc = e?.holdFacts?.encounter;
-  return !!(e?.runFacts && Object.keys(e.runFacts).length) || !!e?.holdFacts?.breaksHostSubroutine || !!e?.holdFacts?.hostBypass || !!(enc?.toll?.endRun && enc.unless?.tags && enc.threatAtLeast === undefined);
+  return !!e?.promptAnswer || !!(e?.runFacts && Object.keys(e.runFacts).length) || !!e?.holdFacts?.breaksHostSubroutine || !!e?.holdFacts?.hostBypass || !!(enc?.toll?.endRun && enc.unless?.tags && enc.threatAtLeast === undefined);
 };
 const named = (def: CardDefinition) => logic[def.side_code as 'corp' | 'runner'].includes(`'${def.code}'`) || readsEntry(def.code);
 /** The card says what it adds to the run it starts: its `run` entry in src/ai/cards/ (a plain run says so with `run: () => ({})`). */

@@ -23,6 +23,7 @@ const RULED: Record<string, [when: 'now' | 'later', reader: string][]> = {
     ['later', 'Next Big Thing (#37)'],
     ['now', 'Cacophony: cards the Corp loses (#30)'],
     ['later', 'Gourmand: a card on a later access (#6)'],
+    ['now', "Knickknack's trash pick: a card back now (#22; its entry's prompt answer since B3 commit 1)"],
     ['later', 'Knickknack: spent installs (#2)'],
     ['later', 'Knickknack: the Principia loop (#3)'],
     ['later', 'Side Hustle: a card once it holds 6 (#4)'],
@@ -70,7 +71,6 @@ const RULED: Record<string, [when: 'now' | 'later', reader: string][]> = {
     ['now', "clickWorth: the repeatable draw, cardRate (#19)"],
     ['now', "clickWorth: the repeatable draw, the other side's deck (#19)"],
   ],
-  'prompts.ts': [['now', "Knickknack's trash pick: a card back now (#22)"]],
 };
 
 const AI = join(import.meta.dirname, '..', 'src', 'ai');

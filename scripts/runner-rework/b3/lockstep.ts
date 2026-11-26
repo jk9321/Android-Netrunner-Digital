@@ -13,7 +13,12 @@
  * A deal's line: its first difference (step, turn, deciding side and kind, picks) with the reaches at that step and before
  * it; or no difference, and whether the base tree equals its record.
  *
- *   SHARD=0/64 npx vite-node scripts/runner-rework/b3/commit0-lockstep.ts -- BASE=<sha> POOL=batch,nrdb
+ * Commit 1 (bar 2, the same script; launched as commit0-lockstep.ts for bar 1): where a tree has commit 1's dispatch point
+ * (prompts.ts todayAnswer reading an entry's `promptAnswer`), the fire hook counts each entry's answers by card code,
+ * scope (top, inside) and answering side, in the branch tree, over the steps before a deal's first difference (every
+ * step of an identical deal): `fires` on the deal's line.
+ *
+ *   SHARD=0/64 npx vite-node scripts/runner-rework/b3/lockstep.ts -- BASE=<sha> POOL=batch,nrdb
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
@@ -31,7 +36,7 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
 }
 const BASE = process.env.BASE ?? '80055629eaf2877ddf5ce570b14bea45b4bb0576';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
-const root = resolve(process.env.TROOT ?? 'node_modules/.cache/b3-commit0-lockstep', String(shard));
+const root = resolve(process.env.TROOT ?? 'node_modules/.cache/b3-lockstep', String(shard));
 const POOLS = (process.env.POOL ?? 'batch,nrdb').split(',');
 const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const LIMIT = Number(process.env.LIMIT ?? Infinity);
@@ -49,6 +54,15 @@ const REACH: Patch[] = [
     'ai/runnerReply.ts',
     `export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { ice: CardInstance[]; root: CardInstance[]; loose: CardInstance[] } {\n`,
     `export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { ice: CardInstance[]; root: CardInstance[]; loose: CardInstance[] } {\n  const __kn = Object.values(state.corp.servers).flatMap(sv => sv.ice).filter(c => !c.isRezzed && c.runnerKnows);\n  // eslint-disable-next-line @typescript-eslint/no-explicit-any\n  if (__kn.length) (globalThis as any).__b3Reach?.(__kn.map(c => c.cardCode));\n`,
+  ],
+];
+
+/** Commit 1's fire hook: an entry's answer at the dispatch point (applied where the tree has it). */
+const FIRE: Patch[] = [
+  [
+    'ai/prompts.ts',
+    `    if (own) return { ...base, choice: own };\n`,
+    `    if (own) {\n      // eslint-disable-next-line @typescript-eslint/no-explicit-any\n      (globalThis as any).__b3Fire?.(prompt.source.cardCode, side);\n      return { ...base, choice: own };\n    }\n`,
   ],
 ];
 
@@ -77,6 +91,7 @@ function makeTrees(): Record<Name, string> {
     if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     applyPatches(dir, [...HOOKS, ...REACH], `tree ${name}`, read, write);
+    if (read(join(dir, 'src', FIRE[0][0])).includes(FIRE[0][1])) applyPatches(dir, FIRE, `fire ${name}`, read, write);
     dirs[name] = dir;
   }
   return dirs;
@@ -111,7 +126,7 @@ function readerOf(stack: string): string {
   return `other:${caller.replace(/\(.*$/, '').slice(0, 60)}`;
 }
 /** Every hook writes into one stream, each record labelled with its kind and scope path; reaches go to `reach` (base only). */
-function listen(t: Tree, rec: Acc, reach: Reach[] | null): () => void {
+function listen(t: Tree, rec: Acc, reach: Reach[] | null, fires: Record<string, number> | null): () => void {
   const scopes: string[] = [];
   const path = () => scopes.join('>');
   const core = t.core;
@@ -134,8 +149,14 @@ function listen(t: Tree, rec: Acc, reach: Reach[] | null): () => void {
         reach.push({ reader: readerOf(stack), scope: path() || 'none', codes });
       }
     : undefined;
+  G.__b3Fire = fires
+    ? (code: string, side: string) => {
+        const k = `${code}|${path() === 'top' ? 'top' : 'inside'}|${side}`;
+        fires[k] = (fires[k] ?? 0) + 1;
+      }
+    : undefined;
   return () => {
-    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__b3Reach = undefined;
+    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__b3Reach = G.__b3Fire = undefined;
   };
 }
 
@@ -185,6 +206,7 @@ function deal(pool: string, d: Deal) {
   let steps = 0;
   const before: (Reach & { side: string })[] = [];
   let firstReach: { step: number; T: number } | null = null;
+  const fires: Record<string, number> = {};
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.base.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -196,10 +218,11 @@ function deal(pool: string, d: Deal) {
     const res = {} as Record<Name, Acc>;
     const more = {} as Record<Name, boolean>;
     const at: Reach[] = [];
+    const stepFires: Record<string, number> = {};
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     for (const n of order) {
       res[n] = fresh();
-      const stop = listen(T[n], res[n], n === 'base' ? at : null);
+      const stop = listen(T[n], res[n], n === 'base' ? at : null, n === 'branch' ? stepFires : null);
       const t0 = performance.now();
       try {
         more[n] = g[n].step();
@@ -232,13 +255,14 @@ function deal(pool: string, d: Deal) {
       break;
     }
     before.push(...atSide);
+    for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
   }
   const B = g.base.state;
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const side of ['corp', 'runner'] as const) ms[n][side] += tms[n][side];
   const r1 = (x: number) => Math.round(x);
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, reach: diff ? null : tally(before), firstReach, recordSame, ms: Object.fromEntries(NAMES.map(n => [n, { corp: r1(tms[n].corp), runner: r1(tms[n].runner) }])) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, reach: diff ? null : tally(before), firstReach, fires, recordSame, ms: Object.fromEntries(NAMES.map(n => [n, { corp: r1(tms[n].corp), runner: r1(tms[n].runner) }])) });
 }
 
 async function main() {
