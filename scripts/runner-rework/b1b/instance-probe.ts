@@ -3,6 +3,7 @@
 // path), plays deal 1001 to step K, then asks the Runner/Corp the same decision three times: fresh, again (cache hits:
 // fewer values computed), and after the loader's clear (if the clear landed on a copy, the third ask would compute as
 // few values as the second). Usage: npx vite-node scripts/runner-rework/b1b/instance-probe.ts [-- <tree dir>]
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { join, resolve } from 'node:path';
 import { loadTree } from '../facts-trees';
 import { STARTER_DECKS } from '../../../src/data/decks';
