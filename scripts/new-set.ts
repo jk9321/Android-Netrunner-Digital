@@ -1,5 +1,5 @@
 /**
- * New card set scaffold (new-set process steps 1 to 4, CLAUDE.md).
+ * New card set scaffold (new-set process steps 1 to 4, docs/new-card-set.md).
  *
  *   npx vite-node scripts/new-set.ts -- <slug> <cards.json> [--write]
  *
