@@ -922,3 +922,28 @@ describe('An online Corp answers Lycian Multi-Munition with a combined subtype o
     expect(lycian.chosenSubtypes).toEqual(['code gate', 'sentry']);
   });
 });
+
+describe('Manual payment through the room (rules 1.10.3c)', () => {
+  it("an offered install with the player's split is accepted (the split is not part of what is offered) and paid by it", () => {
+    const [state, urban] = runnerInstall(newGame(), '34029'); // Urban Art Vernissage: its credits pay installs
+    state.runner.rig.resources.find(c => c.instanceId === urban)!.tokens.credit = 2;
+    state.runner.credits = 5;
+    state.runner.clicks = 3;
+    giveCard(state, 'runner', '30006'); // Cleaver, install cost 3
+    const room = roomWith(state);
+    const s = lastState(room, 'runner');
+    const cleaver = s.view.runner.grip.cards.find(c => c?.cardCode === '30006')?.instanceId;
+    const install = s.legal.find(a => a.type === 'INSTALL_CARD' && a.cardInstanceId === cleaver)!;
+    expect(install).toBeDefined();
+    const mine = s.view.runner.rig.resources.find(c => c.cardCode === '34029')!.instanceId;
+    const action = { ...install, payment: { pool: 3, cards: [{ cardInstanceId: mine, credits: 0 }] } } as GameAction;
+    const res = room.receive('runner', { type: 'act', seq: s.seq, action: JSON.parse(JSON.stringify(action)) }, 6000);
+    expect(errorsTo(res.out, 'runner')).toEqual([]);
+    expect(room.realState!.runner.credits).toBe(2);
+    expect(room.realState!.runner.rig.resources.find(c => c.instanceId === urban)!.tokens.credit).toBe(2);
+    // The stored move carries the split, in engine ids (a replay pays the same way)
+    expect(room.moves.at(-1)).toMatchObject({ type: 'INSTALL_CARD', payment: { pool: 3, cards: [{ cardInstanceId: urban, credits: 0 }] } });
+    // The Corp never sees it
+    expect(JSON.stringify(lastState(room, 'corp'))).not.toContain('"payment"');
+  });
+});
