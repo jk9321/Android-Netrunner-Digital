@@ -1,4 +1,5 @@
-import { CardInstance, GameState, cardDef, getCardDefinition, knownInHand } from '../core';
+import { CardInstance, GameState, cardDef, getCardDefinition } from '../core';
+import { certainHandCards } from '../core/engine/helpers';
 import { assetRisk, turnsLeft } from './cardProfiles';
 import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH, defaultWorth } from './counterValues';
@@ -100,9 +101,10 @@ const BASE_MU = 4;
  * the base, not the current total, so the worth doesn't drop once installed.
  */
 export function muWorth(state: GameState): number {
-  // Hidden information (rules 10.2.2a): deciding for the Corp, only the grip programs it has been shown count (knownInHand,
-  // as oracle.ts corpSeenGrip reads it with the oracles off; read here directly so effectValues gains no AI import edge)
-  const seen = actingSide() === 'corp' ? new Set(knownInHand(state, 'runner').map(k => k.id)) : undefined;
+  // Hidden information (rules 10.2.2a): deciding for the Corp, only the grip programs it surely knows are there count, by
+  // code and count (certainHandCards, as oracle.ts corpSeenGrip reads it with the oracles off; B4a ruling 6; read here
+  // directly so effectValues gains no AI import edge)
+  const seen = actingSide() === 'corp' ? new Set(certainHandCards(state, 'runner').map(c => c.instanceId)) : undefined;
   const grip = state.runner.grip
     .filter(c => cardDef(c).type_code === 'program' && (!seen || seen.has(c.instanceId)))
     .reduce((n, c) => n + (cardDef(c).memory_cost ?? 0), 0);

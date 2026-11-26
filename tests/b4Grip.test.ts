@@ -3,6 +3,8 @@ import { createCardInstance, GameState } from '../src/core';
 import { revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
 import { updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { corpSeenGrip } from '../src/ai/oracle';
+import { muWorth } from '../src/ai/effectValues';
+import { asSide } from '../src/ai/pricing';
 import { newGame } from './helpers';
 import '../src/ai';
 
@@ -46,5 +48,22 @@ describe('B4a ruling 6: corpSeenGrip', () => {
     const moved = structuredClone(s);
     moved.runner.knownToCorp = moved.runner.knownToCorp!.map(e => (e.id === gamble.instanceId ? { ...e, id: other.instanceId } : e));
     expect([...corpSeenGrip(moved, 'reply')]).toEqual([...corpSeenGrip(s, 'reply')]);
+  });
+});
+
+describe('B4a ruling 6: muWorth reads the grip programs the Corp surely knows, by code and count', () => {
+  // Five seen Cleavers (1 MU each) need more than the base 4 MU. A sixth, unseen card leaves the grip unseen into the
+  // stack (1.12.3): the Corp cannot tell it was not a Cleaver, so it surely knows four, which fit, and a console is worth
+  // the plain MU. Read by instance, all five seen Cleavers were still counted.
+  it('after an unseen departure from the grip, only the Cleavers still certain count', () => {
+    const s0 = structuredClone(newGame());
+    s0.runner.knownToCorp = [];
+    s0.runner.memoryUnitsUsed = 0;
+    s0.runner.grip = Array.from({ length: 5 }, () => createCardInstance(s0, SG.cleaver));
+    revealInHand(s0, 'runner', s0.runner.grip);
+    s0.runner.grip.push(createCardInstance(s0, SG.sureGamble));
+    const all = asSide('corp', () => muWorth(s0));
+    const after = act(s0, n => n.runner.stack.push(n.runner.grip.pop()!));
+    expect(asSide('corp', () => muWorth(after))).toBeLessThan(all);
   });
 });
