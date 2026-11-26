@@ -1215,8 +1215,9 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       value += trashNet(state, card);
     } else if (!card.isRezzed) {
       const agenda = remoteAgendaOdds(state, server, card, trap);
-      // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash
-      const trapShare = Math.min(1 - agenda, trap);
+      // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash; B4b (c): none where the root
+      // holds only an upgrade (runnerRootKinds; a trap is an asset, isTrap)
+      const trapShare = runnerRootKinds(state, card)?.kinds.length === 1 ? 0 : Math.min(1 - agenda, trap);
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
       value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * trapHit(state, card.advancementCounters, grip, memory) + (1 - agenda - trapShare) * 1;

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, executeAction, GameState } from '../src/core';
 import { dealRunnerUnknowns } from '../src/ai/runnerReply';
-import { remoteAgendaOdds } from '../src/ai/runs';
+import { remoteAgendaOdds, serverValue, trapOdds } from '../src/ai/runs';
+import { createCardInstance } from '../src/core';
 import { installCorpForTest, newGame } from './helpers';
 
 // B4b readers of the root-kinds fact (brief b4-hidden-zones ruling 9; engine/helpers.ts runnerRootKinds), each with the
@@ -49,5 +50,21 @@ describe('B4b (b): remoteAgendaOdds prices an agenda only where the root allows 
     const n = (t: string) => pool.filter(c => kind(c.cardCode) === t).length;
     expect(odds('remote-2', 0)).toBeCloseTo(n('agenda') / (n('upgrade') + 2 * (n('agenda') + n('asset'))));
     expect(odds('remote-2', 0)).toBeLessThan(n('agenda') / (n('upgrade') + n('agenda') + n('asset')));
+  });
+});
+
+describe('B4b (c): no trap share in a root card that can only be an upgrade (a trap is an asset, isTrap)', () => {
+  it('beside a rezzed asset, the facedown card adds what an upgrade is worth, with traps in the unseen pool', () => {
+    const s = newGame();
+    s.corp.hq.push(createCardInstance(s, '30045'), createCardInstance(s, '30045')); // Urtica Cipher: a trap
+    installCorpForTest(s, ASSET, 'remote-1', true);
+    installCorpForTest(s, ASSET, 'remote-2', true);
+    installCorpForTest(s, UPGRADE, 'remote-2');
+    const t = tick(s);
+    t.activePlayer = 'runner';
+    t.phase = 'runner_turn';
+    expect(trapOdds(t)).toBeGreaterThan(0);
+    // the same server less the facedown upgrade: the difference is the upgrade's own 1 (no agenda, no trap)
+    expect(serverValue(t, 'remote-2', 0, new Map(), true) - serverValue(t, 'remote-1', 0, new Map(), true)).toBeCloseTo(1);
   });
 });
