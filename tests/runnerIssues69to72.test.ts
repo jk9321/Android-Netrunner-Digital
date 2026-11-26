@@ -81,8 +81,11 @@ describe('issue #69: Tread Lightly played to run a server with no ice', () => {
     expect(titleIn(state, move)).toBe('Tread Lightly');
   });
 
-  // Passes when every Tread Lightly run this turn goes to a server with at least one piece of ice
-  it.fails('#69 T3: the Runner does not play Tread Lightly into a server with no ice', { timeout: 60_000 }, () => {
+  // Passes when every Tread Lightly run this turn goes to a server with at least one piece of ice. Known-failing until
+  // B4a 7(a) (ai-runner-hidden-zones): with HQ priced from the seen cards surely still there, the Runner plain-runs R&D
+  // and keeps Tread Lightly. That is this board only; the price of an event that buys nothing a click run would not is
+  // still issue #69's (tracker I69, R-B), so the issue stays open.
+  it('#69 T3: the Runner does not play Tread Lightly into a server with no ice', { timeout: 60_000 }, () => {
     const { state, runner } = boardBefore(69, TREAD_AT);
     const iceless: string[] = [];
     let tread = false;
