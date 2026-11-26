@@ -70,8 +70,9 @@ const MODULE_LETS: Record<string, string> = {
 /**
  * Code audit 2026-11-26 (AI-LATER-MONEY-HANDMADE-MEMO's guard): the module-level WeakMaps keyed by GameState outside
  * valueModel, each named with how a board edited in place after it was asked is caught. `stateEntries`: the F3 maps,
- * filled through valueModel stateEntries, whose tripwire freezes an asked board in the tests (askedFreeze). The others
- * predate F3 and are not tripwired; a new one goes on this list, through stateEntries or memo, or with its reason.
+ * filled through valueModel stateEntries, whose tripwire freezes an asked board in the tests (askedFreeze). `freezeAsked`:
+ * a map whose set calls freezeAsked, the same tripwire. The others predate F3 and are not tripwired; a new one goes on
+ * this list, through stateEntries or memo, or with its reason.
  */
 const STATE_CACHES: Record<string, 'stateEntries' | string> = {
   'effectValues:threats': 'stateEntries',
@@ -83,7 +84,7 @@ const STATE_CACHES: Record<string, 'stateEntries' | string> = {
   'synergy:oppCache': "not tripwired: the other side's card profile per board (outside F3)",
   'prompts:runAfters': 'not tripwired: the one-step boards the run term simulated, per answer (outside F3)',
   'cards/systemGateway:rootRd': "not tripwired: the decision root's R&D, carried to its look-aheads (not a value)",
-  'runner/prompt:shownByState': "not tripwired: the cards the engine's view shows the Runner in its prompt, per board (B3, outside F3)",
+  'runner/prompt:shownByState': "freezeAsked: the cards the engine's view shows the Runner in its prompt, per board (B3; tripwired since B4a, brief rev 1d)",
 };
 
 /**
@@ -799,11 +800,13 @@ describe('AI code health (audit guards)', () => {
   // corp/ 3,982, src/ai 16,856
   // Then the merge of beta 9154f02 (F3) into ai-runner-hidden-zones: B4a's + 59 above, measured on 16,797, on F3's
   // 16,813: corp/ 3,982, src/ai 16,872
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,872 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-runner-hidden-zones)', () => {
+  // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
+  // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,873 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-runner-hidden-zones)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16872);
+    expect(all).toBeLessThanOrEqual(16873);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
