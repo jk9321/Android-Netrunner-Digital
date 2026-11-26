@@ -107,8 +107,14 @@ const title = (t: Tree, code: string) => t.core.getCardDefinition(code)?.title ?
 const pickOf = (a: any) =>
   a?.type === 'RESOLVE_PROMPT' ? JSON.stringify(a.choice) : a ? `${a.type}${a.cardInstanceId ? ':' + a.cardInstanceId : ''}${a.hostInstanceId ? '@' + a.hostInstanceId : ''}${a.targetServerId ? '>' + a.targetServerId : ''}` : null;
 
+/** The card titles an action names (its card, the cards a prompt answer picks), read on the source tree. */
+const namesOf = (t: Tree, s: GameState, a: any): string[] => {
+  const ids: string[] = [a?.cardInstanceId, ...(a?.choice?.cardInstanceIds ?? [])].filter(Boolean);
+  return ids.map(id => title(t, t.core.findCardAnywhere(s, id)?.cardCode ?? '?'));
+};
+
 /** A fresh agent of `side` on tree `n` answers a copy of `s` (the Runner with `memory`), with the shown rule set for that tree. */
-function ask(n: Name, s: GameState, side: 'corp' | 'runner', memory: Map<string, string>): { pick: string | null; moves: Record<string, number> } {
+function ask(n: Name, s: GameState, side: 'corp' | 'runner', memory: Map<string, string>): { pick: string | null; action?: any; moves: Record<string, number> } {
   const t = T[n];
   t.clear();
   const agent: any = t.createAgent(side, 'normal');
@@ -117,7 +123,8 @@ function ask(n: Name, s: GameState, side: 'corp' | 'runner', memory: Map<string,
   G.__c2aShown = shownFor(t);
   G.__c2aMove = (who: string) => (moves[who] = (moves[who] ?? 0) + 1);
   try {
-    return { pick: pickOf(agent.chooseAction(structuredClone(s))), moves };
+    const action = agent.chooseAction(structuredClone(s));
+    return { pick: pickOf(action), action, moves };
   } catch (e) {
     return { pick: `threw ${(e as Error).message.slice(0, 80)}`, moves };
   } finally {
@@ -174,6 +181,7 @@ function deal(pool: string, d: Deal) {
       today: today.pick,
       fix: fix.pick,
       differs: today.pick !== fix.pick,
+      names: { played: namesOf(S, s, g.last), today: namesOf(S, s, today.action), fix: namesOf(S, s, fix.action) },
       prompt: p ? { kind: p.kind, candidates: p.candidateIds?.map((id: string) => title(S, S.core.findCardAnywhere(s, id)?.cardCode ?? '?')), min: p.min, max: p.max } : null,
     });
   }
