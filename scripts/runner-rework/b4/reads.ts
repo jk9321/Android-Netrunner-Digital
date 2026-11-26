@@ -45,4 +45,14 @@ export const READ_HOOKS: Record<string, Patch[]> = {
         `${L}  if (__traps.length !== traps.length || __agendas !== agendas || __traps.join() !== traps.join()) ${fire('d')};\n  return { traps, agendas };\n`,
     ],
   ],
+  // 7(e) the deal by code and count: a deal where today's kept an HQ card by instance or an exact mark open to doubt, or
+  // where a known code is dealt back to its zone; the Corp's guess of a shuffle's share
+  e: [
+    [
+      'ai/runnerReply.ts',
+      `  for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));\n`,
+      `${L}  if (kept.size || (s.corp.knownToRunner ?? []).length || knownInRd(s).some(e => e.lo === e.hi && e.left)) ${fire('e')};\n  for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));\n`,
+    ],
+    ['ai/runnerReply.ts', `  if (!marks.length) return [];\n`, `  if (!marks.length) return [];\n${L}  if (marks.some(m => m.mark.n0)) ${fire('e')};\n`],
+  ],
 };

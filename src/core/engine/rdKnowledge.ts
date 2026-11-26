@@ -140,6 +140,16 @@ export function rdSharesKnownToRunner(state: GameState): RdKnownCard[] {
   return (state.corp.rdKnownToRunner ?? []).filter(e => e.n0);
 }
 
+/**
+ * The Runner's R&D marks (knownInRd, then the shares) as the Corp can place them: `corpAt` is the place of the mark's
+ * card where the Corp knows that card is there (rdKnownToCorp; 4.2.3), else undefined. Ids stay in the engine (brief
+ * b4-hidden-zones ruling 5): the Corp's deal names a card for every other mark by code and place only.
+ */
+export function runnerRdMarksForCorp(state: GameState): { mark: RdKnownCard; corpAt?: number }[] {
+  const at = new Map(knownToCorpInRd(state).filter(e => state.corp.rd[e.at]?.instanceId === e.id).map(e => [e.id, e.at]));
+  return [...knownInRd(state), ...rdSharesKnownToRunner(state)].map(mark => ({ mark, corpAt: at.get(mark.id) }));
+}
+
 /** Ids of `after` that kept their relative order from `before` (longest increasing run of old positions). */
 function keptInOrder(before: string[], after: string[]): Set<string> {
   const oldPos = new Map(before.map((id, i) => [id, i]));
