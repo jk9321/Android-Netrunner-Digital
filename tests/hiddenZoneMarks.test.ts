@@ -78,6 +78,18 @@ describe('B4a: a seen HQ card stays known until a card that could be it leaves u
     expect(certainInHand(after, 'corp')).toEqual([[SG.hedgeFund, 2]]);
   });
 
+  // B4a gap 1 (step 0, 2.2): the list used to keep a card the Runner saw leave, and the count took it as still there
+  it('a seen card the Runner follows from HQ into R&D leaves the list, and is no unseen departure (10.2.2b, 1.12.4)', () => {
+    const { s, ids } = hq([SG.hedgeFund, SG.regolith, SG.palisade], 2);
+    const after = act(s, n => {
+      n.corp.rd.unshift(take(n.corp.hq, ids[0]));
+      runnerSeesRd(n, n.corp.rd[0]);
+    });
+    expect(knownInHand(after, 'corp').map(k => k.code)).toEqual([SG.regolith]);
+    expect(certainInHand(after, 'corp')).toEqual([[SG.regolith, 1]]);
+    expect(knownInRd(after).map(e => [e.code, e.lo, e.hi])).toEqual([[SG.hedgeFund, 0, 0]]);
+  });
+
   it('the Corp knows the grip by the same rule: a card shuffled back into the stack may be the seen one (Touch-ups, 1.12.3)', () => {
     const s = newGame();
     const gamble = createCardInstance(s, SG.sureGamble);

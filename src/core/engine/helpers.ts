@@ -407,7 +407,11 @@ export function updateHandKnowledge(prev: GameState, state: GameState): void {
     if (known.length === 0) continue;
     const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
     const inHand = new Set(hand.map(c => c.instanceId));
-    const departed = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId));
+    // A card the Runner followed from HQ into R&D (an effect showed it there: it is marked in R&D) is no departure it
+    // cannot tell, and it is no longer in HQ (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program)
+    const followed = owner === 'corp' ? new Set((state.corp.rdKnownToRunner ?? []).map(e => e.id)) : undefined;
+    const departed = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId) && !followed?.has(c.instanceId));
+    if (followed?.size) known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));
     known = addLosses(
       known,
       departed.map(c => lossKind(state, c.instanceId))
