@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { PAYMENT_MODE_LABELS, setPaymentMode, usePaymentMode } from '../paymentMode';
 import { motion } from 'framer-motion';
 import { Flag, LogOut, X } from 'lucide-react';
 import { GameState, SideCode } from '../../core';
@@ -135,6 +136,9 @@ export function GameMenuDrawer({
             />
           </div>
 
+          {/* Payments: Auto (the usual order, hosted-credit buttons) or Manual (the payment panel) */}
+          <PaymentModeControl />
+
           {/* Audio & Animation Settings */}
           <div className="space-y-3 bg-[#05080e] border border-slate-800/90 rounded-[2px] p-3">
             <div className="text-[11px] font-cyber font-bold text-slate-400 tracking-wider">AUDIO & FX</div>
@@ -192,5 +196,31 @@ export function GameMenuDrawer({
       </motion.div>
     </motion.div>,
     document.body,
+  );
+}
+
+/** Payments: Auto or Manual (paymentMode.ts). */
+function PaymentModeControl() {
+  const mode = usePaymentMode();
+  return (
+    <div className="space-y-2 bg-[#05080e] border border-slate-800/90 rounded-[2px] p-3" data-testid="payment-mode-control">
+      <div className="text-[11px] font-cyber font-bold text-slate-400 tracking-wider">PAYMENTS</div>
+      <div className="flex items-center bg-[#090d15] border border-slate-800 rounded-[2px] p-0.5">
+        {(['auto', 'manual'] as const).map(m => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setPaymentMode(m)}
+            aria-pressed={mode === m}
+            title={PAYMENT_MODE_LABELS[m].title}
+            className={`flex-1 px-3 py-1.5 text-xs font-bold rounded-[2px] ${mode === m ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            data-testid={`payment-mode-${m}`}
+          >
+            {PAYMENT_MODE_LABELS[m].short}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-slate-400 leading-snug">{PAYMENT_MODE_LABELS[mode].title}</p>
+    </div>
   );
 }

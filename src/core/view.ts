@@ -912,6 +912,8 @@ function mapAction(action: GameAction, map: (id: string) => string | undefined, 
     default:
       res = { ...action };
   }
+  // The player's split of the payment names their own active cards (manual payment)
+  if (action.payment) res = { ...res, payment: { ...action.payment, cards: action.payment.cards.map(c => ({ cardInstanceId: one(c.cardInstanceId), credits: c.credits })) } };
   return ok ? res : null;
 }
 

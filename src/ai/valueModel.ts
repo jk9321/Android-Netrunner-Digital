@@ -162,19 +162,6 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
 }
 
 
-const mapGames = new WeakMap<Map<string, unknown>, string>();
-/**
- * Keeps a module-level cache to one game (audit Step 2, AI-CACHE-HIDDEN-STATE): empties `map` when `state` belongs to
- * another game than the entries in it. For caches whose keys are known to be incomplete (handValues clickWorth and
- * drawWorth, effectValues damageThreat): which other board's value a hit serves then depends on the game's own calls
- * only, not on the games played earlier in the same process (a batch shard), so a deal plays the same alone or in a shard.
- */
-export function scopeToGame(map: Map<string, unknown>, state: GameState): void {
-  if (mapGames.get(map) === state.id) return;
-  map.clear();
-  mapGames.set(map, state.id);
-}
-
 /**
  * When the card is played (R-14h, brief runner-rework/briefs/r14h-last-credits-fix.md): 'now', a card in the hand on
  * the board priced, or lost from it now; 'later', a card that arrives on a later turn and is paid with that turn's
@@ -506,6 +493,43 @@ export function positionSerial(state: GameState): number {
   let id = stateIds.get(state);
   if (id === undefined) stateIds.set(state, (id = nextStateId++));
   return id;
+}
+
+/**
+ * The entries of a value map keyed by the position itself (F3, netrunner-ai/cache-keys/count-note.md and brief-build.md):
+ * the map hangs on the GameState object, so a value is only ever served for the board it was worked out on, and the
+ * entries die with their state (no size cap, no game scope). The inner key holds only what is not in the state. Exact
+ * only while no code writes to a state after a value was asked on it (askedFreeze checks that in the tests).
+ * damageThreat, drawWorth and clickWorth use it.
+ */
+export function stateEntries<V>(maps: WeakMap<GameState, Map<string, V>>, state: GameState): Map<string, V> {
+  let entries = maps.get(state);
+  if (!entries) {
+    maps.set(state, (entries = new Map()));
+    freezeAsked(state);
+  }
+  return entries;
+}
+/** The asked-state tripwire for a by-position map that is not a stateEntries one (handValues drawMoney's memo): `state`, frozen when askedFreeze is on. */
+export function freezeAsked(state: GameState): GameState {
+  if (askedFreeze.on) freezeDeep(state);
+  return state;
+}
+/**
+ * Test-only tripwire (F3 brief rev 1, findings 1 and 10): an asked state is read only. With `on`, a state is frozen
+ * through and through when its first stateEntries entry is made, so any later write to it throws (strict mode). On in
+ * the test runs (tests/setup.ts), off in play.
+ */
+export const askedFreeze = { on: false, frozen: 0 };
+function freezeDeep(root: object): void {
+  const stack: object[] = [root];
+  while (stack.length) {
+    const x = stack.pop()!;
+    if (Object.isFrozen(x)) continue;
+    Object.freeze(x);
+    askedFreeze.frozen++;
+    for (const v of Object.values(x)) if (v && typeof v === 'object') stack.push(v);
+  }
 }
 
 /** `key` names the lookup; the same lookup on another position (a rig with a card taken out) is not a loop. */

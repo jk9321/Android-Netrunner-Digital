@@ -65,8 +65,7 @@ Everything you did differently from the spec, or decided where the spec was sile
 changed defaults, extra refactors, skipped steps, tests you could not write. "None" means none.
 
 ## Tests added
-Test name -> what it pins (one line each). For rules changes, the rule number it cites (CLAUDE.md: every rules
-change cites the comprehensive rules). For AI changes, the scenario test that pins the hole.
+Test name -> what it pins (one line each). For rules changes, the rule number it cites (`RULE-CITE-RULES-PDF`). For AI changes, the scenario test that pins the hole.
 
 ## Batches / measurements (AI work only)
 Run ids, base_run pairing, games, result vs gate, `scripts/batch-log.mjs` entry. "n/a" otherwise.

@@ -10,7 +10,7 @@
  * `visibility` only accepts 'invite' for now.
  */
 import type { SideCode } from '../core/types/card';
-import type { GameAction } from '../core/types/actions';
+import type { GameAction, PaymentPlan } from '../core/types/actions';
 import type { PromptChoice } from '../core/types/prompts';
 import type { FormatId } from '../core/formats';
 import type { GameView } from '../core/view';
@@ -249,8 +249,43 @@ function choiceOf(v: unknown): PromptChoice {
   }
 }
 
+/** A player's split of a payment (manual payment): whole credits from the pool, the run's credits and their own cards. */
+function paymentOf(v: unknown): PaymentPlan {
+  if (!isObject(v)) throw new Bad();
+  const cards = v.cards;
+  if (!Array.isArray(cards) || cards.length > MAX_LIST) throw new Bad();
+  return {
+    pool: int(v.pool, 999),
+    ...opt(v, 'run', x => int(x, 999)),
+    ...opt(v, 'badPublicity', x => int(x, 999)),
+    cards: cards.map(c => {
+      if (!isObject(c)) throw new Bad();
+      return { cardInstanceId: id(c.cardInstanceId), credits: int(c.credits, 999) };
+    }),
+  };
+}
+
 /** A client's action rebuilt from its known keys with checked values, or null. */
 export function sanitizeAction(raw: unknown): GameAction | null {
+  const action = sanitizeActionKeys(raw);
+  if (!action || !isObject(raw) || raw.payment === undefined) return action;
+  try {
+    return { ...action, payment: paymentOf(raw.payment) };
+  } catch (err) {
+    if (err instanceof Bad) return null;
+    throw err;
+  }
+}
+
+/** The action without its payment split, which is checked by the engine (it falls back to the usual order if it doesn't fit). */
+export function withoutPayment(action: GameAction): GameAction {
+  if (action.payment === undefined) return action;
+  const rest = { ...action };
+  delete rest.payment;
+  return rest;
+}
+
+function sanitizeActionKeys(raw: unknown): GameAction | null {
   if (!isObject(raw) || (raw.player !== 'corp' && raw.player !== 'runner')) return null;
   const player = raw.player as SideCode;
   try {

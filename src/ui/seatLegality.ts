@@ -9,7 +9,7 @@
  * isLegalAction for the own-side probes, and executeAction for the reason
  * text of a blocked action, both on the viewer's reconstruction only.
  */
-import { GameAction, GameState, GameView, SideCode, executeAction, isLegalAction } from '../core';
+import { GameAction, GameState, GameView, PaymentQuote, SideCode, executeAction, isLegalAction, paymentQuote } from '../core';
 import type { Viewer } from './viewer';
 
 /** One viewer's place at the table. */
@@ -111,4 +111,27 @@ export function probeReason(state: GameState, action: GameAction): string {
 export function seatReason(legal: GameAction[], side: SideCode, state: GameState, action: GameAction): string | null {
   if (seatCan(legal, side, state, action)) return null;
   return action.player === side ? probeReason(state, action) : 'Not your decision';
+}
+
+/** Actions that never pay credits of their own (manual payment skips the trial run for them). */
+const NEVER_PAYS = new Set<GameAction['type']>(['PASS', 'SET_STOPS', 'SET_CREDIT_HOLD', 'CONCEDE', 'GAIN_CREDIT', 'DRAW_CARD', 'END_TURN']);
+
+/**
+ * Manual payment: the first payment the seat's own action would make, when the player has a
+ * choice of where its credits come from (rules 1.10.3c): at least two places hold credits and
+ * the cost is less than all of them together (paying everything leaves nothing to choose).
+ * On the viewer's own reconstruction, in their ids: only their own pool and cards are read.
+ */
+export function seatPaymentChoice(seat: Pick<Seat, 'state'>, action: GameAction): PaymentQuote | null {
+  if (NEVER_PAYS.has(action.type) || action.payment) return null;
+  let quote: PaymentQuote | null;
+  try {
+    quote = paymentQuote(seat.state, action);
+  } catch {
+    return null;
+  }
+  if (!quote) return null;
+  const sources = quote.sources.filter(s => s.max > 0);
+  const total = sources.reduce((n, s) => n + s.max, 0);
+  return sources.length >= 2 && quote.amount < total ? { ...quote, sources } : null;
 }

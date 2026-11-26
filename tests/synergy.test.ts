@@ -355,7 +355,7 @@ describe('identity plans', () => {
   // V-B B6 item 17: an agenda's counter is the owner's step (agendaWorth on its server: here the click and credit it saves,
   // 3), no longer the iced share of its points (5); the bare Urtica's bluff and extra damage (4.3) now ranks first
   it('PT Untaian places on the card whose counter is worth most (the owner\'s step for an agenda), and skips when nothing is worth a credit', () => {
-    const s = structuredClone(newGame());
+    let s = structuredClone(newGame());
     const agenda = createCardInstance(s, '30069');
     const trap = createCardInstance(s, '30045'); // Urtica Cipher
     remote(s, 'remote-8', [agenda], [createCardInstance(s, '30072')]);
@@ -363,6 +363,7 @@ describe('identity plans', () => {
     s.corp.credits = 5;
     expect(untaianPick(s, [agenda.instanceId, trap.instanceId])).toEqual([trap.instanceId]);
     expect(untaianPick(s, [agenda.instanceId])).toEqual([agenda.instanceId]);
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.credits = 1;
     expect(untaianPick(s, [agenda.instanceId])).toEqual([]);
   });
@@ -389,17 +390,18 @@ describe('identity plans', () => {
     // The Corp half read the ranking's install scores (BANGUN's bait); under the order the facedown install comes first, so
     // that half is pinned known-failing above (Step 4 Stage C7)
     // The Runner: a faceup agenda is a sure steal, but not with a hand that 2 meat damage would empty
-    const t = structuredClone(s);
+    let t = structuredClone(s);
     agenda.faceUp = true;
     remote(t, 'remote-9', [{ ...agenda, faceUp: true }]);
     t.runner.grip = t.runner.grip.slice(0, 3);
     expect(serverValue(t, 'remote-9', 0, undefined, true)).toBeGreaterThan(2);
+    t = structuredClone(t); // asked boards are frozen (F3 askedFreeze): edit a copy
     t.runner.grip = t.runner.grip.slice(0, 1);
     expect(serverValue(t, 'remote-9', 0, undefined, true)).toBe(0);
   });
 
   it('Tāo Salonga swaps the ice it cannot break off the agenda remote', () => {
-    const s = structuredClone(newGame());
+    let s = structuredClone(newGame());
     s.runner.rig.programs = [createCardInstance(s, '30006')]; // Cleaver: barriers only
     const sentry = createCardInstance(s, '30073'); // Tithe
     sentry.isRezzed = true;
@@ -411,6 +413,7 @@ describe('identity plans', () => {
     s.corp.servers.archives.ice = [barrier];
     expect(new Set(taoSwap(s))).toEqual(new Set([sentry.instanceId, barrier.instanceId]));
     // Nothing to gain: no swap
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.corp.servers.archives.ice = [];
     expect(taoSwap(s)).toEqual([]);
   });
@@ -425,13 +428,14 @@ describe('draws and money', () => {
   });
 
   it('the Runner draws below the limit with money in the bank, and stops at the limit', () => {
-    const s = structuredClone(newGame());
+    let s = structuredClone(newGame());
     s.activePlayer = 'runner';
     s.runner.clicks = 4;
     s.runner.credits = 8;
     s.runner.grip = s.runner.grip.slice(0, 3);
     const score = (type: string) => new HeuristicRunnerAI().rankMainActions(s).find(r => r.action.type === type)!.score;
     expect(score('DRAW_CARD')).toBeGreaterThan(score('GAIN_CREDIT'));
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     while (s.runner.grip.length < s.runner.handSizeLimit) s.runner.grip.push(s.runner.stack.shift()!);
     expect(score('DRAW_CARD')).toBeLessThan(score('GAIN_CREDIT'));
   });

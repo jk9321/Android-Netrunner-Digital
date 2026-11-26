@@ -61,6 +61,26 @@ export function noteState(seed: number, state: GameState) {
   liveState = { seed, state };
 }
 
+// How the person was looking at the game (pass and play, Open table, one side), so a report about seeing
+// secret cards can be checked (issue #74)
+let liveView: { seed: number; view: string } | null = null;
+
+export function noteView(seed: number, view: string) {
+  liveView = { seed, view };
+}
+
+const VIEW_NAMES: Record<string, string> = {
+  open: 'Open table',
+  hotseat: 'pass and play',
+  corp: 'Corp view only',
+  runner: 'Runner view only',
+};
+
+/** The view the person had in the game with this seed, if noted (local games only). */
+export function viewFor(seed: number): string | undefined {
+  return liveView?.seed === seed ? (VIEW_NAMES[liveView.view] ?? liveView.view) : undefined;
+}
+
 /** The real state of the game with this seed, if it is the one being played. */
 export function liveStateFor(seed: number): GameState | undefined {
   return liveState?.seed === seed ? liveState.state : undefined;
@@ -118,7 +138,9 @@ export async function gameReport(game: GameForReport): Promise<NonNullable<Repor
   return {
     seed: config.seed,
     format: `Corp deck ${formatName(config.corpDeck)}, Runner deck ${formatName(config.runnerDeck)}`,
-    opponent: config.ai ? `computer plays the ${config.ai} (${config.difficulty})` : 'two players',
+    opponent: [config.ai ? `computer plays the ${config.ai} (${config.difficulty})` : 'two players', viewFor(config.seed)]
+      .filter(Boolean)
+      .join(', view: '),
     turn: turnText(state),
     replay: replayQuery(config),
     corpDeck: deckText(config.corpDeck),

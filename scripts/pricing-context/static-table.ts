@@ -298,7 +298,6 @@ const CACHES: Cache[] = [
   { name: 'valueModel.ts buildTargets', fill: 'src/ai/valueModel.ts:buildTarget@', key: [], note: 'found row 90; game id + identities' },
   { name: 'valueModel.ts iceMeans', fill: 'src/ai/valueModel.ts:corpIceMean@', key: [], note: 'found row 90; game id + identity' },
   { name: 'prompts.ts runAfters', fill: 'src/ai/prompts.ts:runAnswer@', key: [], note: 'per state; the one-step boards the Corp\'s run term simulated (side corp only)' },
-  { name: 'effectValues.ts boardFactCodes', fill: 'src/ai/effectValues.ts:boardFacts@', key: [], note: 'card codes, scopeToGame' },
 ];
 const fieldsReachable = (startUnits: string[], startEdges: Edge[] = []) => {
   const m = new Map<string, Edge | null>();

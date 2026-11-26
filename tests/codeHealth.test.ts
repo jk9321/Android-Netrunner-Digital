@@ -60,6 +60,30 @@ const MODULE_LETS: Record<string, string> = {
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
+  // F3 (ai-cache-keys): the by-position value maps, a WeakMap each; the clear helpers (tests, scripts) put a new one in
+  'effectValues:threats': 'a by-position value map (STATE_CACHES below); clearDamageThreats replaces it, a WeakMap cannot be emptied',
+  'handValues:deckAverage': 'a by-position value map (STATE_CACHES below); clearHandCaches replaces it',
+  'handValues:clickCache': 'a by-position value map (STATE_CACHES below); clearHandCaches replaces it',
+  'pricing:nextRootId': "contextKey's id counter for decision roots (like valueModel:nextStateId)",
+};
+
+/**
+ * Code audit 2026-11-26 (AI-LATER-MONEY-HANDMADE-MEMO's guard): the module-level WeakMaps keyed by GameState outside
+ * valueModel, each named with how a board edited in place after it was asked is caught. `stateEntries`: the F3 maps,
+ * filled through valueModel stateEntries, whose tripwire freezes an asked board in the tests (askedFreeze). The others
+ * predate F3 and are not tripwired; a new one goes on this list, through stateEntries or memo, or with its reason.
+ */
+const STATE_CACHES: Record<string, 'stateEntries' | string> = {
+  'effectValues:threats': 'stateEntries',
+  'handValues:deckAverage': 'stateEntries',
+  'handValues:clickCache': 'stateEntries',
+  'turnPlanner:runnerViews': 'not tripwired: the guessed view per decision board, checked by its signature (sig)',
+  'turnPlanner:corpViews': 'not tripwired: the guessed view per decision board, checked by its signature (sig)',
+  'synergy:ownCache': "not tripwired: a side's own card profile per board (outside F3)",
+  'synergy:oppCache': "not tripwired: the other side's card profile per board (outside F3)",
+  'prompts:runAfters': 'not tripwired: the one-step boards the run term simulated, per answer (outside F3)',
+  'cards/systemGateway:rootRd': "not tripwired: the decision root's R&D, carried to its look-aheads (not a value)",
+  'runner/prompt:shownByState': "not tripwired: the cards the engine's view shows the Runner in its prompt, per board (B3, outside F3)",
 };
 
 /**
@@ -124,6 +148,20 @@ describe('AI code health (audit guards)', () => {
     );
     expect(found.filter(key => !(key in MODULE_LETS)), 'a flag that changes what a position is worth goes in pricing.ts (withPricing)').toEqual([]);
     expect(Object.keys(MODULE_LETS).filter(key => !found.includes(key))).toEqual([]);
+  });
+
+  it('names every module-level WeakMap keyed by GameState outside valueModel, and fills the tripwired ones through stateEntries (audit 2026-11-26)', () => {
+    const dir = new URL('../src/ai/', import.meta.url);
+    const text = (file: string) => readFileSync(new URL(file, dir), 'utf8');
+    const files = (readdirSync(dir, { recursive: true }) as string[]).filter(f => f.endsWith('.ts') && f !== 'valueModel.ts');
+    const found = files.flatMap(file => [...text(file).matchAll(/^(?:export )?(?:const|let) (\w+)\b[^\n]*new WeakMap<GameState\b/gm)].map(m => `${file.replace(/\\/g, '/').replace(/\.ts$/, '')}:${m[1]}`));
+    expect(found.filter(key => !(key in STATE_CACHES)), 'name it in STATE_CACHES: through stateEntries, or why not').toEqual([]);
+    expect(Object.keys(STATE_CACHES).filter(key => !found.includes(key))).toEqual([]);
+    for (const [key, how] of Object.entries(STATE_CACHES).filter(([, how]) => how === 'stateEntries')) {
+      const [file, name] = key.split(':');
+      expect(text(`${file}.ts`), key).toMatch(new RegExp(`stateEntries\\(${name}, state\\)`));
+      expect(how).toBe('stateEntries');
+    }
   });
 
   it('reads the diagnostics sink only through its write helpers (audit Step 3 group B: no decision reads it)', () => {
@@ -734,6 +772,11 @@ describe('AI code health (audit guards)', () => {
   // 9c10d7f (16,598)): runner/prompt.ts + 197 (new: the three classes, the swap, the fallbacks, today's path for in-run
   // hosts and R-93's class, their comments), cards/elevation.ts + 4 and cards/types.ts + 3 (MuslihaT's promptShows and
   // the field), runnerAI.ts - 5 (promptAnswer reads runner/prompt.ts): corp/ 3,982, src/ai 16,797
+  // Then + 16 in src/ai, corp/ unchanged (ai-cache-keys, F3: the three value maps by position, measured against beta
+  // 12ee4b4, merged onto B3's 16,797: valueModel.ts + 24 (stateEntries, freezeAsked and the askedFreeze tripwire with their comments, scopeToGame
+  // and mapGames out), pricing.ts + 22 (contextKey, its root ids and comment), effectValues.ts - 16 (threats' string key,
+  // its counts and boardFacts out), handValues.ts - 14 (two string keys, their cap clears and comments out, laterMoneys to
+  // memo)): corp/ 3,982, src/ai 16,813
   // Then + 8 in src/ai, corp/ unchanged (ai-runner-hidden-zones, B4a 7(a): hqAgendaOdds reads the HQ count by code and
   // count, its comment and import, measured against beta 85a89eb (16,797)): runs.ts + 8: corp/ 3,982, src/ai 16,805
   // Then + 4 in src/ai (ai-runner-hidden-zones, B4a 7(b): rdWorth reads a shuffle's shares, with its comment and import):
@@ -754,16 +797,18 @@ describe('AI code health (audit guards)', () => {
   // corp/ 3,982, src/ai 16,854
   // Then + 2 in src/ai (ai-runner-hidden-zones, B4a ruling 6: winNow's blind grip by code and count, its import):
   // corp/ 3,982, src/ai 16,856
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,856 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-runner-hidden-zones)', () => {
+  // Then the merge of beta 9154f02 (F3) into ai-runner-hidden-zones: B4a's + 59 above, measured on 16,797, on F3's
+  // 16,813: corp/ 3,982, src/ai 16,872
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,872 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-runner-hidden-zones)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16856);
+    expect(all).toBeLessThanOrEqual(16872);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
     expect(3982 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16531 - all).toBeLessThanOrEqual(SLACK);
+    expect(16813 - all).toBeLessThanOrEqual(SLACK);
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cardDef } from '../src/core';
+import { GameState, cardDef } from '../src/core';
 import { hiddenCardOdds, sideStrength } from '../src/ai/evaluate';
 import { remoteAgendaOdds } from '../src/ai/runs';
 import { tuning } from '../src/ai/synergy';
@@ -24,12 +24,17 @@ describe('one guess for a facedown remote card (plan.oneAgendaGuess)', () => {
   };
 
   it('the run choice starts from the board odds, plus the ice in front', () => {
-    const { s, card } = position();
-    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], card, 1 / 3)).toBeCloseTo(2 / 3); // advanced: an agenda unless a trap
-    card.advancementCounters = 0;
-    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], card, 1 / 3)).toBeCloseTo(hiddenCardOdds(s).agenda);
+    const at = position();
+    let s = at.s;
+    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], at.card, 1 / 3)).toBeCloseTo(2 / 3); // advanced: an agenda unless a trap
+    // asked boards are frozen (F3 askedFreeze): edit a copy, its card found again
+    const cardIn = (b: GameState) => b.corp.servers['remote-1'].root.find(c => c.instanceId === at.card.instanceId)!;
+    s = structuredClone(s);
+    cardIn(s).advancementCounters = 0;
+    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], cardIn(s), 1 / 3)).toBeCloseTo(hiddenCardOdds(s).agenda);
+    s = structuredClone(s);
     installForTest(s, 'ice', 'remote-1');
-    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], card, 1 / 3)).toBeGreaterThan(hiddenCardOdds(s).agenda);
+    expect(remoteAgendaOdds(s, s.corp.servers['remote-1'], cardIn(s), 1 / 3)).toBeGreaterThan(hiddenCardOdds(s).agenda);
   });
 
   it('an advanced facedown card looks like an agenda on the Runner\'s board too', () => {

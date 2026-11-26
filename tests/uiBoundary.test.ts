@@ -9,14 +9,15 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = join(__dirname, '..');
-const ENGINE_ONLY = ['executeAction', 'getLegalActions', 'isLegalAction', 'uncommittedChoice', 'createInitialGameState', 'wantsStop'];
+const ENGINE_ONLY = ['executeAction', 'getLegalActions', 'isLegalAction', 'uncommittedChoice', 'createInitialGameState', 'wantsStop', 'paymentQuote'];
 const ALLOWED = 'src/ui/table.ts';
 /**
  * The seat's legality without the real state, shared by the local and the online table (chunk 2c): the own-side
- * probes (isLegalAction) and the reason text of a blocked action (executeAction), on the viewer's reconstruction only.
+ * probes (isLegalAction), the reason text of a blocked action (executeAction) and the manual payment quote
+ * (paymentQuote, a trial run of the seat's own action), on the viewer's reconstruction only.
  */
 const SEAT_LEGALITY = 'src/ui/seatLegality.ts';
-const SEAT_LEGALITY_MAY = ['isLegalAction', 'executeAction'];
+const SEAT_LEGALITY_MAY = ['isLegalAction', 'executeAction', 'paymentQuote'];
 
 function files(dir: string, deep: boolean): string[] {
   return readdirSync(join(ROOT, dir)).flatMap(name => {

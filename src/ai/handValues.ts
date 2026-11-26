@@ -6,8 +6,8 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { CLICK, DrawWhen, RATES, cardRate, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, setDeckCard, stateEntries, freezeAsked, memo } from './valueModel';
+import { actingSide, contextKey, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 import { nextTurn, runnerEarnings } from './nextTurnMoney';
 
@@ -130,7 +130,7 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
   return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];
 }
 
-const deckAverage = new Map<string, number>();
+let deckAverage = new WeakMap<GameState, Map<string, number>>();
 /**
  * On-hit audits of handValues' maps (test-only: tests/handCacheAudit.test.ts, scripts/cache-bisect.ts): with `on`, every
  * value served from the map is worked out again on the asking board and compared; a mismatch is a hit the key let
@@ -140,8 +140,9 @@ export const drawAudit = { on: false, checked: 0, mismatches: 0, errors: [] as n
 export const clickAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[] };
 /** Empties handValues' maps (test-only: scripts/cache-bisect.ts). */
 export function clearHandCaches(): void {
-  deckAverage.clear();
-  clickCache.clear();
+  // A WeakMap can't be cleared: new ones
+  deckAverage = new WeakMap();
+  clickCache = new WeakMap();
 }
 
 /**
@@ -156,22 +157,20 @@ function atDeckRoot(state: GameState, side: SideCode): boolean {
   const anchor = pricing().anchor;
   return side === 'corp' && !pricing().pricingRootDeck && pricing().frozen && !!anchor?.root && anchor.side === 'corp' && anchor.root.id === state.id && pricing().side !== null;
 }
-const laterMoneys = new WeakMap<GameState, number>();
 /**
  * The money a deck card drawn `when` is tested against (heldFromPlayed: payable soon or not): the side's credits on the
  * board for a card in hand now or lost from it now ('now'). For a card that arrives on a later turn ('later'), the money
  * it is played with on that turn (R-14h, issue #65; the form ruled at step 0.3, runner-rework/r14h-fix/ and rulings 16):
  * the Runner, its credits and what its cards and every click but two make on its next turn (two clicks kept: one draws
  * the card, one plays it), read from the next-turn money's owner (nextTurnMoney.ts runnerEarnings), never a copy, and
- * worked out once per board (laterMoneys). The Corp, its credits on the board, as 'now' (the Corp side's ruling,
+ * worked out once per board (memo). The Corp, its credits on the board, as 'now' (the Corp side's ruling,
  * 2026-11-25): its 'later' rows keep their class as plumbing, with today's money; its own form is R-14q's.
  */
 function drawMoney(state: GameState, side: SideCode, when: DrawWhen): number {
   if (side === 'corp') return state.corp.credits;
   if (when === 'now') return state.runner.credits;
-  let money = laterMoneys.get(state);
-  if (money === undefined) laterMoneys.set(state, (money = state.runner.credits + runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - 2)]));
-  return money;
+  // Once per position (valueModel memo: kept on the state, dropped if it changes in place; frozen once asked, freezeAsked)
+  return memo(freezeAsked(state), 'laterMoney', () => state.runner.credits + runnerEarnings(state, nextTurn(state))[Math.max(0, state.runner.maxClicks - 2)]);
 }
 
 /** Average held worth of the cards left in a side's deck (what a draw is expected to bring), each card tested against the money it is played with (drawMoney). */
@@ -185,23 +184,13 @@ function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {
   const money = drawMoney(state, side, when);
   const rootAvg = rootDeckAverage(state, side, deck, money);
   if (rootAvg !== undefined) return rootAvg;
-  // R-14h: and the money the cards are tested against, beside the credits (playedWorth reads the credits itself: payoutSlide)
-  const credits = `${side === 'corp' ? state.corp.credits : state.runner.credits}:${money}:`;
-  // and the whole position (valueModel fingerprint: scores, rezzed ice, rigs...): the in-run rez model's look-aheads
-  // (2026-11-06) price boards a turn would otherwise never see (a steal, a rez, a toll paid), and with the cache cleared
-  // at its size cap a value from one of those could be served for the real board, so a reloaded game played on
-  // differently from the one in memory (tests/savedGame.test.ts)
-  const board = `${fingerprint(state)}:`;
-  // The deck by instance and card code (ai-honest-runner-view, AI Coordinator 2026-11-16 03:30Z): the Runner's view and
-  // the Hard AI's determinize re-deal hidden Corp cards by recoding fixed instances, so by ids alone a guessed deck
-  // shared the real deck's key (drawAudit: 104 wrong hits on deal 2181). Off a view an instance's code never changes
-  const key = `${deckPricingKey()}:${side}:${state.id}:${state.turnNumber}:${credits}${board}${deck.map(c => c.instanceId + c.cardCode).join(',')}`;
-  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): the key leaves out what R&D, Archives, the grip and the heap hold, the counters
-  // and hosts of installed cards and the run under way, so some hits are another board's value (drawAudit). The exact key
-  // (zone contents in the key) cost x1.17 Corp decision time (V-B B1, ruling 1; 24 wrong of 401k hits, 2 Corp picks in
-  // 7,410): kept incomplete, recorded. The map is kept to one game, never the games played before it (batch shards).
-  scopeToGame(deckAverage, state);
-  const cached = deckAverage.get(key);
+  // By position (F3, netrunner-ai/cache-keys/: the string key of game, turn, credits, fingerprint and deck let wrong
+  // hits through from another board): the map is on the asked state (stateEntries), the inner key only what is not in
+  // the state, the pricing key, the side, the money the cards are tested against (R-14h: drawMoney, not `when`) and the
+  // Pricing fields outside the pricing key (contextKey)
+  const key = `${deckPricingKey()}:${side}:${money}:${contextKey()}`;
+  const entries = stateEntries(deckAverage, state);
+  const cached = entries.get(key);
   if (cached !== undefined && !drawAudit.on) return cached;
   // While the average is worked out, a card's worth that needs the average card (cardRate) gets the flat rate:
   // the deck's average card can't depend on itself (a value loop otherwise, valueModel.ts guardLoop)
@@ -215,8 +204,7 @@ function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {
     }
     return cached;
   }
-  if (deckAverage.size > 500) deckAverage.clear();
-  deckAverage.set(key, value);
+  entries.set(key, value);
   return value;
 }
 
@@ -314,13 +302,12 @@ export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  // The board is in the key (valueModel fingerprint): each hand card's played worth and the deck's average read it. Before,
-  // the key left it out and about 17% of hits were another board's value (Audit Step 2 clickAudit; tests/threatCacheAudit
-  // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above). Still
-  // incomplete (zone contents, counters): kept incomplete, recorded (V-B B1 M1; 19 wrong of 41.7k hits, exact key x1.05)
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;
-  scopeToGame(clickCache, state);
-  const cached = clickCache.get(key);
+  // By position (F3, netrunner-ai/cache-keys/count-note.md; valueModel stateEntries): the map hangs on the GameState
+  // object, so the board is the key; inside it, the pricing context (pricingKey, contextKey) and the side. Before, a key of
+  // game, turn, clicks, credits, hand and fingerprint let 8,404 of 262k checked hits through from another board
+  const key = `${pricingKey()}:${side}:${contextKey()}`;
+  const entries = stateEntries(clickCache, state);
+  const cached = entries.get(key);
   if (cached !== undefined && !clickAudit.on) return cached;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
@@ -342,11 +329,10 @@ export function clickWorth(state: GameState, side: SideCode): number {
     }
     return cached;
   }
-  if (clickCache.size > 2000) clickCache.clear();
-  clickCache.set(key, value);
+  entries.set(key, value);
   return value;
 }
-const clickCache = new Map<string, number>();
+let clickCache = new WeakMap<GameState, Map<string, number>>();
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. Owner of a click (registry). */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {

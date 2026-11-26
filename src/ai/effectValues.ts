@@ -5,7 +5,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH, defaultWorth } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, scopeToGame, sideCards } from './valueModel';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, sideCards, stateEntries } from './valueModel';
 import { agendaWorth, tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { plan, pricing, withPricing } from './pricing';
@@ -361,11 +361,18 @@ function cardDamage(code: string): number {
   return most;
 }
 
-const threats = new Map<string, { burst: number; share: number }>();
+/**
+ * damageThreat's values by position (F3, netrunner-ai/cache-keys/count-note.md; valueModel stateEntries): the map hangs on
+ * the GameState object, the inner key is what is not in the state (skipIce, own). Before, a string key of counts left
+ * which cards were out of the pool to chance, and 10.4% of checked hits were another board's value (the count's A).
+ */
+let threats = new WeakMap<GameState, Map<string, { burst: number; share: number }>>();
 /** damageThreat's on-hit audit (test-only): with `on`, every value served from the map is worked out again and compared. */
 export const threatsAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[], burstErrors: 0 };
-/** Empties damageThreat's map (test-only: scripts/cache-bisect.ts). */
-export const clearDamageThreats = (): void => threats.clear();
+/** Empties damageThreat's map (test-only: scripts/cache-bisect.ts): a WeakMap can't be cleared, so a new one. */
+export const clearDamageThreats = (): void => {
+  threats = new WeakMap();
+};
 
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest
@@ -380,17 +387,9 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
   const skipIce = corpTurn;
   // plan.corpTurnDamageOwn: on the Corp's turn only damage the Corp deals itself (see ownTurnHit)
   const own = corpTurn && plan().corpTurnDamageOwn;
-  const tagged = state.runner.tags > 0;
-  // How many Corp cards there are (a look-ahead that adds or doubles one changes the pool; ai-runner-unknowns, whose new
-  // damage readers hit this map more: 124 wrong of 43.6k on deal 2181 became 1,130 of 69.7k without it)
-  const corp = state.corp;
-  const count = corp.hq.length + corp.rd.length + corp.archives.faceDown.length + Object.values(corp.servers).reduce((n, v) => n + v.root.length + v.ice.length, 0);
-  const key = `${state.id}:${state.corp.archives.faceUp.length}:${state.corp.scoreArea.length}:${state.runner.scoreArea.length}:${skipIce}:${own}:${own && tagged}:${own ? boardFacts(state) : ''}:${count}`;
-  // Audit Step 2 (AI-CACHE-HIDDEN-STATE): keyed by how many cards are out of the pool, not which (nor a look-ahead's added
-  // or doubled card), so some hits are another board's value (about a third: threatsAudit); an exact (per-position)
-  // version cost decision time (V-B B1 ruling 1: the pool's codes x1.10 Corp; 5,093 wrong of 713k hits): kept incomplete, recorded
-  scopeToGame(threats, state);
-  const cached = threats.get(key);
+  const key = `${skipIce}:${own}`;
+  const entries = stateEntries(threats, state);
+  const cached = entries.get(key);
   if (cached && !threatsAudit.on) return cached;
   const gone = new Set([...state.corp.archives.faceUp, ...state.corp.scoreArea, ...state.runner.scoreArea].map(c => c.instanceId));
   const live = sideCards(state, 'corp').filter(c => !gone.has(c.instanceId));
@@ -409,23 +408,8 @@ export function damageThreat(state: GameState, corpTurn = false): { burst: numbe
     }
     return cached;
   }
-  if (threats.size > 200) threats.clear();
-  threats.set(key, threat);
+  entries.set(key, threat);
   return threat;
-}
-
-/** The Corp's cards whose corpTurnDamage fact reads the board (Orbital Superiority, Mindscaping, Neurospike, Phật Gioan Baotixita), one game's. */
-const boardFactCodes = new Map<'codes', string[]>();
-/**
- * damageThreat's key for the facts that read the board (ai-winnow-reach): their values on this board, so a fact is never
- * served from a board with other inputs (Mindscaping reads the tag count, Neurospike the points scored this turn, Phật
- * Gioan Baotixita its counters; the key had only whether the Runner is tagged). Empty for a Corp with none of them.
- */
-function boardFacts(state: GameState): string {
-  scopeToGame(boardFactCodes, state);
-  let codes = boardFactCodes.get('codes');
-  if (!codes) boardFactCodes.set('codes', (codes = [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function')));
-  return codes.map(code => ownTurnDamage(state, code)).join(',');
 }
 
 /**

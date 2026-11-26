@@ -1,4 +1,5 @@
 import { afterEach, expect } from 'vitest';
+import { askedFreeze } from '../src/ai/valueModel';
 import { appendFileSync } from 'node:fs';
 
 /**
@@ -22,3 +23,6 @@ if (noAssertFile) {
     appendFileSync(noAssertFile, `${ctx.task.file?.name ?? '?'} > ${ctx.task.name}\n`);
   });
 }
+
+/** F3 (brief-build rev 1): an asked state is read only; every state with a by-position value entry is frozen in the tests. */
+askedFreeze.on = true;

@@ -202,5 +202,27 @@ export function pricingKey(): string {
   return key;
 }
 
+const rootIds = new WeakMap<object, number>();
+let nextRootId = 0;
+/**
+ * The context fields a value can read that pricingKey leaves out, as one string, for the value maps keyed by the
+ * position itself (F3: handValues.ts drawWorth and clickWorth; count netrunner-ai/cache-keys/count-note.md): frozen,
+ * both sides' known hands, the anchor (its root by object), the decision seed and rezzingToUse. Built anew on every
+ * call: rezzingToUse and the known sets change in place, so pricingKey's version can't stand for them.
+ * tests/valueB1Keys.test.ts pins that every Pricing field is in pricingKey, here, or on its list of fields no value reads.
+ */
+export function contextKey(): string {
+  const c = context;
+  const hand = (s: Set<string> | null) => (s ? [...s].join(',') : '-');
+  const a = c.anchor;
+  let root = '';
+  if (a?.root) {
+    let id = rootIds.get(a.root);
+    if (id === undefined) rootIds.set(a.root, (id = nextRootId++));
+    root = `o${id}`;
+  }
+  return `${c.frozen ? 'f' : ''}|${hand(c.known.corp)}|${hand(c.known.runner)}|${a ? `${a.id}:${a.credits}:${a.side ?? ''}:${root}` : ''}|${c.decisionSeed ?? ''}|${[...c.rezzingToUse].join(',')}`;
+}
+
 /** pricingKey less the breaker guard, for the deck averages (handValues.ts): worked out under averaging, it is never read. */
 export const deckPricingKey = (): string => pricingKey().replace(/:b$/, ':');

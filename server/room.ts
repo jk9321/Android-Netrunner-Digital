@@ -50,6 +50,7 @@ import {
   ClientMessage,
   actionKey,
   sanitizeAction,
+  withoutPayment,
 } from '../src/net/protocol';
 import { Bucket, HOLD_BUDGET, MAX_GAME_MOVES, STOPS_BUDGET, TOO_LONG_REASON, take } from './limits';
 
@@ -637,7 +638,9 @@ export class RoomCore {
    * to hand size for the seat's own prompt (at most 256 answers are listed).
    * The engine judges those.
    */
-  private offered(side: SideCode, action: GameAction): boolean {
+  private offered(side: SideCode, paid: GameAction): boolean {
+    // The player's split of the payment (manual payment) is not part of what is offered: the engine checks it
+    const action = withoutPayment(paid);
     const legal = this.legalFor(side);
     const keys = new Set(legal.map(unorderedKey));
     if (keys.has(unorderedKey(action))) return true;
