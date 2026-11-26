@@ -63,6 +63,8 @@ export interface Tree {
   hold: any;
   cards: any;
   tp: any;
+  cp: any;
+  ce: any;
   clear: () => void;
 }
 
@@ -86,6 +88,8 @@ const MODULES: [name: string, path: string][] = [
   ['hold', './ai/corp/hold'],
   ['cards', './ai/cards/index'],
   ['tp', './ai/turnPlanner'],
+  ['cp', './ai/cardProfiles'],
+  ['ce', './core/engine/cardEffects'],
 ];
 
 /**
@@ -100,7 +104,7 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
   // One import statement a module, in this order (vite-node never settles concurrent imports of one circular graph)
   writeFileSync(entry, MODULES.map(([n, p]) => `export * as ${n} from '${p}';`).join('\n') + '\n');
   const m: any = await import(/* @vite-ignore */ entry);
-  const { ai, po, core, decks, ev, hv, vm, fx, iv, tm, pricing, plans, syn, runs, rez, hold, cards, tp } = m;
+  const { ai, po, core, decks, ev, hv, vm, fx, iv, tm, pricing, plans, syn, runs, rez, hold, cards, tp, cp, ce } = m;
   return {
     name,
     ai,
@@ -119,6 +123,8 @@ export async function loadTree(name: string, dir: string): Promise<Tree> {
     hold,
     cards: cards.CARDS,
     tp,
+    cp,
+    ce,
     clear: () => {
       hv.clearHandCaches?.();
       fx.clearDamageThreats?.();
