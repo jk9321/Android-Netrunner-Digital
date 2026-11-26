@@ -51,7 +51,7 @@ for (const [pair, pool] of pairs.flatMap(p => [...new Set(deals.filter(d => d.pa
   for (const [k, t] of Object.entries(ms).sort()) if (t.base) console.log(`  time ${k}: branch ${((t.branch / t.base - 1) * 100).toFixed(1)}%, control ${((t.control / t.base - 1) * 100).toFixed(1)}% (base ${(t.base / 1000).toFixed(0)} s)`);
   if (list) for (const d of diff) console.log(`  ${d.seed} step ${d.diff.step} T${d.diff.T} ${d.diff.side}|${d.diff.kind} branch ${d.diff.branch} control ${d.diff.control} fires ${fired(d.diff.firesAt)}; picks ${d.diff.picks?.base === d.diff.picks?.branch ? 'same' : `${d.diff.picks?.base} / ${d.diff.picks?.branch}`}`);
 }
-const RUNNER_READERS = /^(a|b|c|d|e|h)\|inside\|corp$/;
+const RUNNER_READERS = /^(a|b|c|d|e|h|Ba|Bb|Bc|Bd)\|inside\|corp$/;
 const partOf = f => {
   const ks = Object.keys(f ?? {});
   if (ks.some(k => k.startsWith('H|'))) return 'hard';
