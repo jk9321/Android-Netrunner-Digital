@@ -34,6 +34,8 @@ interface GameOverlaysProps {
   onTogglePromptDock?: () => void;
   /** True while AccessedPanel is rendered docked inside the desktop sidebar. */
   hideAccessedPanel?: boolean;
+  /** True when the tabletop is mirrored with the Corp on the bottom half. */
+  corpOnBottom?: boolean;
 }
 
 /** Whether the viewer at this screen can answer the active prompt right now. */
@@ -110,6 +112,7 @@ export function GameOverlays({
   hidePromptPanel = false,
   onTogglePromptDock,
   hideAccessedPanel = false,
+  corpOnBottom = false,
 }: GameOverlaysProps) {
   const {
     gameState,
@@ -143,7 +146,7 @@ export function GameOverlays({
 
       {!ended && <TurnBanner activePlayer={activePlayer} humanSide={humanSide} />}
 
-      {!handoffTo && <CardFates fates={fates} />}
+      {!handoffTo && <CardFates fates={fates} corpOnBottom={corpOnBottom} />}
 
       {!hideAccessedPanel && accessed.length > 0 && !handoffTo && (
         <AccessedPanel cards={accessed} onInspect={onInspectCard} onClose={clearAccessed} />

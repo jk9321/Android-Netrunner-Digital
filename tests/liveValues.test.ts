@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance, findCardAnywhere, GameState } from '../src/core';
 import { TurnFlag, bumpTurnFlag } from '../src/core/engine/cardEffects';
 import { startRun } from '../src/core/engine/actions/run';
-import { liveCardModifiers, liveValues, runCreditPools } from '../src/ui/liveValues';
+import { isInstalledCorpCard, liveCardModifiers, liveScriptValue, liveValues, runCreditPools } from '../src/ui/liveValues';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 const C = {
@@ -144,5 +144,36 @@ describe('live values on hover', () => {
       poolLocked: false,
       sources: [{ label: 'Mahkota Langit Grid', amount: 2 }],
     });
+  });
+
+  it('liveScriptValue returns only dynamic script values without duplicating Cost/Strength lines', () => {
+    const s = newGame();
+    startRunnerTurn(s);
+    const fermenter = installProgramForTest(s, C.fermenter);
+    findCardAnywhere(s, fermenter)!.tokens.virus = 3;
+    expect(liveScriptValue(s, findCardAnywhere(s, fermenter)!)).toBe('Cash out now: gain 6[credit]');
+
+    // Rising Tide has a strengthModifier but no script.liveValue (already shown in Strength badge)
+    const tide = installProgramForTest(s, C.risingTide);
+    s.runner.heap.push(createCardInstance(s, C.cleaver));
+    expect(liveScriptValue(s, findCardAnywhere(s, tide)!)).toBeNull();
+
+    // Unity in grip counts itself as installed alongside Rising Tide and Cleaver (3 icebreakers total)
+    installProgramForTest(s, C.cleaver);
+    const unityInGrip = giveCard(s, 'runner', C.unity);
+    expect(liveScriptValue(s, findCardAnywhere(s, unityInGrip)!)).toBe('X = 3: 1[credit] for +3 strength');
+  });
+
+  it('isInstalledCorpCard distinguishes installed Corp ice/root cards from hand and Runner cards', () => {
+    const s = newGame();
+    const hqCard = giveCard(s, 'corp', C.urtica);
+    expect(isInstalledCorpCard(s, findCardAnywhere(s, hqCard)!)).toBe(false);
+    expect(isInstalledCorpCard(s, s.corp.identity)).toBe(false);
+    expect(isInstalledCorpCard(s, s.runner.identity)).toBe(false);
+
+    const rootId = installCorpForTest(s, C.urtica, 'remote1', false);
+    const iceId = installIceForTest(s, C.palisade, 'remote1', false);
+    expect(isInstalledCorpCard(s, findCardAnywhere(s, rootId)!)).toBe(true);
+    expect(isInstalledCorpCard(s, findCardAnywhere(s, iceId)!)).toBe(true);
   });
 });

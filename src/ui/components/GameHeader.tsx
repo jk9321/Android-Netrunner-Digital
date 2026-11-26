@@ -61,6 +61,7 @@ export function GameHeader({
   const [animations, setAnimations] = useState(animationsEnabled);
   const [flipHotseatBoards, setFlipHotseatBoards] = useState(flipHotseatBoardsEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPos, setSettingsPos] = useState<{ top: number; right: number }>({ top: 48, right: 12 });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
@@ -97,12 +98,18 @@ export function GameHeader({
   };
   const showHotseatFlip = !online && !humanSide;
 
-  const aiSide = config?.ai ?? null;
   const ended = !!state.winner || !!online?.over;
   const { corp, runner } = state;
 
   useEffect(() => {
     if (!settingsOpen) return;
+    const updatePosition = () => {
+      const rect = settingsBtnRef.current?.getBoundingClientRect();
+      const top = (rect && rect.bottom > 0 ? rect.bottom : 42) + 6;
+      const right = rect && rect.right > 0 ? Math.max(8, window.innerWidth - rect.right) : 12;
+      setSettingsPos(prev => (prev.top === top && prev.right === right ? prev : { top, right }));
+    };
+    updatePosition();
     const onPointerDown = (e: MouseEvent) => {
       const target = e.target as Node | null;
       if (target && (settingsBtnRef.current?.contains(target) || settingsMenuRef.current?.contains(target))) return;
@@ -113,9 +120,11 @@ export function GameHeader({
     };
     window.addEventListener('mousedown', onPointerDown);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', updatePosition);
     return () => {
       window.removeEventListener('mousedown', onPointerDown);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', updatePosition);
     };
   }, [settingsOpen]);
 
@@ -155,47 +164,39 @@ export function GameHeader({
             data-testid="stops-toggle"
             onClick={() => onStops(nextStops(stops))}
             className={`shrink-0 text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border font-bold whitespace-nowrap ${
-              aiThinking
-                ? 'border-amber-500 text-amber-300 animate-pulse'
-                : stops === 'full'
-                  ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
-                  : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+              stops === 'full'
+                ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-950/40'
+                : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
             }`}
             title={STOP_LABELS[stops].title}
             aria-label={`Stops: ${stops}`}
           >
-            {aiThinking ? (
-              <span data-testid="ai-status">AI THINKING…</span>
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
-                <span className="hidden min-[1800px]:inline">STOPS:</span>
-                {STOP_LABELS[stops].short}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1">
+              {stops === 'full' ? <Hand className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}
+              <span className="hidden min-[1800px]:inline">STOPS:</span>
+              {STOP_LABELS[stops].short}
+            </span>
           </button>
+          {aiThinking && (
+            <span
+              data-testid="ai-status"
+              role="status"
+              className="shrink-0 text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-[2px] border border-amber-500 bg-amber-950/40 text-amber-300 font-bold whitespace-nowrap animate-pulse select-none"
+            >
+              AI THINKING…
+            </span>
+          )}
           <div className="hidden md:block min-w-0 overflow-hidden">
             <PhaseTracker state={state} />
           </div>
-          {online ? (
-            <OnlineMarks online={online} />
-          ) : (
-            config && (
-              <span
-                className="text-[11px] text-slate-500 font-mono whitespace-nowrap truncate min-w-0 shrink-[100] hidden 2xl:inline"
-                title={`Open the app with ?seed=${config.seed}&corp=${config.corpDeck.id}&runner=${config.runnerDeck.id}${aiSide ? `&ai=${aiSide}&difficulty=${config.difficulty}` : ''} to replay this deal`}
-              >
-                SEED {config.seed}
-              </span>
-            )
-          )}
+          {online && <OnlineMarks online={online} />}
         </div>
       </div>
 
       {/* Score Board */}
       <div className="flex items-center gap-1.5 sm:gap-2 2xl:gap-3 bg-[#04070c] border border-slate-800/80 rounded-[2px] p-1 shadow-inner shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-cyan-400 font-cyber tracking-wider hidden 2xl:inline">CORP</span>
+          <span className="text-[10px] xl:text-[11px] font-bold text-cyan-400 font-cyber tracking-wider hidden sm:inline">CORP</span>
           <button
             type="button"
             data-testid="header-corp-score"
@@ -219,6 +220,7 @@ export function GameHeader({
           >
             <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 sm:mr-1.5 text-pink-400" /> <StatTumbler value={runner.score} /> / 7
           </button>
+          <span className="text-[10px] xl:text-[11px] font-bold text-pink-400 font-cyber tracking-wider hidden sm:inline 2xl:hidden">RUN</span>
           <span className="text-[11px] font-bold text-pink-400 font-cyber tracking-wider hidden 2xl:inline">RUNNER</span>
         </div>
       </div>
@@ -281,12 +283,7 @@ export function GameHeader({
               role="menu"
               aria-label="Settings"
               data-testid="settings-menu"
-              style={(() => {
-                const rect = settingsBtnRef.current?.getBoundingClientRect();
-                const top = (rect && rect.bottom > 0 ? rect.bottom : 42) + 6;
-                const right = rect && rect.right > 0 ? Math.max(8, window.innerWidth - rect.right) : 12;
-                return { top, right };
-              })()}
+              style={{ top: settingsPos.top, right: settingsPos.right }}
               className="fixed z-[100] w-56 bg-[#090d15] border border-slate-700 rounded-[2px] p-3 shadow-2xl font-mono text-xs text-slate-200 space-y-2.5"
             >
               <div className="font-cyber font-bold tracking-wider text-[11px] text-slate-400 border-b border-slate-800 pb-1.5">
@@ -311,6 +308,7 @@ export function GameHeader({
         {!ended && (
           <button
             onClick={onConcede}
+            aria-label={`Forfeit (${concedingSide === 'corp' ? 'Corp' : 'Runner'} concedes)`}
             className="p-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 text-pink-300 hover:text-white rounded-[2px] border border-pink-700/80 border-b-2 border-b-pink-500 shadow shadow-pink-950 active:translate-y-[1px] active:border-b-[1px] transition-all"
             title={`Forfeit (the ${concedingSide === 'corp' ? 'Corp' : 'Runner'} concedes)`}
             data-testid="forfeit"
@@ -320,6 +318,7 @@ export function GameHeader({
         )}
         <button
           onClick={onLeave}
+          aria-label="Leave game"
           className="p-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 text-cyan-300 hover:text-white rounded-[2px] border border-cyan-700/80 border-b-2 border-b-cyan-500 shadow shadow-cyan-950 active:translate-y-[1px] active:border-b-[1px] transition-all"
           title="Leave game (back to deck select)"
         >

@@ -1,5 +1,6 @@
 import React from 'react';
 import { clearSavedGame, loadSavedGame } from '../savedGame';
+import { clearSession } from '../../net/client';
 import { BugReportButton } from './BugReportButton';
 import { isChunkLoadError, reloadForNewBuild } from '../chunkReload';
 
@@ -28,6 +29,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
 
   private startOver = () => {
     clearSavedGame();
+    clearSession();
     // Drop ?seed=... too, so the reload opens the deck picker
     window.location.replace(window.location.pathname);
   };
@@ -47,8 +49,8 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
         <div className="max-w-md w-full bg-[#090d15] border border-red-700/80 rounded-[2px] p-5 shadow-2xl space-y-3">
           <h1 className="font-cyber font-black text-red-400 tracking-wider">SYSTEM FAILURE</h1>
           <p className="text-sm text-slate-300">
-            Something went wrong and the game can't be shown. Starting over clears the saved game and goes back to deck
-            selection. Your custom decks are kept.
+            Something went wrong and the game can't be shown. Starting over clears the active game session and goes back to
+            deck selection. Your custom decks are kept.
           </p>
           <pre className="text-[12px] text-slate-500 whitespace-pre-wrap break-words max-h-32 overflow-auto">{error.message}</pre>
           <div className="flex gap-2 justify-end">

@@ -1,14 +1,25 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
+import { findCardAnywhere } from '../../core/engine/helpers';
 import { cardDef, getCardImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { X, Shield, Trash2, AlertCircle } from 'lucide-react';
 import { cardTextHtml, flavorTextHtml } from '../cardText';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { Keyword } from './Keyword';
-import { AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
-import { liveCardModifiers, useLiveGameState } from '../liveValues';
+import {
+  AdvancementIcon,
+  AgendaDiamondIcon,
+  AgendaIcon,
+  CreditIcon,
+  Credits,
+  MuIcon,
+  PowerIcon,
+  VirusIcon,
+  renderSymbols,
+} from './CreditIcon';
+import { isInstalledCorpCard, liveCardModifiers, liveScriptValue, useLiveGameState } from '../liveValues';
 
 interface CardZoomModalProps {
   card: CardInstance | null;
@@ -31,10 +42,17 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
   }, [card, onClose]);
 
   if (!card) return null;
-  const def = cardDef(card);
+  const liveCard = gameState ? findCardAnywhere(gameState, card.instanceId) ?? card : card;
+  const def = cardDef(liveCard);
   const isCorp = def.side_code === 'corp';
-  const mods = gameState ? liveCardModifiers(gameState, card) : undefined;
+  const showUnrezzed = !!gameState && isInstalledCorpCard(gameState, liveCard) && !liveCard.isRezzed && !liveCard.faceUp;
+  const mods = gameState ? liveCardModifiers(gameState, liveCard) : undefined;
+  const liveNote = gameState ? liveScriptValue(gameState, liveCard) : null;
   const keywords = def.text ? cardKeywords(def.text) : [];
+  const creditTokens = liveCard.tokens?.credit ?? 0;
+  const virusTokens = liveCard.tokens?.virus ?? 0;
+  const powerTokens = liveCard.tokens?.power ?? 0;
+  const agendaTokens = liveCard.tokens?.agenda ?? 0;
 
   return createPortal(
     <div
@@ -62,7 +80,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
         {/* Large Crisp Card Image */}
         <div className="w-full md:w-72 shrink-0 flex items-center justify-center">
           <img
-            src={getCardImageUrl(card.cardCode)}
+            src={getCardImageUrl(liveCard.cardCode)}
             alt={def.title}
             className="w-auto max-w-full h-auto max-h-[36dvh] sm:max-h-[42dvh] md:max-h-[460px] object-contain rounded-[2px] shadow-2xl border border-slate-800"
           />
@@ -82,8 +100,11 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               >
                 {def.side_code} // {def.type_code}
               </span>
-              {!card.isRezzed && !card.faceUp && (
-                <span className="px-2 py-0.5 rounded border bg-amber-950 border-amber-600 text-amber-300 flex items-center gap-1">
+              {showUnrezzed && (
+                <span
+                  data-testid="zoom-unrezzed-badge"
+                  className="px-2 py-0.5 rounded border bg-amber-950 border-amber-600 text-amber-300 flex items-center gap-1"
+                >
                   <AlertCircle className="w-3 h-3" /> <Keyword id="unrezzed">Unrezzed</Keyword>
                 </span>
               )}
@@ -93,13 +114,21 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
               {def.title}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 italic mb-3 sm:mb-4">
-              {typeLine(def, card)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
+              {typeLine(def, liveCard)} · <span className={`not-italic ${FACTION_COLOR[def.faction_code]}`}>{FACTION_LABEL[def.faction_code]}</span>
             </p>
 
             {/* Stats row */}
             <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4 text-xs">
               {def.cost !== null && def.cost !== undefined && (
-                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]">
+                <div
+                  className={`flex items-center gap-1.5 bg-[#0b101b] border px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px] ${
+                    mods?.cost
+                      ? mods.cost.current < mods.cost.printed
+                        ? 'border-emerald-600/80'
+                        : 'border-amber-500/80'
+                      : 'border-slate-800'
+                  }`}
+                >
                   <CreditIcon className="w-4 h-4 text-amber-400" />
                   <Keyword id="credit" className="text-slate-400">Cost:</Keyword>
                   {mods?.cost ? (
@@ -113,7 +142,15 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
                 </div>
               )}
               {def.strength !== null && def.strength !== undefined && (
-                <div className="flex items-center gap-1.5 bg-[#0b101b] border border-slate-800 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]">
+                <div
+                  className={`flex items-center gap-1.5 bg-[#0b101b] border px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px] ${
+                    mods?.strength
+                      ? mods.strength.current > mods.strength.printed
+                        ? 'border-emerald-600/80'
+                        : 'border-amber-500/80'
+                      : 'border-slate-800'
+                  }`}
+                >
                   <Shield className="w-4 h-4 text-cyan-400" />
                   <Keyword id="strength" className="text-slate-400">Strength:</Keyword>
                   {mods?.strength ? (
@@ -149,7 +186,66 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
                   <span className="font-bold text-red-300">{def.trash_cost} Credits</span>
                 </div>
               )}
+              {liveCard.advancementCounters > 0 && (
+                <div
+                  data-testid="zoom-advancement-counters"
+                  className="flex items-center gap-1.5 bg-amber-950/50 border border-amber-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]"
+                >
+                  <AdvancementIcon className="w-4 h-4 text-amber-400" />
+                  <span className="text-slate-300">Advancement:</span>
+                  <span className="font-bold text-amber-300">{liveCard.advancementCounters}</span>
+                </div>
+              )}
+              {creditTokens > 0 && (
+                <div
+                  data-testid="zoom-credit-tokens"
+                  className="flex items-center gap-1.5 bg-amber-950/40 border border-amber-600/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]"
+                >
+                  <CreditIcon className="w-4 h-4 text-amber-400" />
+                  <span className="text-slate-300">Hosted:</span>
+                  <span className="font-bold text-amber-300"><Credits amount={creditTokens} /></span>
+                </div>
+              )}
+              {virusTokens > 0 && (
+                <div
+                  data-testid="zoom-virus-tokens"
+                  className="flex items-center gap-1.5 bg-lime-950/40 border border-lime-600/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]"
+                >
+                  <VirusIcon className="w-4 h-4 text-lime-400" />
+                  <span className="text-slate-300">Virus:</span>
+                  <span className="font-bold text-lime-300">{virusTokens}</span>
+                </div>
+              )}
+              {powerTokens > 0 && (
+                <div
+                  data-testid="zoom-power-tokens"
+                  className="flex items-center gap-1.5 bg-sky-950/40 border border-sky-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]"
+                >
+                  <PowerIcon className="w-4 h-4 text-sky-400" />
+                  <span className="text-slate-300">Power:</span>
+                  <span className="font-bold text-sky-300">{powerTokens}</span>
+                </div>
+              )}
+              {agendaTokens > 0 && (
+                <div
+                  data-testid="zoom-agenda-tokens"
+                  className="flex items-center gap-1.5 bg-cyan-950/40 border border-cyan-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[2px]"
+                >
+                  <AgendaIcon className="w-4 h-4 text-cyan-400" />
+                  <span className="text-slate-300">Agenda:</span>
+                  <span className="font-bold text-cyan-300">{agendaTokens}</span>
+                </div>
+              )}
             </div>
+
+            {liveNote && (
+              <div
+                data-testid="zoom-live-value"
+                className="mb-3 sm:mb-4 px-3 py-2 rounded-[2px] bg-amber-950/60 border border-amber-500/60 text-xs sm:text-sm font-mono font-semibold text-amber-200 flex items-center gap-1 flex-wrap"
+              >
+                {renderSymbols(liveNote)}
+              </div>
+            )}
 
             {/* Rules Text */}
             {def.text && (

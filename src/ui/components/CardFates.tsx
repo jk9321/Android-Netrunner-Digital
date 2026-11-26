@@ -31,18 +31,18 @@ const STAMP: Record<FateKind, { label: string; className: string; icon: React.Re
   },
 };
 
-/** Where the card heads as it leaves: the Runner's score area is below, the Corp's above, the trash falls away. */
-const EXIT: Record<FateKind, object> = {
-  stolen: { opacity: 0, y: 260, scale: 0.5 },
-  scored: { opacity: 0, y: -260, scale: 0.5 },
-  trashed: { opacity: 0, y: 60, rotate: -14, scale: 0.6, filter: 'grayscale(1) brightness(0.5)' },
-};
+/** Where the card heads as it leaves: toward the winning side's score area, or falling away when trashed. */
+function exitFor(kind: FateKind, corpOnBottom: boolean): object {
+  if (kind === 'stolen') return { opacity: 0, y: corpOnBottom ? -260 : 260, scale: 0.5 };
+  if (kind === 'scored') return { opacity: 0, y: corpOnBottom ? 260 : -260, scale: 0.5 };
+  return { opacity: 0, y: 60, rotate: -14, scale: 0.6, filter: 'grayscale(1) brightness(0.5)' };
+}
 
 /**
  * Cards just stolen, scored or trashed, shown large in the middle of the
  * table with a stamp saying what happened, then sent on their way.
  */
-export const CardFates: React.FC<{ fates: ShownFate[] }> = ({ fates }) => {
+export const CardFates: React.FC<{ fates: ShownFate[]; corpOnBottom?: boolean }> = ({ fates, corpOnBottom = false }) => {
   const animationsOn = useAnimationsEnabled();
   return (
     <MotionConfig reducedMotion={animationsOn ? 'user' : 'always'}>
@@ -60,7 +60,7 @@ export const CardFates: React.FC<{ fates: ShownFate[] }> = ({ fates }) => {
                 className="relative"
                 initial={{ opacity: 0, scale: 0.6, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0, rotate: 0, filter: 'grayscale(0) brightness(1)' }}
-                exit={{ ...EXIT[fate.kind], transition: { duration: 0.45, ease: 'easeIn' } }}
+                exit={{ ...exitFor(fate.kind, corpOnBottom), transition: { duration: 0.45, ease: 'easeIn' } }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
               >
                 <div className="rounded-[3px] shadow-2xl shadow-black">

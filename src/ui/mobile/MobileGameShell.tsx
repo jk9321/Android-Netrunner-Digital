@@ -647,6 +647,7 @@ export const MobileGameShell: React.FC<MobileGameShellProps> = ({
         hideRunOverlay
         hidePromptPanel
         hideAccessedPanel
+        corpOnBottom={corpOnBottom && !landscape}
       />
     </div>
   );

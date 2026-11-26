@@ -477,19 +477,39 @@ function GameScreen({
                       </h2>
                       <p className="text-xs text-slate-300 mt-1">{winReason}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => setGameOverHidden(false)}
                         className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
                       >
                         Show result
                       </button>
-                      <button
-                        onClick={onNewGame}
-                        className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
-                      >
-                        {online ? 'Back to start' : 'Play Again'}
-                      </button>
+                      {onRematch ? (
+                        <>
+                          <button
+                            onClick={onNewGame}
+                            data-testid="victory-deck-select"
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-[2px] border border-slate-700 border-b-2 border-b-slate-600 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
+                          >
+                            Deck Select
+                          </button>
+                          <button
+                            onClick={onRematch}
+                            data-testid="victory-play-again"
+                            className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
+                          >
+                            Play Again
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={onNewGame}
+                          data-testid="victory-back-start"
+                          className="px-5 py-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold rounded-[2px] border-b-2 border-amber-700 text-xs shadow-lg active:translate-y-[1px] active:border-b-[1px] transition-all"
+                        >
+                          Back to start
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -663,6 +683,7 @@ function GameScreen({
             hidePromptPanel={promptDocked || isPortraitTabletTouch}
             onTogglePromptDock={promptDockable ? () => setPromptPoppedOutId(null) : undefined}
             hideAccessedPanel={accessedDocked}
+            corpOnBottom={corpOnBottom}
           />
         </div>
         )}

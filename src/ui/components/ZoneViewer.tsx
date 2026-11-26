@@ -138,20 +138,38 @@ interface ZoneViewerProps {
 }
 
 /** A browsable pile: Archives, Heap, score areas, cards removed from the game. */
-export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, onClose, onInspect }) =>
-  createPortal(
+export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, onClose, onInspect }) => {
+  const titleId = React.useId();
+
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return createPortal(
     <div
       onClick={onClose}
-      className="fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-x-0 bottom-0 top-12 z-[55] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
       data-testid="zone-viewer"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         onClick={e => e.stopPropagation()}
         className="w-full max-w-5xl max-h-full overflow-y-auto bg-[#090d15] border border-slate-700 rounded-[2px] p-5 shadow-2xl font-mono text-slate-100"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-cyber font-bold tracking-wider text-sm">{title}</h3>
-          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-[2px] bg-slate-900 hover:bg-slate-800 border border-slate-700 border-b-2 border-b-slate-600 text-slate-400 hover:text-white active:translate-y-[1px] active:border-b-[1px]">
+          <h3 id={titleId} className="font-cyber font-bold tracking-wider text-sm">{title}</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close (Esc)"
+            className="p-1.5 rounded-[2px] bg-slate-900 hover:bg-slate-800 border border-slate-700 border-b-2 border-b-slate-600 text-slate-400 hover:text-white active:translate-y-[1px] active:border-b-[1px]"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -187,3 +205,4 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
     </div>,
     document.body
   );
+};

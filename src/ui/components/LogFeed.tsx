@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { ArrowDown, X } from 'lucide-react';
 import { LogEntry } from '../../core/types/state';
 import { CardNameText } from './CardNameText';
 import { Viewer } from '../viewer';
@@ -35,7 +35,9 @@ function matchesSearch(message: string, player: string, query: string): boolean 
 export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, className = 'h-48' }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const seenCountRef = useRef(logs.length);
+  const prevLenRef = useRef(logs.length);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     seenCountRef.current = logs.length;
@@ -53,6 +55,15 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
   const pinnedToBottomRef = useRef(true);
   const lastHeightRef = useRef<number | null>(null);
 
+  const jumpToLatest = () => {
+    const list = listRef.current;
+    pinnedToBottomRef.current = true;
+    setUnreadCount(0);
+    if (!list) return;
+    const behavior = shouldReduceMotion() ? 'instant' : 'smooth';
+    list.scrollTo({ top: list.scrollHeight, behavior });
+  };
+
   // Track whether the user is reading at the bottom; ignore scroll events caused by container resizes.
   useEffect(() => {
     const list = listRef.current;
@@ -60,7 +71,9 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
     lastHeightRef.current = list.clientHeight;
     const onScroll = () => {
       if (lastHeightRef.current !== null && list.clientHeight !== lastHeightRef.current) return;
-      pinnedToBottomRef.current = list.scrollHeight - list.scrollTop - list.clientHeight <= 24;
+      const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight <= 24;
+      pinnedToBottomRef.current = atBottom;
+      if (atBottom) setUnreadCount(0);
     };
     list.addEventListener('scroll', onScroll, { passive: true });
     return () => list.removeEventListener('scroll', onScroll);
@@ -85,16 +98,21 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
     return () => observer.disconnect();
   }, [isFiltering]);
 
-  // Keep the newest entry in view by scrolling the log box itself when new logs arrive (only when not searching).
+  // Keep the newest entry in view when new logs arrive — unless the user has scrolled up to read earlier turns.
   useEffect(() => {
+    const added = Math.max(0, logs.length - prevLenRef.current);
+    prevLenRef.current = logs.length;
     if (isFiltering) return;
     const list = listRef.current;
     if (!list) return;
-    pinnedToBottomRef.current = true;
+    if (!pinnedToBottomRef.current) {
+      if (added > 0) setUnreadCount(c => c + added);
+      return;
+    }
     const behavior = shouldReduceMotion() ? 'instant' : 'smooth';
     list.scrollTo({ top: list.scrollHeight, behavior });
     const timer = setTimeout(() => {
-      list.scrollTo({ top: list.scrollHeight, behavior });
+      if (pinnedToBottomRef.current) list.scrollTo({ top: list.scrollHeight, behavior });
     }, 135);
     return () => clearTimeout(timer);
   }, [logs.length, isFiltering]);
@@ -109,17 +127,30 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
         </span>
       </div>
 
-      <div ref={listRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 z-10">
-        {filteredLogs.length === 0 && isFiltering ? (
-          <div className="text-[11px] text-slate-500 italic py-2 text-center">
-            No matching log entries found for "{searchQuery}".
-          </div>
-        ) : (
-          filteredLogs.map((log, index) => {
-            const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
-            const isNew = !isFiltering && index >= seenCountRef.current;
-            return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
-          })
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        <div ref={listRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 z-10">
+          {filteredLogs.length === 0 && isFiltering ? (
+            <div className="text-[11px] text-slate-500 italic py-2 text-center">
+              No matching log entries found for "{searchQuery}".
+            </div>
+          ) : (
+            filteredLogs.map((log, index) => {
+              const message = log.secret?.from === viewer ? log.secret.publicMessage : log.message;
+              const isNew = !isFiltering && index >= seenCountRef.current;
+              return message ? <LogLine key={log.id} player={log.player} message={message} animate={isNew} /> : null;
+            })
+          )}
+        </div>
+        {!isFiltering && unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={jumpToLatest}
+            data-testid="log-jump-latest"
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1 px-2.5 py-1 rounded-[2px] bg-[#0c1524]/95 hover:bg-cyan-950 text-cyan-300 hover:text-white border border-cyan-500/80 text-[11px] font-mono font-bold shadow-lg transition-colors"
+          >
+            <ArrowDown className="w-3 h-3" />
+            {unreadCount} new {unreadCount === 1 ? 'entry' : 'entries'}
+          </button>
         )}
       </div>
 
