@@ -62,4 +62,8 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
   }, 240_000);
 });
 
-const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 1_150 };
+// F3 (by-position value caches; Corp side ruling 2026-11-26 01:47Z, step 0.4): the deckAverage map no longer serves one
+// board's deck average to another, so the clock starts 2,326 hold counts (1,080 before) and asks 2,234 rez budgets (1,187);
+// Jeff took the time cost of exact caches (2026-11-26 00:09Z). The hold cap moves by its old headroom (1,150 / 1,080):
+// 2,477. The other caps stay
+const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 2_477 };

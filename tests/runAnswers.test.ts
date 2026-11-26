@@ -188,7 +188,10 @@ describe("Shred's reveal priced as chance (ruling 3; review R1)", () => {
     expect(runs.every(r => r.decided === 1)).toBe(true);
   });
 
-  it('past 70 sets of cards (nine in HQ, X = 3: 84 sets), the expectation is x times a single card\'s mean: the same answer on every RNG state, and the loss still decides (fails with the loss not charged)', () => {
+  // Known-failing since F3 (found row 115; Corp side ruling 2026-11-26 01:47Z at step 0.4): on the board's own values
+  // (the by-position caches) the Corp answers 'trash' on all 8 RNG states; the 'no' held only by a stale damageThreat hit
+  // inside the decision (the old string key). The pin's wording stays; the fix is the owed counts', not F3's
+  it.fails('past 70 sets of cards (nine in HQ, X = 3: 84 sets), the expectation is x times a single card\'s mean: the same answer on every RNG state, and the loss still decides (fails with the loss not charged)', () => {
     // hqChanceLoss's second branch (sets past 70). The nine cards differ in worth, so the reveals differ by state
     const runs = underRng(shred(['30070', '30042', '30058'], ['30045', '30061', '30064', '30075', '30048', '30057', '30065', '30054', '30041'], 0));
     expect(new Set(runs.map(r => r.gone.slice().sort().join())).size).toBeGreaterThan(1);

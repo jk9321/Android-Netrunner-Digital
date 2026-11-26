@@ -27,11 +27,15 @@ describe('V-B B3: the measured risk for Corp assets', () => {
     expect(assetRisk(state, false)).toBeCloseTo((3 * PAYOUT_RISK.moneyBare + 2) / 5, 12);
   });
 
-  it("every Corp asset formula that pays over time reads the measured risk, other Corp cards don't", () => {
+  // F3 (Corp side ruling 2026-11-26 01:47Z, step 0.4): an upgrade moves only through the deck average, whose assets read
+  // the risk (Anoetic Void, Malapert Data Vault read cardRate). Before F3 it passed by the old deckAverage key: `at` is a
+  // copy with the same id and fingerprint, so the copy was served the original board's deck average
+  it("every Corp asset formula that pays over time reads the measured risk; an upgrade moves only through the deck average; no other Corp card moves", () => {
     const state = newGame();
     const formulas = Object.keys(CARDS).filter(code => CARDS[code].corp);
     // With the bare risk set to corpBare, every formula prices as it did before B3: only the assets' risk moved
     const moved: string[] = [];
+    const upgrades: string[] = [];
     for (const code of formulas) {
       const now = corpEffect(state, code)?.keep;
       const at = structuredClone(state);
@@ -39,10 +43,15 @@ describe('V-B B3: the measured risk for Corp assets', () => {
       at.bareAssets = { exposed: 100, trashed: 0.06 * 103 - 3 * PAYOUT_RISK.moneyBare };
       expect(bareAssetRisk(at)).toBeCloseTo(PAYOUT_RISK.corpBare, 12);
       const before = corpEffect(at, code)?.keep;
-      if (Math.abs((now ?? 0) - (before ?? 0)) > 1e-9) moved.push(getCardDefinition(code).type_code);
+      if (Math.abs((now ?? 0) - (before ?? 0)) > 1e-9) {
+        moved.push(getCardDefinition(code).type_code);
+        if (getCardDefinition(code).type_code === 'upgrade') upgrades.push(getCardDefinition(code).title);
+      }
     }
     expect(moved.length).toBeGreaterThan(10);
-    expect(new Set(moved)).toEqual(new Set(['asset']));
+    expect(new Set(moved)).toEqual(new Set(['asset', 'upgrade']));
+    // By name: a third upgrade joining fails and is read again
+    expect(upgrades.sort()).toEqual(['Anoetic Void', 'Malapert Data Vault']);
   });
 
   it('paidOut reads the risk where the card sits, floored at 0', () => {

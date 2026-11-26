@@ -468,10 +468,11 @@ describe('O1b the price of a trash holds the tag the trash gives (tracker R-14f,
 
 describe('R4 breach-time extra accesses (RUNNER-BREACH-EXTRA-ACCESS; rules 7.3.5b, 7.4.7)', () => {
   it('a charged Devadatta Drone moves runScore on R&D and nowhere else', () => {
-    const s = newGame();
+    let s = newGame();
     startRunnerTurn(s);
     s.runner.credits = 5;
     const before = { rd: runScore(s, 'rd'), hq: runScore(s, 'hq') };
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     installProgramForTest(s, DEVADATTA);
     const drone = s.runner.rig.programs.find(p => p.cardCode === DEVADATTA)!;
     drone.tokens = { ...drone.tokens, power: 2 };
@@ -710,7 +711,7 @@ describe('tanks over a whole run: break one, tank the other (rules 9.8.7b, 10.4.
   // Review note on ai-runner-fixes: runScore barred a run whose tanks together were more than the grip, though breaking
   // one of them left the rest survivable. Two rezzed Empiricists on a 4-card grip: tanking both is 6 damage
   it('breaks the one that costs least and tanks the other, instead of barring the run', () => {
-    const s = newGame();
+    let s = newGame();
     startRunnerTurn(s);
     s.runner.rig.programs = [];
     installProgramForTest(s, CARMEN);
@@ -727,6 +728,7 @@ describe('tanks over a whole run: break one, tank the other (rules 9.8.7b, 10.4.
     expect(one.noDamage).toBeDefined();
     expect(asSide('runner', () => runScore(s, 'remote-9'))).toBeGreaterThan(-Infinity);
     // With nothing to break with, 6 damage on 4 cards is no way in
+    s = structuredClone(s); // asked boards are frozen (F3 askedFreeze): edit a copy
     s.runner.rig.programs = [];
     expect(asSide('runner', () => runScore(s, 'remote-9'))).toBe(-Infinity);
   });
