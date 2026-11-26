@@ -345,6 +345,7 @@ export const CORP_STATE_FIELDS = {
   meliesServer: 'own', // 1.5.2b: secret until the identity flips
   knownToRunner: 'redacted', // shown as hq.known, codes only
   archKnownToRunner: 'dropped', // the Runner's memory of facedown Archives (4.4.6b, c): the AI's; B4a keeps the screen as it was (bar 4)
+  rootUpgradesKnownToRunner: 'dropped', // root cards the Runner knows are upgrades, from open information (3.2.1, 4.6.6e): the AI's; B4b keeps the screen as it was
   rdKnownToRunner: 'own', // the Runner's memory of R&D; names R&D accesses the Corp may not see (7.1.2)
   rdKnownToCorp: 'dropped', // the Corp's memory of R&D (4.2.3, 10.2.2b); names R&D cards the Runner may not see (4.2.2); the Corp's own client does not need it (no AI plays online)
   rdNotes: 'dropped',

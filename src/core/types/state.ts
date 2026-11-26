@@ -129,6 +129,12 @@ export interface CorpState {
    * 10.2.2a); seeing one go in is not un-learnt (10.2.2b). See updateHandKnowledge(), certainInArchives().
    */
   archKnownToRunner?: KnownHandCard[];
+  /**
+   * Facedown root cards the Runner knows are upgrades: each sat in a remote root beside an agenda or asset the Runner
+   * knew (rules 3.2.1, 3.3.1, 4.6.6e: one agenda or asset in a remote root), and is still installed (4.6.6b; a card that
+   * leaves play is a new object, 1.12.3). Ids are read only in the engine. See updateRootKinds(), runnerRootKinds().
+   */
+  rootUpgradesKnownToRunner?: string[];
   /** Cards the Runner has seen in R&D and where they may be now. See engine/rdKnowledge.ts. */
   rdKnownToRunner?: RdKnownCard[];
   /**

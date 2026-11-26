@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 // facedown Archives list) is read by code and count; which instance the engine noted is the engine's own business (the
 // fuzzer may read it, scripts/engine-fuzz-check.ts). A line that takes the marks and reads an `.id` of them fails here.
 
-const ACCESSORS = /\b(knownInHand|knownInRd|rdSharesKnownToRunner|archivesKnownToRunner|runnerRdMarksForCorp)\(|\b(knownToRunner|knownToCorp|rdKnownToRunner|archKnownToRunner)\b/;
+const ACCESSORS = /\b(knownInHand|knownInRd|rdSharesKnownToRunner|archivesKnownToRunner|runnerRdMarksForCorp)\(|\b(knownToRunner|knownToCorp|rdKnownToRunner|archKnownToRunner|rootUpgradesKnownToRunner)\b/;
 /** Lines allowed, with why: a file B4 may not change, or a cache key that holds the lists whole and reads nothing of them. */
 const ALLOWED: Record<string, string> = {
   'src/ai/prompts.ts: const known = new Set(knownInHand(state, \'corp\').map(e => e.id));':
