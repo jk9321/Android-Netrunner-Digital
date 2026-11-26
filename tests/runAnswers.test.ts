@@ -188,13 +188,23 @@ describe("Shred's reveal priced as chance (ruling 3; review R1)", () => {
     expect(runs.every(r => r.decided === 1)).toBe(true);
   });
 
-  // Known-failing since F3 (found row 115; Corp side ruling 2026-11-26 01:47Z at step 0.4): on the board's own values
-  // (the by-position caches) the Corp answers 'trash' on all 8 RNG states; the 'no' held only by a stale damageThreat hit
-  // inside the decision (the old string key). The pin's wording stays; the fix is the owed counts', not F3's
-  it.fails('past 70 sets of cards (nine in HQ, X = 3: 84 sets), the expectation is x times a single card\'s mean: the same answer on every RNG state, and the loss still decides (fails with the loss not charged)', () => {
+  // Reworded on Jeff's yes (2026-11-26 23:07Z; found row 115, owed-counts/item4.md). Before F3 this pin said "no", held by a
+  // stale damageThreat hit inside the decision. On the board's own values the expected loss of three of these nine cards
+  // (hqChanceLoss past 70 sets: x times one card's mean, 3.80) is under runLoss (8), so paying is right: "trash" (out) beats
+  // "no" (in) on every RNG state, and the loss still decides (ruling 3 / review R1)
+  it('past 70 sets of cards (nine in HQ, X = 3: 84 sets), the expectation is x times a single card\'s mean: the same answer on every RNG state, and the loss decides: under runLoss, the Corp pays', () => {
     // hqChanceLoss's second branch (sets past 70). The nine cards differ in worth, so the reveals differ by state
     const runs = underRng(shred(['30070', '30042', '30058'], ['30045', '30061', '30064', '30075', '30048', '30057', '30065', '30054', '30041'], 0));
     expect(new Set(runs.map(r => r.gone.slice().sort().join())).size).toBeGreaterThan(1);
+    expect(runs.map(r => r.answer)).toEqual(Array(8).fill('trash'));
+    expect(runs.every(r => r.decided === 1)).toBe(true);
+  });
+
+  // Its twin (Jeff's yes, 2026-11-26): the same branch on a dear hand. Three Send a Message, four Urtica Cipher and two
+  // others (nine cards, X = 3, 84 sets): three random cards of it are worth more than runLoss, so the Corp lets the Runner
+  // in rather than lose them: "no" on every RNG state
+  it('past 70 sets of cards (three Send a Message and four Urtica Cipher among nine, X = 3: 84 sets), the loss decides: over runLoss, the Corp does not pay', () => {
+    const runs = underRng(shred(['30070', '30042', '30058'], ['30069', '30069', '30069', '30045', '30045', '30045', '30045', '30061', '30064'], 0));
     expect(runs.map(r => r.answer)).toEqual(Array(8).fill('no'));
     expect(runs.every(r => r.decided === 1)).toBe(true);
   });
