@@ -526,8 +526,12 @@ async function main() {
     nrdb: JSON.parse(readFileSync('scripts/pricing-context/deals-45555227992.json', 'utf8')),
     g3: JSON.parse(readFileSync('scripts/cache-keys/deals-g3.json', 'utf8')),
   };
-  // REC_<pool>=<deals.json>: that pool's deals and records from another batch (bars 6 and 7: the pairs' records)
-  for (const p of Object.keys(lists)) if (env[`REC_${p}`]) lists[p] = JSON.parse(readFileSync(env[`REC_${p}`]!, 'utf8'));
+  // REC_<pool>=<deals.json> (REC_<group>_<pool> for one group's shards): that pool's deals and records from another batch
+  // (bars 6 and 7: the pairs' records)
+  for (const p of Object.keys(lists)) {
+    const f = env[`REC_${GROUP}_${p}`] ?? env[`REC_${p}`];
+    if (f) lists[p] = JSON.parse(readFileSync(f, 'utf8'));
+  }
   const units: { pool: string; d: Deal }[] = [];
   for (const pool of POOLS.filter(p => p !== 'people')) for (const d of lists[pool]) if (!DEALS.length || DEALS.includes(String(d.seed)) || DEALS.includes(`${pool}:${d.seed}`)) units.push({ pool, d });
   out({ kind: 'start', group: GROUP, asked: ASKED, units: units.filter((_, k) => k % SLICE === SLICE_K).length, sample: SAMPLE, audit: AUDIT, e: E_ON, modes: MODES });
