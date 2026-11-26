@@ -5,7 +5,9 @@ import { RATES, logValue } from './valueModel';
 import { PAYOUT_RISK } from './payoutRisk';
 import { assetRisk, inIcedServer } from './cardProfiles';
 import type { CounterType } from './cards';
-import { COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
+import { CARDS, COUNTER_FORMULAS, COUNTER_WORTH } from './cards';
+import { hostedTrojans, plannedSubroutines, unseenIcePool } from './runs';
+import { mean, memo } from './valueModel';
 
 /**
  * Value model step 3 (docs/ai-value-model-plan.md): a counter is worth
@@ -47,12 +49,75 @@ export function paidOneATurn(n: number): number {
   return n > 0 ? total / n : PAID_OUT;
 }
 
+/**
+ * One of a trojan's counters on the ice it is hosted on: its entry's per-counter formula for a host (`worth`), read by
+ * the one owner of a host's worth (B3b, brief runner-rework/briefs/b3-prompt-view.md rev 2, S3 and S4; issue #68). The
+ * host prompt, the install action and the reply all read it through the board's own term.
+ * - Input 1: a facedown host the Runner doesn't know (`!isRezzed && !runnerKnows`; rule 10.2.2a) is worth the formula
+ *   averaged over the unseen ice pool (runs.ts unseenIcePool, the pool unrezzedDamageRisk reads), each pool card standing
+ *   in for the host: one multiset, so the same on the real state and on any deal of the same knowledge. Worked out once
+ *   per state and trojan code; the first such host asked stands for the place, as unrezzedDamageRisk does.
+ * - Input 2: a later trojan's subroutine-breaking counters (holdFacts.breaksHostSubroutine) on a host that already
+ *   holds such counters are worth the formula only up to the room the earlier ones leave in one encounter (the host's
+ *   subroutine count; step 0 ruling, rulings 19), past that 0; the first one's counters keep the formula's worth. A later
+ *   copy of an 'idle' trojan (runFacts.trojan.second) is worth 0. (Encounters per horizon, which would also price a lone
+ *   trojan's counters kept for later encounters, is a debt for R-D.)
+ * Not installed yet (in hand): on the best rezzed ice it could go on, else 0.5 (unchanged).
+ */
 export function trojanHostWorth(state: GameState, card: CardInstance, worth: (host: CardInstance) => number): number {
   const host = card.hostedOnId ? findCardAnywhere(state, card.hostedOnId) : undefined;
-  if (host) return worth(host);
+  if (host) {
+    const known = (h: CardInstance) => worth(h) * hostShare(state, card, host, plannedSubroutines(state, h).length);
+    if (host.isRezzed || host.runnerKnows) return known(host);
+    const pool = unseenHostPool(state, card.cardCode, host, worth);
+    return pool.length ? mean(pool.map(p => p.worth * hostShare(state, card, host, p.subroutines)), 0) : known(host);
+  }
   // Not installed yet (in hand): on the best rezzed ice it could go on
   const rezzed = Object.values(state.corp.servers).flatMap(s => s.ice).filter(i => i.isRezzed);
   return rezzed.length ? Math.max(...rezzed.map(worth)) : 0.5;
+}
+
+/**
+ * Input 1's read for one trojan code on this state: for each ice card of the unseen pool (sorted by code), the formula's
+ * worth and the subroutine count of that card standing in for `host` (its own id: the subroutine and strength caches
+ * are keyed by instance). Once per state and trojan code.
+ */
+function unseenHostPool(state: GameState, code: string, host: CardInstance, worth: (host: CardInstance) => number): { worth: number; subroutines: number }[] {
+  return memo(state, `unseenHostPool:${code}`, () => {
+    const byCode = new Map<string, { worth: number; subroutines: number }>();
+    return unseenIcePool(state)
+      .map(c => c.cardCode)
+      .sort()
+      .map(c => {
+        let v = byCode.get(c);
+        if (!v) {
+          const as: CardInstance = { ...host, instanceId: `${host.instanceId}~${c}`, cardCode: c };
+          v = { worth: worth(as), subroutines: plannedSubroutines(state, as).length };
+          byCode.set(c, v);
+        }
+        return v;
+      });
+  });
+}
+
+/** Input 2: the share of `card`'s counters on `host` worth the formula, when the host has `subroutines` to spend them on
+ * and earlier trojans' breaking counters are there first. */
+function hostShare(state: GameState, card: CardInstance, host: CardInstance, subroutines: number): number {
+  const facts = CARDS[card.cardCode];
+  if (facts?.runFacts?.trojan?.second === 'idle' && hostedTrojans(state, host, card.cardCode)[0]?.instanceId !== card.instanceId) return 0;
+  const breaks = facts?.holdFacts?.breaksHostSubroutine;
+  if (!breaks) return 1;
+  // The breaking counters of the trojans installed on this host before this one (the rig's order)
+  const on = state.runner.rig.programs.filter(c => c.hostedOnId === host.instanceId);
+  const mine = on.findIndex(c => c.instanceId === card.instanceId);
+  const used = on.slice(0, mine < 0 ? on.length : mine).reduce((n, c) => {
+    const b = CARDS[c.cardCode]?.holdFacts?.breaksHostSubroutine;
+    return b ? n + counters(c, b.counter) : n;
+  }, 0);
+  if (used === 0) return 1;
+  const room = Math.max(0, subroutines - used);
+  const n = counters(card, breaks.counter);
+  return n > 0 ? Math.min(n, room) / n : room > 0 ? 1 : 0;
 }
 
 /** Step-1 rates, for cards without an entry: the owner's default (counterWorth, and counterWorthOf for a card not installed; V-B B6). */

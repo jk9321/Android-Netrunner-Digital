@@ -28,6 +28,9 @@ const terms = {
   savingSpend: -0.4,
   /** A free action (no click spent) is played only above this score (scoreMain). Hand-picked; replaced in R-C2. */
   freeActionCut: 0.3,
+  /** A trojan installed on a facedown host (scoreMain), equal across facedown hosts, so it never picks among them; the
+   * host's worth itself is trojanHostWorth's (B3b, S2). Hand-picked; the registry's debt row for R-D. */
+  facedownTrojanHost: -3,
   // Thresholds (compared with a count of the board)
   /** Clicks left at which a big-hand draw counts with the grip at its limit (scoreMain: a trap run still to make). Hand-picked; replaced in R-C2. */
   bigHandClicks: 2,

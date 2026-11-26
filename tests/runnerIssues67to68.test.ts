@@ -11,7 +11,7 @@ import { GameRunner } from '../src/ai/playout';
  * runner-rework/briefs/i67-i68-pins-count.md, tracker R-27, items I67 and I68). Diagnosis in docs/gemini-prep/issues-67-68.md.
  * Both fixes belong to the Runner rework's R-B (#67 with the #58 family, owner O1 after B2's log; #68 with the prompt work,
  * B3), so each was pinned as a known failure (`it.fails`) beside a twin that passes. #67 is fixed by O1a (the fixed 0.5
- * trash floor gone); #68 is still pinned.
+ * trash floor gone); #68 by B3b (the host's worth in one owner, counterValues.ts trojanHostWorth).
  *
  * Each board is the saved game replayed move by move with a fresh Normal Runner that observes every board of the replay
  * (its own memory only, no hidden information; rules 1.12, 10.2.2a). The pins state behaviour, not a score, so either fix
@@ -71,8 +71,10 @@ describe('issue #68: a second Botulus hosted on the ice that already hosts one',
     expect(recorded).toMatchObject({ type: 'RESOLVE_PROMPT', choice: { kind: 'effect_choice', optionId: options[0].id } });
   });
 
-  // Passes when the Runner does not host the second copy on the ice that already hosts one while another legal host hosts none
-  it.fails('#68 T5: the Runner does not put a second Botulus on the ice that already hosts one', { timeout: 15_000 }, () => {
+  // Passes when the Runner does not host the second copy on the ice that already hosts one while another legal host hosts none.
+  // Turned by B3b (counterValues.ts trojanHostWorth: input 1, an unknown facedown host is the unseen pool's mean; input 2, a
+  // later copy's counters are worth only the room the first one's leave on the host's subroutines)
+  it('#68 T5: the Runner does not put a second Botulus on the ice that already hosts one', { timeout: 15_000 }, () => {
     const { state, runner, options } = hostBoard();
     const answer = runner.chooseAction(state);
     if (answer.type !== 'RESOLVE_PROMPT' || answer.choice.kind !== 'effect_choice') throw new Error(`not a host answer: ${JSON.stringify(answer)}`);

@@ -189,3 +189,31 @@ export function liveValues(state: GameState, card: CardInstance): string[] {
   }
   return lines;
 }
+
+/** Whether `card` is currently installed on a Corp server (protecting ice or in a server root). */
+export function isInstalledCorpCard(state: GameState, card: CardInstance): boolean {
+  return (
+    installedIce(state).some(i => i.instanceId === card.instanceId) ||
+    Object.values(state.corp.servers).some(s => s.root.some(r => r.instanceId === card.instanceId))
+  );
+}
+
+/**
+ * Computes only the card script's dynamic `liveValue` readout (e.g. Fermenter cash-out,
+ * Urtica net damage, Unity X-value), omitting printed/modified Cost and Strength lines
+ * that CardPopout and CardZoomModal already display in their stat badges.
+ */
+export function liveScriptValue(state: GameState, card: CardInstance): string | null {
+  const liveCard = findCardAnywhere(state, card.instanceId) ?? card;
+  const script = getCardScript(liveCard.cardCode);
+  if (!script?.liveValue) return null;
+  if (script.breaker) {
+    const inRig = state.runner.rig.programs.some(p => p.instanceId === liveCard.instanceId);
+    const inGrip = state.runner.grip.some(c => c.instanceId === liveCard.instanceId);
+    if (!inRig && !inGrip) return null;
+    const view = inRig ? state : withInstalled(state, liveCard);
+    return script.liveValue(view, liveCard) ?? null;
+  }
+  return script.liveValue(state, liveCard) ?? null;
+}
+

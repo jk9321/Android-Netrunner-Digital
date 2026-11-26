@@ -103,12 +103,16 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
     expect(a.cardCode).not.toBe(b.cardCode);
   });
   // Deal 1581 T4: Topan installs Botulus and asks which ice hosts it; the options are unrezzed ice. Swapping the codes of
-  // two named unrezzed ice (the Runner sees the same board) changes the pick: it reads the facedown ice's identity.
-  it.fails('D2 Topan host (deal 1581 T4): the pick does not move when two facedown ice swap identities', () => {
+  // two named unrezzed ice (the Runner sees the same board) changed the pick: it read the facedown ice's identity. Turned by
+  // B3b's input 1 (an unknown facedown host is worth the unseen pool's mean, the same on every deal of the same knowledge).
+  it('D2 Topan host (deal 1581 T4): the pick does not move when two facedown ice swap identities', () => {
     const b = structuredClone(TOPAN.state);
     const [x, y] = [TOPAN_PICK, TOPAN_OTHER].map(id => findCardAnywhere(b, id)!);
     [x.cardCode, y.cardCode] = [y.cardCode, x.cardCode];
     expect(ask(b, TOPAN.memory)).toBe(ask(TOPAN.state, TOPAN.memory));
+    // B3 commit 2, bar 3: a named answer, the host Funhouse (inst-36), as played; the same on 12 deals of the same
+    // knowledge in tests/runnerPromptView.test.ts
+    expect(JSON.parse(ask(TOPAN.state, TOPAN.memory))).toMatchObject({ choice: { optionId: TOPAN_PICK } });
   });
   // Deal 2061 T4: Mutual Favor searches the stack for an icebreaker. After the search the stack is shuffled (rule 8.7.3:
   // "the deck is always shuffled upon completion of the search"), so its order is unknowable; reversing the order of the

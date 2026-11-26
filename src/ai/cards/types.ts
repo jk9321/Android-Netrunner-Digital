@@ -1,12 +1,23 @@
-import type { CardInstance, GameState, SideCode } from '../../core';
+import type { CardInstance, GameState, Prompt, PromptChoice, SideCode } from '../../core';
 import type { Subroutine } from '../../core/scripts/types';
 import type { CardProfile } from '../cardProfiles';
 import type { CardValue } from '../cardValues';
 import type { CorpEffect } from '../effectValues';
 import type { CardSynergy } from '../synergyTags';
-import type { RunOptions } from '../runs';
+import type { RunOptions, RunnerMemory } from '../runs';
 
 export type CounterType = 'credit' | 'virus' | 'power' | 'agenda';
+
+/** What a card's own prompt answer reads (prompts.ts todayAnswer, `promptAnswer`; B3 commit 1). */
+export interface PromptAsk {
+  state: GameState;
+  /** The side answering (the prompt's owner). */
+  side: SideCode;
+  prompt: Prompt;
+  /** The cards the answering Runner has accessed. */
+  memory?: RunnerMemory;
+  synergy: boolean;
+}
 export type CounterWorth = (state: GameState, card: CardInstance) => number;
 
 /** What corpEffect works out once for every Corp card, before its own formula. */
@@ -147,7 +158,7 @@ export interface RunFacts {
   breaker?: BreakerFacts;
   bypass?: Bypass[]; // in order: the first whose `when` and cost apply is the card's use (Malandragem's two modes)
   firstIce?: FirstIceBypass;
-  trojan?: { second: 'adds' | 'idle' }; // a trojan trojanHostValue prices: what a second copy on its host does
+  trojan?: { second: 'adds' | 'idle' }; // a trojan: what a second copy on its host does (counterValues.ts trojanHostWorth, input 2)
   faceupAgendaAccess?: { meatDamage: number; tags: number }; // identity: accessing a faceup installed agenda (BANGUN)
   /** What the Runner suffers when it trashes this card: `tags` while the board meets `when` and, with `rezzed`, the card is
    * rezzed (Public Access Plaza); a damage would be a key here. Read by the price of a trash (runs.ts trashNet). */
@@ -238,6 +249,15 @@ export interface CardAI {
   spent?: (state: GameState, viewer: SideCode, card: CardInstance) => number;
   /** Advanceable ice: one more counter's worth, `left` still needed, in place of the Runner's cost step (iceAdvanceWorth; V-B B6). */
   advanceCounter?: (state: GameState, card: CardInstance, left: number) => number;
+  /** Runner card: the AI's answer to a prompt its own text asks (B3 commit 1, one home for the Runner's per-card answers).
+   * prompts.ts todayAnswer reads it at one point, after the server choice, in the chain's order; undefined leaves the
+   * prompt to the rest of the chain (the many-card build, then try each answer). Only Runner cards have one: the Corp's
+   * per-card answers and the cases with no card to live in (AirbladeX's prevent_damage step, the server choice, Manegarm
+   * answered by the Runner) stay in prompts.ts. */
+  promptAnswer?: (ask: PromptAsk) => PromptChoice | undefined;
+  /** What this card's prompt shows the Runner besides its face-up cards (B3 commit 2, runner/prompt.ts): `inPlace`, the
+   * key of the prompt's data naming a card it shows by its text whose place the Runner knows (MuslihaT's top card). */
+  promptShows?: { inPlace: string };
   /** Programs hosted on this card install without a click (Madani): runnerRigValue prices them with the click kept (V-B B6). */
   freeInstallHosted?: true;
   /** An identity that clears tags: `tags` tags' worth with it, `turnLoss` a Corp turn's loss; tagsWorth takes the lower (V-B B6). */

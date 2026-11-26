@@ -26,6 +26,9 @@ import { breakerTypes } from '../src/ui/components/IceTypeIcons';
 import { ZoomContext, createZoomStore } from '../src/ui/components/ZoomPanel';
 import { clearBoardTargets, setBoardTargets } from '../src/ui/promptHighlight';
 import { SeatContext } from '../src/ui/seat';
+import { HandoffScreen } from '../src/ui/components/HandoffScreen';
+import { DeckListColumn } from '../src/ui/components/DeckListColumn';
+import { summarize } from '../src/ui/deckPickerUtils';
 import { executeAction } from '../src/core';
 import { newGame, startRunnerTurn } from './helpers';
 
@@ -114,7 +117,28 @@ describe('UI component smoke renders', () => {
     for (const id of ['home-logo', 'stops-toggle', 'header-corp-score', 'header-runner-score', 'card-size', 'auto-fit', 'view-mode', 'settings-button', 'forfeit', 'mobile-menu-button']) {
       expect(localHtml.match(new RegExp(`data-testid="${id}"`, 'g'))?.length, id).toBe(1);
     }
-    expect(localHtml).toContain('SEED 98765');
+    expect(localHtml).not.toContain('SEED 98765');
+    expect(localHtml).toContain('aria-label="Leave game"');
+    expect(localHtml).toContain('aria-label="Forfeit (Runner concedes)"');
+
+    const thinkingHtml = renderToStaticMarkup(
+      <GameHeader
+        state={state}
+        config={{ seed: 98765, corpDeck: corpStarter, runnerDeck: runnerStarter, ai: 'corp', difficulty: 'normal' }}
+        aiThinking={true}
+        stops="auto"
+        onStops={() => {}}
+        humanSide="runner"
+        viewMode="runner"
+        onViewMode={() => {}}
+        concedingSide="runner"
+        onConcede={() => {}}
+        onLeave={() => {}}
+      />,
+    );
+    expect(thinkingHtml).toContain('data-testid="ai-status"');
+    // Stops toggle keeps its AUTO label while AI THINKING renders in its own status badge
+    expect(thinkingHtml).toMatch(/data-testid="stops-toggle"[^>]*>.*?AUTO<\/span><\/button>/);
 
     const onlineHtml = renderToStaticMarkup(
       <GameHeader
@@ -716,5 +740,50 @@ describe('UI component smoke renders', () => {
     expect(stripText(mixedCorpHtml)).toContain('Removed: 2');
     expect(mixedRunnerHtml).toContain('data-testid="zone-runner-removed"');
     expect(stripText(mixedRunnerHtml)).toContain('Removed: 1');
+  });
+
+  it('HandoffScreen stacks above Settings, exposes dialog ARIA, and starts disarmed against stray keypresses', () => {
+    const html = renderToStaticMarkup(<HandoffScreen to="corp" reason="turn" onReady={() => {}} />);
+    expect(html).toContain('z-[110]');
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toMatch(/disabled=""[^>]*data-testid="handoff-ready"|data-testid="handoff-ready"[^>]*disabled=""/);
+  });
+
+  it('DeckListColumn disables Random online when the only non-starter alternative is format-illegal', () => {
+    const customDeck = { ...corpStarter, id: 'custom-corp-illegal', name: 'Illegal Corp Deck', source: 'custom' as const };
+    const summaries = [summarize(corpStarter), summarize(customDeck)];
+    const baseProps = {
+      side: 'corp' as const,
+      selected: corpStarter.id,
+      summaries,
+      favorites: [] as string[],
+      hidden: [] as string[],
+      showHidden: false,
+      onToggleShowHidden: () => {},
+      listedDecks: () => summaries,
+      onSelect: () => {},
+      onToggleFavorite: () => {},
+      onViewDeck: () => {},
+      onEditDeck: () => {},
+      onNewDeck: () => {},
+      onCopyDeck: () => {},
+      onDeleteDeck: () => {},
+      onHideDeck: () => {},
+      onRestoreDeck: () => {},
+      onRememberScroll: () => {},
+      onScrollList: () => {},
+    };
+
+    const localHtml = renderToStaticMarkup(<DeckListColumn {...baseProps} opts={{}} />);
+    expect(localHtml).not.toMatch(/disabled=""[^>]*data-testid="random-corp-deck"|data-testid="random-corp-deck"[^>]*disabled=""/);
+
+    const onlineBlockedHtml = renderToStaticMarkup(
+      <DeckListColumn
+        {...baseProps}
+        opts={{ online: { format: 'startup', problems: new Map([[customDeck.id, ['Contains cards outside Startup']]]) } }}
+      />,
+    );
+    expect(onlineBlockedHtml).toMatch(/disabled=""[^>]*data-testid="random-corp-deck"|data-testid="random-corp-deck"[^>]*disabled=""/);
   });
 });

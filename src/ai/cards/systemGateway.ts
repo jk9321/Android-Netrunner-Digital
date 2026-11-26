@@ -1,12 +1,14 @@
 import { cardDef, CardInstance, GameState } from '../../core';
 import { counters, rezCost, TurnFlag, turnFlag } from '../../core/engine/cardEffects';
-import { boostCostOf, breakerScript, isIcebreaker } from '../../core/engine/ice';
+import { boostCostOf, breakerScript, encounteredIce, iceSubroutines, isIcebreaker } from '../../core/engine/ice';
 import { assetRisk, inIcedServer, turnsLeft } from '../cardProfiles';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { counterWorth, PAID_OUT, paidOneATurn, paidOut, trojanHostWorth } from '../counterValues';
 import { cardRate, CLICK, payoutClick, payoutSlide, RATES } from '../valueModel';
 import { archivedAgendaLoss, hiddenCardOdds, tagsWorth } from '../evaluate';
-import { bestBreakPlan, planCost } from '../runs';
+import { bestBreakPlan, iceCost, planCost, RunnerMemory, serverValue, subroutineCost } from '../runs';
+import { iceStop } from '../iceValues';
+import { tuning } from '../synergy';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { CardAI } from './types';
@@ -46,6 +48,31 @@ function leechVirus(state: GameState): number {
 // The cards the deciding Corp cannot know: those in R&D at the decision's root (V-B B6 review M1b); the rest it knows.
 const rootRd = new WeakMap<GameState, Set<string>>();
 const rdIdsAt = (root: GameState) => rootRd.get(root) ?? rootRd.set(root, new Set(root.corp.rd.map(c => c.instanceId))).get(root)!;
+/**
+ * Tāo Salonga: the swap of 2 installed ice that most lowers what the
+ * Runner pays to get into servers, weighted by what each server is worth
+ * running (the same values its run choices use: an agenda remote, then HQ
+ * and R&D). None if no swap saves at least about a credit on a key server.
+ */
+export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
+  const servers = Object.values(state.corp.servers).filter(s => s.ice.length > 0);
+  const weight = new Map(servers.map(s => [s.id, Math.max(0.3, serverValue(state, s.id, 0, memory, tuning.wary))]));
+  const cost = (ice: CardInstance) => Math.min(iceStop(state), iceCost(state, ice));
+  const placed = servers.flatMap(s => s.ice.map(ice => ({ ice, server: s.id })));
+  let best: { ids: string[]; gain: number } | null = null;
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const a = placed[i];
+      const b = placed[j];
+      if (a.server === b.server) continue; // reordering one server rarely matters
+      const delta = cost(a.ice) - cost(b.ice); // a moves to b's server and back
+      const gain = delta * (weight.get(a.server)! - weight.get(b.server)!);
+      if (!best || gain > best.gain) best = { ids: [a.ice.instanceId, b.ice.instanceId], gain };
+    }
+  }
+  return best && best.gain >= 2 ? best.ids : [];
+}
+
 export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Loup
   '30001': { synergy: { gives: { draw: 1, econ: 0.5 }, wants: { trash: 2 } } },
@@ -60,11 +87,19 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   },
   // Botulus
   '30004': {
+    // Break the worst subroutine (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_choice') return undefined;
+      const ice = encounteredIce(state);
+      const subs = ice ? iceSubroutines(state, ice) : [];
+      const worst = [...prompt.options].sort((a, b) => subroutineCost(state, subs[Number(b.id)]?.label ?? '') - subroutineCost(state, subs[Number(a.id)]?.label ?? ''))[0];
+      return { kind: 'effect_choice', optionId: worst.id };
+    },
     synergy: { gives: { virus: 1, breakers: 0.5 } },
     // "When your turn begins, place 1 virus counter on this program" (rule 5.7.1); "Hosted virus counter: Break 1 subroutine on host ice."
     // breaksHostSubroutine is read by both sides (R-A A-move): the walk, and the Runner's botulusBreaks and encounter (runs.ts, runnerAI.ts)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 } }, breaksHostSubroutine: { counter: 'virus' } },
-    // A second Botulus on the same host adds its own counters (runnerAI.ts trojanHostValue prices it)
+    // A second Botulus on the same host adds its own counters (counterValues.ts trojanHostWorth: worth while the host's subroutines take them)
     runFacts: { trojan: { second: 'adds' } },
     value: { rig: 2 },
     // A virus counter a turn, each breaking a subroutine on its host; useful for about 3 turns
@@ -123,7 +158,15 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
   },
   // Zahya
-  '30010': { synergy: { gives: { econ: 0.5 }, wants: { hq: 1.5, rd: 1.5 } } },
+  '30010': {
+    synergy: { gives: { econ: 0.5 }, wants: { hq: 1.5, rd: 1.5 } },
+    // Jeff: a 1-credit gain waits while 2 clicks are left for another HQ or R&D run (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_choice' || prompt.source.step !== 'gain') return undefined;
+      const wait = Number(prompt.source.data?.credits ?? 0) < 2 && state.runner.clicks >= 2;
+      return { kind: 'effect_choice', optionId: wait ? 'no' : 'gain' };
+    },
+  },
   // Mutual Favor
   '30011': { synergy: { gives: { breakers: 1 }, wants: { runs: 0.5 }, when: ['successfulRun'] } },
   // Tread Lightly
@@ -165,7 +208,7 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     // "When your turn begins, place 1 virus counter ... Then, if there are 3 or more hosted virus counters, derez host ice"
     // Corp-only (the walk): the Runner's price holds no copy of the derez (A-log L3, a B5 item)
     holdFacts: { runnerTurnStart: { counters: { kind: 'virus', n: 1 }, derezHostAt: 3 } },
-    // A second Tranquilizer on the same host does nothing the first doesn't: each derezzes at its own 3 counters (trojanHostValue)
+    // A second Tranquilizer on the same host does nothing the first doesn't: each derezzes at its own 3 counters (trojanHostWorth: worth 0)
     runFacts: { trojan: { second: 'idle' } },
     value: { rig: 2.5 },
     // A virus counter a turn; 3 derez its host
@@ -189,7 +232,11 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
   },
   // Tāo Salonga
-  '30019': { synergy: { when: ['onScore'] } },
+  '30019': {
+    synergy: { when: ['onScore'] },
+    // Deck-aware AI: moves the hardest ice off the servers worth attacking (taoSwap; prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt, memory, synergy }) => (synergy && side === 'runner' && prompt.kind === 'effect_cards' ? { kind: 'effect_cards', cardInstanceIds: taoSwap(state, memory) } : undefined),
+  },
   // Creative Commission
   '30020': { synergy: { gives: { econ: 1 } } },
   // VRcation

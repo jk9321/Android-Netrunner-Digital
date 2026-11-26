@@ -110,10 +110,8 @@ export function GameMenuDrawer({
           <div className="space-y-2 bg-[#05080e] border border-slate-800/90 rounded-[2px] p-3">
             <div className="text-[11px] font-cyber font-bold text-slate-400 tracking-wider">GAME STATUS</div>
             <PhaseTracker state={state} />
-            {online ? (
+            {online && (
               <div className="pt-1"><OnlineMarks online={online} compact={false} /></div>
-            ) : (
-              config && <div className="text-[11px] text-slate-500 pt-1">SEED {config.seed}</div>
             )}
           </div>
 

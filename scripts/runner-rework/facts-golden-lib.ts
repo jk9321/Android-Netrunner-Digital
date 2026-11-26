@@ -25,7 +25,7 @@ import { rezCandidates } from '../../src/ai/playout';
 import { approachCost, breakPlans, bypassesAhead, chainReactionBonus, iceCost, iceCreditNeed, isTrap, plannedSubroutines, runBypasses, runScore } from '../../src/ai/runs';
 import { serverHold, restOfTurn } from '../../src/ai/corp/hold';
 import { runnerEarnings, counterCredits } from '../../src/ai/nextTurnMoney';
-import { HeuristicRunnerAI, readWriteFullShuffle, trojanHostValue } from '../../src/ai/runnerAI';
+import { HeuristicRunnerAI, readWriteFullShuffle } from '../../src/ai/runnerAI';
 import { runEventOptions } from '../../src/ai/prompts';
 import { CARDS } from '../../src/ai/cards';
 import { asSide } from '../../src/ai/pricing';
@@ -466,10 +466,8 @@ for (const [code, name] of [
       twin: gripTroj(code, t === 1 ? 2 : 1),
       twinIs: `${t === 1 ? 2 : 1} targets`,
       decision: true,
-      extra: b => {
-        const hosts = b.s.corp.servers[b.server].ice.filter(c => c.isRezzed);
-        return [{ name: 'trojanHostValue', value: hosts.map(h => r4(runner(b.s, () => trojanHostValue(b.s, code, h)))) }];
-      },
+      // trojanHostValue's record (A-log) left with the function in B3b: the host's worth is trojanHostWorth's, which the
+      // counter readers and the ranked list above already read (tests/runnerFacts.test.ts names the gone key)
     });
 // Physarum, Funhouse, Manegarm, Idiosyncresis
 const phys = (ice: string) => base({ ice: [{ code: ice }], programs: [{ code: C.PHYSARUM, host: 0 }] });

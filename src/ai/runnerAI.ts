@@ -1,6 +1,5 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
+import { GameAction, GameState, activePrompt, cardDef, getCardScript, getLegalActions, isLegalAction } from '../core';
 import { runnerInstallBlocker } from '../core/engine/actions/install';
-import { iceStop } from './iceValues';
 import { Agent, FreeActionGuard, ScoredAction } from './agent';
 import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
@@ -9,17 +8,19 @@ import { asSide, nudge, tuning } from './synergy';
 import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
 import { runnerUnknownSlots } from './runnerReply';
-import { RunnerMemory, chainReactionBonus, runCreditSpend, hostedTrojans, iceCost, needsBiggerHand, runScore, runShortfall, serverValue, spendCost } from './runs';
+import { RunnerMemory, chainReactionBonus, runCreditSpend, needsBiggerHand, runScore, runShortfall, serverValue, spendCost } from './runs';
 import { RATES } from './valueModel';
 import { plan } from './pricing';
 import { CARDS } from './cards';
 import { RunnerContext, runnerDecide, runnerOffTurn } from './runner/core';
 import { RUNNER_TERMS } from './runner/terms';
+import { honestPromptAnswer } from './runner/prompt';
 
 // Read when called, not built at load: a list built here once read runs.ts's constants before they were set (this module
 // loaded inside runs.ts's import cycle then; ai-trojans-load, tests/trojansLoad.test.ts). It is now in the cycle
 // {corpAI, runnerAI, runnerReply, turnPlanner} (tests/codeHealth.test.ts), and a load-time read is still unsafe here.
-// The trojans trojanHostValue prices are the entries with runFacts.trojan (Botulus, Tranquilizer; R-A A-move)
+// The trojans are the entries with runFacts.trojan (Botulus, Tranquilizer; R-A A-move); their host's worth is
+// counterValues.ts trojanHostWorth (B3b)
 const isTrojan = (code: string) => !!CARDS[code]?.runFacts?.trojan;
 
 /**
@@ -176,22 +177,16 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   /**
-   * A prompt answered from the Runner's own view (rule 10.2.2a; ai-runner-fixes, AI Coordinator 2026-11-14): an answer
-   * that draws (LilyPAD, Read-Write Share) is scored on the guessed stack, not the real next cards. A prompt that shows
-   * stack cards (a search, the top card revealed) is answered on the real state, since the Runner sees those cards; so is
-   * any answer the guess makes that is not legal on the real state.
+   * A prompt answered from the Runner's own view (rule 10.2.2a): an answer that draws (LilyPAD, Read-Write Share) is
+   * scored on the guessed stack, not the real next cards. B3 commit 2: the deciding Runner answers on the honest view,
+   * the dealt view with what the prompt shows kept as it is (runner/prompt.ts: shown by identity, in place, named), never
+   * on the real state. With the planner off (the rollout and reply Runners) the state handed in is already a deal.
    */
   private promptAnswer(state: GameState): GameAction {
-    const real = () => answerPrompt(state, 'runner', this.memory, this.synergy);
     const view = this.ownView(state);
-    if (view === state) return real();
-    const shown = JSON.stringify(activePrompt(state));
-    // ai-honest-runner-view (red team 2): also a prompt naming a Corp card whose identity the view may have changed (an
-    // access in HQ or R&D, a card revealed from HQ): the Runner is looking at it, so it is answered as it really is
-    const { ice, root, loose } = runnerUnknownSlots(state, this.memory);
-    if ([...state.runner.stack, ...ice, ...root, ...loose].some(c => shown.includes(`"${c.instanceId}"`))) return real();
-    const answer = answerPrompt(view, 'runner', this.memory, this.synergy);
-    return isLegalAction(state, answer) ? answer : real();
+    if (view === state) return answerPrompt(state, 'runner', this.memory, this.synergy);
+    const ports = { view, slots: (s: GameState) => runnerUnknownSlots(s, this.memory), memory: this.memory, synergy: this.synergy, answer: (s: GameState) => answerPrompt(s, 'runner', this.memory, this.synergy) };
+    return honestPromptAnswer(state, ports).action;
   }
 
   private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {
@@ -260,7 +255,9 @@ export class HeuristicRunnerAI implements Agent {
     if (action.type === 'DRAW_CARD' && this.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
     if (action.type === 'INSTALL_CARD' && action.hostInstanceId && cardCode && isTrojan(cardCode)) {
       const host = Object.values(state.corp.servers).flatMap(s => s.ice).find(c => c.instanceId === action.hostInstanceId);
-      score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;
+      // B3b (S2): the host's worth is the board's own term (counterValues.ts trojanHostWorth), read through the outcome;
+      // a facedown host keeps its named flat here, equal across facedown hosts, so it never picks among them
+      if (!host?.isRezzed) score += RUNNER_TERMS.facedownTrojanHost;
     }
     // Saving up for a run: money now beats spending it elsewhere
     if (this.savingFor) {
@@ -271,19 +268,6 @@ export class HeuristicRunnerAI implements Agent {
     if (!spendsClick && score <= RUNNER_TERMS.freeActionCut) return -Infinity; // free actions only when clearly good
     return score;
   }
-}
-
-/**
- * Worth of a trojan on this rezzed ice: more on ice that is costly to get
- * past. A second Botulus only speeds up counters the first is already
- * piling up there; a second Tranquilizer does nothing the first doesn't
- * (each derezzes at its own 3 counters).
- */
-export function trojanHostValue(state: GameState, code: string, host: CardInstance): number {
-  const value = 1 + 0.15 * Math.min(iceStop(state), iceCost(state, host));
-  const doubled = hostedTrojans(state, host, code).length;
-  // What a second copy does is its entry's (runFacts.trojan.second); -3 and -1.5 are prices
-  return CARDS[code]?.runFacts?.trojan?.second === 'idle' ? value - 3 * doubled : value - 1.5 * doubled;
 }
 
 /**

@@ -1,12 +1,17 @@
-import { cardDef, getCardScript } from '../../core';
+import { CardInstance, cardDef, getCardScript } from '../../core';
 import { stealthCredits, turnFlag } from '../../core/engine/cardEffects';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { abilityUsedKey } from '../../core/engine/actions/ability';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
+import { serverValue, spendCost, tagCost } from '../runs';
+import { keepValue } from '../evaluate';
+import { bakerWantsFuel } from '../cardPlans';
+import { tuning } from '../synergy';
 import { badPublicityWorth } from '../prompts';
 import type { GameState } from '../../core';
 import { CardAI } from './types';
+import { cardsPick, promptCards } from './answers';
 
 /** Virtual Intelligence, P.I.: "Once per turn → [click], 1[credit]: Draw 1 card and remove 1 tag." */
 const VIC = '36009';
@@ -123,6 +128,9 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Rotary
   '36014': {
+    // The board score doesn't see the extra access the tag buys, so weigh it here: take the tag when one more random
+    // access is worth more than what the tag costs (cheap for Vic; prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.step === 'breach' ? { kind: 'effect_choice', optionId: accessWorth(state) > tagCost(state) ? 'tag' : 'no' } : undefined),
     synergy: { gives: { hq: 1, rd: 1 }, wants: { runs: 1 }, when: ['ifTagged'] },
     value: { rig: 2.5 },
     // +1 MU; a tag for one more access on HQ and R&D breaches, now and then (most breaches for Vic, who clears a tag a turn cheaply)
@@ -133,6 +141,14 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Baker
   '36015': {
+    // Turn the run on Archives to whichever of HQ and R&D is worth more, if either beats Archives by the credit (prompts.ts
+    // before B3 commit 1)
+    promptAnswer: ({ state, side, prompt, memory, synergy }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_choice' || prompt.source.step !== 'redirect') return undefined;
+      const value = (id: string) => serverValue(state, id, 0, memory, synergy && tuning.wary) - (id === 'archives' ? 0 : spendCost(state, 1));
+      const best = ['hq', 'rd'].sort((a, b) => value(b) - value(a))[0];
+      return { kind: 'effect_choice', optionId: value(best) > value('archives') ? best : 'no' };
+    },
     archivesPayoff: true, // Baker: run Archives, pay 1 to approach HQ or R&D instead
     synergy: { gives: { runs: 1.5, hq: 1, rd: 1, archives: 0.5 } },
     value: { rig: 2 },
@@ -173,6 +189,24 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   '36019': { synergy: { gives: { runs: 1, install: 1.5 } } },
   // Methuselah
   '36020': {
+    // Sourdough Starter: feed it only dead hardware: a copy of one installed (or a second console), or one it can't afford
+    // (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_cards' || prompt.source.step !== 'trash') return undefined;
+      const cards = promptCards(state, prompt.candidateIds);
+      const weakest = (list: CardInstance[]) => [...list].sort((a, b) => keepValue(state, a) - keepValue(state, b))[0];
+      const rig = state.runner.rig.hardware;
+      const dead = cards.filter(c => {
+        const def = cardDef(c);
+        const console = /console/i.test(def.keywords ?? '');
+        return rig.some(h => cardDef(h).title === def.title || (console && /console/i.test(cardDef(h).keywords ?? ''))) || (def.cost ?? 0) > state.runner.credits;
+      });
+      if (dead.length) return cardsPick(weakest(dead));
+      // With Baker out and no stealth credit for it, the weakest hardware is worth turning into its fuel
+      // (2 stealth credits, the first a Baker run worth about 2.5: cardPlans.ts)
+      const spare = weakest(cards);
+      return cardsPick(bakerWantsFuel(state) && spare && keepValue(state, spare) < 2 * 0.9 + 1.6 ? spare : undefined);
+    },
     synergy: { gives: { econ: 1.5 }, wants: { runs: 1 } },
     value: { rig: 2.5 },
     // +1 MU; a dead hardware in the grip (a copy of one installed, or one it can't afford) turns into 2 run credits now and then
@@ -194,6 +228,14 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   },
   // Read-Write Share
   '36022': {
+    // Sourdough Starter (Jeff, 2026-10-30, plan.sourdough). Jeff: park the weakest card in the grip, or one it can't afford
+    // soon (more than about two turns of credit clicks away), for a fresh draw (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_cards' || prompt.source.step !== 'host') return undefined;
+      const cards = promptCards(state, prompt.candidateIds);
+      const farOff = (c: CardInstance) => (cardDef(c).cost ?? 0) > state.runner.credits + 4;
+      return cardsPick([...cards].sort((a, b) => keepValue(state, a) * (farOff(a) ? 0.5 : 1) - keepValue(state, b) * (farOff(b) ? 0.5 : 1))[0]);
+    },
     synergy: { gives: { draw: 1 } },
     value: { rig: 1, draws: 1 },
     // A card in the grip parked for a fresh draw each turn, 4 at most

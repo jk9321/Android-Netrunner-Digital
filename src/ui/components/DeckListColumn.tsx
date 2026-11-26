@@ -54,8 +54,10 @@ export const DeckListColumn: React.FC<DeckListColumnProps> = ({
   const [query, setQuery] = useState('');
   const accent = side === 'corp' ? 'cyan' : 'pink';
   const onlineProblems = (id: string) => opts.online?.problems.get(id) ?? [];
-  // Random deck never picks a hidden deck
-  const allDecks = summaries.map(s => s.deck).filter(d => !hidden.includes(d.id));
+  // Random deck never picks a hidden deck, nor a deck illegal in the chosen online format
+  const allDecks = summaries
+    .map(s => s.deck)
+    .filter(d => !hidden.includes(d.id) && (!opts.online || onlineProblems(d.id).length === 0));
   const hiddenCount = summaries.filter(s => s.deck.side === side && hidden.includes(s.deck.id)).length;
   const listed = listedDecks(side, selected, showHidden);
   const trimmedQuery = query.trim();

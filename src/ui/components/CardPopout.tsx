@@ -6,8 +6,8 @@ import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { Shield, Trash2, AlertCircle, Lock, X } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
 import { cardTextHtml, flavorTextHtml } from '../cardText';
-import { AdvancementIcon, AgendaDiamondIcon, CreditIcon, Credits, MuIcon } from './CreditIcon';
-import { liveCardModifiers, useLiveGameState } from '../liveValues';
+import { AdvancementIcon, AgendaDiamondIcon, CreditIcon, Credits, MuIcon, renderSymbols } from './CreditIcon';
+import { liveCardModifiers, liveScriptValue, useLiveGameState } from '../liveValues';
 
 interface CardPopoutProps {
   card: CardInstance;
@@ -34,6 +34,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
   const isHiddenSecured = isFaceDown && !canPeek;
   const mods = gameState && !isHiddenSecured && !seen ? liveCardModifiers(gameState, card) : undefined;
+  const liveNote = gameState && !isHiddenSecured && !seen ? liveScriptValue(gameState, card) : null;
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
   const isCompactViewport = vw < 640;
@@ -102,6 +103,15 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
 
   const rulesAndFooter = (
     <>
+      {liveNote && (
+        <div
+          data-testid="popout-live-value"
+          className="mb-2 px-2.5 py-1.5 rounded-[2px] bg-amber-950/60 border border-amber-500/60 text-xs font-mono font-semibold text-amber-200 flex items-center gap-1 flex-wrap"
+        >
+          {renderSymbols(liveNote)}
+        </div>
+      )}
+
       {/* Formatted Ability Rules Text */}
       {def.text && (
         <div className="bg-[#06090e]/80 rounded-[2px] p-2.5 sm:p-3 border border-slate-800/90 text-xs leading-relaxed text-slate-200">

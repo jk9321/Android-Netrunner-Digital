@@ -638,6 +638,17 @@ export function icePrice(state: GameState, ice: CardInstance): IcePrice {
 }
 
 /**
+ * The ice cards of the Corp's decklist the Runner has not seen: HQ, R&D, facedown Archives and the installed ice it
+ * doesn't know (no hand or order read; rule 10.2.2a). The pool an unknown facedown ice is drawn from, read by
+ * unrezzedDamageRisk and by a trojan's facedown host (counterValues.ts trojanHostWorth; B3b, extracted play identical).
+ */
+export function unseenIcePool(state: GameState): CardInstance[] {
+  const corp = state.corp;
+  const hidden = Object.values(corp.servers).flatMap(server => server.ice.filter(c => !c.isRezzed && !c.runnerKnows));
+  return [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...hidden].filter(c => getCardDefinition(c.cardCode).type_code === 'ice');
+}
+
+/**
  * The damage an unrezzed ice may do: each ice still unseen in the Corp's decklist (HQ, R&D, facedown Archives and
  * installed ice the Runner hasn't seen; no hand or order read), as if it were this one rezzed on approach (6.9.2c) by a
  * Corp that can pay its rez cost, does the damage its subroutines let through in order (tankDamage) when the Runner
@@ -649,8 +660,7 @@ export function icePrice(state: GameState, ice: CardInstance): IcePrice {
 export function unrezzedDamageRisk(state: GameState, ice: CardInstance): number {
   const damages = memo(state, 'unrezzedIceDamage', () => {
     const corp = state.corp;
-    const hidden = Object.values(corp.servers).flatMap(server => server.ice.filter(c => !c.isRezzed && !c.runnerKnows));
-    const pool = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...hidden].filter(c => getCardDefinition(c.cardCode).type_code === 'ice');
+    const pool = unseenIcePool(state);
     const byCode = new Map<string, number>();
     return pool.map(c => {
       const known = byCode.get(c.cardCode);

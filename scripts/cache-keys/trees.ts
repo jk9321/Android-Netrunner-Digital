@@ -462,6 +462,7 @@ const NOT_VALUE_CACHES = new Set([
   'runnerOtherKinds', 'valueLoops', // counters for reports
   'mapGames', 'stateIds', // scopeToGame's and positionSerial's bookkeeping
   'rootIds', // pricing contextKey's object ids for the decision root (not a value)
+  'shownByState', // runner/prompt.ts (B3): the engine's view of the prompt's shown cards per state, a function of the state
 ]);
 export function unlistedMaps(dir: string): string[] {
   const out: string[] = [];
