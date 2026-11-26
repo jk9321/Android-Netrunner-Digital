@@ -164,10 +164,12 @@ function keptInOrder(before: string[], after: string[]): Set<string> {
 }
 
 /**
- * The marks after an action that shuffled R&D (step 0 gap 4). shuffleRD turned the marks of the last action's end
+ * The marks after an action that shuffled R&D (step 0 gaps 2 and 4). shuffleRD turned the marks of the last action's end
  * into shares; the rest of the action is applied here, from how R&D changed and what is open:
  * - a marked card that left R&D in the open (or into the cards known in HQ) is followed there, so its share goes;
- * - any other card that left R&D this action could have been a marked one (1.12.3), so every share may have left.
+ * - any other card that left R&D this action could have been a marked one (1.12.3), so every share may have left;
+ * - a card that was in the open and went into R&D (Spin Doctor, Longevity Serum, Sleipnir shuffle Archives in) is one
+ *   the Runner saw go in (10.2.2b): it gets a share of the deck too (4.2.2, 8.7.3).
  * Cards the Runner sees after the shuffle are placed by step 6 as usual.
  */
 function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): RdKnownCard[] {
@@ -177,7 +179,12 @@ function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): 
   const inHq = new Set((state.corp.knownToRunner ?? []).map(e => e.id));
   const followed = new Set(departed.filter(id => open.has(id) || inHq.has(id)));
   const unseen = departed.some(id => !followed.has(id));
-  const out = known.filter(e => !(e.n0 && followed.has(e.id))).map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  let out = known.filter(e => !(e.n0 && followed.has(e.id))).map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  const wasInRd = new Set(prev.corp.rd.map(c => c.instanceId));
+  const openBefore = publicCards(prev);
+  const n0 = state.corp.rd.length;
+  for (const c of state.corp.rd)
+    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out = [...out, { id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];
   return out;
 }
 

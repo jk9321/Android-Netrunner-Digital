@@ -234,3 +234,16 @@ describe('B4a: a shuffle hides where an R&D card is, not that it is in R&D', () 
     expect(knownInHand(s, 'corp').map(k => k.id)).toContain(id);
   });
 });
+
+describe('B4a gap 2: a card shown going into R&D', () => {
+  it('a faceup Archives card shuffled into R&D (Spin Doctor) gets a share of the deck (4.4.6c, 8.7.3, 10.2.2b)', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    s0.corp.archives.faceUp.push(fund);
+    const s = act(s0, n => {
+      n.corp.rd.push(take(n.corp.archives.faceUp, fund.instanceId));
+      shuffleRD(n);
+    });
+    expect(rdSharesKnownToRunner(s).map(e => [e.id, e.lo, e.hi, e.n0])).toEqual([[fund.instanceId, 0, s.corp.rd.length - 1, s.corp.rd.length]]);
+  });
+});
