@@ -24,9 +24,10 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint and test on main and beta. Run all three before pushing.
 - Gate: `.claude/hooks/gate-main-beta.mjs` (PreToolUse) blocks `git commit` on main/beta and `git push` to main/beta until `node .claude/hooks/fast-checks.mjs` passes (typecheck + lint + unit tests minus the slow AI files, 25-40 s; a passed tree is stamped so the push after a commit doesn't re-run). Push as its own command, not after a checkout/merge in the same line. GitHub MCP file writes to main/beta are blocked: use git. The slow tests and e2e stay in CI. Don't work around the gate; fix what it reports.
 - After every push to `main` or `beta`, check that push's CI run yourself (a PostToolUse hook, `.claude/hooks/ci-after-push.mjs`, reminds you) and fix failures before finishing; don't wait for Jeff to report them. Ignore `ai-batch-results` and other branch builds.
-- Vite 8 (Rolldown, oxc), @vitejs/plugin-react 6, vitest 5, eslint 10 (2026-11-20). `vite-node` 6 is an explicit devDependency: the AI batch scripts (`npx vite-node scripts/*.ts`) need it and vitest no longer bundles it; keep its major matched to vite's (vite-node 6 = vite 8). `esbuild` is an explicit devDependency for `scripts/load-order.mjs` (vite 8 no longer installs it).
-- Engine fuzzer (random legal moves on every deck, Comprehensive Rules invariants checked after every action; checks in `scripts/engine-fuzz-check.ts`): tier 1 `tests/engineFuzz.test.ts` (fixed seeds, in `npm test`, gates CI); tier 2 `.github/workflows/engine-fuzz-nightly.yml` (one ~15 min job each night on beta, fresh seeds, failures uploaded as the `engine-fuzz-failures` artifact); tier 3 `.github/workflows/engine-fuzz-deep.yml` (run by hand with parallel jobs before each new set merges and before beta merges to main). Reproduce a failure with `npx vite-node scripts/engine-fuzz-replay.ts -- fail-<seed>.json`. A new invariant must pass tier 1 on day one; when it flags a state the rules allow, fix the check (cite the rule), not the engine.
+- Engine fuzzer: three tiers (tier 1 `tests/engineFuzz.test.ts` gates CI; nightly and deep runs; replay a failure) in `docs/reference.md`, Tooling. A new invariant must pass tier 1 on day one; when it flags a state the rules allow, fix the check (cite the rule), not the engine.
 - Card data: `npm run sync-cards`. Ban lists: `node scripts/print-banlist.mjs`.
+- Quiet output, the default for every thread: run tests as `node scripts/quiet.mjs test [vitest args]`, read a batch or ai-script result as `node scripts/quiet.mjs batch <run id> [--base <run id>]`, and wrap any long script as `node scripts/quiet.mjs run <name> -- <command>`. The full log goes to `.quiet/`; open it only when the summary's UNUSUAL block points at something. Details: `docs/reference.md`, Quiet output.
+- Tool versions (Vite 8, vitest 5, eslint 10; why `vite-node` and `esbuild` are explicit devDependencies): `docs/reference.md`, Tooling.
 - Never mutate a game state after `isLegalAction`/`getLegalActions` (legality is cached per state in a WeakMap); tests edit a `structuredClone`.
 - Don't change the `inst-N` instance numbering in `src/core/engine/gameState.ts`.
 
@@ -53,18 +54,8 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - Beta picker shows one deck per identity; add one when you add an identity.
 - Deck legality: `validateDeck` in `src/core/deckValidation.ts`; formats and ban lists in `src/core/formats.ts` (Casual/Startup/Standard; Eternal is out of scope).
 
-## New card set process (Standard sets, newest first, on beta)
-When (Jeff 2026-11-22, replaces "alongside tuning"): after the Runner rework, SET - ROUND - SET - ROUND until all wanted cards are in. The next set is scripted on its own branch during a learned round and merges to beta only at a round boundary; then the baselines are re-run and the next round starts from the earlier learned numbers. Early-round win rates don't compare across card-pool changes; one or two final rounds with every set in give the real read. Then the level-ups (wider search, work budget, hold-count cap; Corp and Runner together), each followed by a short re-learn round.
-0. Once, before the first new set (Jeff 2026-11-22): generic run/turn flags. Card-specific fields on RunState/CardScript (`meliesServer`, `shredArmed`, `redirectToHq`, ...) move to keyed flags/modifiers (`TurnFlag`, `CardModifiers`); new cards add keys, not fields. FULL review tier (engine). Card facts in one place is the Runner rework's stage R-A.
-1. Pull card data and image links from NetrunnerDB.
-2. Add new keywords to the hover tooltips.
-3. Implement every card with its own unit test (plus liveValue/revealInHand); check errata.
-   Start from `npx vite-node scripts/new-set.ts` (stubs, test todos, unknown keywords). Card scripts live in `src/core/scripts/<set>/{corp,runner}/<type>.ts`; a card with prompts declares its steps with `prompts()` (`src/core/scripts/steps.ts`) and asks only through that flow (`tests/steps.test.ts` fails on a hand-written `onPromptAnswer` or a raw step string).
-3b. In a separate thread, blind rules tests with the `blind-rules-tests` skill (`.claude/skills/blind-rules-tests/SKILL.md`): 20-30 tricky cards tested from card text and the rules only, without reading the card code; real bugs go to the rules-bugs thread.
-4. AI data: one entry per card in `src/ai/cards/<set>.ts`; re-tag older cards that interact. Ice that gains subroutines when encountered (Starlit Knight) needs a `gainsOnEncounter` entry, or the Runner AI prices the run against the printed subroutines only.
-5. Startup/Standard legality and ban lists.
-6. Make the AI use the new cards and identities: sample real NetrunnerDB decks (test-only), run `scripts/deck-playability.ts`, add one beta picker deck per new identity. Check optional "you may X now for Y later" prompts.
-7. Balance with AI self-play, read in the final rounds with every set in: Corp 50 ± 5%.
+## New card set process
+- Read `docs/new-card-set.md` before you plan, script, test or balance a new card set: when sets go in (set - round cycles after the Runner rework) and steps 0 to 7.
 
 ## UI
 - No scanlines and no dot grid, ever.
@@ -72,11 +63,9 @@ When (Jeff 2026-11-22, replaces "alongside tuning"): after the Runner rework, SE
 - Fonts have been bumped one step for eye strain; don't shrink them.
 
 ## Audits
-- Code audits use the `code-audit` skill (`.claude/skills/code-audit/SKILL.md`): focused (one area, a new set, an MP chunk, an AI item, a branch before merge) or full (tech-debt sprawl and drift). Audits only report; fixes go to separate threads (AI fixes via the AI Coordinator). Reports, findings.json and metrics go to `/mnt/project-files/audits/`; each audit compares with the previous one.
-- Run one after every 2-3 AI merges to beta, before beta merges to main, and before a new set's balance step.
+- One is due after every 2-3 AI merges to beta, before beta merges to main, and before a new set's balance step. Audits only report; fixes go to separate threads. Which skill, where reports go: `docs/reference.md`, Audits.
 
 ## Hosting
-- Cloudflare Worker serves static assets. GitHub Actions deploys it (`.github/workflows/deploy.yml`, wrangler, secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) after CI passes on a push to `main` (live: stackheap.run / android-netrunner-digital.jk9321.workers.dev) or `beta` (beta preview + game Workers). Cloudflare's own Workers Builds are off (they billed build minutes for every branch); no other branch deploys by itself. `beta` has its own preview (beta-android-netrunner-digital.jk9321.workers.dev) with separate localStorage, so decks don't carry over.
-- Card art loads from card-images.netrunnerdb.com; card backs are our own.
+- Deploys (what deploys main and beta, the beta preview's separate storage, card art and backs): `docs/reference.md`, Hosting. Cloudflare's own Workers Builds are off; no branch other than main and beta deploys by itself.
 - Update `PROJECT_STATUS.md` when finishing notable work.
 - AI state has ONE status source (Jeff 2026-11-16): the plan page "Corp AI rework: current plan" (https://claude.ai/artifact/DXPYCFJKJaPSvep8zfmoRk), kept by the AI Coordinator at every AI merge. `PROJECT_STATUS.md` keeps one dated line per AI merge (what, branch, review file) and points there for the state; project memory keeps rules, thread ids and pointers, not a second copy of the state. If they differ, the plan page wins.
