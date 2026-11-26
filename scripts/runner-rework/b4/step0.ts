@@ -14,7 +14,9 @@
  * Ruling 1's fields, kept by the script after each action from what each side sees (HIDDEN-READ for bookkeeping only):
  *  - HQ (the engine's knownToRunner list) and the grip (knownToCorp): each entry's time seen, and the times of the zone's
  *    unseen losses (a card left and the other side cannot tell which). Certain count = entries less the losses that can
- *    be matched to an entry seen before them; per code, max(0, entries of the code - matched losses).
+ *    be matched to an entry seen before them; per code, max(0, entries of the code - matched losses). LOSS=kind (a
+ *    recount, not ruling 1 as written): per code, only the losses whose place allows the code's kind (an ice slot: ice;
+ *    a root: agenda, asset, upgrade) matched to that code's entries; `hq:certainByKind` counts it either way.
  *  - Facedown Archives: an entry per card seen going in facedown (it was public or known installed before), with the same
  *    count rule over Archives' unseen losses.
  *  - R&D: the engine's marks; after a shuffle the shadow's (share 1 / N0).
@@ -182,7 +184,8 @@ function labelOf(prev: GameState, a: GameAction): string {
 // ------------------------------------------------------------------------------------------------ ruling 1's fields
 interface Counted {
   seen: Map<string, { code: string; at: number }>; // entries, by the engine's id (bookkeeping), with the time seen
-  losses: number[]; // times of the zone's unseen losses
+  losses: { at: number; kinds?: string[] }[]; // the zone's unseen losses: when, and (LOSS=kind) the kinds the place it went to allows
+  gone: Set<string>; // entries seen leaving: not re-added from the engine's list, which keeps them
 }
 /** Losses matched to an entry seen before them (each loss can take one such entry). */
 function matched(c: Counted): number {
@@ -190,7 +193,7 @@ function matched(c: Counted): number {
   let m = 0;
   let avail = 0;
   let i = 0;
-  for (const t of c.losses) {
+  for (const { at: t } of c.losses) {
     while (i < ats.length && ats[i] < t) {
       avail++;
       i++;
@@ -202,12 +205,35 @@ function matched(c: Counted): number {
   }
   return m;
 }
-function certain(c: Counted): { n: number; k: number; byCode: [string, number][] } {
+/** Per code: the losses that can be this code (LOSS=kind: by the kind the place it went to allows), matched to this code's entries seen before them. */
+function matchedCode(c: Counted, code: string): number {
+  const ats = [...c.seen.values()].filter(e => e.code === code).map(e => e.at).sort((x, y) => x - y);
+  const kind = typeOf(code);
+  let m = 0;
+  let avail = 0;
+  let i = 0;
+  for (const l of c.losses) {
+    if (l.kinds && !l.kinds.includes(kind)) continue;
+    while (i < ats.length && ats[i] < l.at) {
+      avail++;
+      i++;
+    }
+    if (avail > 0) {
+      avail--;
+      m++;
+    }
+  }
+  return m;
+}
+const LOSS = process.env.LOSS ?? 'any';
+function certain(c: Counted): { n: number; k: number; byCode: [string, number][]; byKind: [string, number][]; byAny: [string, number][] } {
   const m = matched(c);
   const n = c.seen.size;
   const per = new Map<string, number>();
   for (const e of c.seen.values()) inc(per, e.code);
-  return { n, k: Math.max(0, n - m), byCode: [...per].map(([code, x]) => [code, Math.max(0, x - m)] as [string, number]).filter(([, x]) => x > 0) };
+  const byKind = [...per].map(([code, x]) => [code, Math.max(0, x - matchedCode(c, code))] as [string, number]).filter(([, x]) => x > 0);
+  const byAny = [...per].map(([code, x]) => [code, Math.max(0, x - m)] as [string, number]).filter(([, x]) => x > 0);
+  return { n, k: Math.max(0, n - m), byCode: LOSS === 'kind' ? byKind : byAny, byKind, byAny };
 }
 
 interface Shadow {
@@ -250,7 +276,11 @@ function afterAction(prev: GameState, next: GameState, a: GameAction, n: number,
       // Seen: it is public after, or a mark follows it (a known R&D card drawn joins the HQ list), or the whole zone went
       const seen = pubNext.has(id) || (to === 'hq' && hqNext.some(e => e.id === id) && !hqPrev.has(id)) || (to === 'rd' && exactNext.has(id)) || wholeZone;
       inc(acc.sites, `${z}|out|${to}|${seen ? 'seen' : 'unseen'}|${label}`);
-      if (!seen && (z === 'hq' || z === 'grip' || z === 'arch')) sh[z].losses.push(n);
+      if (!seen && (z === 'hq' || z === 'grip' || z === 'arch')) sh[z].losses.push({ at: n, kinds: to === 'ice' ? ['ice'] : to === 'root' ? ['agenda', 'asset', 'upgrade'] : undefined });
+      if (seen && (z === 'hq' || z === 'grip') && sh[z].seen.has(id)) {
+        sh[z].seen.delete(id);
+        sh[z].gone.add(id);
+      }
       if (z === 'arch' && seen) sh.arch.seen.delete(id);
     });
     for (const c of now) {
@@ -274,11 +304,12 @@ function afterAction(prev: GameState, next: GameState, a: GameAction, n: number,
     const c = sh[zone];
     const ids = new Set(list.map(e => e.id));
     for (const e of list)
-      if (!c.seen.has(e.id)) {
+      if (!c.seen.has(e.id) && !c.gone.has(e.id)) {
         c.seen.set(e.id, { code: e.code, at: n });
         inc(acc.mk, `src:${zone}:${label}`);
       }
     for (const id of [...c.seen.keys()]) if (!ids.has(id)) c.seen.delete(id);
+    for (const id of [...c.gone]) if (!ids.has(id)) c.gone.delete(id);
   }
   for (const e of next.corp.rdKnownToRunner ?? []) if (!(prev.corp.rdKnownToRunner ?? []).some(x => x.id === e.id)) inc(acc.mk, `src:rd:${label}`);
 }
@@ -487,7 +518,7 @@ function playGame(d: Driver) {
     s = mk(sc);
     sw = mk(X.shadowW.T);
   }
-  const empty = (): Counted => ({ seen: new Map(), losses: [] });
+  const empty = (): Counted => ({ seen: new Map(), losses: [], gone: new Set() });
   const sh: Shadow = { hq: empty(), grip: empty(), arch: empty(), proved: new Map(), rdBirth: new Map() };
   const memory = new Map<string, string>();
   const cands: Board[] = [];
@@ -635,6 +666,12 @@ function markGap(s: GameState, sw: GameState | undefined, memory: Map<string, st
     inc(m, 'hq:decisions');
     inc(m, 'hq:entries', hq.n);
     inc(m, 'hq:certain', hq.k);
+    // by code: as ruling 1 reads it (every loss may be any card), and with each loss limited to the kinds its place allows
+    const sum = (xs: [string, number][]) => xs.reduce((a, [, x]) => a + x, 0);
+    inc(m, 'hq:certainByCode', sum(hq.byAny));
+    inc(m, 'hq:certainByKind', sum(hq.byKind));
+    // HIDDEN-READ: the by-kind count is sound per code
+    for (const [code, x] of hq.byKind) if (s.corp.hq.filter(c => c.cardCode === code).length < x) inc(m, 'hq:kindUNSOUND');
     if (hq.k < hq.n) inc(m, 'hq:fewer');
     // HIDDEN-READ: how many listed cards really left HQ, and how many certain ones are really there (the count is sound)
     const really = [...sh.hq.seen.keys()].filter(id => s.corp.hq.some(c => c.instanceId === id)).length;
