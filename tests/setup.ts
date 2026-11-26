@@ -9,3 +9,7 @@ import { afterEach } from 'vitest';
  */
 const realSetImmediate = globalThis.setImmediate;
 afterEach(() => new Promise<void>(resolve => realSetImmediate(() => resolve())));
+
+/** F3 (brief-build rev 1): an asked state is read only; every state with a by-position value entry is frozen in the tests. */
+import { askedFreeze } from '../src/ai/valueModel';
+askedFreeze.on = true;

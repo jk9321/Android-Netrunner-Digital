@@ -391,7 +391,7 @@ export function armTree(dir: string, tree: string, arm: Arm) {
         ? ([['ai/valueModel.ts', `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return cached;`, `  const cached = buildTargets.get(key);\n  if (cached !== undefined) return ${H}?.other ? ${H}.other('${tree}', 'buildTargets', cached, state, side) : cached;`]] as [string, string, string][])
         : [['ai/valueModel.ts', 'const buildTargets = new Map<string, number>();', 'const buildTargets = new Map<string, number>();\nconst __buildBS = new WeakMap<GameState, Map<string, number>>();'] as [string, string, string]]),
       ['ai/iceValues.ts', `  const cached = deckShares.get(key);\n  if (cached) return cached;`, `  const cached = deckShares.get(key);\n  if (cached) return ${H}?.other ? ${H}.other('${tree}', 'deckShares', cached, state) : cached;`],
-      ['ai/effectValues.ts', `  let codes = boardFactCodes.get('codes');\n  if (!codes)`, `  let codes = boardFactCodes.get('codes');\n  if (codes && ${H}?.other) codes = ${H}.other('${tree}', 'boardFactCodes', codes, state);\n  if (!codes)`],
+...(read(join(dir, 'src/ai/effectValues.ts')).includes(`  let codes = boardFactCodes.get('codes');`) ? [['ai/effectValues.ts', `  let codes = boardFactCodes.get('codes');\n  if (!codes)`, `  let codes = boardFactCodes.get('codes');\n  if (codes && ${H}?.other) codes = ${H}.other('${tree}', 'boardFactCodes', codes, state);\n  if (!codes)`]] as [string, string, string][] : []),
       ['ai/evaluate.ts', `  return memo(state, 'hiddenCardOdds', () => hiddenCardOddsOf(state));`, `  let __filled = false;\n  const __v = memo(state, 'hiddenCardOdds', () => ((__filled = true), hiddenCardOddsOf(state)));\n  return !__filled && ${H}?.other ? ${H}.other('${tree}', 'hiddenCardOdds', __v, state) : __v;`],
     ],
     `${tree} declarations`,
@@ -424,7 +424,8 @@ export const CACHES: [file: string, name: string][] = [
   ['ai/handValues.ts', 'laterMoneys'],
 ];
 /** CACHES entries a base may not have yet. */
-const OPTIONAL = new Set(['laterMoneys']);
+// boardFactCodes: deleted with threats' string key by the F3 build (its one reader), present on older bases
+const OPTIONAL = new Set(['laterMoneys', 'boardFactCodes']);
 /**
  * The module-level maps of src/ai that are neither in CACHES nor known pure (a function of a card's text or a label, or
  * not a value at all). Re-derived on the build's base (rev 1, finding 3): makeTrees stops when one is new, so the eval
@@ -456,7 +457,7 @@ export function evalTree(dir: string) {
   for (const [file, name] of CACHES) {
     const path = join(dir, 'src', file);
     const text = read(path);
-    const re = new RegExp(`^((?:export )?const ${name}\\s*(?::[^=]+)?=\\s*)(new (?:Weak)?(?:Map|Set)\\b.*?\\));?\\s*$`, 'm');
+    const re = new RegExp(`^((?:export )?(?:const|let) ${name}\\s*(?::[^=]+)?=\\s*)(new (?:Weak)?(?:Map|Set)\\b.*?\\));?\\s*$`, 'm');
     if (!re.test(text)) {
       if (OPTIONAL.has(name)) continue;
       throw new Error(`cache ${name} not found in ${file}`);
@@ -470,7 +471,9 @@ export function evalTree(dir: string) {
       ['ai/synergy.ts', `const ownCache = { corp: new WeakMap<GameState, Profile>(), runner: new WeakMap<GameState, Profile>() };`, `const ownCache = { corp: (globalThis as any).__ckNoStore(new WeakMap<GameState, Profile>()), runner: (globalThis as any).__ckNoStore(new WeakMap<GameState, Profile>()) };`],
       ['ai/synergy.ts', `const oppCache = { corp: new WeakMap<GameState, Profile>(), runner: new WeakMap<GameState, Profile>() };`, `const oppCache = { corp: (globalThis as any).__ckNoStore(new WeakMap<GameState, Profile>()), runner: (globalThis as any).__ckNoStore(new WeakMap<GameState, Profile>()) };`],
       ['ai/handValues.ts', `function drawWorth(state: GameState, side: SideCode`, `export function drawWorth(state: GameState, side: SideCode`],
-      ['ai/effectValues.ts', `function boardFacts(state: GameState): string {`, `export function __bfCodes(state: GameState): string[] {\n  return [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function');\n}\nfunction boardFacts(state: GameState): string {`],
+      ...(read(join(dir, 'src/ai/effectValues.ts')).includes('function boardFacts(state: GameState): string {')
+        ? ([['ai/effectValues.ts', `function boardFacts(state: GameState): string {`, `export function __bfCodes(state: GameState): string[] {\n  return [...new Set(sideCards(state, 'corp').map(c => c.cardCode))].filter(code => typeof CARDS[code]?.corpTurnDamage === 'function');\n}\nfunction boardFacts(state: GameState): string {`]] as [string, string, string][])
+        : []),
       ['ai/evaluate.ts', `function hiddenCardOddsOf(state: GameState)`, `export function hiddenCardOddsOf(state: GameState)`],
     ],
     'eval',

@@ -508,6 +508,38 @@ export function positionSerial(state: GameState): number {
   return id;
 }
 
+/**
+ * The entries of a value map keyed by the position itself (F3, netrunner-ai/cache-keys/count-note.md and brief-build.md):
+ * the map hangs on the GameState object, so a value is only ever served for the board it was worked out on, and the
+ * entries die with their state (no size cap, no game scope). The inner key holds only what is not in the state. Exact
+ * only while no code writes to a state after a value was asked on it (askedFreeze checks that in the tests).
+ * damageThreat, drawWorth and clickWorth use it.
+ */
+export function stateEntries<V>(maps: WeakMap<GameState, Map<string, V>>, state: GameState): Map<string, V> {
+  let entries = maps.get(state);
+  if (!entries) {
+    maps.set(state, (entries = new Map()));
+    if (askedFreeze.on) freezeDeep(state);
+  }
+  return entries;
+}
+/**
+ * Test-only tripwire (F3 brief rev 1, findings 1 and 10): an asked state is read only. With `on`, a state is frozen
+ * through and through when its first stateEntries entry is made, so any later write to it throws (strict mode). On in
+ * the test runs (tests/setup.ts), off in play.
+ */
+export const askedFreeze = { on: false, frozen: 0 };
+function freezeDeep(root: object): void {
+  const stack: object[] = [root];
+  while (stack.length) {
+    const x = stack.pop()!;
+    if (Object.isFrozen(x)) continue;
+    Object.freeze(x);
+    askedFreeze.frozen++;
+    for (const v of Object.values(x)) if (v && typeof v === 'object') stack.push(v);
+  }
+}
+
 /** `key` names the lookup; the same lookup on another position (a rig with a card taken out) is not a loop. */
 export function guardLoop<T>(state: GameState | undefined, key: string, flat: () => T, work: () => T): T {
   if (!state) return work();

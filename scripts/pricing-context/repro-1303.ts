@@ -51,7 +51,6 @@ const CACHES: [file: string, name: string][] = [
   ['ai/handValues.ts', 'deckAverage'],
   ['ai/handValues.ts', 'clickCache'],
   ['ai/effectValues.ts', 'threats'],
-  ['ai/effectValues.ts', 'boardFactCodes'],
   ['ai/prompts.ts', 'runAfters'],
   ['ai/corp/hold.ts', 'turnAnswers'],
   ['ai/corp/hold.ts', 'reachAnswers'],
