@@ -6,8 +6,8 @@ import { breakerTypeWorth, iceWorth } from './iceValues';
 import { agendaWorth, isOneUse, runnerRigValue } from './evaluate';
 import { counterWorth } from './counterValues';
 import { handPlanWorth } from './cardPlans';
-import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard } from './valueModel';
-import { actingSide, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
+import { CLICK, DrawWhen, RATES, cardRate, fingerprint, handFilter, logValue, payoutSlide, pricingApart, printedGain, reachCard, scopeToGame, setDeckCard, stateEntries } from './valueModel';
+import { actingSide, contextKey, deckPricingKey, leafHandByCard, noteDecision, plan, pricing, pricingKey, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 import { nextTurn, runnerEarnings } from './nextTurnMoney';
 
@@ -141,7 +141,8 @@ export const clickAudit = { on: false, checked: 0, mismatches: 0, errors: [] as 
 /** Empties handValues' maps (test-only: scripts/cache-bisect.ts). */
 export function clearHandCaches(): void {
   deckAverage.clear();
-  clickCache.clear();
+  // A WeakMap can't be cleared: a new one
+  clickCache = new WeakMap();
 }
 
 /**
@@ -314,13 +315,12 @@ export const handByCard = (side: SideCode): boolean => leafHandByCard(side) || !
 export function clickWorth(state: GameState, side: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const clicks = Math.max(1, player.clicks);
-  // The board is in the key (valueModel fingerprint): each hand card's played worth and the deck's average read it. Before,
-  // the key left it out and about 17% of hits were another board's value (Audit Step 2 clickAudit; tests/threatCacheAudit
-  // deal 1421: a stale click worth reached a cached Runner budget). Kept to one game, as drawWorth's map (above). Still
-  // incomplete (zone contents, counters): kept incomplete, recorded (V-B B1 M1; 19 wrong of 41.7k hits, exact key x1.05)
-  const key = `${pricingKey()}:${side}:${state.id}:${state.turnNumber}:${player.clicks}:${player.credits}:${(side === 'corp' ? state.corp.hq : state.runner.grip).map(c => c.instanceId).join(',')}:${fingerprint(state)}`;
-  scopeToGame(clickCache, state);
-  const cached = clickCache.get(key);
+  // By position (F3, netrunner-ai/cache-keys/count-note.md; valueModel stateEntries): the map hangs on the GameState
+  // object, so the board is the key; inside it, the pricing context (pricingKey, contextKey) and the side. Before, a key of
+  // game, turn, clicks, credits, hand and fingerprint let 8,404 of 262k checked hits through from another board
+  const key = `${pricingKey()}:${side}:${contextKey()}`;
+  const entries = stateEntries(clickCache, state);
+  const cached = entries.get(key);
   if (cached !== undefined && !clickAudit.on) return cached;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   const credits = player.credits;
@@ -342,11 +342,10 @@ export function clickWorth(state: GameState, side: SideCode): number {
     }
     return cached;
   }
-  if (clickCache.size > 2000) clickCache.clear();
-  clickCache.set(key, value);
+  entries.set(key, value);
   return value;
 }
-const clickCache = new Map<string, number>();
+let clickCache = new WeakMap<GameState, Map<string, number>>();
 
 /** Price of a click left to `side`, as `viewer` sees it: best play in hand for its own, the 1.25 default for the other side's. Owner of a click (registry). */
 export function clickPrice(state: GameState, side: SideCode, viewer: SideCode): number {

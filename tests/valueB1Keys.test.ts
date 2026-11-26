@@ -1,6 +1,6 @@
 /**
- * V-B B1 (brief rev 2 step B1, ruling 1; review M1): the incomplete-key caches are kept incomplete, recorded, each pinned
- * known-failing until the exact keys are affordable (all three together, measured as one):
+ * V-B B1 (brief rev 2 step B1, ruling 1; review M1): the incomplete-key caches, pinned known-failing until the exact keys
+ * were affordable; since F3 (netrunner-ai/cache-keys/brief-build.md) both maps are by position and both pins pass:
  * - clickWorth's key: a board whose stack differs (fingerprint has zone sizes only) is served the other board's value.
  * - damageThreat's key: two boards with the same counts but another card out of the pool share a value.
  */
@@ -18,10 +18,9 @@ function midGame() {
   return game.state;
 }
 
-// Known-failing: clickWorth's key leaves out zone contents (fingerprint has zones by size). The exact key cost x1.05 on its
-// own for 19 wrong hits in 41.7k, so it is kept incomplete, recorded (V-B B1 review M1); passes when the exact keys land
+// clickWorth's map is by position since F3 (valueModel stateEntries): a board with another stack is priced on its own
 describe("clickWorth's key holds the stack", () => {
-  it.fails('a Runner board with a stack card swapped for a heap card is priced on its own', () => {
+  it('a Runner board with a stack card swapped for a heap card is priced on its own', () => {
     const s = midGame();
     const b = structuredClone(s);
     const i = b.runner.stack.findIndex(c => c.cardCode !== b.runner.heap[0]?.cardCode);
