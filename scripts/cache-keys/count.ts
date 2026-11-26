@@ -66,6 +66,8 @@ const G = globalThis as any;
 const started = Date.now();
 const ASKED = GROUPS[GROUP];
 if (!ASKED) throw new Error(`unknown group ${GROUP}`);
+/** The group's control arm: `ctl`, or the group's first tree (ctlP in the point groups). Slow decisions and stale-hit records read it. */
+const CTL = ASKED.includes('ctl') ? 'ctl' : ASKED[0];
 
 // ------------------------------------------------------------------------------------------------ no-store maps (eval)
 class NoStoreMap {
@@ -171,7 +173,7 @@ function evalIn<X>(tree: string, f: () => X): X {
 function own(tree: string, map: MapName, state: GameState, x: any): any {
   const e0 = evalMs;
   try {
-    return evalIn(tree, () => (map === 'threats' ? E!.ev.damageThreat(state, x) : map === 'deckAverage' ? E!.hv.drawWorth(state, x) : E!.hv.clickWorth(state, x)));
+    return evalIn(tree, () => (map === 'threats' ? E!.ev.damageThreat(state, x) : map === 'deckAverage' ? E!.hv.drawWorth(state, ...(Array.isArray(x) ? x : [x])) : E!.hv.clickWorth(state, x)));
   } finally {
     inc(`EV|${map}`, evalMs - e0);
   }
@@ -228,7 +230,7 @@ function listen() {
         inc(`Z|${tree}|${map}|${Number(d.toPrecision(2))}`);
         const rec = { tree, map, side: cur?.side, kind: kindNow(tree), T: state.turnNumber, decision: cur?.i, why, served: map === 'threats' ? { ...served } : served, own: fresh };
         keep(`hit|${tree}|${map}|${why}`, rec);
-        if (tree === 'ctl' && ctlWrong.length < 3) ctlWrong.push(rec);
+        if (tree === CTL && ctlWrong.length < 3) ctlWrong.push(rec);
       }
       return served;
     },
@@ -362,7 +364,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
     const sa = pickKey(result);
     const k = `${side}|${kind}`;
     inc(`${P}D|${k}|n`);
-    const slow = r.ctl.ms > 1000;
+    const slow = r[CTL].ms > 1000;
     if (slow) inc(`${P}D|${k}|slow`);
     for (const n of ASKED) {
       inc(`${P}MS|${n}|${k}`, r[n].ms);
@@ -370,7 +372,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
       if (r[n].a !== sa) {
         changedTrees.add(n);
         inc(`${P}CH|${n}|${k}`);
-        if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, answer: r[n].a.slice(0, 300), source: sa.slice(0, 300), ctlWrong: n === 'ctl' ? undefined : ctlWrong });
+        if (diffs.length < 40) diffs.push({ timing, tree: n, side, kind, T: s.turnNumber, decision: idx, answer: r[n].a.slice(0, 300), source: sa.slice(0, 300), ctlWrong: n === CTL ? undefined : ctlWrong });
       }
       if (r[n].a.startsWith('error')) inc(`${P}ERR|${n}`);
     }
@@ -412,7 +414,7 @@ function lockstepIn(pool: string, d: Deal, timing: boolean, P: string) {
     G.__ck = undefined;
     try {
       for (const n of ASKED) {
-        if (n === 'ctl' && env.OWN_CTL !== '1') continue;
+        if (n === CTL && env.OWN_CTL !== '1') continue;
         if (OWN === 'changed' && !changedTrees.has(n)) continue;
         const p = playOwn(T[n], d);
         const firstTurn = p.cr.findIndex((c, k) => c !== d.cr[k] || p.sc[k] !== d.sc[k]);
