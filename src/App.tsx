@@ -33,6 +33,7 @@ import { useFlipHotseatBoards } from './ui/boardFlip';
 import { GameStateContext } from './ui/liveValues';
 import { stopMusic, updateMusic } from './ui/music';
 import { MobileGameShell } from './ui/mobile/MobileGameShell';
+import { usePaymentPanel } from './ui/components/PaymentPanel';
 import { MobileCardSheet } from './ui/mobile/MobileCardSheet';
 import { MobileRunSheet } from './ui/mobile/MobileRunSheet';
 import { MobilePromptSheet } from './ui/mobile/MobilePromptSheet';
@@ -205,7 +206,7 @@ function useIsDesktop(): boolean {
 
 /** The game screen, the same for local and online games: everything it shows comes from the controller. */
 function GameScreen({
-  ctl,
+  ctl: rawCtl,
   config,
   onNewGame,
   onRematch,
@@ -217,6 +218,9 @@ function GameScreen({
   /** Local games only. */
   onRematch?: () => void;
 }) {
+  // Manual payment: the person's actions wait for the payment panel when a cost could come from more than one place
+  const payment = usePaymentPanel(rawCtl.seat, rawCtl.handleAction);
+  const ctl: GameController = { ...rawCtl, handleAction: payment.handleAction };
   const {
     seat,
     gameState,
@@ -431,6 +435,7 @@ function GameScreen({
   return (
     <GameStateContext.Provider value={gameState}>
       <SeatContext.Provider value={seat}>
+        {payment.panel}
         {isMobile ? (
           <MobileGameShell
             ctl={ctl}

@@ -11,7 +11,8 @@ import { resolvePrompt } from './actions/prompt';
 import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
 import { useAbility } from './actions/ability';
-import { bumpTurnFlag, fireSettled, setCreditHold, syncDerivedStats, TurnFlag, whenSettled } from './cardEffects';
+import { bumpTurnFlag, fireSettled, recordPayment, setCreditHold, unrecorded, syncDerivedStats, TurnFlag, whenSettled, withPaymentPlan } from './cardEffects';
+import type { PaymentQuote } from './cardEffects';
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
@@ -91,7 +92,9 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   // is most of the state late in a game.
   const { log, ...rest } = prevState;
   const state: GameState = { ...(copyPlain(rest) as typeof rest), log: log.slice() };
-  const handler = handlers[action.type] as (state: GameState, action: GameAction) => void;
+  const raw = handlers[action.type] as ((state: GameState, action: GameAction) => void) | undefined;
+  // The player's own split of the action's payment goes with the handler (manual payment, rules 1.10.3c)
+  const handler = raw && ((st: GameState, a: GameAction) => withPaymentPlan(a, () => raw(st, a)));
   if (!handler) {
     throw new IllegalActionError(`Unknown action type: ${(action as { type: string }).type}`);
   }
@@ -157,7 +160,8 @@ let closedIntent: GameAction | null = null;
 
 /** Carries out an action the active player declared, once its window closed (see priority.ts). */
 function runIntent(state: GameState, action: GameAction): void {
-  (handlers[action.type] as (state: GameState, action: GameAction) => void)(state, action);
+  const handler = handlers[action.type] as (state: GameState, action: GameAction) => void;
+  withPaymentPlan(action, () => handler(state, action));
   closedIntent = action;
 }
 
@@ -284,6 +288,21 @@ function trialRun(run: () => void): void {
   }
 }
 
+/**
+ * The first credit payment `action` would make for its player, and where it could come from
+ * (manual payment: the UI offers the split before sending the action). Null if the action is
+ * not legal, already carries a plan, or pays no credits. Runs the action on a throwaway copy.
+ */
+export function paymentQuote(state: GameState, action: GameAction): PaymentQuote | null {
+  if (action.payment) return null;
+  try {
+    return recordPayment(action.player, () => trialRun(() => executeAction(state, action)));
+  } catch (err) {
+    if (!(err instanceof IllegalActionError)) throw err;
+    return null;
+  }
+}
+
 const legalityCache = new WeakMap<GameState, Map<string, boolean>>();
 
 /** True if the action can be applied to the state without error. */
@@ -298,7 +317,8 @@ export function isLegalAction(state: GameState, action: GameAction): boolean {
   if (cached !== undefined) return cached;
   let legal: boolean;
   try {
-    trialRun(() => executeAction(state, action));
+    // A legality check inside an action being quoted is not that action's payment
+    unrecorded(() => trialRun(() => executeAction(state, action)));
     legal = true;
   } catch (err) {
     if (!(err instanceof IllegalActionError)) throw err;

@@ -2,6 +2,7 @@ import React, { useSyncExternalStore } from 'react';
 import { CardInstance, GameAction, GameState, SideCode, cardDef, getCardScript } from '../../core';
 import { Credits } from './CreditIcon';
 import { useSeat } from '../seat';
+import { PAYMENT_MODE_LABELS, setPaymentMode, usePaymentMode } from '../paymentMode';
 import { readStorage, writeStorage } from '../storage';
 
 /** Saved once the player dismisses the first-time tip; it never shows again (issue #76). */
@@ -53,10 +54,12 @@ export function payingCards(state: GameState, side: SideCode) {
  */
 export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAction }) => {
   const seat = useSeat();
+  const mode = usePaymentMode();
   const cards = payingCards(state, side);
   const seen = useSyncExternalStore(subscribeTip, tipSeen, tipSeen);
   // A held (uncommitted) choice is open: a toggle would commit it and lose its Cancel
   if (cards.length === 0 || seat.cancel) return null;
+  const manual = mode === 'manual';
   const example = cardDef(cards[0]).title;
   return (
     <div className="flex flex-col gap-1.5" data-testid={`credit-hold-bar-${side}`}>
@@ -68,7 +71,7 @@ export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAct
       >
         <span>
           <b>Tip:</b> payments spend hosted credits (like {example}) before your credit pool.
-          To keep a card&apos;s credits for something else, click its button below: your pool pays first and that card only covers the rest.
+          To keep a card&apos;s credits for something else, click its button below: your pool pays first and that card only covers the rest. Or set Pay to Manual to choose where each payment comes from.
         </span>
         <button
           onClick={dismissTip}
@@ -80,7 +83,18 @@ export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAct
     )}
     <div className="flex items-center gap-1.5 flex-wrap">
       <span className={`text-xs font-bold font-mono uppercase mr-1 ${side === 'corp' ? 'text-cyan-400' : 'text-pink-400'}`}>Hosted credits:</span>
-      {cards.map(card => {
+      <button
+        type="button"
+        onClick={() => setPaymentMode(manual ? 'auto' : 'manual')}
+        className={`px-2 py-1 text-[12px] font-bold rounded-[2px] border ${manual ? 'border-amber-500/80 text-amber-200 bg-amber-950/50' : 'border-slate-600 text-slate-300 bg-slate-900/60'}`}
+        title={`${PAYMENT_MODE_LABELS[mode].title} Click to switch to ${manual ? 'Auto' : 'Manual'}.`}
+        aria-pressed={manual}
+        data-testid={`payment-mode-${side}`}
+      >
+        Pay: {PAYMENT_MODE_LABELS[mode].short}
+      </button>
+      {/* Manual: the payment panel asks at each payment; only a card still saved for last (from Auto) shows, so it can be cleared */}
+      {cards.filter(card => !manual || card.holdCredits).map(card => {
         const held = !!card.holdCredits;
         return (
           <button
