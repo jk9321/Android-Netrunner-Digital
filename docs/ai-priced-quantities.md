@@ -262,7 +262,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 ### V6. An installed agenda
 - **Owner:** `agendaWorth` (`src/ai/evaluate.ts:229`): its points on the clock if it stands through the Runner turns until it can be scored, less the clicks and credits still to put in (a click at `AGENDA_CLICK`, V16).
 - **Copies:** none since V-B B6: `placedCounterWorth`'s agenda share (`point gain / advancement cost`, 0.3 of it unprotected) became the owner's step, `agendaWorth(counters + 1) - agendaWorth(counters)` on the agenda's server with corpBoardValue's arguments (`placedCounterWorth` (`src/ai/effectValues.ts:563`), a reader).
-- **Not copies (a different quantity, the stake of losing an agenda, both sides' points; the Corp row "Agenda odds (what an access is worth)"):** `serverStake` (`src/ai/iceValues.ts:114`)'s swing and `plannedStake` (`src/ai/iceValues.ts:142`), `openAgendaLoss` (`src/ai/runnerReply.ts:263`). The audit's Q1 table counted them here; the count above leaves them out and they are named in that row's sense instead.
+- **Not copies (a different quantity, the stake of losing an agenda, both sides' points; the Corp row "Agenda odds (what an access is worth)"):** `serverStake` (`src/ai/iceValues.ts:114`)'s swing and `plannedStake` (`src/ai/iceValues.ts:142`), `openAgendaLoss` (`src/ai/runnerReply.ts:279`). The audit's Q1 table counted them here; the count above leaves them out and they are named in that row's sense instead.
 - **Readers:** `agendaWorth` (`src/ai/evaluate.ts:345`), `agendaWorth` (`src/ai/evaluate.ts:345`), `agendaWorth` (`src/ai/handValues.ts:52`).
 - **Caches, context:** none of its own; reads `stealOdds` and `runSuccess` (`memo`). Context: `plan.openSteal`, `plan.oracle.safestRemote`, `KNOBS.corpPoints`.
 - **The open-remote rule (Jeff 2026-10-29, `plan.openSteal`): one rule, two readers.** An agenda in a remote with no ice is as good as stolen (steal odds 1): `stealOdds` (`src/ai/effectValues.ts`) for a remote that exists, and `agendaWorth`'s `openNew` (`src/ai/evaluate.ts`) for the new bare remote the hand price installs into (`handValues.ts`, no server yet, success 1). Until ai-threat-delete the second was gated on `plan.threatModel`; it now reads `plan.openSteal` like the first, so one board has one price (pinned in `tests/agendaWorth.test.ts`).
@@ -325,7 +325,7 @@ Counts at the branch head (scripts/value-owners/counts.mjs): see "Counts" at the
 ### V13. A game end
 - **Owner:** the rows "Price of a game end" (Corp) and "A game end" (Runner) above: `flatlineWorth` (`src/ai/valueModel.ts:193`) and `sampledEndWorth` (`src/ai/valueModel.ts:216`) on the point clock.
 - **Copies:** `evaluate`'s +-1000 (`src/ai/evaluate.ts:628`) for a certain end on a line (not comparable: a sentinel that sorts a won line above every other, not a price). The dead flat `FLATLINE` was deleted in V-B B6.
-- **Readers:** `flatlineWorth` (`src/ai/effectValues.ts:329`), `flatlineWorth` (`src/ai/effectValues.ts:329`), `flatlineWorth` (`src/ai/effectValues.ts:459`), `flatlineWorth` (`src/ai/evaluate.ts:502`), `flatlineWorth` (`src/ai/runs.ts:1491`), `sampledEndWorth` (`src/ai/runnerReply.ts:313`).
+- **Readers:** `flatlineWorth` (`src/ai/effectValues.ts:329`), `flatlineWorth` (`src/ai/effectValues.ts:329`), `flatlineWorth` (`src/ai/effectValues.ts:459`), `flatlineWorth` (`src/ai/evaluate.ts:502`), `flatlineWorth` (`src/ai/runs.ts:1491`), `sampledEndWorth` (`src/ai/runnerReply.ts:329`).
 
 ### V14. Hosted credits on a Corp card
 - **Owner:** `countersWorth` (`src/ai/counterValues.ts:144`) with type credit (V9's owner per counter), read for a rezzed unprofiled card in `corpCardWorth` as `countersWorth(state, card, 'credit')` (`src/ai/evaluate.ts:161`).
@@ -451,7 +451,7 @@ From `node scripts/value-owners/counts.mjs` (re-run it to recount; the copy coun
 | live copies, all quantities (the live lines of "Copy lines") | 33 |
 | other copy lines, by kind (not counted) | reader 2, gone 4, dead 1, recorded 1, not comparable 6, inside owner 2 |
 | valuation exports with no reader (allow-list) | 6 |
-| lines of src/ai | 16939 |
+| lines of src/ai | 16955 |
 
 Live copies per quantity: V1 0, V2 3, V3 8, V4 3, V5 2, V6 0, V7 7, V8 0, V9 2, V10 1, V11 1, V12 3, V13 0, V14 0, V15 2, V16 0, V17 0, V18 0, V19 0, V20 0, V21 0, V22 1, V23 0, V24 0, V25 0.
 <!-- valuation:end -->
