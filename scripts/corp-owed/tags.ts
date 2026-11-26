@@ -510,6 +510,23 @@ function person(file: string) {
   out({ kind: 'g', pool: 'people', src, units: todo.length, moves: r.moves.length, replayed, err, ms: Math.round(performance.now() - t0) });
 }
 
+/**
+ * FIXTURE=<state json> (item 1's "that board", report-48 move 42): played on by GameRunner (fresh agents) to the Runner's
+ * first main decision, then the Runner set to TAGS tags and RC credits (default 2 and 2, the F114 leaf's reply Runner), one
+ * tagn unit per TAGS value.
+ */
+function fixture(file: string) {
+  const s0: GameState = JSON.parse(readFileSync(file, 'utf8'));
+  const ag = { corp: S.ai.createAgent('corp', 'normal'), runner: S.ai.createAgent('runner', 'normal') };
+  const run = new S.po.GameRunner(structuredClone(s0), ag);
+  for (let i = 0; i < 4000 && !mainRunner(run.state); i++) if (!run.step()) break;
+  const agents = { corp: fieldsOf(ag.corp), runner: fieldsOf(ag.runner) };
+  for (const tags of (process.env.TAGS ?? '2').split(',').map(Number)) {
+    const b: GameState = { ...structuredClone(run.state), runner: { ...structuredClone(run.state.runner), tags, credits: Number(process.env.RC ?? 2) } };
+    tagUnit('fixture', `${file}:tags${tags}`, b, agents, (ag.runner as any).memory);
+  }
+}
+
 async function main() {
   S = await loadTree('source', makeTree(join(root, 'source'), {}));
   L = await loadTree('legs', makeTree(join(root, 'legs'), { patches: [BAR] }));
@@ -521,6 +538,7 @@ async function main() {
       const recs: Rec[] = JSON.parse(readFileSync(`scripts/corp-owed/deals-${RUNS[pool]}.json`, 'utf8'));
       for (const r of recs) if (!DEALS.length || DEALS.includes(String(r.seed))) sources.push({ pool, id: r });
     } else if (pool === 'people') for (const f of peopleFiles()) sources.push({ pool, id: f });
+    else if (pool === 'fixture') sources.push({ pool, id: process.env.FIXTURE });
     else throw new Error(`unknown pool ${pool}`);
   }
   for (const [k, src] of sources.entries()) {
@@ -528,6 +546,7 @@ async function main() {
     if (Date.now() - started > MAX_MS) break;
     try {
       if (src.pool === 'people') person(src.id);
+      else if (src.pool === 'fixture') fixture(src.id);
       else deal(src.pool, src.id);
     } catch (err) {
       out({ kind: 'err', pool: src.pool, src: typeof src.id === 'string' ? src.id : src.id?.seed, error: (err as Error).stack?.slice(0, 500) });
