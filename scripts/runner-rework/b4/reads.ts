@@ -55,4 +55,13 @@ export const READ_HOOKS: Record<string, Patch[]> = {
     ],
     ['ai/runnerReply.ts', `  if (!marks.length) return [];\n`, `  if (!marks.length) return [];\n${L}  if (marks.some(m => m.mark.n0)) ${fire('e')};\n`],
   ],
+  // 7(h) runnerDecisionView's key: a view kept where today's key, with the whole map and no marks, would not have kept it
+  h: [
+    [
+      'ai/turnPlanner.ts',
+      `  const kept = runnerViews.get(state);\n  if (kept?.sig === sig) return kept.view;\n`,
+      `  const kept = runnerViews.get(state);\n  const __old = memory ? [...memory].map(([id, code]) => \`\${id}:\${code}\`).join(',') : '';\n${L}  if (kept?.sig === sig && (kept as any).__old !== __old) ${fire('h')};\n  if (kept?.sig === sig) return kept.view;\n`,
+    ],
+    ['ai/turnPlanner.ts', `  runnerViews.set(state, { sig, view });\n`, `  runnerViews.set(state, { sig, view, __old } as never);\n`],
+  ],
 };

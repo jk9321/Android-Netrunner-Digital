@@ -4,6 +4,8 @@ import { certainInArchives, certainInHand, revealInHand, updateHandKnowledge } f
 import { runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { dealRunnerUnknowns, guessHidden, knownRdSlots } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
+import { runnerDecisionView } from '../src/ai/turnPlanner';
+import { asSide, plan, withPricing } from '../src/ai/pricing';
 import { newGame } from './helpers';
 import '../src/ai';
 
@@ -134,5 +136,17 @@ describe("B4a 7(g): the reply's Runner reads (a) to (d) on the Corp's deal, shap
         expect(g.corp.rd[at].cardCode).toBe(e.code);
       }
     }
+  });
+});
+
+describe("B4a 7(h): the Runner's decision view is kept while what its deal reads is the same", () => {
+  const honest = <T>(f: () => T): T => withPricing({ plan: { ...plan(), hiddenDraws: true, plannerSeed: true } }, () => asSide('runner', f));
+  it("a map entry for a card in R&D does not make a new view; a change to the marks does", () => {
+    const { s } = board();
+    const rdCard = s.corp.rd[4];
+    const first = honest(() => runnerDecisionView(s, new Map()));
+    expect(honest(() => runnerDecisionView(s, new Map([[rdCard.instanceId, rdCard.cardCode]])))).toBe(first);
+    s.corp.knownToRunner = [];
+    expect(honest(() => runnerDecisionView(s, new Map()))).not.toBe(first);
   });
 });
