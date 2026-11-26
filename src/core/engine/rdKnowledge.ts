@@ -39,11 +39,19 @@ export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>(), t
  */
 export function shuffleRD(state: GameState): void {
   shuffleInPlace(state.rng, state.corp.rd);
+  const seenBefore = notes(state).seen ?? [];
   notes(state).shuffled = true;
   notes(state).seen = [];
   notes(state).corpSeen = [];
   const n0 = state.corp.rd.length;
-  state.corp.rdKnownToRunner = (state.corp.rdKnownToRunner ?? []).filter(e => !e.left).map(e => ({ id: e.id, code: e.code, lo: 0, hi: Math.max(0, n0 - 1), n0 }));
+  const share = (id: string, code: string) => ({ id, code, lo: 0, hi: Math.max(0, n0 - 1), n0 });
+  const marks = (state.corp.rdKnownToRunner ?? []).filter(e => !e.left).map(e => share(e.id, e.code));
+  // A card the Runner saw in R&D earlier in this action, before the shuffle, is in R&D too (step 0 gap 4)
+  for (const id of seenBefore) {
+    const card = state.corp.rd.find(c => c.instanceId === id);
+    if (card && !marks.some(e => e.id === id)) marks.push(share(id, card.cardCode));
+  }
+  state.corp.rdKnownToRunner = marks;
   state.corp.rdKnownToCorp = [];
   if (rdShuffleProbe.trial === 0) {
     rdShuffleProbe.shuffles++;
@@ -155,6 +163,24 @@ function keptInOrder(before: string[], after: string[]): Set<string> {
   return kept;
 }
 
+/**
+ * The marks after an action that shuffled R&D (step 0 gap 4). shuffleRD turned the marks of the last action's end
+ * into shares; the rest of the action is applied here, from how R&D changed and what is open:
+ * - a marked card that left R&D in the open (or into the cards known in HQ) is followed there, so its share goes;
+ * - any other card that left R&D this action could have been a marked one (1.12.3), so every share may have left.
+ * Cards the Runner sees after the shuffle are placed by step 6 as usual.
+ */
+function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): RdKnownCard[] {
+  const inRd = new Set(state.corp.rd.map(c => c.instanceId));
+  const departed = prev.corp.rd.filter(c => !inRd.has(c.instanceId)).map(c => c.instanceId);
+  const open = publicCards(state);
+  const inHq = new Set((state.corp.knownToRunner ?? []).map(e => e.id));
+  const followed = new Set(departed.filter(id => open.has(id) || inHq.has(id)));
+  const unseen = departed.some(id => !followed.has(id));
+  const out = known.filter(e => !(e.n0 && followed.has(e.id))).map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  return out;
+}
+
 const mergeLeft = (a: RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
 const isExact = (e: RdKnownCard) => e.lo === e.hi && !e.left;
 
@@ -169,7 +195,7 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   updateCorpRdKnowledge(prev, state, note);
   let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
-  if (known.length === 0 && seen.length === 0) return;
+  if (known.length === 0 && seen.length === 0 && !note?.shuffled) return;
 
   const before = prev.corp.rd.map(c => c.instanceId);
   const after = state.corp.rd.map(c => c.instanceId);
@@ -236,6 +262,9 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
     }
   }
 
+  // After a shuffle: the action's other moves, and the cards the Runner saw go in
+  if (note?.shuffled) known = afterShuffle(prev, state, known);
+
   // 6. Cards seen during this action are exactly where they are now
   for (const id of seen) {
     const q = afterPos.get(id);
@@ -248,8 +277,7 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   // 7. Cards that have certainly left: drawn ones join the cards known in HQ
   for (const e of known) if (e.lo > e.hi) gone.push(e);
   known = known.filter(e => e.lo <= e.hi);
-  // B4a step 1 (play identical): a shuffled share that has surely been drawn is not yet added to HQ
-  const drawn = gone.filter(e => e.left === 'hq' && !e.n0).map(e => state.corp.hq.find(c => c.instanceId === e.id) ?? ({ instanceId: e.id, cardCode: e.code } as CardInstance));
+  const drawn = gone.filter(e => e.left === 'hq').map(e => state.corp.hq.find(c => c.instanceId === e.id) ?? ({ instanceId: e.id, cardCode: e.code } as CardInstance));
   if (drawn.length > 0) revealInHand(state, 'corp', drawn);
 
   const last = state.corp.rd.length - 1;

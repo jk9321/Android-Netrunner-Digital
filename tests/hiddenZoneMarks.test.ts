@@ -181,4 +181,56 @@ describe('B4a: a shuffle hides where an R&D card is, not that it is in R&D', () 
     s = act(s, n => shuffleRD(n));
     expect(rdSharesKnownToRunner(s)).toEqual([]);
   });
+
+  // B4a gap 4 (step 0, 2.2): the shuffle's action used to skip its other moves
+  it('a card that left R&D unseen in the shuffle\'s action could be a marked one: every share may have left (1.12.3)', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    s0.corp.rd.unshift(fund);
+    let s = act(s0, n => runnerSeesRd(n, n.corp.rd[0]));
+    s = act(s, n => {
+      n.corp.hq.push(...n.corp.rd.splice(3, 1)); // a search takes a card the Runner doesn't see
+      shuffleRD(n);
+    });
+    expect(rdSharesKnownToRunner(s).map(e => [e.code, e.left ?? null])).toEqual([[SG.hedgeFund, 'other']]);
+  });
+
+  it('a marked card the Runner sees leave in the shuffle\'s action is followed, not shared (10.2.2b)', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    s0.corp.rd.unshift(fund);
+    let s = act(s0, n => runnerSeesRd(n, n.corp.rd[0]));
+    s = act(s, n => {
+      const card = n.corp.rd.splice(0, 1)[0]; // Pivot-like: the card found is revealed and goes to HQ
+      n.corp.hq.push(card);
+      revealInHand(n, 'corp', [card]);
+      shuffleRD(n);
+    });
+    expect(rdSharesKnownToRunner(s)).toEqual([]);
+    expect(knownInHand(s, 'corp').map(k => k.id)).toEqual([fund.instanceId]);
+  });
+
+  it('a card seen in R&D earlier in the shuffle\'s action is in R&D too (4.2.2, 10.2.2b)', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    s0.corp.rd.unshift(fund);
+    const s = act(s0, n => {
+      runnerSeesRd(n, n.corp.rd[0]);
+      shuffleRD(n);
+    });
+    expect(rdSharesKnownToRunner(s).map(e => [e.id, e.n0])).toEqual([[fund.instanceId, s.corp.rd.length]]);
+  });
+
+  it('a share whose every place was drawn is a card surely drawn: it joins the cards known in HQ (1.8.5)', () => {
+    const s0 = newGame();
+    s0.corp.rd = [createCardInstance(s0, SG.hedgeFund), createCardInstance(s0, SG.palisade)];
+    const id = s0.corp.rd[0].instanceId;
+    let s = act(s0, n => runnerSeesRd(n, n.corp.rd[0]));
+    s = act(s, n => shuffleRD(n));
+    s = act(s, n => n.corp.hq.push(...n.corp.rd.splice(0, 1)));
+    expect(knownInHand(s, 'corp').map(k => k.id)).not.toContain(id);
+    s = act(s, n => n.corp.hq.push(...n.corp.rd.splice(0, 1)));
+    expect(rdSharesKnownToRunner(s)).toEqual([]);
+    expect(knownInHand(s, 'corp').map(k => k.id)).toContain(id);
+  });
 });
