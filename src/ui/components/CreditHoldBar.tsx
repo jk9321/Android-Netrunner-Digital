@@ -93,8 +93,8 @@ export const CreditHoldBar: React.FC<CreditHoldBarProps> = ({ state, side, onAct
       >
         Pay: {PAYMENT_MODE_LABELS[mode].short}
       </button>
-      {/* Manual: the payment panel asks at each payment, so there is nothing to save for last here */}
-      {!manual && cards.map(card => {
+      {/* Manual: the payment panel asks at each payment; only a card still saved for last (from Auto) shows, so it can be cleared */}
+      {cards.filter(card => !manual || card.holdCredits).map(card => {
         const held = !!card.holdCredits;
         return (
           <button

@@ -11,7 +11,7 @@ import { resolvePrompt } from './actions/prompt';
 import { playOperationOrEvent } from './actions/play';
 import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking';
 import { useAbility } from './actions/ability';
-import { bumpTurnFlag, fireSettled, recordPayment, setCreditHold, syncDerivedStats, TurnFlag, whenSettled, withPaymentPlan } from './cardEffects';
+import { bumpTurnFlag, fireSettled, recordPayment, setCreditHold, unrecorded, syncDerivedStats, TurnFlag, whenSettled, withPaymentPlan } from './cardEffects';
 import type { PaymentQuote } from './cardEffects';
 import { findCardAnywhere, forgetHiddenCards, updateHandKnowledge } from './helpers';
 import { updateRdKnowledge } from './rdKnowledge';
@@ -317,7 +317,8 @@ export function isLegalAction(state: GameState, action: GameAction): boolean {
   if (cached !== undefined) return cached;
   let legal: boolean;
   try {
-    trialRun(() => executeAction(state, action));
+    // A legality check inside an action being quoted is not that action's payment
+    unrecorded(() => trialRun(() => executeAction(state, action)));
     legal = true;
   } catch (err) {
     if (!(err instanceof IllegalActionError)) throw err;

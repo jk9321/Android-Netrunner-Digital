@@ -287,7 +287,7 @@ export function spendCredits(state: GameState, side: SideCode, amount: number, p
     if (payByPlan(state, side, amount, purpose, ctx.plan)) return;
     addLog(state, side, 'The chosen payment no longer fits this cost: paid in the usual order instead.');
   }
-  const recording = quoteRecorder && !quoteRecorder.quote && quoteRecorder.side === side && amount > 0 ? quoteRecorder : null;
+  const recording = quoteRecorder && handlerDepth > 0 && !quoteRecorder.quote && quoteRecorder.side === side && amount > 0 ? quoteRecorder : null;
   const before = recording ? paymentSourcesNow(state, side, purpose) : null;
   autoSpendCredits(state, side, amount, purpose);
   if (recording && before) {
@@ -358,14 +358,30 @@ let planContext: { side: SideCode; plan: PaymentPlan; done: boolean } | null = n
 /** Set while paymentQuote() watches an action: its player's first payment is written down here. */
 let quoteRecorder: { side: SideCode; quote: PaymentQuote | null } | null = null;
 
+/** How many action handlers are running: a quote records only payments inside one, where a plan would apply too. */
+let handlerDepth = 0;
+
 /** Carries out an action's handler with its payment plan, if it has one (the plan never outlives the handler). */
 export function withPaymentPlan(action: GameAction, run: () => void): void {
   const prev = planContext;
   planContext = action.payment ? { side: action.player, plan: action.payment, done: false } : null;
+  handlerDepth++;
   try {
     run();
   } finally {
+    handlerDepth--;
     planContext = prev;
+  }
+}
+
+/** Runs `run` (a legality check inside an action) with no quote watching it: its payments are not the action's. */
+export function unrecorded<T>(run: () => T): T {
+  const prev = quoteRecorder;
+  quoteRecorder = null;
+  try {
+    return run();
+  } finally {
+    quoteRecorder = prev;
   }
 }
 
@@ -411,23 +427,26 @@ function paymentSourcesNow(state: GameState, side: SideCode, purpose: PaymentPur
  */
 function payByPlan(state: GameState, side: SideCode, amount: number, purpose: PaymentPurpose, plan: PaymentPlan): boolean {
   const run = runnerRun(state, side);
-  const stealth = purpose.kind === 'stealth';
+  const cards = plan.cards ?? [];
   const fromRun = plan.run ?? 0;
   const fromFund = plan.badPublicity ?? 0;
-  const parts = [plan.pool, fromRun, fromFund, ...plan.cards.map(c => c.credits)];
+  const parts = [plan.pool, fromRun, fromFund, ...cards.map(c => c.credits)];
   if (!parts.every(n => Number.isInteger(n) && n >= 0)) return false;
   if (parts.reduce((a, b) => a + b, 0) !== amount) return false;
-  if (plan.pool > (stealth ? 0 : Math.max(0, spendablePool(state, side)))) return false;
-  if (fromRun > (run && !stealth ? run.bonusCredits : 0)) return false;
-  if (fromFund > (run && !stealth ? (run.badPublicityCredits ?? 0) : 0)) return false;
-  const sources = creditSources(state, side, purpose);
-  const picked: [CardInstance, number][] = [];
-  for (const part of plan.cards) {
-    const source = sources.find(c => c.instanceId === part.cardInstanceId);
-    if (!source || picked.some(([c]) => c === source) || part.credits > counters(source, 'credit')) return false;
-    picked.push([source, part.credits]);
+  // The allowed locations are the ones the quote offers (one definition: paymentSourcesNow)
+  const allowed = new Map(paymentSourcesNow(state, side, purpose).map(s => [s.key, s.max]));
+  const asked: [string, number][] = [['pool', plan.pool], ['run', fromRun], ['badPublicity', fromFund], ...cards.map(c => [c.cardInstanceId, c.credits] as [string, number])];
+  const seen = new Set<string>();
+  for (const [key, n] of asked) {
+    if (seen.has(key)) return false;
+    seen.add(key);
+    if (n > (allowed.get(key) ?? 0)) return false;
   }
-  for (const [source, credits] of picked) payFromCard(state, side, source, credits);
+  const sources = creditSources(state, side, purpose);
+  for (const part of cards) {
+    const source = sources.find(c => c.instanceId === part.cardInstanceId);
+    if (source) payFromCard(state, side, source, part.credits);
+  }
   if (run) {
     if (fromFund > 0) run.badPublicityCredits = (run.badPublicityCredits ?? 0) - fromFund;
     run.bonusCredits -= fromRun;

@@ -138,7 +138,10 @@ describe('Manual payment during a run (rules 10.6.2 bad publicity credits, run-o
     state.activeRun!.bonusCredits = 2;
     state.activeRun!.badPublicityCredits = 1;
     state.runner.credits = 5;
-    const quoted = recordPayment('runner', () => spendCredits(structuredClone(state), 'runner', 2));
+    // Recorded only inside an action's handler (where a split would apply too)
+    const copy = structuredClone(state);
+    expect(recordPayment('runner', () => spendCredits(structuredClone(state), 'runner', 2))).toBeNull();
+    const quoted = recordPayment('runner', () => withPaymentPlan({ type: 'CONTINUE_RUN', player: 'runner' }, () => spendCredits(copy, 'runner', 2)));
     expect(quoted!.sources).toEqual([
       { key: 'pool', max: 5, auto: 0 },
       { key: 'run', max: 2, auto: 1 },
@@ -179,5 +182,50 @@ describe('The payment panel (UI helpers)', () => {
     state.runner.credits = 5;
     findCardAnywhere(state, urban)!.tokens.credit = 0;
     expect(seatPaymentChoice({ state }, install)).toBeNull();
+  });
+});
+
+describe('Manual payment: red-team cases (review of 86dd36e)', () => {
+  it('a split naming a card twice, or the other side\'s card, falls back to the usual order', () => {
+    const { state, urban, install } = setup();
+    const corpCard = state.corp.hq[0];
+    for (const bad of [plan(1, [[urban, 1], [urban, 1]]), plan(1, [[corpCard.instanceId, 2]])]) {
+      const next = executeAction(state, { ...install, payment: bad });
+      expect(credits(next, urban)).toBe(0);
+      expect(next.runner.credits).toBe(4);
+    }
+  });
+
+  it('a split with no card list is read as none (no crash)', () => {
+    const { state, urban, install } = setup();
+    const next = executeAction(state, { ...install, payment: { pool: 3 } as unknown as PaymentPlan });
+    expect(next.runner.credits).toBe(2);
+    expect(credits(next, urban)).toBe(2);
+  });
+
+  it('stealth-only costs never take from the pool (Corsair, Lampades)', () => {
+    const { state } = setup();
+    withPaymentPlan({ type: 'GAIN_CREDIT', player: 'runner', payment: plan(1, []) }, () => spendCredits(state, 'runner', 1, { kind: 'stealth' }));
+    expect(state.log.some(e => /chosen payment no longer fits/i.test(e.message))).toBe(true);
+  });
+
+  it('while Aircheck locks the pool, a split taking from it does not fit', () => {
+    const state = runIntoFirstIce(newGame(), 'hq');
+    state.runner.credits = 5;
+    state.activeRun!.bonusCredits = 2;
+    state.activeRun!.poolLocked = true;
+    withPaymentPlan({ type: 'CONTINUE_RUN', player: 'runner', payment: plan(2, []) }, () => spendCredits(state, 'runner', 2));
+    expect(state.runner.credits).toBe(5);
+    expect(state.activeRun!.bonusCredits).toBe(0);
+  });
+
+  it('a declared install (the Corp stops at every window) keeps its split until the Corp passes', () => {
+    const { state, urban, install } = setup();
+    state.stops = { ...state.stops, corp: 'full' };
+    const declared = executeAction(state, { ...install, payment: plan(3, [[urban, 0]]) });
+    expect(declared.priority?.intent).toBeTruthy();
+    const done = executeAction(declared, { type: 'PASS', player: 'corp' });
+    expect(done.runner.credits).toBe(2);
+    expect(credits(done, urban)).toBe(2);
   });
 });

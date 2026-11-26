@@ -41,7 +41,7 @@ export function usePaymentPanel(seat: Seat, act: (action: GameAction) => Promise
 
   const panel = pending ? (
     <PaymentPanel
-      key={pending.quote.amount + ':' + pending.action.type}
+      key={[pending.action.type, pending.quote.amount, ...pending.quote.sources.map(s => `${s.key}=${s.max}/${s.auto}`)].join(':')}
       quote={pending.quote}
       seat={pending.seat}
       onCancel={() => setPending(null)}
