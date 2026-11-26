@@ -99,10 +99,16 @@ describe('issue #59: a run priced past two bioroids by more clicks than are left
     }
   });
 
-  // Twin: the same T7 board with the 2 clicks the price assumed (6 at turn start): the Runner runs remote-1 and gets in
+  // Twin: the same T7 board with the 2 clicks the price assumed (6 at turn start): the Runner runs remote-1 and gets in.
+  // B4b: remote-1's facedown card sits beside the rezzed Regolith Mining License, so the Runner knows it is an upgrade
+  // (rules 3.3.1, 4.6.6e) and no longer runs there for it; the twin's Regolith is facedown and unseen, so the card is
+  // again one that may be an agenda (at most one of the two, 4.6.6e) and the run the twin checks is still made.
   it('#59 twin: with the clicks the price assumes the Runner runs remote-1, breaks both bioroids and gets in', { timeout: 60_000 }, () => {
     const runs = remoteRuns(59, 7, s => {
       s.runner.clicks += 2;
+      const asset = s.corp.servers['remote-1'].root.find(c => c.cardCode === '30071')!;
+      asset.isRezzed = false;
+      delete asset.runnerKnows;
     });
     expect(runs.length).toBeGreaterThan(0);
     expect(runs.some(r => r.breaks > 0 && r.ended === 'successful')).toBe(true);
