@@ -90,6 +90,25 @@ describe('B4a: a seen HQ card stays known until a card that could be it leaves u
     expect(knownInRd(after).map(e => [e.code, e.lo, e.hi])).toEqual([[SG.hedgeFund, 0, 0]]);
   });
 
+  // B4a gap 3 (step 0, 2.2): a known ice returned to HQ was not listed
+  it('a rezzed ice returned to HQ (Hermes, Descent) is a card the Runner saw go there (10.2.2b, 10.2.3a)', () => {
+    const s = newGame();
+    const ice = createCardInstance(s, SG.palisade);
+    ice.isRezzed = true;
+    s.corp.servers.hq.ice.push(ice);
+    const after = act(s, n => n.corp.hq.push(take(n.corp.servers.hq.ice, ice.instanceId)));
+    expect(knownInHand(after, 'corp').map(k => k.id)).toEqual([ice.instanceId]);
+    expect(certainInHand(after, 'corp')).toEqual([[SG.palisade, 1]]);
+  });
+
+  it('a heap card taken back to the grip is one the Corp saw go there (4.4.7b, 10.2.3a)', () => {
+    const s = newGame();
+    const gamble = createCardInstance(s, SG.sureGamble);
+    s.runner.heap.push(gamble);
+    const after = act(s, n => n.runner.grip.push(take(n.runner.heap, gamble.instanceId)));
+    expect(certainInHand(after, 'runner')).toEqual([[SG.sureGamble, 1]]);
+  });
+
   it('the Corp knows the grip by the same rule: a card shuffled back into the stack may be the seen one (Touch-ups, 1.12.3)', () => {
     const s = newGame();
     const gamble = createCardInstance(s, SG.sureGamble);

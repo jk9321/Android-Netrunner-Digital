@@ -384,6 +384,27 @@ function updateArchivesKnowledge(prev: GameState, state: GameState): void {
 }
 
 /**
+ * A card that was in the open and goes back to a hand (a rezzed or known ice returned to HQ: Descent, Hermes, Tatu-Bola;
+ * a heap card taken back to the grip) is one the other side saw go there (10.2.2b, 10.2.3a): it joins the list. Step 0
+ * gap 3. A card drawn from R&D or the stack is left to updateRdKnowledge (the Runner's R&D marks).
+ */
+function noteOpenArrivals(prev: GameState, state: GameState): void {
+  let open: Map<string, string> | undefined;
+  for (const owner of ['corp', 'runner'] as const) {
+    const was = owner === 'corp' ? prev.corp.hq : prev.runner.grip;
+    const now = owner === 'corp' ? state.corp.hq : state.runner.grip;
+    if (now.length === 0) continue;
+    const wasIds = new Set(was.map(c => c.instanceId));
+    const deck = owner === 'corp' ? prev.corp.rd : prev.runner.stack;
+    const arrivals = now.filter(c => !wasIds.has(c.instanceId) && !deck.some(d => d.instanceId === c.instanceId));
+    if (arrivals.length === 0) continue;
+    open ??= publicCards(prev);
+    const seen = arrivals.filter(c => open!.has(c.instanceId));
+    if (seen.length > 0) revealInHand(state, owner, seen);
+  }
+}
+
+/**
  * Keeps each side's memory of the other's hand honest after an action. A
  * known card that leaves the hand unseen stays on the list, since the viewer
  * cannot tell it from the other cards that might have left (rules 1.12.3);
@@ -397,6 +418,7 @@ function updateArchivesKnowledge(prev: GameState, state: GameState): void {
  */
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
   updateArchivesKnowledge(prev, state);
+  noteOpenArrivals(prev, state);
   if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0) return;
   const before = publicCards(prev);
   const after = publicCards(state);
