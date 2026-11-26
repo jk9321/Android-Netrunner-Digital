@@ -342,7 +342,7 @@ export const CORP_STATE_FIELDS = {
   bonusClicksNextTurn: 'public',
   meliesServer: 'own', // 1.5.2b: secret until the identity flips
   knownToRunner: 'redacted', // shown as hq.known, codes only
-  archKnownToRunner: 'dropped', // the Runner's memory of facedown Archives (4.4.6b, c); B4a step 1 keeps the screen as it was
+  archKnownToRunner: 'dropped', // the Runner's memory of facedown Archives (4.4.6b, c): the AI's; B4a keeps the screen as it was (bar 4)
   rdKnownToRunner: 'own', // the Runner's memory of R&D; names R&D accesses the Corp may not see (7.1.2)
   rdKnownToCorp: 'dropped', // the Corp's memory of R&D (4.2.3, 10.2.2b); names R&D cards the Runner may not see (4.2.2); the Corp's own client does not need it (no AI plays online)
   rdNotes: 'dropped',
@@ -653,6 +653,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     hq: hand(hqCards, c.hq.length, c.knownToRunner),
     rd: {
       count: c.rd.length,
+      // The marks with a place; a shuffle's shares are the AI's, and the screen's note says "until R&D is shuffled" (B4a bar 4)
       ...(side === 'runner' && knownInRd(state).length && {
         known: knownInRd(state).map(k => ({ code: k.code, lo: k.lo, hi: k.hi, ...(k.left && { left: k.left }) })),
       }),
