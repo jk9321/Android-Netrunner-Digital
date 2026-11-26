@@ -754,7 +754,7 @@ function fixture(name: string) {
 }
 
 async function main() {
-  const dirs = makeTrees(root);
+  const dirs = makeTrees(root, shard);
   PL = await loadTree('play', dirs.play);
   const e = await loadTree('eval', dirs.eval);
   const m = (p: string) => import(/* @vite-ignore */ join(dirs.eval, 'src', p));
