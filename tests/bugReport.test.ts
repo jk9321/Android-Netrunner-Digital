@@ -12,7 +12,7 @@ import {
   parseReport,
   reporterId,
 } from '../worker/bugReport';
-import { buildReport, deckText, noteMoves, replayQuery } from '../src/ui/bugReport';
+import { buildReport, deckText, noteMoves, noteView, replayQuery } from '../src/ui/bugReport';
 import { createInitialGameState } from '../src/core';
 import { DECKS, deckGameSetup } from '../src/data/decks';
 import type { GameConfig } from '../src/ui/savedGame';
@@ -77,6 +77,22 @@ describe('bug report payload (client)', () => {
     noteMoves(4242, [...moves]);
     const game = (await buildReport({ description: 'Replay this game please', screen: 'game', game: { config, state } })).game!;
     expect(JSON.parse(gunzipSync(Buffer.from(game.snapshot!, 'base64')).toString('utf8')).moves).toEqual(moves);
+  });
+
+  // Issue #74: a report of seeing secret cards could not tell pass and play from Open table
+  it('names the view the person had in a two-player game', async () => {
+    const twoPlayer: GameConfig = { ...config, seed: 4343, ai: null };
+    const before = (await buildReport({ description: 'Runner sees facedown cards', screen: 'game', game: { config: twoPlayer, state } })).game!;
+    expect(before.opponent).toBe('two players');
+    noteView(4343, 'open');
+    const open = (await buildReport({ description: 'Runner sees facedown cards', screen: 'game', game: { config: twoPlayer, state } })).game!;
+    expect(open.opponent).toBe('two players, view: Open table');
+    noteView(4343, 'hotseat');
+    const hotseat = (await buildReport({ description: 'Runner sees facedown cards', screen: 'game', game: { config: twoPlayer, state } })).game!;
+    expect(hotseat.opponent).toBe('two players, view: pass and play');
+    // A view noted for another game is not reported
+    const other = (await buildReport({ description: 'x', screen: 'game', game: { config, state } })).game!;
+    expect(other.opponent).toBe('computer plays the corp (hard)');
   });
 });
 

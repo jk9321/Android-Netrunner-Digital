@@ -4,7 +4,7 @@ import { PersonStops, saveStops, savedStops } from './stops';
 import { AIClient } from '../ai/client';
 import { deckGameSetup } from '../data/decks';
 import { AccessedCard, GameConfig, SavedGame, clearSavedGame, saveGame } from './savedGame';
-import { noteMoves, noteState } from './bugReport';
+import { noteMoves, noteState, noteView } from './bugReport';
 import { autoContinueRun, autoStartTurn, nextAccessed, nextSelection, useCardFates } from './controllerShared';
 import { showAlert, showConfirm } from './components/Dialog';
 import { ViewMode, Viewer, canActAs, corpRezWindow } from './viewer';
@@ -129,6 +129,9 @@ export function useGameController(config: GameConfig, saved: SavedGame | null) {
   useEffect(() => {
     noteState(config.seed, table.state);
   }, [config.seed, table, version]);
+  useEffect(() => {
+    noteView(config.seed, viewMode);
+  }, [config.seed, viewMode]);
 
   // Save after every move so a reload (the browser discarding a background
   // tab, or the dev server reconnecting) resumes this game; a finished game is dropped
