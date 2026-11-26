@@ -1,4 +1,4 @@
-// B4 step 0: sums step0.ts's lines (brief runner-rework/briefs/b4-hidden-zones.md rev 0). Measurement only.
+// B4 step 0: sums step0.ts's lines (brief runner-rework/briefs/b4-hidden-zones.md rev 1a). Measurement only.
 //   node scripts/runner-rework/b4/step0-sum.mjs <dir or files of step0.ts stdout> [--sites] [--changes]
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ console.log('## Games');
 for (const p of pools) {
   const gs = games.filter(g => g.pool === p);
   const match = gs.filter(g => g.matchesBatch === true).length;
-  console.log(`${p}: ${gs.length} games; matches batch ${match}/${gs.filter(g => g.matchesBatch !== null).length}; shadow ok ${gs.filter(g => g.wOk).length}; decisions ${gs.reduce((n, g) => n + g.decisions, 0)}; boards asked ${gs.reduce((n, g) => n + g.boards, 0)}; ms ${gs.reduce((n, g) => n + g.ms, 0)}`);
+  console.log(`${p}: ${gs.length} games; matches batch ${match}/${gs.filter(g => g.matchesBatch !== null).length}; shadow ok ${gs.filter(g => g.wOk).length}; decisions ${gs.reduce((n, g) => n + g.decisions, 0)}; shuffles ${gs.reduce((n, g) => n + (g.shuffles ?? 0), 0)}; ms ${gs.reduce((n, g) => n + g.ms, 0)}`);
 }
 const errs = by('err');
 console.log(`errors: ${errs.length}`);
@@ -66,46 +66,63 @@ for (const p of pools) {
   }
   const n = games.filter(g => g.pool === p).length;
   console.log(`### ${p} (${n} games)`);
-  const keys = [...a.keys()].filter(k => !k.endsWith('|changed') && !k.startsWith('capped') && !k.startsWith('ctrlMismatch')).sort();
+  const keys = [...a.keys()].filter(k => !k.endsWith('|changed') && !k.startsWith('capped') && !k.startsWith('ctrlMismatch') && !k.startsWith('eligible|') && !k.startsWith('dH:')).sort();
   for (const k of keys) {
     const ch = a.get(`${k}|changed`) ?? 0;
     const t = ms.get(k) ?? 0;
     const c = ms.get(k.startsWith('ctrl|') ? k : `ctrl@${k}`) ?? 0;
     const mm = k.startsWith('ctrl|') ? ` mismatch with played ${a.get(`ctrlMismatch|${k.slice(5)}`) ?? 0}` : '';
-    console.log(`  ${k}: asked ${a.get(k)}, changed ${ch} (${f2(ch / n)} a game)${mm}; ms ${Math.round(t)} vs control ${Math.round(c)} (${c ? ((100 * (t - c)) / c).toFixed(1) : '-'}%)`);
+    console.log(`  ${k}: eligible ${a.get(`eligible|${k}`) ?? '-'}, asked ${a.get(k)}, changed ${ch} (${f2(ch / n)} a game)${mm}; ms ${Math.round(t)} vs control ${Math.round(c)} (${c ? ((100 * (t - c)) / c).toFixed(1) : '-'}%)`);
   }
-  for (const k of [...a.keys()].filter(k => k.startsWith('capped')).sort()) console.log(`  ${k}: ${a.get(k)}`);
+  for (const k of [...a.keys()].filter(k => k.startsWith('capped') || k.startsWith('dH:')).sort()) console.log(`  ${k}: ${a.get(k)}`);
 }
 
-// ---- part 3: #66b classes
-console.log('\n## R-13 (#66b) boards (Runner main decisions, no run): distinct (game, turn, server)');
-const r13 = by('r13');
-for (const p of [...new Set(r13.map(r => poolOf(r.src)))]) {
-  const boards = new Map();
-  for (const r of r13.filter(r => poolOf(r.src) === p))
-    for (const sv of r.servers) {
-      const cls = [...new Set(sv.odds.map(o => o.cls))].join('');
-      const k = `${r.src}|T${r.T}|${sv.sid}`;
-      const b = boards.get(k) ?? { cls, n: 0, runs: 0, today: sv.value, ra: sv.ra?.value, rb: sv.rb?.value, odds: sv.odds, raOdds: sv.ra?.odds, rbOdds: sv.rb?.odds, src: r.src };
-      b.n++;
-      if (sv.runsHere) b.runs++;
-      boards.set(k, b);
-    }
-  const byCls = new Map();
-  for (const b of boards.values()) {
-    const e = byCls.get(b.cls) ?? { boards: 0, games: new Set(), runs: 0, dv: [], dOdds: [] };
-    e.boards++;
-    e.games.add(b.src);
-    e.runs += b.runs;
-    const arm = b.ra ?? b.rb;
-    if (typeof arm === 'number' && typeof b.today === 'number') e.dv.push(arm - b.today);
-    const ao = b.raOdds ?? b.rbOdds;
-    if (ao) b.odds.forEach((o, i) => typeof o.odds === 'number' && e.dOdds.push(ao[i].odds - o.odds));
-    byCls.set(b.cls, e);
-  }
+// ---- part 2: shuffled R&D marks (W)
+const q = (xs, f) => (xs.length ? xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(f * xs.length))] : NaN);
+const dist = xs => !xs.length ? 'n 0' : `n ${xs.length}; p10 ${f2(q(xs, 0.1))}, p50 ${f2(q(xs, 0.5))}, p90 ${f2(q(xs, 0.9))}; min ${f2(Math.min(...xs))}, max ${f2(Math.max(...xs))}`;
+console.log('\n## Shuffled R&D marks (one line per mark: turns lived, Runner decisions, share of them truly in R&D)');
+for (const p of pools) {
+  const ls = by('life').filter(l => l.pool === p);
+  const ended = new Map();
+  for (const l of ls) add(ended, String(l.endedBy).split(':')[0]);
+  console.log(`### ${p}: ${ls.length} marks in ${new Set(ls.map(l => l.src)).size} games; turns ${dist(ls.map(l => l.turns))}; decisions ${dist(ls.map(l => l.decisions))}; truly in R&D ${dist(ls.filter(l => l.decisions).map(l => l.truthInRd / l.decisions))}; ended ${[...ended].map(([k, v]) => `${k} ${v}`).join(', ')}`);
+}
+
+// ---- part 2 (rev 1a): pooled odds against marks-aware odds
+console.log('\n## Pooled agendaOdds against marks-aware odds (Runner main boards with live marks; differences, no threshold)');
+for (const p of pools) {
+  const rows = by('od').filter(r => r.pool === p).flatMap(r => r.rows);
+  if (!rows.length) continue;
+  const col = (i, j) => rows.map(r => r[i] - r[j]);
+  console.log(`### ${p} (${rows.length} boards)`);
+  console.log(`  hqAware - pooled:     ${dist(col(2, 0))}`);
+  console.log(`  hqAware - hqToday:    ${dist(col(2, 1))}`);
+  console.log(`  rdTopAware - pooled:  ${dist(col(3, 0))}`);
+  console.log(`  poolAware - pooled:   ${dist(col(4, 0))}`);
+}
+
+// ---- part 3: root kinds (B4b), distinct (game, turn, server)
+console.log('\n## Root kinds (Runner main boards): distinct (game, turn, server) by case');
+const cps = by('cp');
+for (const p of [...new Set(cps.map(r => poolOf(r.src)))]) {
+  const byCase = new Map();
+  for (const r of cps.filter(r => poolOf(r.src) === p))
+    for (const sv of r.servers)
+      for (const c of sv.cases) {
+        const e = byCase.get(c) ?? { boards: new Set(), games: new Set(), runs: 0, dv: [], dOdds: [], today: [] };
+        const k = `${r.src}|T${r.T}|${sv.sid}`;
+        if (e.boards.has(k)) continue;
+        e.boards.add(k);
+        e.games.add(r.src);
+        if (sv.runsHere) e.runs++;
+        const u = sv.under[c];
+        e.today.push(sv.today.value);
+        if (typeof u?.value === 'number' && typeof sv.today.value === 'number') e.dv.push(u.value - sv.today.value);
+        if (u) sv.today.odds.forEach((o, i) => typeof o === 'number' && typeof u.odds[i] === 'number' && e.dOdds.push(u.odds[i] - o));
+        byCase.set(c, e);
+      }
   console.log(`### ${p}`);
-  const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
-  for (const [cls, e] of [...byCls].sort()) console.log(`  class ${cls}: ${e.boards} boards in ${e.games.size} games; runs made there ${e.runs}; mean odds change ${f2(mean(e.dOdds))}; mean serverValue change ${f2(mean(e.dv))} (min ${f2(Math.min(...e.dv))})`);
+  for (const [c, e] of [...byCase].sort()) console.log(`  ${c}: ${e.boards.size} boards in ${e.games.size} games (${[...e.games].slice(0, 6).join(', ')}); runs made there ${e.runs}; today's serverValue ${dist(e.today)}; change ${dist(e.dv)}; odds change ${dist(e.dOdds)}`);
 }
 
 // ---- sites
