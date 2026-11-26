@@ -511,7 +511,9 @@ export function makeTrees(root: string, names: string[], withEval: boolean, base
     dirs[name] = dir;
     mkdirSync(dir, { recursive: true });
     // BASE_REF=<sha>: every tree but the branch's (asIs) on that commit's src (git archive), the branch's on this checkout's
-    if (baseRef && !ARMS[name]?.asIs) execSync(`git cat-file -e ${baseRef}^{commit} 2>/dev/null || git fetch -q --depth 1 origin ${baseRef}; git archive ${baseRef} src | tar -x -C ${dir}`, { shell: '/bin/bash' });
+    // The fetch under one lock per machine: the four processes of a CI runner share the checkout's .git, and fetching
+    // at once fails on its shallow lock (ai-script 45738945358: 47 of 64 processes stopped there); retried once
+    if (baseRef && !ARMS[name]?.asIs) execSync(`flock /tmp/cache-keys-fetch.lock bash -c 'git cat-file -e ${baseRef}^{commit} 2>/dev/null || git fetch -q --depth 1 origin ${baseRef} || (sleep 5; git fetch -q --depth 1 origin ${baseRef})'; git archive ${baseRef} src | tar -x -C ${dir}`, { shell: '/bin/bash' });
     else cpSync('src', join(dir, 'src'), { recursive: true });
     // The batch driver (scripts/lossLog.ts playLogged) for D, played on this tree's own src
     cpSync('scripts', join(dir, 'scripts'), { recursive: true, filter: s => !s.includes('/cache-keys') && !s.includes('node_modules') });
