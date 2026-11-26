@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardDef, executeAction, GameState } from '../src/core';
 import { dealRunnerUnknowns } from '../src/ai/runnerReply';
+import { remoteAgendaOdds } from '../src/ai/runs';
 import { installCorpForTest, newGame } from './helpers';
 
 // B4b readers of the root-kinds fact (brief b4-hidden-zones ruling 9; engine/helpers.ts runnerRootKinds), each with the
@@ -34,5 +35,19 @@ describe('B4b (a): the deal gives a root slot only a kind it can be', () => {
       expect(kind(v.corp.servers['remote-1'].root[1].cardCode)).toBe('upgrade');
       expect(v.corp.servers['remote-2'].root.filter(c => ['agenda', 'asset'].includes(kind(c.cardCode))).length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('B4b (b): remoteAgendaOdds prices an agenda only where the root allows one', () => {
+  it('0 in a central root and beside a known asset; two facedown cards in a remote share its one agenda or asset', () => {
+    const s = board();
+    const odds = (server: string, i: number) => remoteAgendaOdds(s, s.corp.servers[server], s.corp.servers[server].root[i], 0);
+    expect(odds('archives', 0)).toBe(0);
+    expect(odds('remote-1', 1)).toBe(0);
+    // remote-2 has no ice (no ice bump): a card is an agenda at A / (U + 2 (A + S)) of the unseen pool, not A / (A + S + U)
+    const pool = [...s.corp.hq, ...s.corp.rd, ...s.corp.archives.faceDown, ...Object.values(s.corp.servers).flatMap(sv => sv.root.filter(c => !c.isRezzed))];
+    const n = (t: string) => pool.filter(c => kind(c.cardCode) === t).length;
+    expect(odds('remote-2', 0)).toBeCloseTo(n('agenda') / (n('upgrade') + 2 * (n('agenda') + n('asset'))));
+    expect(odds('remote-2', 0)).toBeLessThan(n('agenda') / (n('upgrade') + n('agenda') + n('asset')));
   });
 });

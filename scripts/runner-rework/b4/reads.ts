@@ -93,6 +93,8 @@ export const READ_HOOKS: Record<string, Patch[]> = {
     ['ai/runnerReply.ts', `  for (const card of upgradeOnly) card.cardCode =`, `${L}  if (upgradeOnly.size) ${fire('Ba')};\n  for (const card of upgradeOnly) card.cardCode =`],
     ['ai/runnerReply.ts', `    const server = serverOf.get(card);\n`, `    const server = serverOf.get(card);\n${L}    if (holdsOne.has(server)) ${fire('Ba')};\n`],
   ],
+  // B4b (b) remoteAgendaOdds by kind: a card whose root allows no agenda, or a remote root with more than one facedown card
+  Bb: [['ai/runs.ts', `  if (fact && !fact.kinds.includes('agenda')) return 0;\n`, `${L}  if (fact && (!fact.kinds.includes('agenda') || fact.joint.length)) ${fire('Bb')};\n  if (fact && !fact.kinds.includes('agenda')) return 0;\n`]],
   // Bar 3's part (trace only): the Hard determinize ran (SearchAI, Hard only; Hard is off in the batch pools)
   H: [['ai/search.ts', `        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`, `${L}        ${fire('H')};\n        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`]],
   // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D

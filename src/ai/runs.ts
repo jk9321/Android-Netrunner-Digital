@@ -13,7 +13,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
-import { certainInArchives, certainInHand } from '../core/engine/helpers';
+import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
 import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
@@ -993,6 +993,10 @@ function stealWorth(state: GameState, points: number, deny: number): number {
 
 /** Chance an unseen card in a remote's root is an agenda (Jeff: higher the more the Corp has put into the server). */
 export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[] }, card: CardInstance, trap: number): number {
+  // B4b (b): no agenda where the root allows none (runnerRootKinds: 3.6.1, 3.2.1, 3.3.1); k facedown cards of one remote
+  // root share its one agenda or asset (4.6.6e), so a card is an agenda at A / (U + k (A + S)) of the unseen pool
+  const fact = runnerRootKinds(state, card);
+  if (fact && !fact.kinds.includes('agenda')) return 0;
   if (card.advancementCounters > 0) return Math.max(0, 1 - trap);
   // plan.oneAgendaGuess (code audit cleanup item 9): the board's own odds for a facedown card (evaluate hiddenCardOdds,
   // the same unseen pool), so the Runner's run choice and its board score start from one guess
@@ -1000,8 +1004,9 @@ export function remoteAgendaOdds(state: GameState, server: { ice: CardInstance[]
   const corp = [...state.corp.hq, ...state.corp.rd, ...state.corp.archives.faceDown, ...Object.values(state.corp.servers).flatMap(s => s.root.filter(c => !c.isRezzed && !c.faceUp && !c.runnerKnows))];
   const kinds = corp.map(c => cardDef(c).type_code);
   const agendas = kinds.filter(t => t === 'agenda').length;
-  const roots = kinds.filter(t => t === 'agenda' || t === 'asset' || t === 'upgrade').length;
-  return iceBump(roots > 0 ? agendas / roots : 0, server);
+  const k = 1 + (fact?.joint.length ?? 0);
+  const share = kinds.filter(t => t === 'upgrade').length + k * kinds.filter(t => t === 'agenda' || t === 'asset').length;
+  return iceBump(share > 0 ? agendas / share : 0, server);
 }
 
 /** Ice in front of it: the Corp guards agendas more than assets. */
