@@ -92,6 +92,8 @@ test('board clicks rez the approached ice in the Corp rez window', async ({ page
     await page.waitForTimeout(700);
     await passHandoff(page);
   }
+  // Pass and play: the Runner's table can show under the hand-off cover before it is passed
+  await passHandoff(page);
   await page.getByTestId('server-hq').getByRole('button', { name: 'Run' }).click();
   const rezButton = page.locator('[data-testid^="rez-"]').first();
   for (let i = 0; i < 12 && !(await rezButton.isVisible()); i++) {
@@ -101,6 +103,7 @@ test('board clicks rez the approached ice in the Corp rez window', async ({ page
     if (await approach.isVisible()) await approach.click();
   }
   await expect(rezButton).toBeVisible();
+  await passHandoff(page);
 
   const target = page.locator('#corp-board [data-board-target="true"]');
   await expect(target).toHaveCount(1);
