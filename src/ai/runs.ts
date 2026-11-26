@@ -925,8 +925,8 @@ export const accessTrap = (code: string): boolean => isTrap(code) && /when the r
  * agenda, counted from the Corp's decklist: the traps still unaccounted for
  * against the traps and agendas still unaccounted for. Unaccounted for
  * means in HQ, R&D, facedown in Archives or installed facedown, and not
- * already accessed by the Runner. Cards that come back to HQ or R&D count
- * again; once every trap is accounted for the odds are 0.
+ * known to the Runner: a card seen in a hidden zone counts by the marks while
+ * it is surely still there, an installed one by what the Runner saw of it.
  */
 export function trapOdds(state: GameState, memory?: RunnerMemory): number {
   const { traps, agendas } = unseenTraps(state, memory);
@@ -937,15 +937,19 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
 function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]; agendas: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
-  const hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];
-  // The cards it has seen come out by the code it saw, not by whichever code their instance holds now: a planner deal
-  // re-deals the hidden cards among their instances (the threat's on-hit audit read the re-dealt code)
-  const codes = hidden.map(c => c.cardCode);
-  for (const card of hidden) {
-    const seen = memory?.get(card.instanceId);
-    if (seen === undefined) continue;
-    const at = codes.indexOf(seen);
+  const codes = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed].map(c => c.cardCode);
+  const out = (code: string) => {
+    const at = codes.indexOf(code);
     if (at >= 0) codes.splice(at, 1);
+  };
+  // B4a 7(d): HQ, R&D and facedown Archives by the marks still certain (code and count; 10.2.2b, 1.12.3), not the map
+  for (const [code, n] of [...certainInHand(state, 'corp'), ...certainInArchives(state)]) for (let i = 0; i < n; i++) out(code);
+  for (const e of [...knownInRd(state), ...rdSharesKnownToRunner(state)]) if (!e.left) out(e.code);
+  // An installed card by the code it saw, not whichever code its instance holds now: a planner deal re-deals the hidden
+  // cards among their instances (the threat's on-hit audit read the re-dealt code)
+  for (const card of installed) {
+    const seen = memory?.get(card.instanceId);
+    if (seen !== undefined) out(seen);
   }
   const traps = codes.filter(isTrap);
   const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;

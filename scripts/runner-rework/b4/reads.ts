@@ -33,4 +33,16 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `    const unseen = state.corp.archives.faceDown.length - known.reduce((n, k) => n + k.n, 0);\n${L}    if (known.length) ${fire('c')};\n`,
     ],
   ],
+  // 7(d) unseenTraps: the marks for HQ, R&D and facedown Archives against today's map by id over every hidden card
+  d: [
+    [
+      'ai/runs.ts',
+      `  const traps = codes.filter(isTrap);\n  const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;\n  return { traps, agendas };\n`,
+      `  const traps = codes.filter(isTrap);\n  const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;\n` +
+        `  const __hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];\n  const __codes = __hidden.map(c => c.cardCode);\n` +
+        `  for (const card of __hidden) {\n    const seen = memory?.get(card.instanceId);\n    if (seen === undefined) continue;\n    const at = __codes.indexOf(seen);\n    if (at >= 0) __codes.splice(at, 1);\n  }\n` +
+        `  const __traps = __codes.filter(isTrap);\n  const __agendas = __codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;\n` +
+        `${L}  if (__traps.length !== traps.length || __agendas !== agendas || __traps.join() !== traps.join()) ${fire('d')};\n  return { traps, agendas };\n`,
+    ],
+  ],
 };

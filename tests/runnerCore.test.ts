@@ -471,19 +471,23 @@ describe('bar 2 (b): a built state on which each unseen fault changes a rank lis
     check('bar2RolloutGuard', today);
     expect(lists(true)).not.toEqual(today);
   });
-  it("replyMemory: a reply Runner's map carrying another sample's entry for an R&D card changes its rank list (runs.ts unseenTraps)", () => {
+  // B4a 7(d) (brief b4-hidden-zones): unseenTraps reads HQ, R&D and facedown Archives from the engine's marks, not the map,
+  // so a carried entry for an R&D card no longer changes the list; the fault's door left is an installed card's entry.
+  it("replyMemory: a reply Runner's map carrying another sample's entry for an installed card changes its rank list (runs.ts unseenTraps); one for an R&D card no longer does", () => {
     const s = newGame(1);
     startRunnerTurn(s);
-    installCorpForTest(s, '30045', 'remote-1', false);
+    const root = installCorpForTest(s, '30045', 'remote-1', false);
     const trap = s.corp.rd.find(c => c.cardCode === '30061')!;
-    const lists = (carried: boolean) => {
+    const lists = (carried: 'none' | 'rd' | 'root') => {
       const ai = new HeuristicRunnerAI({ planner: false });
-      if (carried) ai.knownCards().set(trap.instanceId, trap.cardCode);
+      if (carried === 'rd') ai.knownCards().set(trap.instanceId, trap.cardCode);
+      if (carried === 'root') ai.knownCards().set(root, trap.cardCode);
       return listOf(asSide('runner', () => ai.rankMainActions(s)));
     };
-    const today = lists(false);
+    const today = lists('none');
     check('bar2ReplyMemory', today);
-    expect(lists(true)).not.toEqual(today);
+    expect(lists('rd')).toEqual(today);
+    expect(lists('root')).not.toEqual(today);
   });
   it("offTurnHolder: the Normal Runner's off-turn scores with its holder's savingFor, against a fresh holder's", () => {
     const scores = (saving: string | null) => {
