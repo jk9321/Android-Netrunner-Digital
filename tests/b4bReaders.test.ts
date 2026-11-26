@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cardDef, executeAction, GameState } from '../src/core';
 import { dealRunnerUnknowns } from '../src/ai/runnerReply';
 import { remoteAgendaOdds, serverValue, trapOdds } from '../src/ai/runs';
+import { corpBoardValue, hiddenCardOdds } from '../src/ai/evaluate';
 import { createCardInstance } from '../src/core';
 import { installCorpForTest, newGame } from './helpers';
 
@@ -66,5 +67,16 @@ describe('B4b (c): no trap share in a root card that can only be an upgrade (a t
     expect(trapOdds(t)).toBeGreaterThan(0);
     // the same server less the facedown upgrade: the difference is the upgrade's own 1 (no agenda, no trap)
     expect(serverValue(t, 'remote-2', 0, new Map(), true) - serverValue(t, 'remote-1', 0, new Map(), true)).toBeCloseTo(1);
+  });
+});
+
+describe('B4b (d): the Runner\'s board score gives no agenda share where the root allows none (R-99)', () => {
+  it('a facedown upgrade in Archives\' root is worth what a non-agenda is, the same pool otherwise (3.6.1)', () => {
+    const s = newGame();
+    installCorpForTest(s, UPGRADE, 'archives');
+    const t = tick(s);
+    const moved = structuredClone(t);
+    moved.corp.hq.push(...moved.corp.servers.archives.root.splice(0, 1)); // the same unseen pool, the card in HQ
+    expect(corpBoardValue(t, 'runner') - corpBoardValue(moved, 'runner')).toBeCloseTo(hiddenCardOdds(t).other);
   });
 });
