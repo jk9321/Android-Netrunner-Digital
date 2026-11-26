@@ -91,6 +91,11 @@ const CARD_COMPARISONS: Record<string, string> = {
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
+  'runner/prompt.ts: for (const c of mine?.cards ?? []) if (c.cardCode !== undefined && ids.real[c.instanceId]) out.add(ids.real[c.instanceId]);':
+    "promptShownIds: no card fact, the engine's face test (core/view.ts gives a facedown card no code; B3 commit 2)",
+  'runner/prompt.ts: if (mine.cardCode === want) {': "honestPromptView: no card fact, the dealt code against the card's real one (already kept; B3 commit 2)",
+  'runner/prompt.ts: const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));':
+    "honestPromptView: no card fact, the slot the deal gave the shown card's identity (the swap; B3 commit 2)",
 };
 
 describe('AI code health (audit guards)', () => {
@@ -725,11 +730,15 @@ describe('AI code health (audit guards)', () => {
   // comments, two imports), runs.ts + 10 (unseenIcePool extracted from unrezzedDamageRisk with its comment), runner/terms.ts
   // + 3 (facedownTrojanHost and its comment), runnerAI.ts - 11 (trojanHostValue and two imports out, the term read)):
   // corp/ 3,982, src/ai 16,598
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,598 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
+  // Then + 199 in src/ai, corp/ unchanged (ai-runner-prompt-view, B3 commit 2: the honest prompt view, measured against beta
+  // 9c10d7f (16,598)): runner/prompt.ts + 197 (new: the three classes, the swap, the fallbacks, today's path for in-run
+  // hosts and R-93's class, their comments), cards/elevation.ts + 4 and cards/types.ts + 3 (MuslihaT's promptShows and
+  // the field), runnerAI.ts - 5 (promptAnswer reads runner/prompt.ts): corp/ 3,982, src/ai 16,797
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,797 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3982);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16598);
+    expect(all).toBeLessThanOrEqual(16797);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.

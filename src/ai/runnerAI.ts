@@ -14,6 +14,7 @@ import { plan } from './pricing';
 import { CARDS } from './cards';
 import { RunnerContext, runnerDecide, runnerOffTurn } from './runner/core';
 import { RUNNER_TERMS } from './runner/terms';
+import { honestPromptAnswer } from './runner/prompt';
 
 // Read when called, not built at load: a list built here once read runs.ts's constants before they were set (this module
 // loaded inside runs.ts's import cycle then; ai-trojans-load, tests/trojansLoad.test.ts). It is now in the cycle
@@ -176,22 +177,16 @@ export class HeuristicRunnerAI implements Agent {
   }
 
   /**
-   * A prompt answered from the Runner's own view (rule 10.2.2a; ai-runner-fixes, AI Coordinator 2026-11-14): an answer
-   * that draws (LilyPAD, Read-Write Share) is scored on the guessed stack, not the real next cards. A prompt that shows
-   * stack cards (a search, the top card revealed) is answered on the real state, since the Runner sees those cards; so is
-   * any answer the guess makes that is not legal on the real state.
+   * A prompt answered from the Runner's own view (rule 10.2.2a): an answer that draws (LilyPAD, Read-Write Share) is
+   * scored on the guessed stack, not the real next cards. B3 commit 2: the deciding Runner answers on the honest view,
+   * the dealt view with what the prompt shows kept as it is (runner/prompt.ts: shown by identity, in place, named), never
+   * on the real state. With the planner off (the rollout and reply Runners) the state handed in is already a deal.
    */
   private promptAnswer(state: GameState): GameAction {
-    const real = () => answerPrompt(state, 'runner', this.memory, this.synergy);
     const view = this.ownView(state);
-    if (view === state) return real();
-    const shown = JSON.stringify(activePrompt(state));
-    // ai-honest-runner-view (red team 2): also a prompt naming a Corp card whose identity the view may have changed (an
-    // access in HQ or R&D, a card revealed from HQ): the Runner is looking at it, so it is answered as it really is
-    const { ice, root, loose } = runnerUnknownSlots(state, this.memory);
-    if ([...state.runner.stack, ...ice, ...root, ...loose].some(c => shown.includes(`"${c.instanceId}"`))) return real();
-    const answer = answerPrompt(view, 'runner', this.memory, this.synergy);
-    return isLegalAction(state, answer) ? answer : real();
+    if (view === state) return answerPrompt(state, 'runner', this.memory, this.synergy);
+    const ports = { view, slots: (s: GameState) => runnerUnknownSlots(s, this.memory), memory: this.memory, synergy: this.synergy, answer: (s: GameState) => answerPrompt(s, 'runner', this.memory, this.synergy) };
+    return honestPromptAnswer(state, ports).action;
   }
 
   private scoreMain(state: GameState, action: GameAction, before: number, view: GameState = state): number {

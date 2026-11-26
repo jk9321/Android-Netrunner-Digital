@@ -57,7 +57,7 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
  * so an installed program fits, rules 8.5.6c; makeRoomSets in src/core/engine/legalActions.ts owns them), plus the
  * Corp's trash-first ice answers (rules 8.5.6b), which the engine does not list.
  */
-function answers(state: GameState, side: SideCode, synergy = false): GameAction[] {
+export function promptAnswers(state: GameState, side: SideCode, synergy = false): GameAction[] {
   const legal = getLegalActions(state, side).filter(a => a.type === 'RESOLVE_PROMPT').slice(0, 200);
   const iceTrash = synergy;
   return [...legal, ...(iceTrash ? iceTrashAnswers(state) : [])];
@@ -345,7 +345,7 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
   }
 
   // Everything else: try each answer and keep the best outcome.
-  const options = answers(state, side, synergy);
+  const options = promptAnswers(state, side, synergy);
   let best: GameAction = options[0];
   let bestScore = -Infinity;
   const skip = bypassSkips(state, side, prompt, memory, synergy);
@@ -503,7 +503,7 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
   if (!prompt || prompt.side !== 'corp' || prompt.kind === 'mulligan' || !run || state.winner) return null;
   const loss = corpPorts.runLoss(state);
   if (!(loss > 0)) return null;
-  const options = answers(state, 'corp', synergy);
+  const options = promptAnswers(state, 'corp', synergy);
   if (options.length < 2) return null;
   runTermStats.asked++;
   const outs: { action: GameAction; after: GameState; key: string; verdict: () => 'in' | 'out' }[] = [];
@@ -577,7 +577,7 @@ export function settledStand(board: GameState, server: string, synergy = false, 
       return { key: NOT_KNOWN, verdict: () => NOT_KNOWN };
     }
     const subs: SettledStand[] = [];
-    for (const a of answers(board, 'corp', synergy)) {
+    for (const a of promptAnswers(board, 'corp', synergy)) {
       const next = simulate(board, a);
       if (!next) continue;
       const sub = settledStand(next, server, synergy, depth + 1);
