@@ -253,9 +253,14 @@ describe('issue #66a: a run priced past two rezzed Brân 1.0s by more clicks tha
   // One pin a turn (review, 2026-11-24): each passes when the Runner makes no run on remote-3 in which it spends
   // bioroid clicks and then jacks out. The same mechanism as issue #59 (tests/runnerDecidedTwice.test.ts): each
   // Brân 1.0 is priced against the same three clicks.
+  // B4b: on T16 the one root card sat beside the agenda scored from that root, so the Runner knows it is an upgrade
+  // (#66b, rules 4.6.6e, 8.5.6a) and no longer runs there for it. #66a's T16 board is therefore the same board with that
+  // card one the Corp installed after the agenda left (its kind unknown: no root-kind mark), so the run #66a prices is
+  // still made.
+  const unknownRoot = (s: GameState) => void delete s.corp.rootUpgradesKnownToRunner;
   for (const turn of [15, 16]) {
     it.fails(`#66a T${turn}: the Runner does not spend bioroid clicks on Brân 1.0 and then jack out`, { timeout: 15_000 }, () => {
-      expect(remote3Runs(turn).filter(r => r.breaks > 0 && r.ended === 'jackedOut')).toEqual([]);
+      expect(remote3Runs(turn, turn === 16 ? unknownRoot : undefined).filter(r => r.breaks > 0 && r.ended === 'jackedOut')).toEqual([]);
     });
   }
 
@@ -264,6 +269,7 @@ describe('issue #66a: a run priced past two rezzed Brân 1.0s by more clicks tha
   // breaks it with clicks and does not jack out in movement.
   it('#66a twin: with only one rezzed Brân 1.0 on T16 the Runner breaks it with clicks and gets past without jacking out', { timeout: 15_000 }, () => {
     const runs = remote3Runs(16, s => {
+      unknownRoot(s);
       s.corp.servers[REMOTE_3].ice[3].isRezzed = false;
     });
     expect(runs.length).toBeGreaterThan(0);
