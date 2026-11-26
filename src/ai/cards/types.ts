@@ -255,6 +255,9 @@ export interface CardAI {
    * per-card answers and the cases with no card to live in (AirbladeX's prevent_damage step, the server choice, Manegarm
    * answered by the Runner) stay in prompts.ts. */
   promptAnswer?: (ask: PromptAsk) => PromptChoice | undefined;
+  /** What this card's prompt shows the Runner besides its face-up cards (B3 commit 2, runner/prompt.ts): `inPlace`, the
+   * key of the prompt's data naming a card it shows by its text whose place the Runner knows (MuslihaT's top card). */
+  promptShows?: { inPlace: string };
   /** Programs hosted on this card install without a click (Madani): runnerRigValue prices them with the click kept (V-B B6). */
   freeInstallHosted?: true;
   /** An identity that clears tags: `tags` tags' worth with it, `turnLoss` a Corp turn's loss; tagsWorth takes the lower (V-B B6). */

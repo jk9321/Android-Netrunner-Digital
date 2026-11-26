@@ -198,7 +198,11 @@ export const ELEVATION: Record<string, CardAI> = {
   // Baz Wong
   '35012': { synergy: { gives: { install: 1.5 } } },
   // MuslihaT
-  '35013': { synergy: { gives: { draw: 1, breakers: 0.5 }, wants: { runs: 1 } } },
+  '35013': {
+    synergy: { gives: { draw: 1, breakers: 0.5 }, wants: { runs: 1 } },
+    // its prompt names the top card of the stack by text: the Runner knows it and that it is on top
+    promptShows: { inPlace: 'cardId' },
+  },
   // Clean Getaway
   '35014': {
     synergy: { gives: { runs: 1, econ: 1 } },
