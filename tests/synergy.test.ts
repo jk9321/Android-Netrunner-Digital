@@ -9,7 +9,8 @@ import { MAX_NUDGE, deckProfile, nudge, opponentProfile } from '../src/ai/synerg
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
-import { answerPrompt, taoSwap, untaianPick } from '../src/ai/prompts';
+import { answerPrompt, untaianPick } from '../src/ai/prompts';
+import { taoSwap } from '../src/ai/cards/systemGateway';
 
 describe('synergy tags', () => {
   it("cover every card (a `synergy` on each card in its set's file in src/ai/cards/)", () => {

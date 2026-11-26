@@ -4,10 +4,11 @@ import { PAID_OUT, paidOneATurn } from '../counterValues';
 import { cardRate, CLICK, RATES } from '../valueModel';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
-import { runClick } from '../runs';
+import { runClick, runScore, windowDerez } from '../runs';
 import { tagCost } from '../runs';
 import { CardAI } from './types';
 import { plan } from '../pricing';
+import { tuning } from '../synergy';
 
 /**
  * What the AI knows about each Liberation card's worth, one entry per card
@@ -28,7 +29,11 @@ const allCentrals = (state: GameState): number => Math.min(0.25, 0.4 * runSucces
 
 export const LIBERATION: Record<string, CardAI> = {
   // Strike Fund
-  '34001': { synergy: { gives: { econ: 1.5, discard: 0.5 } } },
+  '34001': {
+    synergy: { gives: { econ: 1.5, discard: 0.5 } },
+    // "May" effects the AI always takes (prompts.ts before B3 commit 1): the 2 credits as it is trashed
+    promptAnswer: ({ prompt }) => (prompt.kind === 'effect_choice' && prompt.source.step === 'trashed' ? { kind: 'effect_choice', optionId: 'yes' } : undefined),
+  },
   // The Price
   '34002': { synergy: { gives: { discard: 1.5, install: 1 } } },
   // Solidarity Badge
@@ -489,9 +494,20 @@ export const LIBERATION: Record<string, CardAI> = {
     runner: state => perTurn(state, PACE.runs * centralSuccess(state) * tagged(state) * accessWorth(state), 'runner', 0, Infinity, 1, lock()),
   },
   // Meeting of Minds
-  '34076': { synergy: { gives: { econ: 1, draw: 0.5 } } },
+  '34076': {
+    synergy: { gives: { econ: 1, draw: 0.5 } },
+    // Every card revealed, a credit each (prompts.ts before B3 commit 1)
+    promptAnswer: ({ prompt }) => (prompt.kind === 'effect_cards' && prompt.source.step === 'reveal' ? { kind: 'effect_cards', cardInstanceIds: prompt.candidateIds } : undefined),
+  },
   // Window of Opportunity
   '34077': {
+    // plan.bypass: derez the ice that costs the Runner most to get past (runs windowDerez); not a candidate: the rest of
+    // the chain answers (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || !plan().bypass || prompt.kind !== 'effect_cards' || prompt.source.step !== 'derez' || !state.activeRun) return undefined;
+      const pick = windowDerez(state, state.activeRun.server)?.ice.instanceId;
+      return pick && prompt.candidateIds.includes(pick) ? { kind: 'effect_cards', cardInstanceIds: [pick] } : undefined;
+    },
     synergy: { gives: { runs: 1, install: 0.5 } },
     // A rezzed ice derezzed as the run begins, and a free-click install
     run: (): RunOptions => {
@@ -500,6 +516,13 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Alarm Clock
   '34078': {
+    // plan.bypass: its HQ run when the turn begins, priced with the 2-click bypass of the first ice. The run itself costs
+    // no click: runScore charges one, so it comes back (prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt, memory, synergy }) => {
+      if (side !== 'runner' || !plan().bypass || prompt.kind !== 'effect_choice' || prompt.source.step !== 'run') return undefined;
+      const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;
+      return { kind: 'effect_choice', optionId: go ? 'yes' : 'no' };
+    },
     synergy: { gives: { runs: 1, hq: 1 } },
     value: { rig: 1.5 },
     // A free HQ run each turn, with a bypass for 2 clicks
@@ -609,6 +632,8 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // Lobisomem (icebreaker)
   '34090': {
+    // Break every barrier subroutine the plan chose it for: the largest X offered (prompts.ts before B3 commit 1)
+    promptAnswer: ({ side, prompt }) => (side === 'runner' && prompt.kind === 'effect_choice' && prompt.source.step === 'x' ? { kind: 'effect_choice', optionId: prompt.options[0].id } : undefined),
     synergy: { gives: { breakers: 1 } },
     // "X credits, hosted power counter: Break X barrier subroutines."
     runFacts: { breaker: { breakByCounter: { kind: 'power', fits: { subtype: 'barrier' }, creditsPerSubroutine: 1 } } },
@@ -629,6 +654,8 @@ export const LIBERATION: Record<string, CardAI> = {
   },
   // "Pretty" Mary da Silva
   '34093': {
+    // The extra R&D card, always taken (prompts.ts before B3 commit 1)
+    promptAnswer: ({ prompt }) => (prompt.kind === 'effect_choice' && prompt.source.step === 'extra' ? { kind: 'effect_choice', optionId: 'yes' } : undefined),
     synergy: { gives: { rd: 1 }, wants: { rd: 1 } },
     value: { rig: 2 },
     // One more R&D card when it breaches for 2 or more

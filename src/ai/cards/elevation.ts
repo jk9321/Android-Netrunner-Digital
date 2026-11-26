@@ -1,17 +1,20 @@
 import { cardDef, CardInstance, GameState } from '../../core';
 import { counters } from '../../core/engine/cardEffects';
-import { isIcebreaker } from '../../core/engine/ice';
+import { breakerScript, iceSubtypes, isIcebreaker } from '../../core/engine/ice';
+import { runnerInstallCost } from '../../core/engine/actions/install';
+import { runnerRigValue } from '../evaluate';
 import { PAYOUT_RISK } from '../payoutRisk';
 import { corpKeepValue } from '../cardValues';
 import { mean, PAID_OUT, paidOut, recurring } from '../counterValues';
 import { actingSide } from '../synergy';
 import { cardRate, CLICK, handFilter, pointValue, printedGain, RATES, sideCards } from '../valueModel';
-import { PRINCIPIA } from '../cardPlans';
+import { PRINCIPIA, principiaFuel } from '../cardPlans';
 import { accessWorth, anySuccess, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, PETTY_CASH_REPLAY } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { runClick } from '../runs';
 import { tagCost } from '../runs';
 import { CardAI } from './types';
+import { cardsPick, promptCards } from './answers';
 
 /**
  * What the AI knows about each Elevation card's worth, one entry per card
@@ -116,6 +119,15 @@ function transactionGain(state: GameState): number {
     return gain ? Number(gain[1]) - (cardDef(c).cost ?? 0) : 0;
   });
   return gains.length ? gains.reduce((a, b) => a + b, 0) / gains.length : 0;
+}
+
+const SCROUNGE = '35004';
+
+/** Rezzed ice on the board that `breaker` breaks (all ice for an AI breaker). */
+function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {
+  const breaks = breakerScript(breaker)?.breaks;
+  if (!breaks) return false;
+  return Object.values(state.corp.servers).some(server => server.ice.some(ice => ice.isRezzed && (breaks === 'any' || iceSubtypes(ice, state).includes(breaks))));
 }
 
 export const ELEVATION: Record<string, CardAI> = {
@@ -317,6 +329,28 @@ export const ELEVATION: Record<string, CardAI> = {
   '35032': { synergy: { gives: { breakers: 1 }, wants: { breakers: 1 } } },
   // “Knickknack” O’Brian
   '35033': {
+    // Sourdough Starter: trash only a card that has stopped giving value (its loss to the rig well under the credits and
+    // card it pays; prompts.ts before B3 commit 1)
+    promptAnswer: ({ state, side, prompt }) => {
+      if (side !== 'runner' || prompt.kind !== 'effect_cards' || prompt.source.step !== 'trash') return undefined;
+      const cards = promptCards(state, prompt.candidateIds);
+      const rig = runnerRigValue(state);
+      const loss = (c: CardInstance) => {
+        const { programs, hardware, resources } = state.runner.rig;
+        const without = { programs: programs.filter(x => x !== c), hardware: hardware.filter(x => x !== c), resources: resources.filter(x => x !== c) };
+        // Fuel is there to be burnt: its loss is only the coverage it gives
+        const lost = rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: without } }) - principiaFuel(state, c);
+        if (!isIcebreaker(c)) return lost;
+        // A breaker is cheap to lose when it comes back for its install (a copy in the grip, or this one from the
+        // heap with Scrounge), and while no rezzed ice it breaks is out (Jeff, 2026-10-30: the Sourdough loop)
+        const back = state.runner.grip.some(g => g.cardCode === c.cardCode || g.cardCode === SCROUNGE);
+        const reinstall = runnerInstallCost(state, c) + CLICK;
+        const needed = breaksRezzedIce(state, c);
+        return Math.min(lost, back ? reinstall : Infinity) * (needed ? 1 : 0.5);
+      };
+      const spent = cards.map(c => ({ c, net: loss(c) - 0.5 * ((cardDef(c).cost ?? 0) + cardRate(state, 'runner', 'now')) })).filter(x => x.net < 0).sort((a, b) => a.net - b.net);
+      return cardsPick(spent[0]?.c);
+    },
     synergy: { gives: { draw: 0.5, econ: 0.5, discard: 0.5 }, wants: { runs: 0.5 } },
     value: { rig: 2, draws: 0.5 }, // Credits and a card for spent installs
     // Now and then, an empty card turned into its install cost and a card
