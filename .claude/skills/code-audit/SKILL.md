@@ -17,8 +17,7 @@ comparable with the last audit, so the rules below are about evidence as much as
   `git diff --stat origin/beta...origin/<branch>` (or the commit range Jeff names), then the callers and tests
   of each changed function. Use the matching section(s) of [checklists.md](checklists.md).
 - **Full** (mode b): the whole codebase on `beta` (it holds everything `main` has plus new work), plus the
-  main-only checks run on `main`. Cadence that worked: after every 2-3 AI merges to beta, before beta merges to
-  main, and before a new set's balance step. Use every section of [checklists.md](checklists.md). For a full
+  main-only checks run on `main`. Cadence: `CLAUDE.md`, `RULE-AUDIT-CADENCE`. Use every section of [checklists.md](checklists.md). For a full
   audit you may split the areas across up to 5 read-only Explore agents (engine/rules, AI, UI + multiplayer
   views, data/decks/formats, tests/tooling); give each its checklist section and the evidence rules below, and
   verify every finding they return yourself before it goes in the report. An agent's claim is a lead, not a
@@ -39,7 +38,7 @@ State the mode, branch and commit SHA at the top of the report. Audit a fixed SH
    empty catch, TODO), card codes named in generic code, plan switches (defined-never-read, folded-still-read,
    read only once), beta-only imports outside the build flags, skipped tests. Numbers are signals to look at,
    not findings by themselves.
-3. Read `CLAUDE.md` (and `docs/ai-process.md` for AI work), `PROJECT_STATUS.md` and the project memory notes for the area (decisions Jeff already
+3. Read `CLAUDE.md` (and `docs/ai-process.md` for AI work; rules are cited by id, `RULE-CITE-IDS`), `PROJECT_STATUS.md` and the project memory notes for the area (decisions Jeff already
    made are not findings: "Hard Runner AI knows its draw order" is kept on purpose; rules windows 6.9.1e,
    5.6.3b, 5.7.2b are skipped on purpose). A decision recorded in memory but contradicted by code IS a finding.
 4. Run the checks: `npm run typecheck`, `npm run lint`, and `npx vitest run --reporter=json --outputFile=<scratchpad>/vitest.json`

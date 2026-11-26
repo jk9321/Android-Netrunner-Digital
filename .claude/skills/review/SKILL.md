@@ -55,7 +55,8 @@ write down what you checked even if it was clean.
 - **Duplicate logic.** For every new function, constant or computed quantity: grep for an existing one that
   computes the same thing (`grep -rn "<key term>" src/`). The repo's history: Corp rez money counted four ways,
   Runner slide income four ways. A second copy is a finding even if both are correct today; name both
-  locations and say which should win.
+  locations and say which should win. For AI work, check `docs/ai-priced-quantities.md` against the diff
+  (`RULE-ONE-OWNER`): no second computation of a listed quantity, a new quantity has its row.
 - **Fix in the right layer.** A symptom fixed in a caller, an override, or a special case (`if (code ===
   '3xxxx')` outside `src/core/scripts/` or the card's own `src/ai/cards/<set>.ts` entry) when a general rule or
   the card's own entry is the right place. AI: is it fixed once, in the layer that owns it (rule ranking,
@@ -68,9 +69,10 @@ write down what you checked even if it was clean.
   `vite.config.ts`, `package.json`, CI and `.claude/**`. A shared-path change outside the spec's allowed list
   is a finding. Inside it, check every caller of a changed signature (`grep -rn "<fn>(" src tests`).
 - **New switches.** Every new `tuning.plan` switch: is it needed (does the off path differ?), named for what it
-  does, default stated, measured (paired batch with `base_run`) and logged? Folded names must still THROW in
+  does, default stated, measured (paired batch with `base_run`) and logged? Where it is declared, does it say
+  when it is removed (`RULE-NUMBERS-SWITCHES`: no switch is permanent)? Folded names must still THROW in
   `PLAN_OFF`. A switch that will never be turned off is dead code; ask for it to be folded.
-- **Hidden-information leaks.** Anything that lets a player or the Normal AI learn what it shouldn't: AI code
+- **Hidden-information leaks** (`RULE-HIDDEN-INFO`). Anything that lets a player or the Normal AI learn what it shouldn't: AI code
   reading `state.corp.hand`, `deck`, facedown/unrezzed `code` without the side's view; log text or prompts
   naming hidden cards; new GameState fields not classified in `src/core/view.ts`; bug reports, saves or server
   messages built from raw state instead of the view; pacing tells (a window that opens only when the Corp can
@@ -78,25 +80,28 @@ write down what you checked even if it was clean.
 - **State discipline and determinism.** No mutation after `isLegalAction`/`getLegalActions`; tests use
   `structuredClone`; RNG only through `src/core/rng.ts`; no `Math.random` or `Date.now` in engine or AI
   decisions. If the spec says "same-seed games identical", ask for the `games=1` identical-check batch id.
-- **Rules.** Every rules-relevant change cites a rule number; open the comprehensive rules PDF
+- **Rules** (`RULE-CITE-RULES-PDF`). Every rules-relevant change cites a rule number; open the comprehensive rules PDF
   (`/mnt/project-files/Netrunner/Resources/Rulebook/Null_Signal_Games_Netrunner_Comprehensive_Rules_v26.03.pdf`)
   and check the code does what the rule says. Card wording from `src/data/*-cards.json` `stripped_text`.
 - **Tests.** Each behaviour change has a test that fails without it (check one: revert the line locally and run
   the test). AI holes are pinned by a scenario test, not only a batch. New cards each have their own test.
-- **Measurements (AI).** Paired batch against the right base, sample size per `docs/ai-process.md`, result checked against the spec's
-  written bar (`docs/ai-process.md`, Bar before the batch). Win rate is reported, not gated, until the tuning phase (Corp 50 ± 5%
-  then); a regression within noise on a fix that closes a human-usable hole is acceptable (Jeff,
-  2026-10-31).
+- **Numbers and bonuses (AI)** (`RULE-COUNTED-DECISIONS`, `RULE-NUMBERS-SWITCHES`). Every new number in the diff is
+  worked out from the game state or is a declared learnable setting whose spec says why the game state cannot give
+  it. Every new bonus or penalty term: the spec names the inputs tried (or why none can carry the fix), the term
+  sits inside the quantity's one owning function, and that owner's registry row lists it. Missing any is a Must fix.
+- **Measurements (AI).** Paired batch against the right base (`RULE-PAIRED-BATCHES`, `RULE-BASELINES`), sample size per
+  `RULE-BATCH-SIZES`, result checked against the spec's written bar (`RULE-BAR-BEFORE-BATCH`). Win rate is reported, not
+  gated (`RULE-REPLACE-DONT-STACK`); Corp 50 ± 5% is read in the final rounds with every set in (`RULE-SET-STEP-7`).
+  A regression within noise on a fix that closes a human-usable hole is acceptable (Jeff, 2026-10-31).
+- **Rule copies** (`RULE-CITE-IDS`). A brief, plan, skill or doc in the diff that copies a rule's text instead of
+  citing its id is a Should fix.
 
-**Tuning ladder (AI branches that change play).** `docs/ai-process.md`, Tuning ladder: trace top down, fix bottom up. The spec or
-hand-off must hold the trace (which layer produced the wrong move) and the fix must sit in that layer, as the
-narrowest change that removes the cause for the class of position. Must fix: a fix on a broader layer than the trace
-found (a new counted question or a bent count overriding a lower mistake) or a narrower one (a per-card rule or
-one-position exception for a general mistake) without a written reason and the approval of both the AI Coordinator
-and Jeff; a new counted question, line, clause, per-card rule or lever without the written reason and
-the approvals `docs/ai-process.md` names.
+**Tuning ladder (AI branches that change play)** (`RULE-TUNING-LADDER`). The spec or hand-off must hold the trace, and
+the fix must sit in the layer the trace found, as narrow as the cause. Must fix: a fix moved to a broader or narrower
+layer, or a new counted question, line, clause, per-card rule or lever, without the written reason and the approvals
+that rule names.
 
-**Adversarial findings (`docs/ai-process.md`, Adversarial review).** When the branch's spec had a red-team pass, or the
+**Adversarial findings (`RULE-ADVERSARIAL`).** When the branch's spec had a red-team pass, or the
 stage had an exploit hunt, open `/mnt/project-files/adversarial/<date>-<name>/findings.md`: every finding must
 have a written answer (fixed with the commit, or disagreed with a reason). A finding with no answer, or a "fixed"
 whose commit is not in the reviewed SHA, is a Must fix. Rule on each open dispute in the review file, or take it
@@ -128,7 +133,7 @@ Base <origin/beta @ sha>. Evidence re-run: typecheck PASS/FAIL, lint PASS/FAIL, 
 
 ## Checked, clean
 Spec match, duplicate logic, layer, types, shared paths, switches, hidden info, state/determinism, rules,
-tests, measurements: say which you checked and found nothing. Say what you did not check.
+tests, numbers and bonuses, measurements, rule copies: say which you checked and found nothing. Say what you did not check.
 ```
 
 - **Approved** only when Must fix is empty and the evidence re-run passed. The approval names the full SHA;

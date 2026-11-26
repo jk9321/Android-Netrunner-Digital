@@ -7,7 +7,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 
 - **Rule citations.** Every rules-relevant change since the last audit cites a rule number (commit message or
   test). `git log --since=<last audit> --format='%h %s' -- src/core` and look for ones that change behaviour
-  without one. Spot-check 5-10 cited rules against the PDF: does the code do what the rule says?
+  without one (`RULE-CITE-RULES-PDF`). Spot-check 5-10 cited rules against the PDF: does the code do what the rule says?
 - **Card text vs implementation.** For each card in scope, read `stripped_text` in `src/data/*-cards.json`
   and its script; check costs, "may" vs mandatory, timing (when/after/each time), once-per-turn limits,
   trash cost, strength, subroutine order, and errata. Optional "you may X now for Y later" must be a real
@@ -40,7 +40,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 
 ## C. AI (`src/ai/**`, `scripts/*` batch tools)
 
-- **Plan switches.** From metrics `plan`: switches defined but never read (dead), folded names still read
+- **Plan switches** (`RULE-PLAN-SWITCHES`, `RULE-NUMBERS-SWITCHES`). From metrics `plan`: switches defined but never read (dead), folded names still read
   (should be zero), switches read once (candidate for folding). Each OFF switch has a reason in
   `tests/codeHealth.test.ts` OFF_SWITCHES and a recent batch behind it; flag OFF switches with no batch in
   `docs/ai-batch-log.md` for 2+ weeks. Folded names must THROW in `PLAN_OFF`/`planWith` (`src/ai/synergy.ts`).
@@ -53,7 +53,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
   gates that hide moves from the planner? Is the same situation priced in two places?
 - **Parallel implementations.** The same quantity (rez money, income slide, steal odds, draw worth, click
   price, agenda pace) computed in more than one function. Grep for the concept name and its synonyms.
-- **Tuning ladder and lever counts** (`docs/ai-process.md`, Tuning ladder). Count and compare with the previous audit: counted questions, lines in
+- **Tuning ladder and lever counts** (`RULE-TUNING-LADDER`). Count and compare with the previous audit: counted questions, lines in
   the Corp's list of ordinary moves, condition clauses per line, per-card rules (`corp/cardRules.ts` exports),
   planner settings, hand-set numbers in the valuation model. For each AI branch merged since the last audit
   that changed play: does its spec or hand-off hold the trace (top down) and is the fix in the layer the trace
@@ -67,7 +67,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 - **New cards in the AI.** Every card in a new set has an AI entry (values, synergy tags, profiles, effect
   formulas, counter worths as needed) and the older cards it interacts with were re-tagged. A new identity
   appears in a beta picker deck and in batch decks (`scripts/deck-playability.ts`).
-- **Balance claims.** Corp win rate 50 ± 5% claims cite a logged batch (`scripts/batch-log.mjs`) with games
+- **Balance claims** (`RULE-GOAL-WIN-RATE`). Win-rate claims cite a logged batch (`scripts/batch-log.mjs`) with games
   and SE. A merged switch with no paired batch is a finding.
 - **Speed.** Per-decision time at Hard (target ~1.0 s/decision) and per-game batch time; note regressions
   against the previous audit's numbers if they were recorded.
@@ -86,8 +86,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 
 ## E. UI (`src/ui/**`)
 
-- Jeff's standing rules: no scanlines, no dot grid; tap-to-inspect on touch devices only; mouse behaviour does
-  not depend on window width; fonts not shrunk below the bumped sizes. Grep for `scanline`, `repeating-linear`,
+- Jeff's standing rules `RULE-NO-SCANLINES`, `RULE-TAP-TO-INSPECT`, `RULE-FONTS` (`CLAUDE.md`, UI). Grep for `scanline`, `repeating-linear`,
   `radial-gradient` dot patterns, `innerWidth`/`matchMedia('(max-width` driving pointer behaviour, `text-xs`.
 - Components over ~250 lines (metrics `largestFunctions`) mixing game logic with rendering; game rules
   decided in UI code instead of the engine's legal actions.
@@ -102,7 +101,7 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
 - **Weak tests**: tests that only check "doesn't throw", snapshot tests nobody reads, skipped tests (metrics),
   tests that pass with the feature switched off.
 - **Flaky**: e2e timing tests (`e2e/handSpread.e2e.ts` was flaky on CI). Check the last ~10 CI runs.
-- **Tooling pins**: `vite-node` stays 3.2.4 until vite is upgraded; CI runs typecheck, lint, test on main and
+- **Tooling pins**: versions as `docs/reference.md`, `RULE-TOOL-VERSIONS` says; CI runs typecheck, lint, test on main and
   beta; hooks in `.claude/settings.json` still work (guard-ai-dir, ci-after-push).
 
 ## G. Drift and sprawl (full audits; the "vibe coding" check)
@@ -112,6 +111,8 @@ to find it quickly. A checked item with nothing found goes in the report's "Chec
   Each new one since last audit gets a look.
 - **Docs vs code**: claims in `CLAUDE.md`, `PROJECT_STATUS.md`, file header comments and project memory
   that are no longer true (renamed files, folded switches still described as switchable, removed scripts).
+- **Rule copies** (`RULE-CITE-IDS`): rule text copied into skills, briefs, plans, hand-offs or memory instead of
+  its id, and any copy that disagrees with its source (the source wins; the copy is the finding).
 - **Comments**: comments that narrate history or a thread's reasoning instead of what the code does now, and
   comments that contradict the code beneath them.
 - **Copy-paste**: near-identical blocks across card scripts or AI files that should share a helper (look in
