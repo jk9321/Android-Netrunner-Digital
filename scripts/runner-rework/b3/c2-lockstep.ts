@@ -262,7 +262,9 @@ function deal(pool: string, d: Deal) {
   }
   const B = g.base.state;
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, recordSame });
+  // at a difference: whether the turns played so far match the batch record's (the board is one the batch reached)
+  const prefixSame = diff ? cr.every((x, k) => key(x) === key(d.cr[k])) && sc.every((x, k) => key(x) === key(d.sc[k])) : null;
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, recordSame, prefixSame });
 }
 
 async function main() {
