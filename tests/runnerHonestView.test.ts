@@ -13,6 +13,7 @@ import { getCardDefinition } from '../src/core';
 import { isAdvanceable } from '../src/core/engine/helpers';
 // A namespace import, so that on a tree without the view's memory argument (beta b7c4917) only the tests that read it differ
 import * as planner from '../src/ai/turnPlanner';
+import { determinize } from '../src/ai/search';
 import { cont, run } from './helpers';
 
 /**
@@ -147,6 +148,26 @@ describe("the Runner's view keeps what the Runner has seen", () => {
       if (view.corp.rd.some((c, i) => c.cardCode !== s.corp.rd[i].cardCode)) dealt++;
     }
     expect(dealt).toBeGreaterThan(0);
+  });
+
+  it('an ice it saw rezzed stays known through a derez (B3 commit 0; rule 1.12.5), in the view and in the Hard deal', () => {
+    // Rule 1.12.5: "A card that is turned faceup or facedown is still the same object." The engine keeps runnerKnows
+    // through a derez (rezForFree, corp.ts), so the deal leaves the card's code where it is.
+    const s = t6();
+    const palisade = byId(s, 'inst-24');
+    expect(palisade.isRezzed).toBe(false);
+    const lcg = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+    const codes = (t: GameState) => {
+      const out: string[] = [];
+      for (let k = 0; k < 24; k++) out.push(byId(honest(() => guessRunnerView(t, k)), 'inst-24').cardCode);
+      for (let k = 0; k < 24; k++) out.push(byId(determinize(t, 'runner', lcg(k + 1)), 'inst-24').cardCode);
+      return out;
+    };
+    // unknown: the facedown ice is dealt (the test can see a change)
+    expect(codes(s).some(c => c !== palisade.cardCode)).toBe(true);
+    const known = structuredClone(s);
+    byId(known, 'inst-24').runnerKnows = true;
+    expect(new Set(codes(known))).toEqual(new Set([palisade.cardCode]));
   });
 
   it("the view doesn't change the real state", () => {

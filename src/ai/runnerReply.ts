@@ -134,7 +134,9 @@ export function guessHidden(state: GameState, k: number): GameState {
 }
 
 /**
- * The Corp cards whose identity the Runner can't see, by the slot they fill (rule 10.2.2a): unrezzed ice; facedown root
+ * The Corp cards whose identity the Runner can't see, by the slot they fill (rule 10.2.2a): unrezzed ice it doesn't know
+ * (B3 commit 0: an ice it saw rezzed stays known through a derez, runnerKnows; rule 1.12.5, "A card that is turned faceup
+ * or facedown is still the same object"; the pool unrezzedDamageRisk reads already leaves it out); facedown root
  * cards it hasn't seen (accessed, `memory`; shown in place, runnerKnows; faceup); and the loose cards, HQ less the cards
  * it has seen there (knownInHand, only those still in HQ), R&D less the positions both sides know (knownRdSlots), and
  * facedown Archives. One owner for "which Corp cards the Runner can't see": the deal below, the Hard AI's determinize
@@ -142,7 +144,7 @@ export function guessHidden(state: GameState, k: number): GameState {
  */
 export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { ice: CardInstance[]; root: CardInstance[]; loose: CardInstance[] } {
   const installed = Object.values(state.corp.servers);
-  const ice = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed);
+  const ice = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed && !c.runnerKnows);
   // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
   const root = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
   // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
