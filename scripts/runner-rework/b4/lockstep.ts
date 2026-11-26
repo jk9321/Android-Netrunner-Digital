@@ -9,9 +9,20 @@
  *  - READS=<name,...>: the branch tree's reader hooks (b4/reads.ts) count, per step, the calls where the new reading
  *    differs from today's (`fires`, by reader | scope | side), so a reader commit's first difference is traced to its own
  *    reader (`firesAt` at the differing step);
- *  - CLEAR=1 clears every tree's caches before each step, for bar 7's time (ms by tree and side; and by decision kind).
+ *  - BRANCH=<sha>: the branch tree is that commit's src (this checkout's hooks and READS still apply), so an older
+ *    commit's lockstep can carry today's trace hooks;
+ *  - CLEAR=1 clears every tree's caches before each step, for bar 7's time (ms by tree and side; and by decision kind);
+ *  - PICKS=1 (bar 3): a difference in the value stream where all three trees pick the same action is listed (`same` on the
+ *    deal's line, with its reader fires) and the deal goes on;
+ *  - FOLLOW=1 (bar 3, with PICKS=1): a pick that differs is listed too (`changed`), and the branch game takes base's pick
+ *    there and goes on, so every decision is asked on the base game's board; a deal stops only at a control difference;
+ *  - CONT=1 (bar 3, with FOLLOW=1): at each Corp pick that differs, the paired continuation on the branch tree from that
+ *    board: a fresh branch game replayed to that step (each earlier pick forced to the one played, caches cleared where the
+ *    lockstep cleared them; `replayed` says no forced pick differed from the replay's own, other than the lockstep's), then
+ *    base's pick (`contBase`) or the branch's (`contBranch`) and played on. Both agents are the branch's and the engine's
+ *    RNG is in the state, so the two differ only in that one pick. All three trees' caches are cleared after them.
  *
- *   SHARD=0/64 npx vite-node scripts/runner-rework/b4/lockstep.ts -- BASE=<sha> POOL=batch,nrdb [READS=a] [CLEAR=1]
+ *   SHARD=0/64 npx vite-node scripts/runner-rework/b4/lockstep.ts -- BASE=<sha> POOL=batch,nrdb [READS=a] [CLEAR=1] [PICKS=1 [FOLLOW=1 [CONT=1]]]
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
@@ -30,6 +41,8 @@ for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.
 }
 const BASE = process.env.BASE ?? '';
 if (!BASE) throw new Error('BASE=<sha> is required');
+/** BRANCH=<sha>: the branch tree from that commit's src rather than this checkout's (this checkout's hooks still apply). */
+const BRANCH = process.env.BRANCH ?? '';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const root = resolve(process.env.TROOT ?? 'node_modules/.cache/b4-lockstep', String(shard));
 const POOLS = (process.env.POOL ?? 'batch,nrdb').split(',');
@@ -39,6 +52,9 @@ const MAX_STEPS = Number(process.env.MAX_STEPS ?? 6000);
 const RECORDS = (process.env.RECORDS ?? '45794820047,45800011213').split(',');
 const READS = (process.env.READS ?? '').split(',').filter(Boolean);
 const CLEAR = process.env.CLEAR === '1';
+const PICKS = process.env.PICKS === '1';
+const FOLLOW = process.env.FOLLOW === '1';
+const CONT = process.env.CONT === '1';
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
@@ -48,16 +64,18 @@ type Name = (typeof NAMES)[number];
 function makeTrees(): Record<Name, string> {
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
-  for (let tries = 0; ; tries++) {
-    try {
-      execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
-      break;
-    } catch {
+  for (const sha of [BASE, BRANCH].filter(Boolean)) {
+    for (let tries = 0; ; tries++) {
       try {
-        execSync(`git fetch --depth 1 origin ${BASE}`, { stdio: 'ignore' });
-      } catch (e) {
-        if (tries >= 8) throw e;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+        execSync(`git cat-file -e ${sha}^{commit}`, { stdio: 'ignore' });
+        break;
+      } catch {
+        try {
+          execSync(`git fetch --depth 1 origin ${sha}`, { stdio: 'ignore' });
+        } catch (e) {
+          if (tries >= 8) throw e;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+        }
       }
     }
   }
@@ -67,7 +85,8 @@ function makeTrees(): Record<Name, string> {
   for (const name of NAMES) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
-    if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
+    if (name === 'branch' && BRANCH) execSync(`git archive ${BRANCH} src | tar -x -C ${dir}`);
+    else if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
     if (name === 'branch') for (const r of READS) applyPatches(dir, READ_HOOKS[r] ?? [], `reads ${r}`, read, write);
@@ -137,6 +156,42 @@ function dealStateOf(t: Tree, d: Deal): GameState {
   return t.core.createInitialGameState(t.decks.deckGameSetup(d.seed, c, r));
 }
 
+const result = (gr: any) => ({ winner: gr.state.winner ?? null, corpPts: gr.state.corp.score, runnerPts: gr.state.runner.score, T: gr.state.turnNumber });
+/** The branch game played on to its end (no hooks listening). */
+function playOn(gr: any) {
+  try {
+    for (let i = 0; i < MAX_STEPS && gr.step(); i++);
+  } catch (e) {
+    return { error: (e as Error).message.slice(0, 120) };
+  }
+  return result(gr);
+}
+/**
+ * A fresh branch game replayed through `played` (the picks base made; at a step in `forced` the branch's own pick is
+ * replaced by it), its caches cleared at the steps in `clears`, then `pick` applied there, then played on.
+ */
+function replayWith(d: Deal, played: string[], forced: Set<number>, clears: Set<number>, pick: unknown) {
+  T.branch.clear();
+  const gr = new T.branch.GameRunner(dealStateOf(T.branch, d), { corp: T.branch.createAgent('corp', 'normal'), runner: T.branch.createAgent('runner', 'normal') });
+  let replayed = true;
+  try {
+    for (let i = 0; i < played.length; i++) {
+      if (clears.has(i)) T.branch.clear();
+      const prev = gr.state;
+      gr.step();
+      if (key(gr.last) === played[i]) continue;
+      if (!forced.has(i)) replayed = false;
+      gr.state = T.branch.core.executeAction(prev, JSON.parse(played[i]));
+      gr.last = JSON.parse(played[i]);
+    }
+    if (clears.has(played.length)) T.branch.clear();
+    gr.apply(pick);
+  } catch (e) {
+    return { error: (e as Error).message.slice(0, 120), replayed };
+  }
+  return { ...playOn(gr), replayed };
+}
+
 const knowledge = (s: GameState) => key([s.corp.knownToRunner ?? [], s.runner.knownToCorp ?? [], s.corp.rdKnownToRunner ?? [], (s.corp as any).archKnownToRunner ?? []]);
 const ms: Record<Name, Record<string, number>> = { base: {}, branch: {}, control: {} };
 const addMs = (m: Record<string, number>, k: string, x: number) => (m[k] = (m[k] ?? 0) + x);
@@ -154,6 +209,11 @@ function deal(pool: string, d: Deal) {
   let steps = 0;
   let kn: { step: number; T: number } | null = null;
   const fires: Record<string, number> = {};
+  const sameAt: Record<string, unknown>[] = [];
+  const changedAt: Record<string, unknown>[] = [];
+  const played: string[] = [];
+  const forced = new Set<number>();
+  const clears = new Set<number>();
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.base.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -167,6 +227,7 @@ function deal(pool: string, d: Deal) {
     const more = {} as Record<Name, boolean>;
     const stepFires: Record<string, number> = {};
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
+    const prevBranch: GameState = g.branch.state;
     for (const n of order) {
       res[n] = fresh();
       if (CLEAR) T[n].clear();
@@ -186,8 +247,24 @@ function deal(pool: string, d: Deal) {
     steps++;
     if (!kn && knowledge(g.base.state) !== knowledge(g.branch.state)) kn = { step: i, T: g.base.state.turnNumber };
     const same = (a: Name, b: Name) => res[a].n === res[b].n && res[a].h === res[b].h && more[a] === more[b];
-    if (!same('base', 'branch') || !same('base', 'control')) {
-      const pick = (n: Name) => key(g[n].last).slice(0, 160);
+    const pick = (n: Name) => key(g[n].last).slice(0, 160);
+    const samePick = more.base === more.branch && key(g.base.last) === key(g.branch.last);
+    if (PICKS && same('base', 'control') && !same('base', 'branch') && samePick) {
+      sameAt.push({ step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, pick: pick('base') });
+    } else if (FOLLOW && same('base', 'control') && !samePick && more.base && more.branch) {
+      const at: Record<string, unknown> = { step: i, T: s.turnNumber, side: dec?.side ?? null, kind: dec?.kind ?? null, firesAt: stepFires, picks: { base: pick('base'), branch: pick('branch') } };
+      if (CONT && dec?.side === 'corp') {
+        const branchPick = g.branch.last;
+        at.contBase = replayWith(d, played, forced, clears, g.base.last);
+        at.contBranch = replayWith(d, played, forced, clears, branchPick);
+        for (const n of NAMES) T[n].clear();
+        clears.add(i + 1);
+      }
+      changedAt.push(at);
+      forced.add(i);
+      g.branch.state = T.branch.core.executeAction(prevBranch, g.base.last);
+      g.branch.last = g.base.last;
+    } else if (!same('base', 'branch') || !same('base', 'control')) {
       diff = {
         step: i,
         T: s.turnNumber,
@@ -200,6 +277,7 @@ function deal(pool: string, d: Deal) {
       };
       break;
     }
+    played.push(key(g.base.last));
     for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
   }
@@ -207,7 +285,7 @@ function deal(pool: string, d: Deal) {
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const [k, v] of Object.entries(tms[n])) addMs(ms[n], k, v);
   const r1 = (x: number) => Math.round(x);
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
 }
 
 async function main() {

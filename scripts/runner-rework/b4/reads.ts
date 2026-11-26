@@ -88,6 +88,8 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id));\n${L}  if (state.runner.grip.some(c => known.has(c.instanceId) !== __old.has(c.instanceId))) ${fire('g3')};\n`,
     ],
   ],
+  // Bar 3's part (trace only): the Hard determinize ran (SearchAI, Hard only; Hard is off in the batch pools)
+  H: [['ai/search.ts', `        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`, `${L}        ${fire('H')};\n        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`]],
   // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D
   G1: [
     [
@@ -113,8 +115,9 @@ export const READ_HOOKS: Record<string, Patch[]> = {
   G2: [
     [
       'core/engine/rdKnowledge.ts',
-      `    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
-      `${L}    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) ${fire('G2')};\n    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
+      `  for (const c of state.corp.rd)\n    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
+      `  for (const c of state.corp.rd) {\n${L}    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) ${fire('G2')};\n    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out =`,
     ],
+    ['core/engine/rdKnowledge.ts', `{ id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];\n  return out;\n`, `{ id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];\n  }\n  return out;\n`],
   ],
 };
