@@ -146,6 +146,30 @@ describe('R&D cards the Runner has seen', () => {
     expect(knownInRd(s).find(e => e.id !== id)).toMatchObject({ lo: 0, hi: 0 });
   });
 
+  // B4 tracker R-103: updateRdKnowledge's cheap way out when R&D keeps its order (rules 4.2.3) must leave exactly what
+  // the full walk would
+  it('an action that leaves R&D as it was leaves the marks as they were, shares included (4.2.3)', () => {
+    let [s] = seenAt(2);
+    s = act(s, n => shuffleRD(n));
+    s = act(s, n => runnerSeesRd(n, n.corp.rd[4]));
+    const marks = structuredClone(s.corp.rdKnownToRunner);
+    s = act(s, n => (n.corp.credits += 1));
+    expect(s.corp.rdKnownToRunner).toEqual(marks);
+  });
+
+  it('with R&D as it was, a mark that may have left still goes when its card turns up in the open, and an unsorted list is sorted', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    const [a, b] = [s0.corp.rd[1], s0.corp.rd[3]];
+    s0.corp.rdKnownToRunner = [{ id: fund.instanceId, code: SG.hedgeFund, lo: 0, hi: 2, left: 'other' }];
+    const s1 = act(s0, n => n.corp.archives.faceUp.push(fund));
+    expect(s1.corp.rdKnownToRunner).toEqual([]);
+    const s2 = structuredClone(s0);
+    s2.corp.rdKnownToRunner = [{ id: b.instanceId, code: b.cardCode, lo: 3, hi: 3 }, { id: a.instanceId, code: a.cardCode, lo: 1, hi: 1 }];
+    const s3 = act(s2, n => (n.corp.credits += 1));
+    expect(s3.corp.rdKnownToRunner?.map(e => e.lo)).toEqual([1, 3]);
+  });
+
   it('a public card put on top of R&D (from faceup Archives) is known there', () => {
     const s0 = newGame();
     const fund = createCardInstance(s0, SG.hedgeFund);

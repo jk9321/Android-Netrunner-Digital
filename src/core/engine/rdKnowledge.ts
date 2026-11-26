@@ -198,7 +198,33 @@ function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): 
   return out;
 }
 
-const mergeLeft = (a: RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
+/**
+ * The cheap way out of updateRdKnowledge (B4 tracker R-103; it runs after every action of every playout). It applies
+ * when nothing the Runner knows of R&D can have changed: no shuffle, no secret look at the top and nothing seen, and
+ * every card in the same place (rules 4.2.3: a deck's order holds unless a rule or ability changes it). It also needs
+ * every mark already settled the way the full walk would leave it: none that may have left R&D (`left`), each within
+ * R&D and sorted, and each mark's card in R&D inside its range. A card in R&D is in no open zone (rules 1.12.1: a card
+ * is an object in one zone), so the walk's step 5 (a card that turns up in the open) removes nothing. The walk would
+ * then return the list unchanged, so this skip does not change play.
+ */
+function unchangedRd(prev: GameState, state: GameState, note: RdNotes | undefined, known: RdKnownCard[]): boolean {
+  if (note?.shuffled || note?.privateTop || note?.seen?.length) return false;
+  const before = prev.corp.rd;
+  const after = state.corp.rd;
+  if (before.length !== after.length) return false;
+  for (let i = 0; i < after.length; i++) if (before[i].instanceId !== after[i].instanceId) return false;
+  for (let k = 0; k < known.length; k++) {
+    const e = known[k];
+    if (e.left || e.lo < 0 || e.lo > e.hi || e.hi > after.length - 1) return false;
+    if (k > 0 && (known[k - 1].lo > e.lo || (known[k - 1].lo === e.lo && known[k - 1].hi > e.hi))) return false;
+    let found = false;
+    for (let i = e.lo; i <= e.hi && !found; i++) found = after[i].instanceId === e.id;
+    if (!found) return false;
+  }
+  return true;
+}
+
+const mergeLeft = (a:RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
 const isExact = (e: RdKnownCard) => e.lo === e.hi && !e.left;
 
 /**
@@ -213,6 +239,7 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
   if (known.length === 0 && seen.length === 0 && !note?.shuffled) return;
+  if (unchangedRd(prev, state, note, known)) return;
 
   const before = prev.corp.rd.map(c => c.instanceId);
   const after = state.corp.rd.map(c => c.instanceId);
