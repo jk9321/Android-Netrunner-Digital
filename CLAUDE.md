@@ -47,7 +47,7 @@ Android: Netrunner digital game (React + TypeScript + Vite, Cloudflare Worker ho
 - `RULE-REVIEW-CUTOFF` (summary) Review cutoff (Jeff 2026-11-19): review depth follows what a change can affect: full red team + review for AI logic and engine resolution, a single review for a one-card script, CI plus a self-check for tests, scripts, UI, docs and workflows, none for a step counted and parked with no change; full rule in `docs/ai-process.md`, Review cutoff.
 
 ## Multiplayer
-- `RULE-MULTIPLAYER` Goes through the Fable multiplayer coordinator thread for spec and review. Per-player views live in `src/core/view.ts` and `src/ui`. The game server must be a separate Worker (Durable Objects disable preview URLs).
+- `RULE-MULTIPLAYER` Goes through the multiplayer coordinator thread for spec and review; it runs on Opus at high effort, like the AI coordinators (Jeff 2026-11-26). Per-player views live in `src/core/view.ts` and `src/ui`. The game server must be a separate Worker (Durable Objects disable preview URLs).
 
 ## Decks
 - `RULE-MAIN-DECKS` `main` ships only the two official System Gateway starters (Syndicate, Catalyst) in `src/data/decks.ts`.
