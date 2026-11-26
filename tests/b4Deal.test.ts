@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, createRng, GameState, nextFloat } from '../src/core';
-import { certainInHand, revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
+import { certainInArchives, certainInHand, revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
 import { runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { dealRunnerUnknowns, guessHidden, knownRdSlots } from '../src/ai/runnerReply';
 import { determinize } from '../src/ai/search';
@@ -109,5 +109,30 @@ describe('B4a 7(f): the Hard determinize reads the marks through the same deal (
     const codes = new Set<string>();
     for (let k = 1; k <= 20; k++) codes.add(determinize(t, 'corp', lcg(k)).corp.rd[0].cardCode);
     expect(codes.size).toBeGreaterThan(1);
+  });
+});
+
+describe("B4a 7(g): the reply's Runner reads (a) to (d) on the Corp's deal, shaped only by what the Corp knows", () => {
+  // The Corp may look at a card the Runner accesses, except from R&D (7.1.2), and it sees every card it draws or
+  // trashes, so what the Runner knows of HQ and facedown Archives is the Corp's to know: guessHidden keeps both lists.
+  // R&D is dealt again, and each Runner mark names a dealt card in its places (an exact one the Corp knows stays).
+  it('HQ and Archives counts are the same on the deal; every R&D mark names a dealt card inside its places', () => {
+    const { s } = board();
+    let t = act(s, n => [0, 1, 2].forEach(i => runnerSeesRd(n, n.corp.rd[i])));
+    t = act(t, n => n.corp.archives.faceDown.push(...n.corp.rd.splice(0, 1)));
+    t = act(t, n => n.corp.hq.push(...n.corp.rd.splice(0, 1)));
+    expect(certainInHand(t, 'corp').length).toBe(2);
+    expect(certainInArchives(t).length).toBe(1);
+    for (let k = 0; k < 10; k++) {
+      const g = guessHidden(t, k);
+      expect(certainInHand(g, 'corp')).toEqual(certainInHand(t, 'corp'));
+      expect(certainInArchives(g)).toEqual(certainInArchives(t));
+      for (const e of g.corp.rdKnownToRunner ?? []) {
+        const at = g.corp.rd.findIndex(c => c.instanceId === e.id);
+        expect(at).toBeGreaterThanOrEqual(e.lo);
+        expect(at).toBeLessThanOrEqual(e.hi);
+        expect(g.corp.rd[at].cardCode).toBe(e.code);
+      }
+    }
   });
 });
