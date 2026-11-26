@@ -64,4 +64,12 @@ export const READ_HOOKS: Record<string, Patch[]> = {
     ],
     ['ai/turnPlanner.ts', `  runnerViews.set(state, { sig, view });\n`, `  runnerViews.set(state, { sig, view, __old } as never);\n`],
   ],
+  // Ruling 6, corpSeenGrip: the grip cards chosen by code and count against today's list by id
+  g1: [
+    [
+      'ai/oracle.ts',
+      `  return new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n`,
+      `  const __new = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id).filter(id => state.runner.grip.some(c => c.instanceId === id)));\n${L}  if (__new.size !== __old.size || [...__new].some(id => !__old.has(id))) ${fire('g1')};\n  return __new;\n`,
+    ],
+  ],
 };

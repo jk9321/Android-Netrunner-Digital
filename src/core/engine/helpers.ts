@@ -341,6 +341,16 @@ export function certainInHand(state: GameState, owner: SideCode): [string, numbe
   return certainCounts(knownList(state, owner));
 }
 
+/**
+ * The instances of `owner`'s hand a reader may treat as known: for each code the other side surely knows is there
+ * (certainInHand), that many of the hand's cards with the code, first in hand order. Chosen by code and count, not by
+ * the list's ids (brief b4-hidden-zones ruling 5): which copy is the seen one is not the reader's to know.
+ */
+export function certainHandCards(state: GameState, owner: SideCode): CardInstance[] {
+  const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
+  return certainInHand(state, owner).flatMap(([code, n]) => hand.filter(c => c.cardCode === code).slice(0, n));
+}
+
 /** The facedown Archives cards the Runner saw go in, oldest first (rules 4.4.6b, c: facedown cards stay hidden). */
 export function archivesKnownToRunner(state: GameState): KnownHandCard[] {
   return state.corp.archKnownToRunner ?? [];
