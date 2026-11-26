@@ -94,10 +94,11 @@ const MODULES: [name: string, path: string][] = [
 
 /**
  * The tree's modules through one entry file written into its src (`__ow.ts`, static imports named as the src names its
- * own). vite-node keys a module by how it is asked for: a dynamic import of `<dir>/src/ai/valueModel.ts` from a script is
- * a second instance beside the one the src's `./valueModel` loads, so a script that reads modules that way sets its
- * pricing context, clears its caches and reads registrations on copies the AI never uses (found 2026-11-26: the copy of
- * valueModel had no runner agenda odds registered).
+ * own). vite-node keys a module by its id: a dynamic import of `<dir>/src/ai/valueModel.ts` with a RELATIVE `<dir>` (this
+ * file's rootOf joins without resolve) is a second instance beside the absolute one the src's own `./valueModel` loads, so a
+ * script reading modules that way sets its pricing context, clears caches and reads registrations on copies the AI never
+ * uses (found 2026-11-26 before this loader was committed: the copy of valueModel had no runner agenda odds). With an
+ * absolute `<dir>` (`resolve()`, as every older loader has) the instances are the same: scripts/corp-owed/loaders.ts.
  */
 export async function loadTree(name: string, dir: string): Promise<Tree> {
   const entry = join(dir, 'src', '__ow.ts');
