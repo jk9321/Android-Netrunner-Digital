@@ -80,3 +80,28 @@ describe('B4a 7(b): after a shuffle, R&D is priced from the shares of the cards 
     expect(serverValue(s, 'rd')).toBeGreaterThan(0);
   });
 });
+
+describe('B4a 7(c): a facedown Archives card the Runner surely knows is priced as what it is', () => {
+  // The Runner saw the top of R&D; the Corp trashes it facedown (4.4.6b): the Runner knows that card is in Archives
+  // (10.2.2b). Every card in Archives is a candidate (7.3.2, 7.4.1d): a known non-agenda is worth nothing, a known agenda is a
+  // sure steal. Before 7(c) every facedown card was priced as an unseen one.
+  function trashedFacedown(type: 'agenda' | 'operation'): GameState {
+    const s0 = newGame(3);
+    const card = s0.corp.rd.find(c => cardDef(c).type_code === type)!;
+    s0.corp.rd = [card, ...s0.corp.rd.filter(c => c !== card)];
+    const s = act(s0, n => runnerSeesRd(n, n.corp.rd[0]));
+    return act(s, n => n.corp.archives.faceDown.push(...n.corp.rd.splice(0, 1)));
+  }
+  it('a known operation: Archives is worth nothing; a known agenda: worth its steal', () => {
+    const op = trashedFacedown('operation');
+    const unknown = structuredClone(op);
+    unknown.corp.archKnownToRunner = [];
+    expect(serverValue(unknown, 'archives')).toBeGreaterThan(0);
+    expect(serverValue(op, 'archives')).toBeCloseTo(0, 9);
+    const agenda = trashedFacedown('agenda');
+    const faceUp = structuredClone(agenda);
+    faceUp.corp.archives.faceUp.push(...faceUp.corp.archives.faceDown.splice(0, 1));
+    faceUp.corp.archKnownToRunner = [];
+    expect(serverValue(agenda, 'archives')).toBeCloseTo(serverValue(faceUp, 'archives'), 9);
+  });
+});

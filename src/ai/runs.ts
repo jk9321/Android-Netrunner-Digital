@@ -13,7 +13,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
-import { certainInHand } from '../core/engine/helpers';
+import { certainInArchives, certainInHand } from '../core/engine/helpers';
 import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
@@ -1175,7 +1175,11 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
     const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
-    value = faceUp.reduce((n, c) => n + stealNet(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c), knownStealHit(state, c.cardCode, grip)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * stealNet(stealWorth(state, points, 0), unseenTax, hit);
+    // B4a 7(c): a facedown card the Runner surely knows is what it is (a known agenda a sure steal), the rest unseen
+    const known = certainInArchives(state).map(([code, n]) => ({ n, def: getCardDefinition(code), c: { instanceId: '', cardCode: code } as CardInstance }));
+    const unseen = state.corp.archives.faceDown.length - known.reduce((n, k) => n + k.n, 0);
+    const sure = known.filter(k => k.def.type_code === 'agenda').reduce((n, k) => n + k.n * stealNet(stealWorth(state, k.def.agenda_points ?? 1, 0), stealTax(state, serverId, k.c), knownStealHit(state, k.c.cardCode, grip)), 0);
+    value = faceUp.reduce((n, c) => n + stealNet(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c), knownStealHit(state, c.cardCode, grip)), 0) + sure + Math.min(3, unseen) * odds * chosen * stealNet(stealWorth(state, points, 0), unseenTax, hit);
   }
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;

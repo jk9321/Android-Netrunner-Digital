@@ -25,4 +25,12 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `      if (i < e.lo || i > e.hi || (e.n0 && exact.has(i))) continue;\n${L}      if (e.n0) ${fire('b')};\n`,
     ],
   ],
+  // 7(c) the Archives price: a facedown card the Runner surely knows (today's reader priced every one unseen)
+  c: [
+    [
+      'ai/runs.ts',
+      `    const unseen = state.corp.archives.faceDown.length - known.reduce((n, k) => n + k.n, 0);\n`,
+      `    const unseen = state.corp.archives.faceDown.length - known.reduce((n, k) => n + k.n, 0);\n${L}    if (known.length) ${fire('c')};\n`,
+    ],
+  ],
 };
