@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, cardDef, isLegalAction } from '../src/core';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { serverHold } from '../src/ai/corp/hold';
 import { rezCost } from '../src/core/engine/cardEffects';
 
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 /**
  * Stage B2, the hold owner's afford test (corp/hold.ts holdThisRun): a rez the engine allows though the ice's cost is

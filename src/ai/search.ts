@@ -6,7 +6,6 @@ import { evaluate } from './evaluate';
 import { GameRunner } from './playout';
 import { RunnerMemory } from './runs';
 import { asSide } from './synergy';
-import { decisionContext } from './handValues';
 import { dealRunnerUnknowns, knownRdSlots } from './runnerReply';
 import { corpKnowsRd, corpSeenGrip } from './oracle';
 import { ScoredAction } from './agent';
@@ -194,9 +193,8 @@ export class SearchAI implements Agent {
     // Only one sensible move: no need to think it over. (No lead test: the order's scores are positions, Stage C
     // c0-rulings 16:00Z (9))
     if (ranked.length === 1) return ranked[0].action;
-    const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
-    decisionContext(state, this.side); // the look-ahead noted its own hands
-    return best;
+    // The look-ahead's own decisions made frames of their own, gone as they returned (B1b): this decision's is current again
+    return this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
   }
 
   /**
@@ -227,7 +225,6 @@ export class SearchAI implements Agent {
     // Only one sensible move, or the favourite is far ahead: no need to think it over
     if (ranked.length === 1 || ranked[0].score - ranked[1].score >= CLEAR_LEAD) return { action: ranked[0].action, note: true, log: false };
     const best = this.search(state, ranked.slice(0, this.options.candidates).map(c => ({ ...c, first: c.action })), this.options.timeMs).action;
-    decisionContext(state, this.side); // the look-ahead noted its own hands
     // noted: keeps the rule-based AI's loop guard in step
     return { action: best, note: true, log: true };
   }

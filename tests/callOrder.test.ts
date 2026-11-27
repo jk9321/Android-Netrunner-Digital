@@ -12,16 +12,13 @@ import { describe, expect, it } from 'vitest';
 import '../src/ai';
 import { runSuccess } from '../src/ai/effectValues';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision as decisionFrame } from '../src/ai/handValues';
 import { GameState } from '../src/core';
 
 const FILE = 'tests/fixtures/stage-d/call-order-2191-135.json';
 
 function inDecision<T>(root: GameState, fn: () => T): T {
-  return withPricing({ plan: { ...plan() } }, () => asSide('corp', () => {
-    decisionContext(root, 'corp');
-    return fn();
-  }));
+  return withPricing({ plan: { ...plan() } }, () => asSide('corp', () => decisionFrame(root, 'corp', fn)));
 }
 
 // Asked through the reader that carried the leak (effectValues ownIce, the Corp's own unrezzed ice by its rez budget):

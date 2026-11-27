@@ -4,14 +4,14 @@ import { CardInstance, GameState } from '../src/core';
 import { serverHold } from '../src/ai/corp/hold';
 import { countedRez } from '../src/ai/corp/rez';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 /**
  * Holes from Jeff's games #48-#50 (redesign/spec-jeff-games-48-50.md; playtests/jeff-games-48-50.md). Fixtures are the
  * state before the move, written by scripts/fixture-at.ts from tests/fixtures/human-games/report-N.json.
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 /** The cheapest rez spend that holds the server of this ice next Runner turn, or null (serverHold 'runnerTurn'; holdCost before Stage B2). */
 const holdCost = (s: GameState, ice: CardInstance[], corpCredits: number): number | null => {
   const server = Object.values(s.corp.servers).find(v => v.ice.some(c => c.instanceId === ice[0]?.instanceId));

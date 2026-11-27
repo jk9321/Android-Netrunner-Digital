@@ -203,7 +203,7 @@ export const tuning = {
     openStealUnrun: true,
     /** Jeff, 2026-10-31: the ice worth cap is this Runner's credits plus two turns of income, at least 8 (iceValues.ts iceStop); wins over iceStopHigh. Batch 663: 47.1% vs 49.2% base (noise, in band); kept on as Jeff's model. icePacing off (install ice it can't rez) was 45.4%, remote steals 487 -> 566: icePacing stays. */
     iceStopRunner: true,
-    /** Jeff, 2026-11-05: iceStopRunner's cap reads the Runner's credits at the start of the decision, so gaining or spending credits doesn't move ice worth (iceValues.ts stopCredits, noted by handValues.ts decisionContext). */
+    /** Jeff, 2026-11-05: iceStopRunner's cap reads the Runner's credits at the start of the decision, so gaining or spending credits doesn't move ice worth (iceValues.ts stopCredits, noted by handValues.ts inDecision). */
     iceStopAnchor: true,
     /** Per deciding side (Jeff, 2026-10-28): Normal plays its best few actions through to the end of the turn and picks the best turn (turnPlanner.ts). */
     turnPlanner: { corp: true, runner: true } as Record<SideCode, boolean>,
@@ -491,7 +491,7 @@ export function applyPlanOff(list: string) {
 }
 
 // The deciding side and its plan live in the pricing context (pricing.ts, structural review item 6)
-export { actingSide, asSide, planSide } from './pricing';
+export { actingSide, asSide } from './pricing';
 
 const IDENTITY = 3;
 const LIVE = 1.5; // in hand or installed

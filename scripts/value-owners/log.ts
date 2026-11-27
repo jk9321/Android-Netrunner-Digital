@@ -77,9 +77,11 @@ const snapshot = (): Partial<Pricing> => {
   return {
     side: c.side,
     plan: c.plan,
+    basePlan: c.basePlan,
     frozen: c.frozen,
     known: { ...c.known },
-    anchor: c.anchor ? { ...c.anchor, deckValues: new Map(), stops: c.anchor.stops ? new Map(c.anchor.stops) : undefined } : null,
+    // A copy with its own deck prices (B1b: the anchor's stops went with ai-rez-budget; its root's serial is kept, so the keys match)
+    anchor: c.anchor ? { ...c.anchor, deckValues: new Map() } : null,
     leaves: [...c.leaves],
     averaging: c.averaging,
     pricingRootDeck: c.pricingRootDeck,

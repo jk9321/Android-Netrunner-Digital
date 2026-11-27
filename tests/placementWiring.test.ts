@@ -28,12 +28,12 @@ import { PW, pairBoards, pwBoard } from './fixtures/placement-wiring/boards';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { nextTurnCredits } from '../src/ai/nextTurnMoney';
 import { asSide, withPricing } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { installCorpForTest, installIceForTest } from './helpers';
 
 const C = { PALISADE: '30072', OFFWORLD: '30067', SAM: '30069', LYCIAN: '34100', MYCOWEB: '35053', PING: '30055' };
 const T = 120_000;
-const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/placement-wiring/${name}`, import.meta.url), 'utf8'));
 const agendasInHq = (s: GameState) => s.corp.hq.filter(c => cardDef(c).type_code === 'agenda');
 

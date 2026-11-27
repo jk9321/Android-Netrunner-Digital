@@ -5,7 +5,7 @@ import { HeuristicCorpAI } from '../src/ai';
 import { iceRedirect } from '../src/ai/corp/placement';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 /**
  * plan.iceRedirect (step 4 G3'): ice the Corp installs on a remote or a new remote goes to the scoring remote (the most
@@ -17,7 +17,7 @@ import { decisionContext } from '../src/ai/handValues';
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const position = () => read('ice-redirect-1001-t10.json');
 const installs = (s: GameState, id: string) => getLegalActions(s, 'corp').filter(a => a.type === 'INSTALL_CARD' && (a as { cardInstanceId?: string }).cardInstanceId === id) as (GameAction & { targetServerId?: string; asNewRemote?: boolean })[];
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 
 describe('plan.iceRedirect: remote ice to the scoring remote', () => {
   it('sends Whitespace to remote-1, the scoring remote, from remote-4 or a new remote', () => {

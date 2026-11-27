@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GameAction, GameState } from '../src/core';
 import { assetCover, assetPartner } from '../src/ai/corp/placement';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corpPorts.ts) as it loads
 
 /**
@@ -16,7 +16,7 @@ import '../src/ai'; // the AI entry: corpAI.ts fills the Corp ports (src/ai/corp
  * G2 #103, turn 6, 2 credits: Regolith to a new remote, remote-1 (Whitespace, Manegarm Skunkworks) open, Salvo Testing in HQ.
  */
 const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 const cases: [string, string, string][] = [
   ['reserve-r3-g1-126.json', 'inst-32', 'remote-2'],
   ['reserve-r3-g2-103.json', 'inst-19', 'remote-1'],

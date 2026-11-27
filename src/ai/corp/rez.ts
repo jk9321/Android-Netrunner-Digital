@@ -10,7 +10,7 @@ import { serverHold } from './hold';
 import { rezMoney } from './rezMoney';
 import { digValue, evaluate } from '../evaluate';
 import { answerPrompt, simulate } from '../prompts';
-import { plan, pricing } from '../pricing';
+import { plan, pricing, valueSet, withPricing } from '../pricing';
 import { CARD_PROFILES, ECON_SCALE } from '../cardProfiles';
 import { isEconAsset, upgradeValue } from '../cardValues';
 
@@ -402,11 +402,7 @@ function rezToUse(state: GameState, card: CardInstance, next: (after: GameState)
   if (state.turnStep?.kind === 'corp_turn_start' || rezzingToUse.size > 0) return false;
   const after = simulate(state, { type: 'REZ_CARD', player: 'corp', cardInstanceId: card.instanceId });
   if (!after) return false;
-  rezzingToUse.add(card.instanceId);
-  try {
-    const best = next(after);
-    return !!best && best.type === 'USE_ABILITY' && best.cardInstanceId === card.instanceId;
-  } finally {
-    rezzingToUse.delete(card.instanceId);
-  }
+  // A frame with the asset in the set (B1b: a frame's set is a value, never changed in place)
+  const best = withPricing({ rezzingToUse: valueSet([...rezzingToUse, card.instanceId]) }, () => next(after));
+  return !!best && best.type === 'USE_ABILITY' && best.cardInstanceId === card.instanceId;
 }

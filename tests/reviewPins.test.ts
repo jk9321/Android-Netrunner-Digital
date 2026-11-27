@@ -30,7 +30,7 @@ import { corpCandidates } from '../src/ai/corp/candidates';
 import { place, reservedForAgenda, scoringShort } from '../src/ai/corp/placement';
 import { iceCreditNeed } from '../src/ai/runs';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame, runIntoFirstIce, setIdentity, startRunnerTurn } from './helpers';
 
@@ -69,7 +69,7 @@ function board(setup: (s: GameState) => void): GameState {
   setup(s);
   return s;
 }
-const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+const inCorp = <T>(s: GameState, f: () => T): T => asSide('corp', () => inDecision(s, 'corp', () => f()));
 const nextTurn = (s: GameState, server: string, corp = s.corp.credits) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: corp }));
 /** The oracle on the Runner's whole next turn (retries on: a failed run may be followed by another), rezzing `rez`. */
 const turnTruth = (s: GameState, server: string, rez: string[] | null) => oracleGetsIn(s, server, 'runnerTurn', rez ?? [], undefined, undefined, true).answer;

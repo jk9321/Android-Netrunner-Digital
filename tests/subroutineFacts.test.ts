@@ -10,13 +10,13 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, getCardScript } from '../src/core';
 import { BLOCK, bestBreakPlan, breakPlans, planCost, plannedSubroutines, subroutineBlocks, subroutineCost, subroutineFacts } from '../src/ai/runs';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { BOARDS, board, breakerCodes, iceCodes } from '../scripts/stage-d/golden-prices';
 import { CARDS } from '../src/ai/cards';
 
 const labels = [...new Set(ALL_CARDS.flatMap(card => (getCardScript(card.code)?.ice?.subroutines ?? []).map(sub => sub.label)))];
-const inContext = <T>(s: Parameters<typeof decisionContext>[0], f: () => T): T =>
-  withPricing({ plan: { ...plan() } }, () => asSide('corp', () => { decisionContext(s, 'corp'); return f(); }));
+const inContext = <T>(s: Parameters<typeof inDecision>[0], f: () => T): T =>
+  withPricing({ plan: { ...plan() } }, () => asSide('corp', () => inDecision(s, 'corp', f)));
 
 describe('subroutineBlocks: the price condition, without the price', () => {
   it('equals subroutineCost === BLOCK for every pool label on every board of the sweep', () => {

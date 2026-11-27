@@ -1,7 +1,7 @@
 import { GameAction, GameState, activePrompt, getLegalActions } from '../../core';
 import type { ScoredAction } from '../agent';
 import type { RunnerMemory } from '../runs';
-import { decisionContext } from '../handValues';
+import { inDecision } from '../handValues';
 import { logNudge } from '../synergy';
 import { runAction } from './run';
 
@@ -68,7 +68,10 @@ export interface RunnerContext {
 
 /** The Runner's action at `state` (see the file comment). */
 export function runnerDecide(state: GameState, ctx: RunnerContext): GameAction {
-  decisionContext(state, 'runner');
+  return inDecision(state, 'runner', () => decide(state, ctx));
+}
+
+function decide(state: GameState, ctx: RunnerContext): GameAction {
   if (ctx.base && (activePrompt(state) || state.activeRun || state.turnStep?.kind === 'corp_turn_start')) return ctx.base(state);
   ctx.remember(state);
   if (activePrompt(state)) return ctx.prompt(state);
@@ -92,7 +95,10 @@ export function runnerDecide(state: GameState, ctx: RunnerContext): GameAction {
 
 /** The Runner's paid ability on the Corp's turn, or null (see the file comment). */
 export function runnerOffTurn(state: GameState, ctx: RunnerContext): GameAction | null {
-  decisionContext(state, 'runner');
+  return inDecision(state, 'runner', () => offTurn(state, ctx));
+}
+
+function offTurn(state: GameState, ctx: RunnerContext): GameAction | null {
   ctx.remember(state);
   const best = ctx.offTurnRank(state)[0];
   if (!best || best.score === -Infinity) return null;

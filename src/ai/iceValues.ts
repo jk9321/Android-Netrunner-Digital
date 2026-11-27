@@ -40,7 +40,7 @@ export function iceStop(state?: GameState): number {
  * reads the Runner's credits as they were when the deciding AI started its decision, not in each
  * position it looks at. Otherwise every credit the Runner gains raised each ice it can't break by a
  * credit too, so Sure Gamble scored below clicking for a credit (and spending looked like a gain).
- * The credits are noted in the pricing context as the decision starts (handValues.ts decisionContext).
+ * The credits are noted in the pricing context as the decision starts (handValues.ts inDecision).
  */
 function stopCredits(state: GameState): number {
   return plan().iceStopAnchor && pricing().anchor?.id === state.id ? pricing().anchor!.credits : state.runner.credits;

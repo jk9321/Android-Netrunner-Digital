@@ -6,7 +6,7 @@ import { centralIce } from '../src/ai/corp/placement';
 import { centralStake, rdAgendaOdds } from '../src/ai/corp/pools';
 import { pointGain } from '../src/ai/valueModel';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 
 /**
  * Central ice (spec-central-ice.md variant (6), bars/central-ice-bare.md): the Corp's own remote ice pick goes to
@@ -20,7 +20,7 @@ const at = (n: number, move: number): { s: GameState; pick: GameAction } => {
   for (const m of (r.moves as GameAction[]).slice(0, move)) s = executeAction(s, m);
   return { s, pick: r.moves[move] };
 };
-const ask = (s: GameState, pick: GameAction) => asSide('corp', () => (decisionContext(s, 'corp'), centralIce(s, pick)));
+const ask = (s: GameState, pick: GameAction) => asSide('corp', () => inDecision(s, 'corp', () => centralIce(s, pick)));
 
 describe('central ice: remote ice to a central with no ice', () => {
   // #51 #23 and #33 (Jeff: R&D bare turns 1-5 on 13-17 credits, "just put a light ice in the way so it's not a free run")

@@ -29,7 +29,7 @@ import { HeuristicRunnerAI, readWriteFullShuffle } from '../../src/ai/runnerAI';
 import { runEventOptions } from '../../src/ai/prompts';
 import { CARDS } from '../../src/ai/cards';
 import { asSide } from '../../src/ai/pricing';
-import { decisionContext, clearHandCaches } from '../../src/ai/handValues';
+import { inDecision, clearHandCaches } from '../../src/ai/handValues';
 import { clearDamageThreats } from '../../src/ai/effectValues';
 import { clearBuildTargets, valueLoops } from '../../src/ai/valueModel';
 import { clearDeckShares } from '../../src/ai/iceValues';
@@ -195,15 +195,9 @@ function build(spec: Spec): Built {
 const iceOf = (b: Built, k: number) => b.s.corp.servers[b.server].ice.find(c => c.instanceId === b.ice[k])!;
 const pos = (b: Built, id: string) => b.ice.indexOf(id);
 const runner = <X>(s: GameState, f: () => X): X =>
-  asSide('runner', () => {
-    decisionContext(s, 'runner');
-    return f();
-  });
+  asSide('runner', () => inDecision(s, 'runner', f));
 const corp = <X>(s: GameState, f: () => X): X =>
-  asSide('corp', () => {
-    decisionContext(s, 'corp');
-    return f();
-  });
+  asSide('corp', () => inDecision(s, 'corp', f));
 const label = (s: GameState, a: GameAction) => {
   const x = a as any;
   const card = x.cardInstanceId

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HeuristicCorpAI, HeuristicRunnerAI } from '../src/ai';
-import { decisionContext, ownHandValue } from '../src/ai/handValues';
+import { inDecision, ownHandValue } from '../src/ai/handValues';
 import { PLANNER, planTurn } from '../src/ai/turnPlanner';
 import { withDiagnostics } from '../src/ai/diagnostics';
 import { isLegalAction } from '../src/core';
@@ -40,11 +40,10 @@ describe('the whole-turn planner (Jeff, 2026-10-28; plan.turnPlanner)', () => {
   it('never learns a card it would draw in a playout', () => {
     const s = newGame();
     startRunnerTurn(s);
-    decisionContext(s, 'runner');
-    const before = ownHandValue(s, 'runner');
+    const before = inDecision(s, 'runner', () => ownHandValue(s, 'runner'));
     new HeuristicRunnerAI().chooseAction(s);
     // The hand it knows is the same after planning: cards drawn in playouts were never noted as seen
-    expect(ownHandValue(s, 'runner')).toBeCloseTo(before);
+    expect(inDecision(s, 'runner', () => ownHandValue(s, 'runner'))).toBeCloseTo(before);
   });
 });
 

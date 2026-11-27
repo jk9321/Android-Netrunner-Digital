@@ -8,7 +8,7 @@ import { guessRunnerView, runnerUnknownSlots } from '../src/ai/runnerReply';
 import { decisionSeedFor, runnerDecisionView } from '../src/ai/turnPlanner';
 import { withPricing } from '../src/ai/pricing';
 import { asSide } from '../src/ai/synergy';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import * as prompt from '../src/ai/runner/prompt';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS } from '../scripts/nsg-sample-decks';
@@ -59,8 +59,7 @@ const answerOf = (s: GameState, memory: [string, string][]) => JSON.stringify(pr
  */
 function onTwelveDeals(fx: Fixture): Record<string, number> {
   const s = fx.state;
-  return asSide('runner', () => {
-    decisionContext(s, 'runner');
+  return asSide('runner', () => inDecision(s, 'runner', () => {
     const out: Record<string, number> = {};
     for (let k = 4096; k < 4108; k++) {
       const view = withPricing({ decisionSeed: decisionSeedFor(s, 'runner') }, () => guessRunnerView(s, k, new Map(fx.memory)));
@@ -68,7 +67,7 @@ function onTwelveDeals(fx: Fixture): Record<string, number> {
       out[a] = (out[a] ?? 0) + 1;
     }
     return out;
-  });
+  }));
 }
 
 /**
