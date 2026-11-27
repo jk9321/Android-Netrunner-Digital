@@ -277,21 +277,28 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
             const after = B.core.executeAction(structuredClone(s), a);
             if (handOf(after, dec.side).some((c: { instanceId: string }) => !had.has(c.instanceId))) arrivalPossible = true;
             // Departures on the scored end board (the departures red team, finding 5): the same source's next prompts of
-            // the same side answered, up to 3 steps, as followChain walks a "pick a card, then where" chain
-            let end = after;
-            const names = new Set<string>(named(a));
-            for (let k = 0; k < 3 && p && 'source' in p; k++) {
+            // the same side, up to 3 steps, EVERY answer of each step (followChain answers them in the frame, which can
+            // pick another answer than one asked outside it: bar 12's 9, a Mercia server it could not pay for outside);
+            // a departure on any end board flags the prompt, chance where no answer on that path named the card
+            let nodes = 0;
+            const walk = (end: any, names: Set<string>, k: number): void => {
+              nodes++;
+              const now = new Set(handOf(end, dec.side).map((c: { instanceId: string }) => c.instanceId));
+              const gone = [...had].filter(id => !now.has(id));
+              if (gone.length) departurePossible = true;
+              const discard = dec.side === 'corp' ? [...end.corp.archives.faceUp, ...end.corp.archives.faceDown, ...end.corp.rd] : [...end.runner.heap, ...end.runner.stack];
+              if (gone.some(id => !names.has(id) && discard.some((c: { instanceId: string }) => c.instanceId === id))) departureChance = true;
               const q: any = B.core.activePrompt(end);
-              if (!q || q.side !== dec.side || !('source' in q) || q.source.instanceId !== p.source.instanceId) break;
-              const next = B.prompts.answerPrompt(end, dec.side);
-              for (const id of named(next)) names.add(id);
-              end = B.core.executeAction(structuredClone(end), next);
-            }
-            const now = new Set(handOf(end, dec.side).map((c: { instanceId: string }) => c.instanceId));
-            const gone = [...had].filter(id => !now.has(id));
-            if (gone.length) departurePossible = true;
-            const discard = dec.side === 'corp' ? [...end.corp.archives.faceUp, ...end.corp.archives.faceDown, ...end.corp.rd] : [...end.runner.heap, ...end.runner.stack];
-            if (gone.some(id => !names.has(id) && discard.some((c: { instanceId: string }) => c.instanceId === id))) departureChance = true;
+              if (k >= 3 || nodes > 200 || !p || !('source' in p) || !q || q.side !== dec.side || !('source' in q) || q.source.instanceId !== p.source.instanceId) return;
+              for (const next of B.core.getLegalActions(end, dec.side).filter((x: any) => x.type === 'RESOLVE_PROMPT')) {
+                try {
+                  walk(B.core.executeAction(structuredClone(end), next), new Set([...names, ...named(next)]), k + 1);
+                } catch {
+                  // an answer the engine refuses moves no card
+                }
+              }
+            };
+            walk(after, new Set<string>(named(a)), 0);
           } catch {
             // an answer the engine refuses moves no card
           }
