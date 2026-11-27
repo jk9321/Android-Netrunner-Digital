@@ -839,8 +839,8 @@ describe('AI code health (audit guards)', () => {
   // 16,813: corp/ 3,982, src/ai 16,872
   // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
-    // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
-    // B1b's 16,879: corp/ 3,981, src/ai 16,939
+  // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
+  // B1b's 16,879: corp/ 3,981, src/ai 16,939
   // Then + 16 in src/ai (ai-runner-hidden-zones, B4b (a): the deal gives a root slot only a kind it can be, with its
   // comment): corp/ 3,981, src/ai 16,955
   // Then + 5 in src/ai (ai-runner-hidden-zones, B4b (b): remoteAgendaOdds reads the root kinds, with its comment and
