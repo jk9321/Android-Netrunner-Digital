@@ -135,14 +135,6 @@ function knownKey(): string {
 function ownHandBefore(before: GameState, side: SideCode): number {
   return memo(before, `ownHandBefore:${side}:${knownKey()}`, () => ownHandValue(before, side));
 }
-/** A number per object, for a memo key that must tell two boards apart by identity. */
-const serials = new WeakMap<object, number>();
-const serialNext = { n: 0 };
-const serial = (o: object): number => {
-  let n = serials.get(o);
-  if (n === undefined) serials.set(o, (n = ++serialNext.n));
-  return n;
-};
 
 /** `board` with `side`'s hand size limit read from `from` (a copy, only priced). */
 function withLimit(board: GameState, side: SideCode, from: GameState): GameState {
@@ -467,13 +459,12 @@ export function scoreAnswer(
   // Chance departures: the board as each set of that many cards the damage could have taken leaves it, every set alike
   const boards = chanceBoards(state, board, side, chain.named);
   return withKnownCards(side, kept.length ? [...chain.seen, ...kept.map(c => c.instanceId)] : chain.seen, () => {
-    const one = (b: GameState) => scoreOutcome(state, b, side, memory, synergy, frame);
-    if (boards.length === 1) return finish ? finish(one(board), board) : one(board);
-    // The averaged board's scores, worked out once per scored board, its prompt's board, answer board, frame and memory
-    // (ruling "Departures count read, time levers"): the memo audit checks every hit
-    const key = `chanceBoards:${side}:${synergy ? 1 : 0}:${knownKey()}:${serial(state)}:${serial(after)}:${[...chain.named].sort().join(',')}:${memory ? [...memory].join(';') : '-'}`;
-    const scores = memo(board, key, () => boards.map(one));
-    return boards.reduce((n, b, i) => n + (finish ? finish(scores[i], b) : scores[i]), 0) / boards.length;
+    let total = 0;
+    for (const b of boards) {
+      const score = scoreOutcome(state, b, side, memory, synergy, frame);
+      total += finish ? finish(score, b) : score;
+    }
+    return total / boards.length;
   });
 }
 
