@@ -314,25 +314,32 @@ export function forgetInHand(state: GameState, owner: SideCode, cards: CardInsta
   if (known.length > 0) setKnownList(state, owner, known.filter(e => !cards.some(c => c.instanceId === e.id)));
 }
 
+/** An installed card anyone can see: rezzed, faceup, or one the Runner knows (rules 1.12.1, 10.2.3a). */
+const openInstalled = (c: CardInstance): boolean => !!(c.isRezzed || c.faceUp || c.runnerKnows);
+
+/**
+ * The open zones other than the servers, in publicCards' order: faceup Archives, both score areas, the heap, the rig
+ * and the cards removed from the game. Every card in them is open, and so is each card's hosted cards; a server's root
+ * and ice are open card by card (openInstalled), with their hosted cards. publicCards and the upkeep skip (sameOpen,
+ * noneSurfaced) both read the open zones from here, so a zone added later is in both or in neither (R-105 red team 4).
+ */
+function openLists(state: GameState): CardInstance[][] {
+  const r = state.runner;
+  return [state.corp.archives.faceUp, state.corp.scoreArea, r.scoreArea, r.heap, r.rig.programs, r.rig.hardware, r.rig.resources, state.removedFromGame];
+}
+
 /** Cards anyone can see (rezzed or faceup installed cards, discard piles, score areas, the rig), by id to code. */
 export function publicCards(state: GameState): Map<string, string> {
   const cards = new Map<string, string>();
-  const add = (list: CardInstance[]) => {
-    for (const c of list) {
-      cards.set(c.instanceId, c.cardCode);
-      for (const h of c.hostedCards ?? []) cards.set(h.instanceId, h.cardCode);
-    }
+  const add = (c: CardInstance) => {
+    cards.set(c.instanceId, c.cardCode);
+    for (const h of c.hostedCards ?? []) cards.set(h.instanceId, h.cardCode);
   };
   for (const server of Object.values(state.corp.servers)) {
-    add([...server.root, ...server.ice].filter(c => c.isRezzed || c.faceUp || c.runnerKnows));
+    for (const c of server.root) if (openInstalled(c)) add(c);
+    for (const c of server.ice) if (openInstalled(c)) add(c);
   }
-  const r = state.runner;
-  add(state.corp.archives.faceUp);
-  add(state.corp.scoreArea);
-  add(r.scoreArea);
-  add(r.heap);
-  add([...r.rig.programs, ...r.rig.hardware, ...r.rig.resources]);
-  add(state.removedFromGame);
+  for (const list of openLists(state)) for (const c of list) add(c);
   return cards;
 }
 
@@ -423,6 +430,152 @@ export function certainInArchives(state: GameState): [string, number][] {
   return certainCounts(archivesKnownToRunner(state));
 }
 
+// --- The upkeep's skip (tracker R-105) -----------------------------------------------------------------------------
+
+/**
+ * updateHandKnowledge runs after every action, the AI's simulated ones included, so it is skipped where its inputs show
+ * it would write nothing. Each walk has its own test, and every test reads only `prev` and `state` (like unchangedRd in
+ * rdKnowledge.ts), so its proof is local to the pair. Anything not exactly matched falls through to the walk as it is;
+ * a miss costs a little time and never changes play. Why each walk would return its input:
+ *  - Archives (archivesIdle): the same facedown cards in the same order, so no card went in or left unseen (rules
+ *    4.4.6b, 1.12.3), and the list is no longer than the pile, so the closing cut keeps it whole.
+ *  - Open arrivals, per hand (noteOpenArrivals): the same cards in the hand, so no card came to it from the open
+ *    (10.2.2b, 10.2.3a).
+ *  - The main walk (handWalkIdle): both hands the same, so no card left either one (no departure for 1.12.3, and
+ *    addLosses with no kinds returns its list); no card newly open (sameOpen, else noneSurfaced), so none surfaced
+ *    and nothing is forgotten by name; no Corp entry outside HQ that is marked in R&D, so the `followed` filter removes
+ *    nothing (10.2.2a, b); every entry a full entry (no bare id for knownList to drop) and each list no longer than its
+ *    hand, so the closing cut keeps it whole.
+ * The lists may have changed inside the action (a reveal, an R&D mark): the tests ask what the walk would do with the
+ * lists as they are now, not whether they are as they were in `prev`.
+ */
+type UpkeepSkip = 'archives' | 'arrivals' | 'main';
+type UpkeepField = 'knownToRunner' | 'knownToCorp' | 'archKnownToRunner' | 'rdKnownToRunner';
+
+/**
+ * The skip's test-only check (R-105 rev 1 rulings 1 and 2; off in play, on in the tests, the fuzzer and the lockstep's
+ * CHECK leg): with it on, updateHandKnowledge runs with its skips, puts the fields it writes back (the three lists and, since R-109, the R&D marks), runs again with no skip
+ * and compares. `checked` counts the skips taken that were compared, by walk; each field that differs is recorded in
+ * `failures` (which skips were taken, the field, both values) before the throw, so a catch in the look-ahead that
+ * swallows the throw cannot hide it. Not a play switch: it changes no decision, on or off.
+ */
+export const handUpkeepCheck = {
+  on: false,
+  checked: { archives: 0, arrivals: 0, main: 0 } as Record<UpkeepSkip, number>,
+  failures: [] as { skips: string; field: UpkeepField; skipped: string; walked: string }[],
+};
+
+function sameIds(a: CardInstance[], b: CardInstance[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].instanceId !== b[i].instanceId) return false;
+  return true;
+}
+
+/** The same cards in the same order, each with the same hosted cards and (for installed cards) the same openness. */
+function sameCards(a: CardInstance[], b: CardInstance[], installed: boolean): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i];
+    const q = b[i];
+    if (p.instanceId !== q.instanceId || (installed && openInstalled(p) !== openInstalled(q))) return false;
+    const x = p.hostedCards ?? [];
+    const y = q.hostedCards ?? [];
+    if (!sameIds(x, y)) return false;
+  }
+  return true;
+}
+
+/** publicCards(prev) and publicCards(state) hold the same cards, shown without building either: the same open zones. */
+function sameOpen(prev: GameState, state: GameState): boolean {
+  const ps = prev.corp.servers;
+  const ss = state.corp.servers;
+  let n = 0;
+  for (const k in ss) {
+    const p = ps[k];
+    if (!p || !sameCards(p.root, ss[k].root, true) || !sameCards(p.ice, ss[k].ice, true)) return false;
+    n++;
+  }
+  for (const k in ps) if (ps[k]) n--;
+  if (n !== 0) return false;
+  const pl = openLists(prev);
+  const sl = openLists(state);
+  for (let i = 0; i < sl.length; i++) if (!sameCards(pl[i], sl[i], false)) return false;
+  return true;
+}
+
+/** No card open in `state` that was not open in `prev` (the looser test, taken when sameOpen fails): nothing surfaced. */
+function noneSurfaced(prev: GameState, state: GameState): boolean {
+  const before = publicCards(prev);
+  const known = (c: CardInstance): boolean => {
+    if (!before.has(c.instanceId)) return false;
+    for (const h of c.hostedCards ?? []) if (!before.has(h.instanceId)) return false;
+    return true;
+  };
+  for (const server of Object.values(state.corp.servers)) {
+    for (const c of server.root) if (openInstalled(c) && !known(c)) return false;
+    for (const c of server.ice) if (openInstalled(c) && !known(c)) return false;
+  }
+  for (const list of openLists(state)) for (const c of list) if (!known(c)) return false;
+  return true;
+}
+
+function archivesIdle(prev: GameState, state: GameState): boolean {
+  const now = state.corp.archives.faceDown;
+  return sameIds(prev.corp.archives.faceDown, now) && (state.corp.archKnownToRunner?.length ?? 0) <= now.length;
+}
+
+/** Every entry a full entry, and the list no longer than the hand. */
+function listFits(list: KnownHandCard[] | undefined, hand: CardInstance[]): boolean {
+  if (!list) return true;
+  if (list.length > hand.length) return false;
+  for (let i = 0; i < list.length; i++) if (typeof list[i] !== 'object') return false;
+  return true;
+}
+
+function handWalkIdle(prev: GameState, state: GameState): boolean {
+  const hq = state.corp.hq;
+  const grip = state.runner.grip;
+  if (!sameIds(prev.corp.hq, hq) || !sameIds(prev.runner.grip, grip)) return false;
+  const corp = state.corp.knownToRunner;
+  if (!listFits(corp, hq) || !listFits(state.runner.knownToCorp, grip)) return false;
+  const marks = state.corp.rdKnownToRunner;
+  if (corp && marks && marks.length > 0) {
+    for (const e of corp) {
+      if (hq.some(c => c.instanceId === e.id)) continue;
+      if (marks.some(m => m.id === e.id)) return false;
+    }
+  }
+  return sameOpen(prev, state) || noneSurfaced(prev, state);
+}
+
+// The fields the upkeep writes: the three lists, and the R&D marks whose card may be in HQ (R-109: their HQ losses)
+const UPKEEP_FIELDS: UpkeepField[] = ['knownToRunner', 'knownToCorp', 'archKnownToRunner', 'rdKnownToRunner'];
+const holder = (state: GameState, f: UpkeepField): Record<string, unknown> => (f === 'knownToCorp' ? state.runner : state.corp) as unknown as Record<string, unknown>;
+const shown = (state: GameState, f: UpkeepField): string => (f in holder(state, f) ? String(JSON.stringify(holder(state, f)[f])) : 'absent');
+
+/** handUpkeepCheck: the upkeep with its skips, then again from the same fields with none; the two must agree. */
+function checkedUpkeep(prev: GameState, state: GameState): void {
+  const saved = UPKEEP_FIELDS.map(f => {
+    const h = holder(state, f);
+    return { has: f in h, value: Array.isArray(h[f]) ? (h[f] as unknown[]).slice() : h[f] };
+  });
+  const took: UpkeepSkip[] = [];
+  keepHandKnowledge(prev, state, true, took);
+  if (took.length === 0) return;
+  const skipped = UPKEEP_FIELDS.map(f => shown(state, f));
+  UPKEEP_FIELDS.forEach((f, i) => {
+    const h = holder(state, f);
+    if (saved[i].has) h[f] = saved[i].value;
+    else delete h[f];
+  });
+  keepHandKnowledge(prev, state, false);
+  for (const t of took) handUpkeepCheck.checked[t]++;
+  const bad = UPKEEP_FIELDS.flatMap((f, i) => (shown(state, f) === skipped[i] ? [] : [{ skips: took.join('+'), field: f, skipped: skipped[i], walked: shown(state, f) }]));
+  if (bad.length === 0) return;
+  handUpkeepCheck.failures.push(...bad);
+  throw new Error(`R-105 upkeep skip changed ${bad.map(b => b.field).join(', ')} (skips ${bad[0].skips})`);
+}
+
 /**
  * Facedown Archives: a card the Runner knew (in the open, or seen exactly in R&D) that goes facedown into Archives is
  * one it knows is there (rules 4.4.6b, 10.2.2b); a card that leaves unseen is a departure it cannot tell (1.12.3); one
@@ -460,12 +613,17 @@ function updateArchivesKnowledge(prev: GameState, state: GameState): void {
  * a heap card taken back to the grip) is one the other side saw go there (10.2.2b, 10.2.3a): it joins the list. Step 0
  * gap 3. A card drawn from R&D or the stack is left to updateRdKnowledge (the Runner's R&D marks).
  */
-function noteOpenArrivals(prev: GameState, state: GameState): void {
+function noteOpenArrivals(prev: GameState, state: GameState, skips: boolean, took?: UpkeepSkip[]): void {
   let open: Map<string, string> | undefined;
   for (const owner of ['corp', 'runner'] as const) {
     const was = owner === 'corp' ? prev.corp.hq : prev.runner.grip;
     const now = owner === 'corp' ? state.corp.hq : state.runner.grip;
     if (now.length === 0) continue;
+    // The skip (R-105): the same cards in the hand, so nothing arrived
+    if (skips && sameIds(was, now)) {
+      took?.push('arrivals');
+      continue;
+    }
     const wasIds = new Set(was.map(c => c.instanceId));
     const deck = owner === 'corp' ? prev.corp.rd : prev.runner.stack;
     const arrivals = now.filter(c => !wasIds.has(c.instanceId) && !deck.some(d => d.instanceId === c.instanceId));
@@ -489,13 +647,26 @@ function noteOpenArrivals(prev: GameState, state: GameState): void {
  * by the same rule (updateArchivesKnowledge).
  */
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
+  // B4b's root kinds are kept on every action, outside R-105's skips (they read the servers, not the hands)
   updateRootKinds(prev, state);
-  updateArchivesKnowledge(prev, state);
-  noteOpenArrivals(prev, state);
+  if (handUpkeepCheck.on) checkedUpkeep(prev, state);
+  else keepHandKnowledge(prev, state, true);
+}
+
+/** updateHandKnowledge's three walks; with `skips` the walks that would write nothing are skipped (R-105), listed in `took`. */
+function keepHandKnowledge(prev: GameState, state: GameState, skips: boolean, took?: UpkeepSkip[]): void {
+  if (skips && archivesIdle(prev, state)) took?.push('archives');
+  else updateArchivesKnowledge(prev, state);
+  noteOpenArrivals(prev, state, skips, took);
   // An R&D mark that may already be in HQ (left 'hq') counts the HQ departures too (RdKnownCard.lost)
   const marks = state.corp.rdKnownToRunner ?? [];
   const mayBeInHq = marks.some(e => e.left === 'hq');
+  // Today's return stays here, after noteOpenArrivals, which can add the first entry to an empty list (red team 7)
   if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0 && !mayBeInHq) return;
+  if (skips && handWalkIdle(prev, state)) {
+    took?.push('main');
+    return;
+  }
   const before = publicCards(prev);
   const after = publicCards(state);
   // A found card waits set aside first (rules 4.8.3: it still counts as coming from its deck)
