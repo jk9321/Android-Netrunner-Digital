@@ -131,6 +131,15 @@ function makeTrees(): Record<Name, string> {
     else archive(BASE, dir);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
     if (name === 'branch') for (const r of READS) applyPatches(dir, READ_HOOKS[r] ?? [], `reads ${r}`, read, write);
+    // STEP0 (B4c step 0): count the R&D marks the branch's 4(b) merge joins to an entry whose own card is still in HQ (a
+    // real copy forgotten), on a tree that has the merge
+    if (STEP0 && name === 'branch') {
+      const f = join(dir, 'src/core/engine/helpers.ts');
+      const at = '      const merged = lossesFor(j, type) < lossesFor(base[i], type) ? j : { ...base[i], id: j.id };';
+      const t = read(f);
+      if (t.includes(at))
+        write(f, t.replace(at, () => `      { const g = globalThis as any; g.__b4cMerges = (g.__b4cMerges ?? 0) + 1; if (base[i].id !== j.id && state.corp.hq.some(c => c.instanceId === base[i].id)) g.__b4cForgot = (g.__b4cForgot ?? 0) + 1; }\n${at}`));
+    }
     dirs[name] = dir;
   }
   return dirs;
@@ -236,6 +245,29 @@ function replayWith(d: Deal, played: string[], forced: Set<number>, clears: Set<
 const knowledge = (s: GameState) => key([s.corp.knownToRunner ?? [], s.runner.knownToCorp ?? [], s.corp.rdKnownToRunner ?? [], (s.corp as any).archKnownToRunner ?? []]);
 /** KN_DUMP=1: at the first difference, the knowledge entries only one of base and branch holds, by field. */
 const KN_DUMP = process.env.KN_DUMP === '1';
+/**
+ * STEP0=1 (B4c step 0, with PICKS FOLLOW so both games play the same moves): per deal, the steps after which the two
+ * trees' certainInHand (HQ, the grip) or certainInArchives differ (`steps`), how many times a difference starts
+ * (`onsets`), and the steps where the branch counts some code higher than base (`more`: the Runner or Corp knowing
+ * more, which a B4c part must never do); plus the branch's 4(b) merges and those that forgot a copy still in HQ.
+ */
+const STEP0 = process.env.STEP0 === '1';
+const STEP0_DUMP = process.env.STEP0_DUMP === 'full' ? 'full' : process.env.STEP0_DUMP === '1';
+let step0Stops = 0;
+let certainOf: Record<Name, { hand: (s: GameState, o: string) => [string, number][]; arch: (s: GameState) => [string, number][] }>;
+function certainDiff(a: GameState, b: GameState) {
+  const res: Record<string, { differ: boolean; more: boolean }> = {};
+  const pairs: [string, [string, number][], [string, number][]][] = [
+    ['hq', certainOf.base.hand(a, 'corp'), certainOf.branch.hand(b, 'corp')],
+    ['grip', certainOf.base.hand(a, 'runner'), certainOf.branch.hand(b, 'runner')],
+    ['arch', certainOf.base.arch(a), certainOf.branch.arch(b)],
+  ];
+  for (const [zone, x, y] of pairs) {
+    const mx = new Map(x);
+    res[zone] = { differ: key([...x].sort()) !== key([...y].sort()), more: y.some(([c, n]) => n > (mx.get(c) ?? 0)) };
+  }
+  return res;
+}
 function knDiff(a: GameState, b: GameState) {
   const fields = (s: GameState): Record<string, unknown[]> => ({ knownToRunner: s.corp.knownToRunner ?? [], knownToCorp: s.runner.knownToCorp ?? [], rdKnownToRunner: s.corp.rdKnownToRunner ?? [], archKnownToRunner: (s.corp as any).archKnownToRunner ?? [] });
   const fa = fields(a), fb = fields(b), res: Record<string, unknown> = {};
@@ -274,6 +306,9 @@ function deal(pool: string, d: Deal) {
   let diff: Record<string, unknown> | null = null;
   let steps = 0;
   let kn: { step: number; T: number } | null = null;
+  const c0: Record<string, { steps: number; onsets: number; more: number; was: boolean; wasMore?: boolean }> = {};
+  const g0 = globalThis as any;
+  const merges0 = [g0.__b4cMerges ?? 0, g0.__b4cForgot ?? 0];
   const fires: Record<string, number> = {};
   const sameAt: Record<string, unknown>[] = [];
   const changedAt: Record<string, unknown>[] = [];
@@ -294,6 +329,7 @@ function deal(pool: string, d: Deal) {
     const stepFires: Record<string, number> = {};
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     const prevBranch: GameState = g.branch.state;
+    const prevBase: GameState = g.base.state;
     let memAt: string[] = [];
     const knBefore = KN_DUMP ? knDiff(g.base.state, g.branch.state) : undefined;
     if (MEM_DUMP) {
@@ -350,6 +386,21 @@ function deal(pool: string, d: Deal) {
       };
       break;
     }
+    // after FOLLOW has played base's pick on the branch: a changed pick's own (unplayed) board is not counted
+    if (STEP0)
+      for (const [zone, r] of Object.entries(certainDiff(g.base.state, g.branch.state))) {
+        const z = (c0[zone] ??= { steps: 0, onsets: 0, more: 0, was: false });
+        if (r.differ) z.steps++;
+        if (r.differ && !z.was) z.onsets++;
+        if (r.more) z.more++;
+        // STEP0_DUMP=1: each step where a zone's certain counts start to differ, or the branch starts to count higher, with
+        // the played action, both trees' counts and the knowledge entries only one tree holds (to trace a step 0 difference)
+        if (STEP0_DUMP && ((r.differ && !z.was) || (r.more && !z.wasMore)))
+          out({ kind: 'step0', pool, seed: d.seed, zone, step: i, T: g.base.state.turnNumber, more: r.more, act: key(g.base.last).slice(0, 200), base: certainOf.base[zone === 'arch' ? 'arch' : 'hand'](g.base.state, zone === 'grip' ? 'runner' : 'corp'), branch: certainOf.branch[zone === 'arch' ? 'arch' : 'hand'](g.branch.state, zone === 'grip' ? 'runner' : 'corp'), kn: knDiff(g.base.state, g.branch.state), knPrev: knDiff(prevBase, prevBranch), ...(STEP0_DUMP === 'full' && { hqBefore: prevBase.corp.hq.map(c => `${c.instanceId}:${c.cardCode}`), gripBefore: prevBase.runner.grip.map(c => `${c.instanceId}:${c.cardCode}`), listBefore: { base: [prevBase.corp.knownToRunner, prevBase.runner.knownToCorp], branch: [prevBranch.corp.knownToRunner, prevBranch.runner.knownToCorp] }, listAfter: { base: [g.base.state.corp.knownToRunner, g.base.state.runner.knownToCorp], branch: [g.branch.state.corp.knownToRunner, g.branch.state.runner.knownToCorp] }, log: (g.base.state.log ?? []).slice(-6) }) });
+        if (STEP0_DUMP === 'full' && ((r.differ && !z.was) || (r.more && !z.wasMore)) && process.env.STEP0_STOP && ++step0Stops >= Number(process.env.STEP0_STOP)) process.exit(0);
+        z.was = r.differ;
+        z.wasMore = r.more;
+      }
     played.push(key(g.base.last));
     for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
@@ -364,13 +415,21 @@ function deal(pool: string, d: Deal) {
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const [k, v] of Object.entries(tms[n])) addMs(ms[n], k, v);
   const r1 = (x: number) => Math.round(x);
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(check && { check }), ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
+  const step0 = STEP0 ? { certain: Object.fromEntries(Object.entries(c0).map(([z, v]) => [z, { steps: v.steps, onsets: v.onsets, more: v.more }])), merges: (g0.__b4cMerges ?? 0) - merges0[0], forgot: (g0.__b4cForgot ?? 0) - merges0[1] } : undefined;
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(step0 && { step0 }), ...(check && { check }), ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
 }
 
 async function main() {
   const dirs = makeTrees();
   T = {} as Record<Name, Tree>;
   for (const n of NAMES) T[n] = await loadTree(n, dirs[n]);
+  if (STEP0) {
+    certainOf = {} as typeof certainOf;
+    for (const n of NAMES) {
+      const h = await import(/* @vite-ignore */ join(dirs[n], 'src', 'core/engine/helpers.ts'));
+      certainOf[n] = { hand: h.certainInHand, arch: h.certainInArchives };
+    }
+  }
   if (CHECK) {
     upkeepCheck = (await import(/* @vite-ignore */ join(dirs.branch, 'src', 'core/engine/helpers.ts'))).handUpkeepCheck ?? null;
     if (!upkeepCheck) throw new Error('CHECK=1: the branch tree has no handUpkeepCheck');

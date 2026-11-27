@@ -17,8 +17,7 @@ const SG = { sureGamble: '30030', cleaver: '30006' };
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 const take = <T extends { instanceId: string }>(zone: T[], id: string): T => zone.splice(zone.findIndex(c => c.instanceId === id), 1)[0];

@@ -17,7 +17,7 @@ const SG = { hedgeFund: '30075', palisade: '30072', regolith: '30071' };
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 const draw = (s: GameState, n = 1) => act(s, n2 => n2.corp.hq.push(...n2.corp.rd.splice(0, n)));
@@ -66,8 +66,7 @@ describe('R&D cards the Runner has seen', () => {
     const [prev, id] = seenAt(0);
     const s = structuredClone(prev);
     s.corp.archives.faceDown.push(...s.corp.rd.splice(0, 1));
-    updateRdKnowledge(prev, s);
-    updateHandKnowledge(prev, s);
+    updateHandKnowledge(prev, s, updateRdKnowledge(prev, s));
     expect(knownInRd(s)).toEqual([]);
     expect(inHq(s)).not.toContain(id);
     expect(certainInArchives(s)).toEqual([[SG.hedgeFund, 1]]);

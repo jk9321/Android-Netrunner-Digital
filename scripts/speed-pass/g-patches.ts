@@ -15,6 +15,8 @@ export function gPatches(off = false): Patch[] {
   // G boards still alive (red team finding 4d: 0 after a move and a gc)
   const __gReg = new FinalizationRegistry<number>(() => (globalThis as any).__g0.alive--);
   let __gCalls = 0;
+  // G_SKIP=<caller,...>: those callers build their own board (a local bisect of a difference)
+  const __gSkip = new Set((process.env.G_SKIP ?? '').split(',').filter(Boolean));
   const __gCanon = (x: unknown): string =>
     x === null || typeof x !== 'object'
       ? (JSON.stringify(x) ?? 'u')
@@ -28,6 +30,7 @@ export function gPatches(off = false): Patch[] {
     if (!pricing().anchor) g.noAnchor++;
     // g0-heap.ts's real peak: heapUsed polled every 32 asks (both arms)
     if (++__gCalls % 32 === 0) (globalThis as any).__g0heap?.();
+    if (__gSkip.has(caller)) return executeAction(state, structuredClone(action));
     const key = __gCanon(action);
     let m = __gCache.get(state);
     const hit = m?.get(key);

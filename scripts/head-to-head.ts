@@ -31,6 +31,14 @@ applyPlanOff(process.env.PLAN_OFF ?? '');
 // REPLY_SAMPLES: Runner turns the Corp's planner plays out per candidate (plan.runnerReply)
 if (process.env.REPLY_SAMPLES) (await import('../src/ai/runnerReply')).REPLY.samples = Number(process.env.REPLY_SAMPLES);
 const newSide = mode === 'corp' ? 'corp' : mode === 'runner' ? 'runner' : null;
+// R-109's safety net, on each tree's own module (B4c part 4): the Runner's deals redone without its knowledge
+const { dealFallbacks } = await import('../src/ai/runnerReply');
+// An old tree from before R-109 has no count (or no runnerReply.ts): it adds nothing
+const oldFallbacks = await import(resolve(process.env.OLD_AI ?? 'old', 'src/ai/runnerReply.ts')).then(
+  m => (m as { dealFallbacks?: { count: number } }).dealFallbacks,
+  () => undefined
+);
+const fallbacksNow = () => dealFallbacks.count + (oldFallbacks && oldFallbacks !== dealFallbacks ? oldFallbacks.count : 0);
 
 const records: GameRecord[] = [];
 const from = Number(process.env.GAME_FROM ?? 0);
@@ -45,8 +53,11 @@ for (const c of DECKS.filter(d => d.side === 'corp')) {
       if (deal++ % shards !== shard) continue;
       const agent = (side: 'corp' | 'runner') =>
         (side === newSide ? createAgent : old.createAgent)(side, level, level === 'hard' ? { samples: 6, candidates: 3, seed } : {});
+      const before = fallbacksNow();
       try {
-        records.push({ ...playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name }), seed });
+        const rec = playLogged(createInitialGameState(deckGameSetup(seed, c, r)), { corp: agent('corp'), runner: agent('runner') }, { corp: c.name, runner: r.name });
+        const fellBack = fallbacksNow() - before;
+        records.push({ ...rec, seed, ...(fellBack > 0 ? { dealFallbacks: fellBack } : {}) });
       } catch (err) {
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
       }
@@ -54,4 +65,5 @@ for (const c of DECKS.filter(d => d.side === 'corp')) {
   }
 }
 console.error(`reply naked agenda remotes: ${diag.reply.nakedAgendaRuns}/${diag.reply.nakedAgendaTurns} run`);
+console.error(`DEAL FALLBACKS (Runner deals redone without its knowledge, both trees): ${fallbacksNow()} in ${records.filter(r => r.dealFallbacks).length} games`);
 console.log(JSON.stringify(records));

@@ -2,7 +2,7 @@ import { afterEach, expect } from 'vitest';
 import { askedFreeze } from '../src/ai/valueModel';
 import { frameChecks } from '../src/ai/pricing';
 import { chainStats, runTermStats } from '../src/ai/diagnostics';
-import { handUpkeepCheck } from '../src/core/engine/helpers';
+import { dealTripwire, handUpkeepCheck } from '../src/core/engine/helpers';
 import { appendFileSync } from 'node:fs';
 
 /**
@@ -39,3 +39,12 @@ runTermStats.on = true;
 
 /** R-105 (brief rev 1 rulings 1, 2 and 4): every upkeep skip is checked against the walk in the tests; a difference is recorded and throws. */
 handUpkeepCheck.on = true;
+
+/**
+ * B4c part 4: no deal of the Runner's guess may find a slot with no code (dealTripwire). The safety-net tests that make
+ * one on purpose clear the list (tests/rdDrawnMark.test.ts, "R-109's safety net").
+ */
+afterEach(() => {
+  const failures = dealTripwire.failures.splice(0);
+  expect(failures).toEqual([]);
+});
