@@ -113,6 +113,19 @@ describe('B4c part 1: copies of one title are known by copy (10.2.2b)', () => {
     void a;
   });
 
+  it('an arrival seen twice in one action (put in HQ from Archives, then accessed: Méliès U, seed search 1857) is one entry', () => {
+    const { s: s0 } = twoCopies();
+    const c = createCardInstance(s0, SG.hedgeFund);
+    s0.corp.archives.faceUp = [c];
+    const s = act(s0, n => {
+      const card = take(n.corp.archives.faceUp, c.instanceId);
+      n.corp.hq.push(card);
+      revealInHand(n, 'corp', [card]);
+      revealInHand(n, 'corp', [card]);
+    });
+    expect(s.corp.knownToRunner).toEqual([{ id: c.instanceId, code: SG.hedgeFund }]);
+  });
+
   it('the grip is kept the same way: two Sure Gambles seen one at a time are one, whichever copy', () => {
     const counts = [0, 1].map(second => {
       const s0 = newGame();

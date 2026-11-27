@@ -784,7 +784,9 @@ function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk
       const code = codeOf.get(id)!;
       const at = base.findIndex(e => e.id === id);
       if (!prevHand.has(id)) {
-        // An arrival is its own entry; a stale entry under its id is that card's earlier sighting, and goes with it
+        // An arrival is its own entry, once (Méliès U's card from Archives, then accessed in the same breach); a stale
+        // entry under its id is that card's earlier sighting, and goes with it
+        if (arrivals.some(a => a.id === id)) continue;
         if (at >= 0) base.splice(at, 1);
         arrivals.push({ id, code });
         continue;
