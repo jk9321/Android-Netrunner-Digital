@@ -97,8 +97,9 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
   it("D2 (setup): each fixture's control answer is the one recorded in the fixture", () => {
     expect(ask(TOPAN.state, TOPAN.memory)).toBe(JSON.stringify(TOPAN.played));
     // The Mutual Favor fixture's recorded move (inst-81, Carmen) comes from the base before the set-aside fix (rules 8.7.2,
-    // 4.8.4: the found card waits set aside, not on top of the stack); since that fix the control answer is inst-78 (Buzzsaw)
-    expect(JSON.parse(ask(MUTUAL_FAVOR.state, MUTUAL_FAVOR.memory))).toMatchObject({ choice: { cardInstanceIds: ['inst-78'] } });
+    // 4.8.4: the found card waits set aside, not on top of the stack); after that fix the control answer was inst-78
+    // (Buzzsaw), and since F117 (the install followed, the found card priced) it is inst-81 again: the pin below
+    expect(JSON.parse(ask(MUTUAL_FAVOR.state, MUTUAL_FAVOR.memory))).toMatchObject({ choice: { cardInstanceIds: ['inst-81'] } });
     const options = (TOPAN.state.pendingPrompts[0] as unknown as { options: { id: string }[] }).options.map(o => o.id);
     expect(options).toEqual(expect.arrayContaining([TOPAN_PICK, TOPAN_OTHER]));
     const [a, b] = [TOPAN_PICK, TOPAN_OTHER].map(id => findCardAnywhere(TOPAN.state, id)!);
@@ -134,8 +135,9 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
   // F117's marker (Corp-side ruling on the set-aside red team, finding 1): after a successful run Mutual Favor's search
   // should pick the breaker worth most installed. On this board (grip Red Team, Overclock, Leech, Red Team, Buzzsaw; no
   // program installed) that is Carmen (installed 33.5 against Marjanah 24.6 and a second Buzzsaw 19.7); the one-step
-  // answer prices the found card at nothing and picks Buzzsaw. Known-failing until F117 prices a set-aside card.
-  it.fails('D2 Mutual Favor picks the card worth most installed (deal 2061 T4: Carmen 33.5 over Buzzsaw)', () => {
+  // answer priced the found card at nothing and picked Buzzsaw. Turned by F117 (D3: the search's install prompt names the
+  // found card, so the chain follows it and the install is priced on the honest view; the 'fetch' path is gone).
+  it('D2 Mutual Favor picks the card worth most installed (deal 2061 T4: Carmen 33.5 over Buzzsaw)', () => {
     const pick = JSON.parse(ask(MUTUAL_FAVOR.state, MUTUAL_FAVOR.memory)).choice.cardInstanceIds[0];
     expect(findCardAnywhere(MUTUAL_FAVOR.state, pick)?.cardCode).toBe(findCardAnywhere(MUTUAL_FAVOR.state, 'inst-81')?.cardCode);
   });

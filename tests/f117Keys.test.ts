@@ -11,11 +11,11 @@ import type { GameState } from '../src/core';
 import { giveCard, installIceForTest, newGame } from './helpers';
 import { iceWorth } from '../src/ai/iceValues';
 import { pricing, valueSet, withPricing } from '../src/ai/pricing';
-import { memo, memoAudit, resetMemoAudit } from '../src/ai/valueModel';
+import { memo, memoAudit } from '../src/ai/valueModel';
 
 afterEach(() => {
   memoAudit.on = false;
-  resetMemoAudit();
+  memoAudit.reset();
 });
 
 /** HQ holds Send a Message (3 points), two ice and Funhouse; HQ's own ice is a rezzed Palisade. */

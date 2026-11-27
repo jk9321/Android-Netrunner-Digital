@@ -127,6 +127,22 @@ export function inDecision<T>(state: GameState, side: SideCode, fn: () => T): T 
   return withPricing({ known: { ...pricing().known, [side]: valueSet(hand.map(c => c.instanceId)) }, anchor: anchorAt(state, side, deckValues) }, fn);
 }
 
+/**
+ * Runs `fn` with `ids` added to what the deciding AI knows of `side`'s hand (F117 D1: the seen arrivals of an answer or a
+ * planner line, priced by the hand's owner like any card it holds). A new frame, the current one's set and `ids`; none
+ * when every id is known already. The null slot: where `side`'s set is null (the modelled other side: every card of that
+ * hand counts as known) no frame is made and nothing is added, since a set "the old one plus ids" made from null would
+ * turn every other card of that hand unseen.
+ */
+export function withKnownCards<T>(side: SideCode, ids: Iterable<string>, fn: () => T): T {
+  const was = pricing().known[side];
+  if (!was) return fn();
+  let add: string[] | undefined;
+  for (const id of ids) if (!was.has(id)) (add ??= []).push(id);
+  if (!add) return fn();
+  return withPricing({ known: { ...pricing().known, [side]: valueSet([...was, ...add]) } }, fn);
+}
+
 /** A decision's anchor on `root` (its identity is a cache home: hold.ts; never copied). Its root's number in the context key is valueModel positionSerial's. */
 export function anchorAt(root: GameState, side: SideCode, deckValues: Anchor['deckValues'] = new Map()): Anchor {
   return { id: root.id, credits: root.runner.credits, root, side, serial: positionSerial(root), deckValues };

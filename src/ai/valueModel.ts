@@ -190,19 +190,20 @@ export const memoAudit = {
   otherKnownMismatches: 0,
   byName: new Map<string, AuditRow>(),
   errors: [] as { name: string; otherFrame: boolean; otherKnown: boolean }[],
+  /** Inside an audit's own recomputation (what it asks is not audited again). */
+  auditing: 0,
+  /** Clears the counts. */
+  reset(): void {
+    this.checked = this.mismatches = this.otherFrame = this.otherFrameMismatches = this.otherKnown = this.otherKnownMismatches = 0;
+    this.byName.clear();
+    this.errors.length = 0;
+  },
 };
 type AuditRow = { checked: number; mismatches: number; otherFrame: number; otherFrameMismatches: number; otherKnown: number; otherKnownMismatches: number };
-/** Clears memoAudit's counts (test-only). */
-export function resetMemoAudit(): void {
-  memoAudit.checked = memoAudit.mismatches = memoAudit.otherFrame = memoAudit.otherFrameMismatches = memoAudit.otherKnown = memoAudit.otherKnownMismatches = 0;
-  memoAudit.byName.clear();
-  memoAudit.errors.length = 0;
-}
 /** memo entries whose value is an object other caches hang on (its identity is the point), never worked out again by the audit. */
 const HOMES = new Set(['walkPlans', 'nextTurnBoard', 'afterRun']);
-let auditing = 0;
 function auditHit<T>(entry: MemoEntry, key: string, name: string, cached: T, work: () => T): void {
-  if (auditing > 0) return;
+  if (memoAudit.auditing > 0) return;
   const head = name.split(':')[0];
   if (HOMES.has(head)) return;
   const made = entry.made?.get(key);
@@ -211,12 +212,12 @@ function auditHit<T>(entry: MemoEntry, key: string, name: string, cached: T, wor
   const other = made !== undefined && made !== now;
   // The known hands are the context key's second and third fields (pricing.ts buildKeys)
   const otherKnown = other && knownPart(made) !== knownPart(now);
-  auditing++;
+  memoAudit.auditing++;
   let again: T;
   try {
     again = work();
   } finally {
-    auditing--;
+    memoAudit.auditing--;
   }
   const differs = !sameValue(again, cached);
   let row = memoAudit.byName.get(head);

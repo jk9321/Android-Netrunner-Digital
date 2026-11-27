@@ -106,6 +106,8 @@ const STATE_CACHES: Record<string, 'stateEntries' | string> = {
   'synergy:ownCache': "not tripwired: a side's own card profile per board (outside F3)",
   'synergy:oppCache': "not tripwired: the other side's card profile per board (outside F3)",
   'prompts:runAfters': 'not tripwired: the one-step boards the run term simulated, per answer (outside F3)',
+  'prompts:rootRdIds': "not tripwired: the R&D cards the Corp knows the place of, per board (F117 D1 (ii); read from the board's rdKnownToCorp only)",
+  'prompts:facesShown': "not tripwired: the cards a prompt board's active prompt shows by face (F117 D1 (i); core/view.ts's face rule, read once per prompt state)",
   'cards/systemGateway:rootRd': "not tripwired: the decision root's R&D, carried to its look-aheads (not a value)",
   'runner/prompt:shownByState': "freezeAsked: the cards the engine's view shows the Runner in its prompt, per board (B3; tripwired since B4a, brief rev 1d)",
 };
@@ -139,8 +141,6 @@ const CARD_COMPARISONS: Record<string, string> = {
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
-  'runner/prompt.ts: for (const c of mine?.cards ?? []) if (c.cardCode !== undefined && ids.real[c.instanceId]) out.add(ids.real[c.instanceId]);':
-    "promptShownIds: no card fact, the engine's face test (core/view.ts gives a facedown card no code; B3 commit 2)",
   'runner/prompt.ts: if (mine.cardCode === want) {': "honestPromptView: no card fact, the dealt code against the card's real one (already kept; B3 commit 2)",
   'runner/prompt.ts: const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));':
     "honestPromptView: no card fact, the slot the deal gave the shown card's identity (the swap; B3 commit 2)",
@@ -841,16 +841,23 @@ describe('AI code health (audit guards)', () => {
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
     // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
     // B1b's 16,879: corp/ 3,981, src/ai 16,939
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 16,939 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones)', () => {
+  // Then + 112 in src/ai (ai-deck-arrivals, F117 commit 1: the iceProtects and centralAccess keys carry the unseen HQ
+  // ids, handValues.ts unseenKey; valueModel.ts memo's test-only on-hit audit, item 14): src/ai 17,051
+  // Then + 6 (F117 commit 2: evaluate.ts handCount, handAndClicks' count line as its own export): src/ai 17,057
+  // Then + 5 (F117 commit 3: runner/prompt.ts promptShownIds on core/view.ts's one face rule): src/ai 17,062
+  // Then + 315 (F117 commit 4, the design: prompts.ts D1 seen arrivals, D2 M - C, D3 chain test and its budget, the
+  // one-answer scorer the Runner's 'again' path reads; turnPlanner.ts the line frame; handValues.ts withKnownCards):
+  // corp/ 3,981, src/ai 17,377
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,377 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-deck-arrivals)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(3981);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16939);
+    expect(all).toBeLessThanOrEqual(17377);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.
     const SLACK = 8;
     expect(3982 - corp).toBeLessThanOrEqual(SLACK);
-    expect(16813 - all).toBeLessThanOrEqual(SLACK);
+    expect(17377 - all).toBeLessThanOrEqual(SLACK);
   });
 });

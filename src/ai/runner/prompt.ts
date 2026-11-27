@@ -1,8 +1,7 @@
 import { CardInstance, GameAction, GameState, activePrompt, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../../core';
 import { promptCardFaces, viewShownBeforePrompts } from '../../core/view';
 import type { RunnerMemory } from '../runs';
-import { promptAnswers, scoreOutcome, simulate } from '../prompts';
-import { CARDS } from '../cards';
+import { promptAnswers, promptInPlaceIds, scoreAnswer, simulate, withChainWork } from '../prompts';
 import { freezeAsked } from '../valueModel';
 
 /**
@@ -50,21 +49,17 @@ export type PromptPath = 'view' | 'again' | 'last' | 'today';
 /**
  * The prompts that keep today's answer path, so the honest view is not built for them:
  *  - 'host': a host step during a run (which ice a program installs on: core/scripts/steps.ts RunnerHostData), pinned
- *    as known failures for R-C1 (the brief, "In a run");
- *  - 'fetch': R-93's class (rulings 19.6), a prompt that shows by face a card of the Runner's own stack other than its
- *    in-place one (a search or reveal that moves it to the grip or an install: Mutual Favor). The outcome's hand term
- *    gives the shown card no worth until R-93 lands (the Corp side's F117), so on the view every answer would tie. A
- *    known leak: today's path answers it on the real state, which reads the stack's order only through rounding.
+ *    as known failures for R-C1 (the brief, "In a run").
+ * R-93's 'fetch' class (rulings 19.6: a prompt that shows by face a card of the Runner's own stack, Mutual Favor) left
+ * with F117 (the Corp side's D1 and D2: the shown card is a seen arrival priced by its owner, and the search's install
+ * is followed), so those prompts are answered on the honest view and its known leak is closed.
  */
-export function todayPathKind(state: GameState): 'host' | 'fetch' | null {
+export function todayPathKind(state: GameState): 'host' | null {
   const prompt = activePrompt(state);
   if (!prompt || prompt.side !== 'runner') return null;
   const data = 'source' in prompt ? (prompt.source.data as Record<string, unknown> | undefined) : undefined;
   const hostStep = prompt.kind === 'effect_choice' && typeof data?.cardId === 'string' && Array.isArray(data.trashIds) && typeof data.discount === 'number';
   if (state.activeRun && hostStep) return 'host';
-  const inPlace = promptInPlaceIds(state);
-  const stack = new Set(state.runner.stack.map(c => c.instanceId));
-  for (const id of promptShownIds(state)) if (stack.has(id) && !inPlace.has(id)) return 'fetch';
   return null;
 }
 
@@ -100,16 +95,8 @@ export function promptShownIds(state: GameState): ReadonlySet<string> {
 /** promptShownIds per state (worked out once a prompt; a state is never edited once read). */
 const shownByState = new WeakMap<GameState, ReadonlySet<string>>();
 
-/** The cards the active prompt shows in place: its source entry's `promptShows.inPlace` key of the prompt's data. */
-export function promptInPlaceIds(state: GameState): Set<string> {
-  const prompt = activePrompt(state);
-  const out = new Set<string>();
-  if (!prompt || prompt.side !== 'runner' || !('source' in prompt)) return out;
-  const key = CARDS[prompt.source.cardCode]?.promptShows?.inPlace;
-  const id = key ? prompt.source.data?.[key] : undefined;
-  if (typeof id === 'string') out.add(id);
-  return out;
-}
+/** The cards the active prompt shows in place (prompts.ts owns it since F117: D1 (iii) reads it there, and prompts.ts cannot import this file). */
+export { promptInPlaceIds };
 
 /** A copy of `state` with the Corp card `id` (installed, HQ, R&D or facedown Archives) given `code`, in its place. */
 function recoded(state: GameState, id: string, code: string): GameState {
@@ -184,19 +171,24 @@ export function honestPromptAnswer(state: GameState, ports: PromptViewPorts): { 
   const { view } = honestPromptView(state, ports);
   const action = ports.answer(view);
   if (isLegalAction(state, action)) return { action, path: 'view' };
-  // The view's answer is not one the real prompt allows: the best on the view among those it allows
-  let best: GameAction | undefined;
-  let bestScore = -Infinity;
-  for (const a of promptAnswers(view, 'runner', ports.synergy)) {
-    if (!isLegalAction(state, a)) continue;
-    const after = simulate(view, a);
-    if (!after) continue;
-    const score = scoreOutcome(view, after, 'runner', ports.memory, ports.synergy);
-    if (score > bestScore) {
-      bestScore = score;
-      best = a;
+  // The view's answer is not one the real prompt allows: the best on the view among those it allows, each scored by
+  // prompts.ts's one-answer scorer (its chain and answer frame; F117, the Runner read: no copy of it here)
+  const prompt = activePrompt(view)!;
+  const best = withChainWork(view, at => {
+    let pick: GameAction | undefined;
+    let bestScore = -Infinity;
+    for (const a of promptAnswers(view, 'runner', ports.synergy)) {
+      if (!isLegalAction(state, a)) continue;
+      const after = simulate(view, a);
+      if (!after) continue;
+      const score = scoreAnswer(view, prompt, a, after, 'runner', ports.memory, ports.synergy, at);
+      if (score > bestScore) {
+        bestScore = score;
+        pick = a;
+      }
     }
-  }
+    return pick;
+  });
   if (best) return { action: best, path: 'again' };
   const first = getLegalActions(state, 'runner').find(a => a.type === 'RESOLVE_PROMPT');
   return { action: first ?? action, path: 'last' };

@@ -74,7 +74,7 @@ type Loaded = Tree & { vm: any };
 function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   for (const [name, t] of Object.entries(trees)) {
     t.clear();
-    t.vm.resetMemoAudit();
+    t.vm.memoAudit.reset();
     t.vm.memoAudit.on = true;
     const g = new t.GameRunner(dealState(t, d), { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') });
     const t0 = performance.now();
