@@ -81,6 +81,21 @@ export const HOOKS: Patch[] = [
   ],
 ];
 
+/**
+ * Speed pass (ruling-rev0.md, red team section 5; CORP=1 in core-lockstep.ts): the Corp's own scores, bit for bit, applied
+ * after HOOKS. The deciding Corp's rank list at every top-level main-phase decision (corp/core.ts's `ranked`, the list the
+ * order and the look-ahead are handed), and every rank list a Corp planner playout makes (turnPlanner.ts, the line HOOKS
+ * patches for the Runner). Separate from HOOKS so the lockstep scripts on older trees need no such line.
+ */
+export const CORP_HOOKS: Patch[] = [
+  ['ai/corp/core.ts', `  const ranked = ctx.rank(view, legal);`, `  const ranked = ctx.rank(view, legal);\n  (globalThis as any).__lkCorpRank?.(view, ranked);`],
+  [
+    'ai/turnPlanner.ts',
+    `    if (side === 'runner') (globalThis as any).__lkRank?.(now, ranked);`,
+    `    if (side === 'runner') (globalThis as any).__lkRank?.(now, ranked);\n    if (side === 'corp') (globalThis as any).__lkCorpPlanRank?.(now, ranked);`,
+  ],
+];
+
 /** Applies `patches` to the src tree under `dir` (each must match exactly once: a stop otherwise). */
 export function applyPatches(dir: string, patches: Patch[], what: string, read: (p: string) => string, write: (p: string, t: string) => void) {
   for (const [f, at, to] of patches) {
