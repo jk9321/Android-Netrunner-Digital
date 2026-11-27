@@ -23,6 +23,10 @@
  *    base's pick (`contBase`) or the branch's (`contBranch`) and played on. Both agents are the branch's and the engine's
  *    RNG is in the state, so the two differ only in that one pick. All three trees' caches are cleared after them.
  *
+ *  - CHECK=1 (R-105 bar 2(b)): the branch tree's upkeep skip runs checked (helpers.ts handUpkeepCheck: every skip taken
+ *    is compared with the walk, the look-ahead's included); each deal's line has `check` (skips compared, by walk, and
+ *    the failures with their detail), read from the branch tree's own module. Not a time leg: the check doubles the upkeep.
+ *
  *   SHARD=0/64 npx vite-node scripts/runner-rework/b4/lockstep.ts -- BASE=<sha> POOL=batch,nrdb [READS=a] [CLEAR=1] [PICKS=1 [FOLLOW=1 [CONT=1]]]
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -71,6 +75,9 @@ const CLEAR = process.env.CLEAR === '1';
 const PICKS = process.env.PICKS === '1';
 const FOLLOW = process.env.FOLLOW === '1';
 const CONT = process.env.CONT === '1';
+const CHECK = process.env.CHECK === '1';
+/** The branch tree's upkeep-skip seam (CHECK=1). */
+let upkeepCheck: { on: boolean; checked: Record<string, number>; failures: unknown[] } | null = null;
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
@@ -250,6 +257,8 @@ const memFields = (gr: any): Record<string, string> => {
   return out;
 };
 const ms: Record<Name, Record<string, number>> = { base: {}, branch: {}, control: {} };
+const checkedAt: Record<string, number> = {};
+let failedAt = 0;
 const addMs = (m: Record<string, number>, k: string, x: number) => (m[k] = (m[k] ?? 0) + x);
 function deal(pool: string, d: Deal) {
   const g = {} as Record<Name, any>;
@@ -344,17 +353,29 @@ function deal(pool: string, d: Deal) {
     for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
   }
+  let check: Record<string, unknown> | undefined;
+  if (upkeepCheck) {
+    check = { checked: Object.fromEntries(Object.entries(upkeepCheck.checked).map(([k, v]) => [k, v - (checkedAt[k] ?? 0)])), failures: upkeepCheck.failures.length - failedAt, detail: upkeepCheck.failures.slice(failedAt, failedAt + 2) };
+    Object.assign(checkedAt, upkeepCheck.checked);
+    failedAt = upkeepCheck.failures.length;
+  }
   const B = g.base.state;
   const recordSame = !diff ? (B.winner ?? null) === d.winner && key(cr) === key(d.cr) && key(sc) === key(d.sc) : null;
   for (const n of NAMES) for (const [k, v] of Object.entries(tms[n])) addMs(ms[n], k, v);
   const r1 = (x: number) => Math.round(x);
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(check && { check }), ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
 }
 
 async function main() {
   const dirs = makeTrees();
   T = {} as Record<Name, Tree>;
   for (const n of NAMES) T[n] = await loadTree(n, dirs[n]);
+  if (CHECK) {
+    upkeepCheck = (await import(/* @vite-ignore */ join(dirs.branch, 'src', 'core/engine/helpers.ts'))).handUpkeepCheck ?? null;
+    if (!upkeepCheck) throw new Error('CHECK=1: the branch tree has no handUpkeepCheck');
+    upkeepCheck.on = true;
+    Object.assign(checkedAt, upkeepCheck.checked);
+  }
   const batch: Deal[] = JSON.parse(readFileSync(`scripts/runner-rework/b4/deals-${RECORDS[0]}.json`, 'utf8'));
   const nrdb: Deal[] = JSON.parse(readFileSync(`scripts/runner-rework/b4/deals-${RECORDS[1]}.json`, 'utf8'));
   const sources: { pool: string; d: Deal }[] = [];

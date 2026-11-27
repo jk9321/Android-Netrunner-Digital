@@ -42,7 +42,7 @@ import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
-import { certainCounts } from '../src/core/engine/helpers';
+import { certainCounts, handUpkeepCheck } from '../src/core/engine/helpers';
 import type { KnownHandCard } from '../src/core/types/state';
 
 /** Every deck we have (starters, NSG samples, NRDB lists, one per identity: the beta picker draws from these). */
@@ -389,8 +389,23 @@ export interface FuzzOptions {
   keepState?: boolean;
 }
 
-/** Plays one game with every invariant checked after every action. */
+/**
+ * Plays one game with every invariant checked after every action. The upkeep skip's checked walk (R-105,
+ * handUpkeepCheck) is on for the game, the AI's look-ahead included: a skip the walk disagrees with is a failure
+ * (`hand-upkeep-skip`), read from the seam's record, since the look-ahead swallows the throw.
+ */
 export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, opts: FuzzOptions = {}): EngineFuzzResult {
+  const was = handUpkeepCheck.on;
+  handUpkeepCheck.on = true;
+  try {
+    return fuzzOneGame(seed, corp, runner, opts);
+  } finally {
+    handUpkeepCheck.on = was;
+  }
+}
+
+function fuzzOneGame(seed: number, corp: DeckList, runner: DeckList, opts: FuzzOptions): EngineFuzzResult {
+  let upkeepSeen = handUpkeepCheck.failures.length;
   const maxSteps = opts.maxSteps ?? 1500;
   const stopAtFirst = opts.stopAtFirst ?? true;
   const rng = createRng(seed ^ 0x5eed);
@@ -465,6 +480,11 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
     const res = checkInvariants(next, state, ids);
     checks += res.checks;
     record(step, action, res.failures);
+    if (handUpkeepCheck.failures.length > upkeepSeen) {
+      const fs = handUpkeepCheck.failures.slice(upkeepSeen).map(f => ({ check: 'hand-upkeep-skip', rule: '1.12.3, 10.2.2 (R-105: the skip and the walk disagree)', detail: `skips ${f.skips}, ${f.field}: skipped ${f.skipped.slice(0, 120)} / walked ${f.walked.slice(0, 120)}` }));
+      upkeepSeen = handUpkeepCheck.failures.length;
+      record(step, action, fs);
+    }
     state = next;
   }
   return {
