@@ -15,6 +15,7 @@ import { handByCard, ownHandValue, withKnownCards } from './handValues';
 import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
 import { knownToCorpInRd } from '../core/engine/rdKnowledge';
+import { memo } from './valueModel';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -112,7 +113,7 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
     // The chosen departures by the owner's difference on the board before, in place of what the count took for them (C
     // read at the board before's hand size limit: a step that moves the limit is priced where the limit is)
     const ids = new Set(chosen.map(c => c.instanceId));
-    const owner = ownHandValue(before, side) - ownHandValue(withHand(before, side, hand(before, side).filter(c => !ids.has(c.instanceId))), side);
+    const owner = ownHandBefore(before, side) - ownHandValue(withHand(before, side, hand(before, side).filter(c => !ids.has(c.instanceId))), side);
     const at = withLimit(after, side, before);
     term -= owner - (handCount(withHand(at, side, [...hand(at, side), ...chosen]), side, side) - handCount(at, side, side));
   }
@@ -123,6 +124,25 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
   const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
   return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(was, hand(was, side).filter(c => now.has(c.instanceId) || chance.includes(c)), synergy));
 }
+
+/** The frame's known hands, for a memo key of a value that reads them (the same sets give the same key). */
+function knownKey(): string {
+  const { corp, runner } = pricing().known;
+  const ids = (k: ReadonlySet<string> | null) => (k ? [...k].sort().join(',') : '-');
+  return `${ids(corp)}|${ids(runner)}`;
+}
+/** The owner's price of the hand on the board before a prompt's answers: the same for every answer, so worked out once per prompt state and frame (the departures red team's finding 10). */
+function ownHandBefore(before: GameState, side: SideCode): number {
+  return memo(before, `ownHandBefore:${side}:${knownKey()}`, () => ownHandValue(before, side));
+}
+/** A number per object, for a memo key that must tell two boards apart by identity. */
+const serials = new WeakMap<object, number>();
+const serialNext = { n: 0 };
+const serial = (o: object): number => {
+  let n = serials.get(o);
+  if (n === undefined) serials.set(o, (n = ++serialNext.n));
+  return n;
+};
 
 /** `board` with `side`'s hand size limit read from `from` (a copy, only priced). */
 function withLimit(board: GameState, side: SideCode, from: GameState): GameState {
@@ -447,12 +467,13 @@ export function scoreAnswer(
   // Chance departures: the board as each set of that many cards the damage could have taken leaves it, every set alike
   const boards = chanceBoards(state, board, side, chain.named);
   return withKnownCards(side, kept.length ? [...chain.seen, ...kept.map(c => c.instanceId)] : chain.seen, () => {
-    let total = 0;
-    for (const b of boards) {
-      const score = scoreOutcome(state, b, side, memory, synergy, frame);
-      total += finish ? finish(score, b) : score;
-    }
-    return total / boards.length;
+    const one = (b: GameState) => scoreOutcome(state, b, side, memory, synergy, frame);
+    if (boards.length === 1) return finish ? finish(one(board), board) : one(board);
+    // The averaged board's scores, worked out once per scored board, its prompt's board, answer board, frame and memory
+    // (ruling "Departures count read, time levers"): the memo audit checks every hit
+    const key = `chanceBoards:${side}:${synergy ? 1 : 0}:${knownKey()}:${serial(state)}:${serial(after)}:${[...chain.named].sort().join(',')}:${memory ? [...memory].join(';') : '-'}`;
+    const scores = memo(board, key, () => boards.map(one));
+    return boards.reduce((n, b, i) => n + (finish ? finish(scores[i], b) : scores[i]), 0) / boards.length;
   });
 }
 

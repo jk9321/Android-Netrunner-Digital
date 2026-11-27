@@ -55,6 +55,25 @@ const NOKEY: Patch[] = [
 ];
 const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: [], base: [] };
 
+/**
+ * SPLIT=1 (the time levers' ruling: split Runner main by what it calls): timers on prompts.ts in every tree, outermost
+ * call only (a nested call is inside its caller's time), read per decision by side and kind: answerPrompt (every prompt
+ * answered, in the decision's own prompt and in any look-ahead), scoreAnswer, arrivalTerms, and the chanceBoards average.
+ * Applied where the line is found (a tree without the line has no such timer); a decision's own total is in `ms`.
+ */
+const SPLIT_TIMER = `const __split = (name: string, f: (...a: any[]) => any) => (...a: any[]) => { const g = (globalThis as any).__f117split; if (!g) return f(...a); const t = performance.now(); g.depth[name] = (g.depth[name] ?? 0) + 1; try { return f(...a); } finally { if (--g.depth[name] === 0) g.ms[name] = (g.ms[name] ?? 0) + performance.now() - t; } };
+`;
+const SPLIT_PATCHES: Patch[] = [
+  ['ai/prompts.ts', `import { knownToCorpInRd } from '../core/engine/rdKnowledge';\n`, `import { knownToCorpInRd } from '../core/engine/rdKnowledge';\n${SPLIT_TIMER}`],
+  ['ai/prompts.ts', 'export function answerPrompt(', `export const answerPrompt = __split('answerPrompt', __answerPrompt);
+function __answerPrompt(`],
+  ['ai/prompts.ts', 'export function scoreAnswer(', `export const scoreAnswer = __split('scoreAnswer', __scoreAnswer);
+function __scoreAnswer(`],
+  ['ai/prompts.ts', 'function arrivalTerms(', `const arrivalTerms = __split('arrivalTerms', __arrivalTerms);
+function __arrivalTerms(`],
+  ['ai/prompts.ts', 'const scores = memo(board, key, () => boards.map(one));', `const scores = memo(board, key, __split('chanceAverage', () => boards.map(one)));`],
+];
+
 /** BASE's commit in this clone (a shallow CI checkout fetches it; the shards wait on git's shallow lock in turn). */
 function fetchBase() {
   for (let tries = 0; ; tries++) {
@@ -82,6 +101,12 @@ function makeTree(name: string): string {
   } else cpSync('src', join(dir, 'src'), { recursive: true });
   const patches = TREE_PATCHES[name];
   if (!patches) throw new Error(`no tree ${name} (${Object.keys(TREE_PATCHES).join(', ')})`);
+  if (process.env.SPLIT)
+    for (const [f, at, to] of SPLIT_PATCHES) {
+      const path = join(dir, 'src', f);
+      const text = readFileSync(path, 'utf8');
+      if (text.split(at).length === 2) writeFileSync(path, text.replace(at, () => to));
+    }
   for (const [f, at, to] of patches) {
     const path = join(dir, 'src', f);
     const text = readFileSync(path, 'utf8');
@@ -187,6 +212,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   for (const t of Object.values(trees)) t.clear();
   const g = new B.GameRunner(dealState(B, d), { corp: B.createAgent('corp', 'normal'), runner: B.createAgent('runner', 'normal') });
   const time: Record<string, Record<string, { ms: number; n: number }>> = Object.fromEntries(names.map(n => [n, {}]));
+  const splits: Record<string, Record<string, Record<string, number>>> = Object.fromEntries(names.map(n => [n, {}]));
   const prompts: Record<string, unknown>[] = [];
   const mains = { corp: { n: 0, differ: 0 }, runner: { n: 0, differ: 0 } };
   const errors: string[] = [];
@@ -205,6 +231,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         const copy = structuredClone(s);
         const agent = t.createAgent(dec.side, 'normal');
         const was = n === 'branch' ? copyStats(t.prompts.chainStats) : null;
+        const split = process.env.SPLIT ? ((globalThis as any).__f117split = { ms: {}, depth: {} }) : null;
         const t0 = performance.now();
         try {
           answers[n] = dec.kind === 'rez' ? (agent.chooseRez?.(copy, t.po.rezCandidates(copy, copy.priority!.step)) ?? null) : dec.kind === 'off' ? (agent.chooseOffTurn?.(copy) ?? null) : agent.chooseAction(copy);
@@ -216,6 +243,11 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         took[n] = Math.round((performance.now() - t0) * 10) / 10;
         k.ms += took[n];
         k.n++;
+        if (split) {
+          (globalThis as any).__f117split = null;
+          const sp = (splits[n][`${dec.side}:${dec.kind}`] ??= {});
+          for (const [name, ms] of Object.entries(split.ms as Record<string, number>)) sp[name] = (sp[name] ?? 0) + ms;
+        }
         if (was) stats = statsDelta(t.prompts.chainStats, was);
       }
       const differ = JSON.stringify(answers.base) !== JSON.stringify(answers.branch);
@@ -294,7 +326,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
     steps++;
   }
   const ms = Object.fromEntries(names.map(n => [n, Object.fromEntries(Object.entries(time[n]).map(([k, v]) => [k, { ms: Math.round(v.ms), n: v.n }]))]));
-  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, errors });
+  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, errors, ...(process.env.SPLIT ? { split: splits } : {}) });
   promptsSeen.corp = 0;
   promptsSeen.runner = 0;
 }
