@@ -1,6 +1,7 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { counters } from '../core/engine/cardEffects';
+import { runnerRootKinds } from '../core/engine/helpers';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
@@ -341,7 +342,8 @@ export function corpBoardValue(state: GameState, viewer: SideCode): number {
         // plan.oneAgendaGuess (code audit cleanup item 9): the odds the run choice uses (runs.ts remoteAgendaOdds: more
         // likely an agenda behind ice, and an advanced card one unless it's a trap), so a run doesn't look worth making
         // while the board says the card isn't worth stealing, or the other way round
-        const agenda = plan().oneAgendaGuess && server.isRemote ? remoteAgendaOdds(state, server, card, 1 / 3) : odds.agenda;
+        // B4b (d), R-99: no agenda share where the root allows none (runnerRootKinds: 3.6.1, 3.2.1, 3.3.1)
+        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 : plan().oneAgendaGuess && server.isRemote ? remoteAgendaOdds(state, server, card, 1 / 3) : odds.agenda;
         value += agenda * agendaWorth(state, card.advancementCounters, odds.agendaCost, odds.agendaPoints, server.id) + (1 - agenda) * odds.other;
         continue;
       }

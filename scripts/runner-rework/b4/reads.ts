@@ -88,6 +88,17 @@ export const READ_HOOKS: Record<string, Patch[]> = {
       `  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));\n  const __old = new Set((state.runner.knownToCorp ?? []).map(k => k.id));\n${L}  if (state.runner.grip.some(c => known.has(c.instanceId) !== __old.has(c.instanceId))) ${fire('g3')};\n`,
     ],
   ],
+  // B4b (a) the deal by kind: an upgrade-only slot, or a remote root that already holds its one agenda or asset
+  Ba: [
+    ['ai/runnerReply.ts', `  for (const card of upgradeOnly) card.cardCode =`, `${L}  if (upgradeOnly.size) ${fire('Ba')};\n  for (const card of upgradeOnly) card.cardCode =`],
+    ['ai/runnerReply.ts', `    const server = serverOf.get(card);\n`, `    const server = serverOf.get(card);\n${L}    if (holdsOne.has(server)) ${fire('Ba')};\n`],
+  ],
+  // B4b (b) remoteAgendaOdds by kind: a card whose root allows no agenda, or a remote root with more than one facedown card
+  Bb: [['ai/runs.ts', `  if (fact && !fact.kinds.includes('agenda')) return 0;\n`, `${L}  if (fact && (!fact.kinds.includes('agenda') || fact.joint.length)) ${fire('Bb')};\n  if (fact && !fact.kinds.includes('agenda')) return 0;\n`]],
+  // B4b (c) the trap share by kind: a root card that can only be an upgrade (today's share was min(1 - agenda, trap))
+  Bc: [['ai/runs.ts', `      const trapShare = runnerRootKinds(state, card)?.kinds.length === 1 ? 0 : Math.min(1 - agenda, trap);\n`, `      const trapShare = runnerRootKinds(state, card)?.kinds.length === 1 ? 0 : Math.min(1 - agenda, trap);\n${L}      if (trapShare !== Math.min(1 - agenda, trap)) ${fire('Bc')};\n`]],
+  // B4b (d) corpBoardValue's agenda share by kind (evaluate.ts, the Runner's view of the board): a root that allows none
+  Bd: [['ai/evaluate.ts', `        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 :`, `${L}        if (runnerRootKinds(state, card)?.kinds.includes('agenda') === false) ${fire('Bd')};\n        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 :`]],
   // Bar 3's part (trace only): the Hard determinize ran (SearchAI, Hard only; Hard is off in the batch pools)
   H: [['ai/search.ts', `        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`, `${L}        ${fire('H')};\n        const world = determinize(state, this.side, mulberry(seed), this.memory);\n`]],
   // Gap 1 (trace only; the engine at e31c807): the HQ list drops, or keeps uncounted, a card the Runner followed into R&D

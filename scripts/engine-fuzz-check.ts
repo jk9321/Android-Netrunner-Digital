@@ -299,6 +299,13 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     check(at >= e.lo && at <= e.hi, 'runner-rd-memory-in-place', '4.2.3, 10.2.2b', () => `the Runner places ${e.id} (${e.code}) at R&D ${e.lo}-${e.hi}${e.n0 ? ` (shared, n0 ${e.n0})` : ''}, it is at ${at}`);
   }
 
+  // The root cards the Runner knows are upgrades (B4b): each is one, facedown, in a root (3.2.1, 3.3.1, 4.6.6e, 1.12.3)
+  const roots = new Map(Object.values(state.corp.servers).flatMap(sv => sv.root.map(c => [c.instanceId, c] as const)));
+  for (const id of state.corp.rootUpgradesKnownToRunner ?? []) {
+    const c = roots.get(id);
+    check(!!c && getCardDefinition(c.cardCode).type_code === 'upgrade', 'runner-root-upgrade-known', '3.2.1, 3.3.1, 4.6.6e, 1.12.3', () => `the Runner knows ${id} is an upgrade: ${c ? getCardDefinition(c.cardCode).type_code : 'not in a root'}`);
+  }
+
   // --- Turn number never goes back ---
   if (prev) check(state.turnNumber >= prev.turnNumber, 'turn-number-grows', '5.1.1', () => `turn ${prev.turnNumber} -> ${state.turnNumber}`);
 

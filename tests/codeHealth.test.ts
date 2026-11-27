@@ -839,12 +839,21 @@ describe('AI code health (audit guards)', () => {
   // 16,813: corp/ 3,982, src/ai 16,872
   // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
-    // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
-    // B1b's 16,879: corp/ 3,981, src/ai 16,939
+  // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
+  // B1b's 16,879: corp/ 3,981, src/ai 16,939
   // Then + 28 in src/ai (ai-b4a-knowledge-fix, R-109: runnerReply.ts's safety net, a deal whose slot finds no code is
   // dealt again unkept in play, counted and logged; a throw under frameChecks): corp/ 3,981, src/ai 16,967
   // Then + 34 in src/ai (ai-tag-clock-input, F114 + F110 brief rev 2, ruling 3: valueModel.ts creditsLessCost, evaluate.ts
   // tagLoss's trash cost with N1 and the per-view punisher, their comments), on R-109's 16,967: corp/ 3,981, src/ai 17,001
+  // B4b, merged after the tag clock (totals on its 17,001).
+  // Then + 16 in src/ai (ai-runner-hidden-zones, B4b (a): the deal gives a root slot only a kind it can be, with its
+  // comment): corp/ 3,981, src/ai 17,017
+  // Then + 5 in src/ai (ai-runner-hidden-zones, B4b (b): remoteAgendaOdds reads the root kinds, with its comment and
+  // import): corp/ 3,981, src/ai 17,022
+  // Then + 1 in src/ai (ai-runner-hidden-zones, B4b (c): no trap share in an upgrade-only root card, with its comment):
+  // corp/ 3,981, src/ai 17,023
+  // Then + 2 in src/ai (ai-runner-hidden-zones, B4b (d): corpBoardValue's agenda share by root kind, its comment and
+  // import; evaluate.ts open for this hunk only, Corp side rev 1c): corp/ 3,981, src/ai 17,025
   // Then, measured on B1b's 16,939 (before the merge of beta b744f03): + 112 in src/ai (ai-deck-arrivals, F117 commit 1:
   // the iceProtects and centralAccess keys carry the unseen HQ
   // ids, handValues.ts unseenKey; valueModel.ts memo's test-only on-hit audit, item 14): src/ai 17,051
@@ -864,13 +873,15 @@ describe('AI code health (audit guards)', () => {
   // memoised per scored board, knownKey, serial): src/ai 17,531
   // Then - 9 (F117 lever 2 dropped, ruled: the chanceBoards memo never hit, 0 hits in 331 deals; serial gone): src/ai 17,522
   // Then the merge of beta b744f03 (R-109, the tag clock) into ai-deck-arrivals: F117's + 583 above (on 16,939 to 17,522)
-  // on beta's 17,001: src/ai 17,584
+  // on beta's 17,001: src/ai 17,584 (F117 measured on the tag clock's 17,001, before B4b)
   // Then - 46 (F117 chanceBoards removed, ruled 15:45Z: chance departures priced as base, no averaging; hqChanceLoss as on
   // beta, chanceSets and CHANCE_SETS gone): src/ai 17,538
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,538 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-deck-arrivals)', () => {
+  // Then the merge of beta 7724180 (B4b) into ai-deck-arrivals: F117's + 537 on the tag clock's 17,001 (to 17,538), on B4b's
+  // 17,025: src/ai 17,562
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,562 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-deck-arrivals)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3981;
-    const AI_CAP = 17538;
+    const AI_CAP = 17562;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
