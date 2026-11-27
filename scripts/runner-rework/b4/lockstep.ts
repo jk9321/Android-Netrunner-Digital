@@ -252,6 +252,8 @@ const KN_DUMP = process.env.KN_DUMP === '1';
  * more, which a B4c part must never do); plus the branch's 4(b) merges and those that forgot a copy still in HQ.
  */
 const STEP0 = process.env.STEP0 === '1';
+const STEP0_DUMP = process.env.STEP0_DUMP === 'full' ? 'full' : process.env.STEP0_DUMP === '1';
+let step0Stops = 0;
 let certainOf: Record<Name, { hand: (s: GameState, o: string) => [string, number][]; arch: (s: GameState) => [string, number][] }>;
 function certainDiff(a: GameState, b: GameState) {
   const res: Record<string, { differ: boolean; more: boolean }> = {};
@@ -304,7 +306,7 @@ function deal(pool: string, d: Deal) {
   let diff: Record<string, unknown> | null = null;
   let steps = 0;
   let kn: { step: number; T: number } | null = null;
-  const c0: Record<string, { steps: number; onsets: number; more: number; was: boolean }> = {};
+  const c0: Record<string, { steps: number; onsets: number; more: number; was: boolean; wasMore?: boolean }> = {};
   const g0 = globalThis as any;
   const merges0 = [g0.__b4cMerges ?? 0, g0.__b4cForgot ?? 0];
   const fires: Record<string, number> = {};
@@ -327,6 +329,7 @@ function deal(pool: string, d: Deal) {
     const stepFires: Record<string, number> = {};
     const order = NAMES.map((_, k) => NAMES[(k + i) % NAMES.length]);
     const prevBranch: GameState = g.branch.state;
+    const prevBase: GameState = g.base.state;
     let memAt: string[] = [];
     const knBefore = KN_DUMP ? knDiff(g.base.state, g.branch.state) : undefined;
     if (MEM_DUMP) {
@@ -351,14 +354,6 @@ function deal(pool: string, d: Deal) {
     }
     steps++;
     if (!kn && knowledge(g.base.state) !== knowledge(g.branch.state)) kn = { step: i, T: g.base.state.turnNumber };
-    if (STEP0)
-      for (const [zone, r] of Object.entries(certainDiff(g.base.state, g.branch.state))) {
-        const z = (c0[zone] ??= { steps: 0, onsets: 0, more: 0, was: false });
-        if (r.differ) z.steps++;
-        if (r.differ && !z.was) z.onsets++;
-        if (r.more) z.more++;
-        z.was = r.differ;
-      }
     const same = (a: Name, b: Name) => res[a].n === res[b].n && res[a].h === res[b].h && more[a] === more[b];
     const pick = (n: Name) => key(g[n].last).slice(0, 160);
     const samePick = more.base === more.branch && key(g.base.last) === key(g.branch.last);
@@ -391,6 +386,21 @@ function deal(pool: string, d: Deal) {
       };
       break;
     }
+    // after FOLLOW has played base's pick on the branch: a changed pick's own (unplayed) board is not counted
+    if (STEP0)
+      for (const [zone, r] of Object.entries(certainDiff(g.base.state, g.branch.state))) {
+        const z = (c0[zone] ??= { steps: 0, onsets: 0, more: 0, was: false });
+        if (r.differ) z.steps++;
+        if (r.differ && !z.was) z.onsets++;
+        if (r.more) z.more++;
+        // STEP0_DUMP=1: each step where a zone's certain counts start to differ, or the branch starts to count higher, with
+        // the played action, both trees' counts and the knowledge entries only one tree holds (to trace a step 0 difference)
+        if (STEP0_DUMP && ((r.differ && !z.was) || (r.more && !z.wasMore)))
+          out({ kind: 'step0', pool, seed: d.seed, zone, step: i, T: g.base.state.turnNumber, more: r.more, act: key(g.base.last).slice(0, 200), base: certainOf.base[zone === 'arch' ? 'arch' : 'hand'](g.base.state, zone === 'grip' ? 'runner' : 'corp'), branch: certainOf.branch[zone === 'arch' ? 'arch' : 'hand'](g.branch.state, zone === 'grip' ? 'runner' : 'corp'), kn: knDiff(g.base.state, g.branch.state), knPrev: knDiff(prevBase, prevBranch), ...(STEP0_DUMP === 'full' && { hqBefore: prevBase.corp.hq.map(c => `${c.instanceId}:${c.cardCode}`), gripBefore: prevBase.runner.grip.map(c => `${c.instanceId}:${c.cardCode}`), listBefore: { base: [prevBase.corp.knownToRunner, prevBase.runner.knownToCorp], branch: [prevBranch.corp.knownToRunner, prevBranch.runner.knownToCorp] }, listAfter: { base: [g.base.state.corp.knownToRunner, g.base.state.runner.knownToCorp], branch: [g.branch.state.corp.knownToRunner, g.branch.state.runner.knownToCorp] }, log: (g.base.state.log ?? []).slice(-6) }) });
+        if (STEP0_DUMP === 'full' && ((r.differ && !z.was) || (r.more && !z.wasMore)) && process.env.STEP0_STOP && ++step0Stops >= Number(process.env.STEP0_STOP)) process.exit(0);
+        z.was = r.differ;
+        z.wasMore = r.more;
+      }
     played.push(key(g.base.last));
     for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
