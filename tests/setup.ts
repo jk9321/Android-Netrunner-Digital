@@ -1,6 +1,7 @@
 import { afterEach, expect } from 'vitest';
 import { askedFreeze } from '../src/ai/valueModel';
 import { frameChecks } from '../src/ai/pricing';
+import { chainStats, runTermStats } from '../src/ai/diagnostics';
 import { handUpkeepCheck } from '../src/core/engine/helpers';
 import { appendFileSync } from 'node:fs';
 
@@ -31,6 +32,10 @@ askedFreeze.on = true;
 
 /** B1b (brief rev 1 item 3): a pricing frame is never written; in the tests a write to a frame, its known record, leaves, anchor or a Set it holds throws. R-109: the Runner's deal keeps its tripwire too (a slot with no code throws, no fallback). */
 frameChecks.on = true;
+
+/** Speed pass lever A: the chain and run term counts are diagnostics, off in play; the tests read them, so they count here. */
+chainStats.on = true;
+runTermStats.on = true;
 
 /** R-105 (brief rev 1 rulings 1, 2 and 4): every upkeep skip is checked against the walk in the tests; a difference is recorded and throws. */
 handUpkeepCheck.on = true;

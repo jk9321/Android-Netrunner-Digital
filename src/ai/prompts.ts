@@ -16,6 +16,8 @@ import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
 import { knownToCorpInRd } from '../core/engine/rdKnowledge';
 import { memo } from './valueModel';
+import { chainStats, runTermStats, runnerOtherKinds } from './diagnostics';
+export { chainStats, runTermStats, runnerOtherKinds };
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -359,20 +361,7 @@ export interface ChainAt {
  */
 export const CHAIN_BUDGET = { size: 150 };
 class ChainBudgetOut extends Error {}
-/**
- * F117 step 0 counts (item 5, bar 10): widened chains by source and depth (`widened`), their prompts answered on the
- * decision's own root by the Runner (`rootRunner`: the 'today' path's class, must be 0), prompts whose chains ran past
- * the budget (`capped`, by source), cards left set aside at a chain's end and priced as held (`aside`, by source and why:
- * another prompt waiting (a cut), no prompt, the depth limit, or one step), and the scored answers per answered prompt
- * whose chains scored any (`used`).
- */
-export const chainStats = {
-  widened: new Map<string, number>(),
-  rootRunner: 0,
-  capped: new Map<string, number>(),
-  aside: new Map<string, number>(),
-  used: [] as number[],
-};
+// The chain counts (chainStats) and the run term's (runTermStats, runnerOtherKinds) live in diagnostics.ts
 const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
 const sourceOf = (state: GameState) => {
   const p = activePrompt(state);
@@ -383,11 +372,11 @@ export function withChainWork<T>(state: GameState, fn: (at: ChainAt) => T): T {
   const work: ChainWork = { left: CHAIN_BUDGET.size, used: 0, oneStep: false };
   try {
     const out = fn({ work, depth: 0 });
-    if (work.used > 0 && chainStats.used.length < 1e6) chainStats.used.push(work.used);
+    if (chainStats.on && work.used > 0 && chainStats.used.length < 1e6) chainStats.used.push(work.used);
     return out;
   } catch (e) {
     if (!(e instanceof ChainBudgetOut)) throw e;
-    bump(chainStats.capped, sourceOf(state));
+    if (chainStats.on) bump(chainStats.capped, sourceOf(state));
     return fn({ work: { left: Infinity, used: 0, oneStep: true }, depth: 0 });
   }
 }
@@ -426,7 +415,7 @@ export function scoreAnswer(
   const kept = (chain.board.setAside ?? []).filter(c => !(state.setAside ?? []).some(b => b.instanceId === c.instanceId) && cardDef(c).side_code === side);
   let board = chain.board;
   if (kept.length) {
-    bump(chainStats.aside, `${'source' in prompt ? prompt.source.cardCode : prompt.kind}:${chain.stop}`);
+    if (chainStats.on) bump(chainStats.aside, `${'source' in prompt ? prompt.source.cardCode : prompt.kind}:${chain.stop}`);
     const ids = new Set(kept.map(c => c.instanceId));
     board = withHand({ ...board, setAside: (board.setAside ?? []).filter(c => !ids.has(c.instanceId)) }, side, [...hand(board, side), ...kept]);
   }
@@ -838,8 +827,10 @@ function followChain(
     if (!identity) {
       const id = next.source.data?.cardId;
       if (typeof id !== 'string' || !answerNames(undefined, last).has(id)) return out(state, 'end');
-      bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
-      if (at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
+      if (chainStats.on) {
+        bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
+        if (at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
+      }
     }
     const inner: ChainAt = { work: at.work, depth: at.depth + depth + 1 };
     const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));
@@ -870,14 +861,6 @@ function followChain(
  * answer among them wins). Null, and today's answer, when the run stakes nothing (runLoss 0: nothing to price), when the
  * walk cannot say for an answer, or when the answers do not separate.
  */
-/**
- * The run term's asks (a run that stakes something) and the ones it decided (the answers separated), for the time report;
- * with ruling 10's counts: settles stopped at the depth cap (`capped`), at a Runner prompt that is not the encountered
- * ice's (`runnerOther`), and decisions whose pick lets the Runner in with an answer that keeps it out (`inPick`).
- */
-export const runTermStats = { asked: 0, decided: 0, capped: 0, runnerOther: 0, inPick: 0 };
-/** `runnerOther` by the prompt (its card and step, or its kind) and the run's phase, for the fire run's report (ruling 11.2). */
-export const runnerOtherKinds = new Map<string, number>();
 /** The one-step boards the run term simulated, by answer, for the fallback on the same state (the same simulate, not done twice). */
 const runAfters = new WeakMap<GameState, Map<string, GameState>>();
 
@@ -889,7 +872,7 @@ function runAnswer(state: GameState, memory: RunnerMemory | undefined, synergy: 
   if (!(loss > 0)) return null;
   const options = promptAnswers(state, 'corp', synergy);
   if (options.length < 2) return null;
-  runTermStats.asked++;
+  if (runTermStats.on) runTermStats.asked++;
   const outs: { action: GameAction; after: GameState; key: string; verdict: () => 'in' | 'out' }[] = [];
   const afters = new Map<string, GameState>();
   runAfters.set(state, afters);
@@ -908,9 +891,9 @@ function runAnswer(state: GameState, memory: RunnerMemory | undefined, synergy: 
   if (!verdicts.includes('in') || !verdicts.includes('out')) return null;
   const priced = outs.map((o, k) => runPrice(state, prompt, o.action, o.after, memory, synergy, at) - (verdicts[k] === 'in' ? loss : 0));
   const best = Math.max(...priced);
-  runTermStats.decided++;
+  if (runTermStats.on) runTermStats.decided++;
   const picks = outs.filter((_, k) => priced[k] >= best - 1e-9);
-  if (picks.some(o => verdicts[outs.indexOf(o)] === 'in')) runTermStats.inPick++;
+  if (runTermStats.on && picks.some(o => verdicts[outs.indexOf(o)] === 'in')) runTermStats.inPick++;
   return picks.map(o => o.action);
 }
 
@@ -957,7 +940,7 @@ export function settledStand(board: GameState, server: string, synergy = false, 
   const run = board.activeRun;
   if (p && p.side === 'corp' && run && run.server === server && !board.winner) {
     if (depth >= SETTLE_DEPTH) {
-      runTermStats.capped++;
+      if (runTermStats.on) runTermStats.capped++;
       return { key: NOT_KNOWN, verdict: () => NOT_KNOWN };
     }
     const subs: SettledStand[] = [];
@@ -973,7 +956,7 @@ export function settledStand(board: GameState, server: string, synergy = false, 
     return { key, verdict: () => (subs.some(x => x.verdict() === 'out') ? 'out' : 'in') };
   }
   const stand = corpPorts.runStands(board, server);
-  if (p && p.side === 'runner' && run?.server === server && stand?.key === 'in' && !board.winner && !run.breached && !run.isSuccessful && run.phase !== 'access') {
+  if (runTermStats.on && p && p.side === 'runner' && run?.server === server && stand?.key === 'in' && !board.winner && !run.breached && !run.isSuccessful && run.phase !== 'access') {
     runTermStats.runnerOther++;
     const kind = `${'source' in p ? `${p.source.cardCode}:${p.source.step}` : p.kind} ${run.phase}`;
     runnerOtherKinds.set(kind, (runnerOtherKinds.get(kind) ?? 0) + 1);

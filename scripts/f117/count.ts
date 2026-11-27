@@ -458,6 +458,8 @@ async function main() {
     const t = (await loadTree(name, dir)) as Loaded;
     t.vm = await import(/* @vite-ignore */ join(dir, 'src', 'ai/valueModel.ts'));
     t.prompts = await import(/* @vite-ignore */ join(dir, 'src', 'ai/prompts.ts'));
+    // The chain counts are counted only with `on` (speed pass lever A; a tree from before it has no flag and counts anyway)
+    if (t.prompts.chainStats) t.prompts.chainStats.on = true;
     t.po = await import(/* @vite-ignore */ join(dir, 'src', 'ai/playout.ts'));
     trees[name] = t;
   }

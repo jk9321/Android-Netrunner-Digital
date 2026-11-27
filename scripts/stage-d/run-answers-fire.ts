@@ -66,6 +66,8 @@ async function tree(name: string, root: string): Promise<Tree> {
   const ev = await m('ai/effectValues.ts');
   const vm = await m('ai/valueModel.ts');
   const prompts = await m('ai/prompts.ts');
+  // The run term's counts are counted only with `on` (speed pass lever A; a tree from before it has no flag and counts anyway)
+  if (prompts.runTermStats) prompts.runTermStats.on = true;
   const hold = await m('ai/corp/hold.ts');
   return {
     name,
