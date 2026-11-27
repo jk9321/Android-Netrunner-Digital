@@ -10,7 +10,7 @@ import { corpPorts } from './corpPorts';
 import { iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
-import { plan, pricing } from './pricing';
+import { frameKeys, plan, pricing } from './pricing';
 import { handByCard, ownHandValue, withKnownCards } from './handValues';
 import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
@@ -127,15 +127,15 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
   return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(was, hand(was, side).filter(c => now.has(c.instanceId) || chance.includes(c)), synergy));
 }
 
-/** The frame's known hands, for a memo key of a value that reads them (the same sets give the same key). */
-function knownKey(): string {
-  const { corp, runner } = pricing().known;
-  const ids = (k: ReadonlySet<string> | null) => (k ? [...k].sort().join(',') : '-');
-  return `${ids(corp)}|${ids(runner)}`;
-}
-/** The owner's price of the hand on the board before a prompt's answers: the same for every answer, so worked out once per prompt state and frame (the departures red team's finding 10). */
-function ownHandBefore(before: GameState, side: SideCode): number {
-  return memo(before, `ownHandBefore:${side}:${knownKey()}`, () => ownHandValue(before, side));
+/**
+ * The owner's price of the hand on the board before a prompt's answers: the same for every answer, so worked out once per
+ * prompt state and frame (the departures red team's finding 10). Keyed with the frame's whole context (frameKeys().context:
+ * frozen, both known hands, the anchor, the decision seed, rezzingToUse), not only the known hands: ownHandValue prices an
+ * unseen card at the root's deck prices under `frozen` and reads the anchor's credits (tracker F128; speed pass red team
+ * finding 4). Exported for tests/speedPassKeys.test.ts.
+ */
+export function ownHandBefore(before: GameState, side: SideCode): number {
+  return memo(before, `ownHandBefore:${side}:${frameKeys().context}`, () => ownHandValue(before, side));
 }
 
 /** `board` with `side`'s hand size limit read from `from` (a copy, only priced). */
