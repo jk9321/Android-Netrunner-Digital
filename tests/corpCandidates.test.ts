@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GameAction, GameState, getLegalActions } from '../src/core';
 import { HeuristicCorpAI } from '../src/ai';
 import { asSide, plan, withPricing } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { newDiagnostics } from '../src/ai/diagnostics';
 import { Candidate, RankedCandidate, asRanked, corpCandidates, plannerIntake } from '../src/ai/corp/candidates';
 import { PLANNER } from '../src/ai/turnPlanner';
@@ -19,7 +19,7 @@ const read = (name: string): GameState => JSON.parse(readFileSync(new URL(`./fix
 const FIXTURES = ['ice-redirect-1001-t10.json', 'ice-redirect-1411-t6.json', 'money-1001-t1.json', 'asset-cover-r39-t6.json', 'planner-build-2.json', 'hidden-draws-1001-t10.json'];
 const core = <T>(f: () => T, extra: Record<string, unknown> = {}): T => withPricing({ plan: { ...plan(), ...extra } }, f);
 const candidates = (s: GameState): Candidate[] =>
-  core(() => asSide('corp', () => (decisionContext(s, 'corp'), corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false }))));
+  core(() => asSide('corp', () => inDecision(s, 'corp', () => corpCandidates(s, getLegalActions(s, 'corp'), { held: null, freeExhausted: false }))));
 const key = (a: GameAction) => JSON.stringify(Object.fromEntries(Object.entries(a).sort()));
 const cardOf = (a: GameAction) => ('cardInstanceId' in a ? (a.cardInstanceId as string) : undefined);
 

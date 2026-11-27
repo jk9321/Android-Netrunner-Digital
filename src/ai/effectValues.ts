@@ -5,7 +5,7 @@ import { PAYOUT_RISK } from './payoutRisk';
 import { COUNTER_WORTH, defaultWorth } from './counterValues';
 import { CARDS, advancePayloadOf, corpFormula, runnerFormula } from './cards';
 import { actingSide } from './synergy';
-import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, sideCards, stateEntries } from './valueModel';
+import { CLICK, cardRate, flatlineWorth, logValue, memo, pointGain, sideCards, stateEntries, clearStateEntries } from './valueModel';
 import { agendaWorth, tagsWorth } from './evaluate';
 import { BLOCK, iceCost, iceCreditNeed, isTrap, plannedSubroutines, subroutineCost, tankDamage } from './runs';
 import { plan, pricing, withPricing } from './pricing';
@@ -366,13 +366,11 @@ function cardDamage(code: string): number {
  * the GameState object, the inner key is what is not in the state (skipIce, own). Before, a string key of counts left
  * which cards were out of the pool to chance, and 10.4% of checked hits were another board's value (the count's A).
  */
-let threats = new WeakMap<GameState, Map<string, { burst: number; share: number }>>();
+const threats = new WeakMap<GameState, Map<string, { burst: number; share: number }>>();
 /** damageThreat's on-hit audit (test-only): with `on`, every value served from the map is worked out again and compared. */
 export const threatsAudit = { on: false, checked: 0, mismatches: 0, errors: [] as number[], burstErrors: 0 };
-/** Empties damageThreat's map (test-only: scripts/cache-bisect.ts): a WeakMap can't be cleared, so a new one. */
-export const clearDamageThreats = (): void => {
-  threats = new WeakMap();
-};
+/** Empties damageThreat's map (test-only: scripts/cache-bisect.ts): a WeakMap can't be cleared, so a new generation (valueModel clearStateEntries). */
+export const clearDamageThreats = (): void => clearStateEntries(threats);
 
 /**
  * The Corp's damage threat (the damage clock, Jeff 2026-10-28): the biggest

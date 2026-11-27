@@ -12,7 +12,7 @@ import { ALL_CARDS, CardInstance, GameState, getCardScript } from '../../src/cor
 import { createCardInstance } from '../../src/core/engine/gameState';
 import { bestBreakPlan, iceCreditNeed, icePrice, plannedSubroutines, subroutineCost } from '../../src/ai/runs';
 import { asSide, plan, withPricing } from '../../src/ai/pricing';
-import { decisionContext } from '../../src/ai/handValues';
+import { inDecision } from '../../src/ai/handValues';
 import { newGame } from '../../tests/helpers';
 
 export const GOLDEN_FILE = 'tests/fixtures/stage-d/golden-prices.json';
@@ -59,8 +59,7 @@ export function iceRows(iceCode: string): string[] {
     for (const [k, b] of BOARDS.entries()) {
       const { s, ice } = board(b, iceCode, breaker);
       const row = withPricing({ plan: { ...plan() } }, () =>
-        asSide('corp', () => {
-          decisionContext(s, 'corp');
+        asSide('corp', () => inDecision(s, 'corp', () => {
           const subs = plannedSubroutines(s, ice);
           const p = icePrice(s, ice);
           const plans = subs.map((_, i) => {
@@ -68,7 +67,7 @@ export function iceRows(iceCode: string): string[] {
             return bp ? [bp.breaker.cardCode, round(bp.credits), round(bp.value), bp.boostsNeeded, !!bp.boostByAbility, !!bp.breakByAbility] : null;
           });
           return [subs.map(x => round(subroutineCost(s, x.label))), [round(p.credits), round(p.value), round(p.damage ?? 0)], round(iceCreditNeed(s, ice)), plans];
-        }),
+        })),
       );
       rows.push(`${breaker ?? '-'} ${k} ${JSON.stringify(row)}`);
     }

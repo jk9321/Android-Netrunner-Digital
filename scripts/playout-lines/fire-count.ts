@@ -19,19 +19,20 @@ import { HeldLine, heldLaterStep, isCorpMain } from '../../src/ai/corp/lines';
 import { lineStep, scoreInTwoPick } from '../../src/ai/corp/placement';
 import { keepsScore, scoreNowPlan, winNowAction } from '../../src/ai/winNow';
 import { answerPrompt } from '../../src/ai/prompts';
-import { decisionContext } from '../../src/ai/handValues';
+import { inDecision } from '../../src/ai/handValues';
 import { moneyPick } from '../../src/ai/incomeLine';
 import { plan } from '../../src/ai/pricing';
 import { newDiagnostics, tally, Diagnostics } from '../../src/ai/diagnostics';
-import { holdPricing } from '../../src/ai/pricing';
+import { withPricing } from '../../src/ai/pricing';
 import { planTurn } from '../../src/ai/turnPlanner';
 import { runnerReply } from '../../src/ai/runnerReply';
 import { plannerIntake } from '../../src/ai/corp/candidates';
 import { clearCaches, forEachRecorded } from '../stage-a/harness';
 
 /** beta b7c4917 corp/core.ts corpDecide, verbatim but for comments (check (a)). */
-function OLD_CORP_DECIDE(state: GameState, ctx: CorpContext): GameAction {
-  decisionContext(state, 'corp');
+// B1b: the old note at its top is the frame its decision runs in (handValues.ts inDecision)
+const OLD_CORP_DECIDE = (state: GameState, ctx: CorpContext): GameAction => inDecision(state, 'corp', () => OLD_CORP_DECIDE_BODY(state, ctx));
+function OLD_CORP_DECIDE_BODY(state: GameState, ctx: CorpContext): GameAction {
   if (ctx.counted) {
     const win = winNowAction(state);
     if (win) {
@@ -122,17 +123,14 @@ function decide(s: GameState, arm: Arm, held: HeldLine | null) {
     const k = `${why}: ${pick ? pick.type : 'none'} -> ${played.type}`;
     takes[k] = (takes[k] ?? 0) + 1;
   };
-  const undo = holdPricing({ diagnostics: d });
-  try {
+  return withPricing({ diagnostics: d }, () => {
     const agent = agentFor(arm, held) as unknown as { chooseAction(s: GameState): GameAction; memory: { heldLine: HeldLine | null } };
     clearCaches();
     const copy = structuredClone(s);
     const t = performance.now();
     const a = agent.chooseAction(copy);
     return { a: key(a), action: a, ms: Math.round(performance.now() - t), d, held: agent.memory.heldLine, cands: cands as { values: number[]; actions: string[] } | null, takes };
-  } finally {
-    undo();
-  }
+  });
 }
 
 const pl = (d: Diagnostics) => d.playoutLine;

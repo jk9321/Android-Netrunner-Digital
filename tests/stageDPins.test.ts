@@ -6,7 +6,7 @@ import { HeuristicCorpAI, createAgent } from '../src/ai';
 import { giveCard, installCorpForTest, installIceForTest, installProgramForTest, newGame } from './helpers';
 import { serverHold } from '../src/ai/corp/hold';
 import { asSide } from '../src/ai/pricing';
-import { decisionContext } from '../src/ai/handValues';
+import { inDecision } from '../src/ai/handValues';
 import { corpDecisionView } from '../src/ai/turnPlanner';
 import { oracleGetsIn, oracleStart } from '../scripts/stage-d/hold-oracle';
 
@@ -285,7 +285,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // Armaments; 6.8.5, 6.9.6d) and run again. Each board's truth is checked by the engine oracle, which plays the Runner's
   // whole turn with failed runs allowed.
   describe('the failed first run (item 1 follow-up)', () => {
-    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
     const holds = (s: GameState, server: string, corp = s.corp.credits) => inCorp(s, () => serverHold(s, server, { when: 'runnerTurn', corpCredits: corp }).holds);
     // Ping's board: Lamplighter rezzed, Ping unrezzed outside it, Cleaver, $10 and 4 clicks. Ping's rez tags the Runner and
     // Lamplighter ends the run; the Runner clears the tag and runs again past Ping already rezzed (no new tag)
@@ -337,7 +337,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // questions, the hold row's debt line in docs/ai-priced-quantities.md): known-failing until Knickknack is counted
   // exactly.
   describe('"Knickknack" O\'Brian counted as a bound (ai-runner-money part 1)', () => {
-    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
     const knickknack = () => JSON.parse(readFileSync(new URL('./fixtures/hold-walk/knickknack-54-t7-remote2.json', import.meta.url), 'utf8')) as { server: string; opts: { corpCredits: number }; state: GameState };
 
     it("the board's truth: the oracle finds no way in over the Runner's whole turn", { timeout: T }, () => {
@@ -365,7 +365,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // by design ("measuring only"). Both readers counted failed their marks, so Madani is parked until the Runner rework:
   // known-failing until then.
   describe("Madani's hosted programs (parked until the Runner rework, found row 70a)", () => {
-    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
     const board = () => {
       const { s, recorded } = at(40, 67);
       expect(recorded).toMatchObject({ type: 'INSTALL_CARD', targetServerId: 'remote-2' });
@@ -387,8 +387,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       const { s } = board();
       expect(inCorp(s, () => {
         const v = corpDecisionView(s);
-        decisionContext(v, 'corp');
-        return serverHold(v, 'remote-2', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds;
+        return inDecision(v, 'corp', () => serverHold(v, 'remote-2', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds);
       })).toBe(false);
     });
   });
@@ -412,7 +411,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   // the Corp rezzes Syailendra, and Unity boosts and breaks. Known-failing until the count's earnings read the runs a
   // turn's cards start.
   describe('Side Hustle fed by runs other cards start (found row 80a)', () => {
-    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => (decisionContext(s, 'corp'), f()));
+    const inCorp = <X>(s: GameState, f: () => X): X => asSide('corp', () => inDecision(s, 'corp', () => f()));
     const board = () => {
       const { s, recorded } = at(33, 308);
       expect(recorded).toMatchObject({ type: 'DRAW_CARD', player: 'corp' });
@@ -482,8 +481,7 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
       const { s } = board();
       expect(inCorp(s, () => {
         const v = corpDecisionView(s);
-        decisionContext(v, 'corp');
-        return serverHold(v, 'rd', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds;
+        return inDecision(v, 'corp', () => serverHold(v, 'rd', { when: 'runnerTurn', corpCredits: s.corp.credits }).holds);
       })).toBe(false);
     });
   });

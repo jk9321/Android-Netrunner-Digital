@@ -6,7 +6,7 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { cardRate, valueLoops } from '../src/ai/valueModel';
 import { asSide, withPricing } from '../src/ai/pricing';
-import { decisionContext, deckAvgStats } from '../src/ai/handValues';
+import { inDecision, deckAvgStats } from '../src/ai/handValues';
 import { newGame } from './helpers';
 
 // Planner speed tier 2 (bars/planner-fast-deckavg.md): in a Corp decision's planner playouts the deck's average card
@@ -21,10 +21,7 @@ const withCredits = (s: GameState, credits: number): GameState => ({ ...s, corp:
 describe('deck average at the decision root', () => {
   it('a board that spent its money down prices its draws lower, as the per-board average did', () => {
     const root = withCredits(newGame(3), 8);
-    const [rich, broke] = asSide('corp', () => {
-      decisionContext(root, 'corp');
-      return playout(() => [cardRate(root, 'corp', 'now'), cardRate(withCredits(root, 0), 'corp', 'now')]);
-    });
+    const [rich, broke] = asSide('corp', () => inDecision(root, 'corp', () => playout(() => [cardRate(root, 'corp', 'now'), cardRate(withCredits(root, 0), 'corp', 'now')])));
     expect(broke).toBeLessThan(rich);
     // Outside the decision (the per-board price) the same order holds
     const freshRich = cardRate(root, 'corp', 'now');
@@ -35,17 +32,18 @@ describe('deck average at the decision root', () => {
   it("prices each deck card once per decision and averages over the asking board's deck", () => {
     const root = withCredits(newGame(4), 6);
     const before = deckAvgStats.priced;
-    const [full, drawn, again] = asSide('corp', () => {
-      decisionContext(root, 'corp');
-      return playout(() => {
+    const [full, drawn, again] = asSide('corp', () =>
+      inDecision(root, 'corp', () =>
+        playout(() => {
         const a = cardRate(root, 'corp', 'now');
         // A line that drew the top card: the same prices, one card fewer
         const after: GameState = { ...root, corp: { ...root.corp, rd: root.corp.rd.slice(1) } };
         const b = cardRate(after, 'corp', 'now');
         const c = cardRate(root, 'corp', 'now');
         return [a, b, c];
-      });
-    });
+        }),
+      ),
+    );
     expect(deckAvgStats.priced - before).toBe(root.corp.rd.length);
     expect(again).toBe(full);
     expect(drawn).not.toBe(full);
@@ -54,11 +52,12 @@ describe('deck average at the decision root', () => {
   it("outside a playout, and for the Runner's stack, the price is the per-board one", () => {
     const root = withCredits(newGame(5), 6);
     const before = deckAvgStats.served;
-    asSide('corp', () => {
-      decisionContext(root, 'corp');
-      cardRate(root, 'corp', 'now');
-      playout(() => cardRate(root, 'runner', 'now'));
-    });
+    asSide('corp', () =>
+      inDecision(root, 'corp', () => {
+        cardRate(root, 'corp', 'now');
+        playout(() => cardRate(root, 'runner', 'now'));
+      }),
+    );
     expect(deckAvgStats.served).toBe(before);
   });
 

@@ -2,7 +2,7 @@ import { GameAction, GameState, activePrompt, getLegalActions, isLegalAction } f
 import { ScoredAction } from '../agent';
 import { keepsScore, scoreNowPlan, winNowAction } from '../winNow';
 import { answerPrompt } from '../prompts';
-import { decisionContext } from '../handValues';
+import { inDecision } from '../handValues';
 import { plan } from '../pricing';
 import { note, tally, unsunk } from '../diagnostics';
 import { HeldLine, heldLaterStep } from './lines';
@@ -89,9 +89,12 @@ function promptKind(state: GameState): string {
   return 'source' in p ? `${p.kind}:${p.source.cardCode}:${p.source.step}` : p.kind;
 }
 
-/** One decision read on `view` (the real `state` only for the legal list), its commits returned for corpDecide to make. */
+/** One decision read on `view` (the real `state` only for the legal list), its commits returned for corpDecide to make. Its pricing frame (inDecision) is made here, the decision's entry (B1b). */
 function decideOn(state: GameState, view: GameState, ctx: CorpContext): { action: GameAction; note: boolean; held?: HeldLine | null } {
-  decisionContext(view, 'corp');
+  return inDecision(view, 'corp', () => decideIn(state, view, ctx));
+}
+
+function decideIn(state: GameState, view: GameState, ctx: CorpContext): { action: GameAction; note: boolean; held?: HeldLine | null } {
   // Q1. plan.winNow (bug report #33): a line that wins the game this turn is played before any judgement (winNow.ts)
   if (ctx.counted) {
     const win = winNowAction(view);

@@ -10,7 +10,7 @@
  * damage clocks), each behind its own tuning.plan switch.
  */
 import { CardInstance, GameState, SideCode, cardDef, rezCostOf } from '../core';
-import { actingSide, plan, pricingKey } from './pricing';
+import { actingSide, frameKeys, plan } from './pricing';
 import { corpPorts } from './corpPorts';
 import { Diagnostics, note } from './diagnostics';
 
@@ -154,7 +154,7 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
-  key = pricingKey() + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
+  key = frameKeys().pricing + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
   if (entry.values.has(key)) return entry.values.get(key) as T;
   const value = work();
   entry.values.set(key, value);
@@ -503,12 +503,25 @@ export function positionSerial(state: GameState): number {
  * damageThreat, drawWorth and clickWorth use it.
  */
 export function stateEntries<V>(maps: WeakMap<GameState, Map<string, V>>, state: GameState): Map<string, V> {
+  const generation = generations.get(maps) ?? 0;
   let entries = maps.get(state);
-  if (!entries) {
+  if (!entries || madeIn.get(entries) !== generation) {
     maps.set(state, (entries = new Map()));
+    madeIn.set(entries, generation);
     freezeAsked(state);
   }
   return entries;
+}
+/**
+ * The generation key of the stateEntries maps (tracker L-26, B1b rev 1a): a WeakMap can't be emptied, so its clear helper
+ * (tests, scripts) moves the map to a new generation, and a board's entries from an older one are dropped as it is next
+ * asked. The maps stay `const`; in play nothing clears them (generation 0 throughout).
+ */
+const generations = new WeakMap<object, number>();
+const madeIn = new WeakMap<Map<string, unknown>, number>();
+/** Empties a stateEntries map (its entries of every board are dropped as each is next asked). */
+export function clearStateEntries<V>(maps: WeakMap<GameState, Map<string, V>>): void {
+  generations.set(maps, (generations.get(maps) ?? 0) + 1);
 }
 /** The asked-state tripwire for a by-position map that is not a stateEntries one (handValues drawMoney's memo): `state`, frozen when askedFreeze is on. */
 export function freezeAsked(state: GameState): GameState {

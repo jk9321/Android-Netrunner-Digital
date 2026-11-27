@@ -82,9 +82,8 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
     return playedOut.get(key) ?? null;
   }
   const t0 = performance.now();
-  const c = pricing();
-  // The sim's decisions note their own hands and the Runner's credits: the deciding Corp's are put back afterwards
-  const result = withPricing({ oracleRunning: true, frozen: false, leaves: [], known: { ...c.known }, anchor: c.anchor, decisionSeed: null }, () => {
+  // The sim's decisions open frames of their own (handValues.ts inDecision): the deciding Corp's are current again afterwards
+  const result = withPricing({ oracleRunning: true, frozen: false, leaves: [], decisionSeed: null }, () => {
     const start = state.activePlayer === 'corp' && !state.activeRun ? { ...state, corp: { ...state.corp, clicks: 0 } } : state;
     const before = new Set(start.runner.scoreArea.map(a => a.instanceId));
     const game = hooks.playout!(start);

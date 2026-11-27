@@ -7,13 +7,13 @@ import { clearHandCaches } from '../src/ai/handValues';
 import { clearDamageThreats } from '../src/ai/effectValues';
 import { clearDeckShares } from '../src/ai/iceValues';
 import { clearBuildTargets } from '../src/ai/valueModel';
-import { holdPricing } from '../src/ai/pricing';
+import { installTop } from '../src/ai/pricing';
 
 export const aiCacheClears: Record<string, () => void> = {
   hand: clearHandCaches,
   damageThreats: clearDamageThreats,
   deckShares: clearDeckShares,
   buildTargets: clearBuildTargets,
-  // the decision notes (known hands, anchor) that stay in the pricing context until the next decision
-  known: () => void holdPricing({ known: { corp: null, runner: null }, anchor: null }),
+  // a script's top-level known hands and anchor (B1b: a decision's own frame goes as it returns; installTop throws inside a scope)
+  known: () => installTop({ known: { corp: null, runner: null }, anchor: null }),
 };

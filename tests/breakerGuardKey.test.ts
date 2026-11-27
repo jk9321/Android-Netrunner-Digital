@@ -12,8 +12,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CardInstance, GameState } from '../src/core';
 import { clearHandCaches, playedWorth } from '../src/ai/handValues';
 import { memo } from '../src/ai/valueModel';
-import { deckPricingKey, pricing, pricingKey, withPricing } from '../src/ai/pricing';
+import { frameKeys, pricing, withPricing } from '../src/ai/pricing';
 import { hangState } from '../scripts/breaker-price-depth/time-state-lib';
+
+const pricingKey = () => frameKeys().pricing;
+const deckPricingKey = () => frameKeys().deck;
 
 /** A Mayfly in the grip, nothing hosted beside it (as breakerPriceDepth.test.ts). */
 function gripMayfly(): [GameState, CardInstance] {

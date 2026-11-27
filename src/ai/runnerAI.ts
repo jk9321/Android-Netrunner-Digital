@@ -5,11 +5,11 @@ import { digValue, evaluate, rigCoverage } from './evaluate';
 import { answerPrompt, runEventOptions, simulate } from './prompts';
 import type { HeuristicOptions } from './corpAI';
 import { asSide, nudge, tuning } from './synergy';
-import { decisionContext } from './handValues';
 import { PlanMemory, planTurn, plannerOn, runnerDecisionView } from './turnPlanner';
 import { runnerUnknownSlots } from './runnerReply';
 import { RunnerMemory, chainReactionBonus, runCreditSpend, needsBiggerHand, runScore, runShortfall, serverValue, spendCost } from './runs';
 import { RATES } from './valueModel';
+import { inDecision } from './handValues';
 import { plan } from './pricing';
 import { CARDS } from './cards';
 import { RunnerContext, runnerDecide, runnerOffTurn } from './runner/core';
@@ -136,26 +136,28 @@ export class HeuristicRunnerAI implements Agent {
 
   /** Main-phase actions, best first, with this AI's score for each (the search AI starts from these). */
   rankMainActions(state: GameState, legal = getLegalActions(state, 'runner')): ScoredAction[] {
-    decisionContext(state, 'runner');
-    this.freeActions.start(state, state.runner.clicks);
-    // ai-honest-runner-view (red team 1; rule 10.2.2a): the baseline, the runs and the actions are all scored on the
-    // Runner's own view, so the guess of the Corp's hidden cards is not a constant offset against END_TURN, REMOVE_TAG,
-    // runScore and the free-action cut
-    const view = this.ownView(state);
-    const before = evaluate(view, 'runner');
-    // Nowhere worth running and breakers missing: dig for them
-    this.digForBreakers =
-      rigCoverage(state.runner.rig.programs).covered.size < 3 &&
-      !legal.some(a => a.type === 'INITIATE_RUN' && runScore(view, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
-    this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
-    return [...legal, ...makeRoomInstalls(state)]
-      .map(action => {
-        let score = this.scoreMain(state, action, before, view);
-        // Deck-aware nudge: small, and only for moves the AI would consider anyway
-        if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;
-        return { action, score };
-      })
-      .sort((a, b) => b.score - a.score);
+    // Read in the decision's pricing frame (runner/core.ts runnerDecide); asked on its own, the ranking opens it (inDecision)
+    return inDecision(state, 'runner', () => {
+      this.freeActions.start(state, state.runner.clicks);
+      // ai-honest-runner-view (red team 1; rule 10.2.2a): the baseline, the runs and the actions are all scored on the
+      // Runner's own view, so the guess of the Corp's hidden cards is not a constant offset against END_TURN, REMOVE_TAG,
+      // runScore and the free-action cut
+      const view = this.ownView(state);
+      const before = evaluate(view, 'runner');
+      // Nowhere worth running and breakers missing: dig for them
+      this.digForBreakers =
+        rigCoverage(state.runner.rig.programs).covered.size < 3 &&
+        !legal.some(a => a.type === 'INITIATE_RUN' && runScore(view, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
+      this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
+      return [...legal, ...makeRoomInstalls(state)]
+        .map(action => {
+          let score = this.scoreMain(state, action, before, view);
+          // Deck-aware nudge: small, and only for moves the AI would consider anyway
+          if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;
+          return { action, score };
+        })
+        .sort((a, b) => b.score - a.score);
+    });
   }
 
   /** Cards seen so far (for the search AI's guesses about hidden cards). */

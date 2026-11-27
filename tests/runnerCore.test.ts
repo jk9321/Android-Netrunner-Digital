@@ -21,10 +21,10 @@ vi.mock('../src/ai/handValues', async importOriginal => {
   const m = await importOriginal<typeof import('../src/ai/handValues')>();
   return {
     ...m,
-    decisionContext: (...a: Parameters<typeof m.decisionContext>) => {
+    inDecision: <T,>(...a: Parameters<typeof m.inDecision<T>>) => {
       if (calls.pricing?.().frozen) calls.frozen++;
       else calls.live++;
-      return m.decisionContext(...a);
+      return m.inDecision(...a);
     },
   };
 });
@@ -516,18 +516,20 @@ describe('bar 2 (b): a built state on which each unseen fault changes a rank lis
 
 // Recorded on the base (beta ff04f60) by this file with RECORD=1, unchanged since; reply's frozen 232 to 229 and remember 126 to 123 with F108
 // (2026-11-25: a reply playout reaches a tagged board, where a Runner card is now priced at the untagged rate)
+// B1b (2026-11-26): hardMain's live 45 to 44 and hardCorp's 55 to 54: the search's re-note after its look-ahead is gone
+// (search.ts; the brief's N2: one frame per decision); the answers and every other count are unchanged
 const RECORDED: Record<string, unknown> = {
   normalMain: {"answer": "{\"type\":\"GAIN_CREDIT\",\"player\":\"runner\"}", "live": 2, "frozen": 12, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 1, "start": 1, "played": 1}, "rollout": {"instances": 1, "remember": 0, "rank": 12, "start": 12, "played": 0}}},
   normalPrompt: {"answer": "{\"type\":\"RESOLVE_PROMPT\",\"player\":\"runner\",\"promptId\":\"prompt-3\",\"choice\":{\"kind\":\"discard\",\"cardInstanceIds\":[\"inst-43\",\"inst-50\",\"inst-42\",\"inst-55\"]}}", "live": 1, "frozen": 0, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 0}}},
   normalRun: {"answer": "{\"type\":\"CONTINUE_RUN\",\"player\":\"runner\"}", "live": 1, "frozen": 0, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 0}}},
   normalOff: {"answer": "{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}", "live": 1, "frozen": 0, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 0, "start": 1, "played": 1}}},
   normalShare: {"answer": "{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":0}", "live": 1, "frozen": 0, "byRole": {"decider": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 1}}},
-  hardMain: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-46\"}", "live": 45, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 1, "start": 1, "played": 1}, "playout": {"instances": 2, "remember": 18, "rank": 8, "start": 8, "played": 8}}},
+  hardMain: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-46\"}", "live": 44, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 1, "start": 1, "played": 1}, "playout": {"instances": 2, "remember": 18, "rank": 8, "start": 8, "played": 8}}},
   hardPrompt: {"answer": "{\"type\":\"RESOLVE_PROMPT\",\"player\":\"runner\",\"promptId\":\"prompt-3\",\"choice\":{\"kind\":\"discard\",\"cardInstanceIds\":[\"inst-43\",\"inst-50\",\"inst-42\",\"inst-55\"]}}", "live": 2, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 0}}},
   hardRun: {"answer": "{\"type\":\"CONTINUE_RUN\",\"player\":\"runner\"}", "live": 2, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 0}}},
   hardShare: {"answer": "{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":0}", "live": 1, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 0, "start": 0, "played": 0}}},
   hardOff: {"answer": "{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}", "live": 1, "frozen": 0, "byRole": {"base": {"instances": 1, "remember": 1, "rank": 0, "start": 1, "played": 1}}},
-  hardCorp: {"answer": "{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"corp\",\"cardInstanceId\":\"inst-14\"}", "live": 55, "frozen": 0, "byRole": {"playout": {"instances": 2, "remember": 28, "rank": 10, "start": 10, "played": 10}}},
+  hardCorp: {"answer": "{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"corp\",\"cardInstanceId\":\"inst-14\"}", "live": 54, "frozen": 0, "byRole": {"playout": {"instances": 2, "remember": 28, "rank": 10, "start": 10, "played": 10}}},
   reply: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"corp\",\"cardInstanceId\":\"inst-13\",\"targetServerId\":\"rd\"}", "live": 2, "frozen": 229, "byRole": {"reply.plannerOff": {"instances": 10, "remember": 123, "rank": 50, "start": 50, "played": 50}}},
   oracle: {"answer": "{\"type\":\"INSTALL_CARD\",\"player\":\"corp\",\"cardInstanceId\":\"inst-13\",\"targetServerId\":\"rd\"}", "live": 61, "frozen": 239, "byRole": {"nested.plannerOff": {"instances": 16, "remember": 117, "rank": 92, "start": 92, "played": 49}, "nested.plannerOn": {"instances": 3, "remember": 37, "rank": 15, "start": 15, "played": 15}}},
   bar2RolloutGuard: [["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-46\"}",3.247935],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"hq\"}",2.36461],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"rd\"}",2.36461],["{\"type\":\"GAIN_CREDIT\",\"player\":\"runner\"}",-0.524186],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-48\"}",-1.396076],["{\"type\":\"DRAW_CARD\",\"player\":\"runner\"}",-1.571263],["{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":0}",-1.79539],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-43\"}",-2.174497],["{\"type\":\"INSTALL_CARD\",\"player\":\"runner\",\"cardInstanceId\":\"inst-45\"}",-3.142751],["{\"type\":\"PLAY_OPERATION_OR_EVENT\",\"player\":\"runner\",\"cardInstanceId\":\"inst-50\"}",-4.689202],["{\"type\":\"USE_ABILITY\",\"player\":\"runner\",\"cardInstanceId\":\"inst-63\",\"abilityIndex\":1}","-Inf"],["{\"type\":\"INITIATE_RUN\",\"player\":\"runner\",\"targetServerId\":\"archives\"}","-Inf"]],

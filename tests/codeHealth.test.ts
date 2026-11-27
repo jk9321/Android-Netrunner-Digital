@@ -49,10 +49,9 @@ const OFF_SWITCHES: Record<string, string> = {
  * flags flipped around calls. These are the ones left, each with why it is not pricing state. May only shrink.
  */
 const MODULE_LETS: Record<string, string> = {
-  'pricing:version': 'the context itself: bumped on every change so pricingKey is rebuilt only then',
-  'pricing:basePlan': "the context itself: the outermost decision's base plan, which nested asSide builds on",
-  'pricing:keyVersion': 'the context itself: the version pricingKey was last built at',
-  'pricing:key': 'the context itself: the last pricingKey',
+  // B1b: the pricing context is immutable frames and this one pointer (the version, key, base plan and root ids went;
+  // the three F3 by-position maps are const again behind a generation key, valueModel clearStateEntries, L-26)
+  'pricing:current': 'the current pricing frame: withPricing points it at a new frame and back, installTop replaces it at the top level',
   'worker:agent': 'the web worker holds its one agent',
   'synergyTags:SYNERGY': 'the card tag table, filled once from src/ai/cards at load',
   'synergy:debug': 'a debug print switch',
@@ -60,11 +59,35 @@ const MODULE_LETS: Record<string, string> = {
   'valueModel:deckCard': 'the deck-average hook handValues registers once (an import cycle otherwise)',
   'valueModel:agendaOdds': "the Runner's agenda-odds port evaluate.ts registers once (runs.ts remoteAgendaOdds; an import cycle otherwise, ai-honest-runner-view)",
   'valueModel:nextStateId': "guardLoop's id counter for positions",
-  // F3 (ai-cache-keys): the by-position value maps, a WeakMap each; the clear helpers (tests, scripts) put a new one in
-  'effectValues:threats': 'a by-position value map (STATE_CACHES below); clearDamageThreats replaces it, a WeakMap cannot be emptied',
-  'handValues:deckAverage': 'a by-position value map (STATE_CACHES below); clearHandCaches replaces it',
-  'handValues:clickCache': 'a by-position value map (STATE_CACHES below); clearHandCaches replaces it',
-  'pricing:nextRootId': "contextKey's id counter for decision roots (like valueModel:nextStateId)",
+};
+
+/**
+ * B1b bar 3: every top-level declaration of pricing.ts, `const` included, so module state can't come back unseen. The
+ * only state is `current` (the pointer); `frameChecks` is a test-only switch, `keysOf` a cache of each immutable frame's
+ * keys (a frame never changes, so its keys never go stale). A new declaration goes here with its reason.
+ */
+const PRICING_DECLARATIONS: Record<string, string> = {
+  'type Plan': 'a type',
+  'interface Anchor': 'a type',
+  'interface Pricing': 'a type',
+  'const frameChecks': "test-only switch (tests/setup.ts): frames frozen and their Sets sealed; off in play",
+  'function valueSet': 'makes a known or rezzingToUse set (sealed under frameChecks)',
+  'const refuse': "frameChecks' throwing Set write",
+  'function sealed': "makes a Set throw on writes (frameChecks; the top-level frame's empty set always)",
+  'function checked': 'frameChecks helper: freezes a new frame',
+  'let current': 'THE pointer: the one piece of module state',
+  'const pricing': 'reads the pointer',
+  'const plan': 'reads the pointer',
+  'function framed': 'makes a frame from a patch (or returns the current one when nothing changes)',
+  'function withPricing': 'the scope setter',
+  'function installTop': 'the top-level setter (throws inside a scope)',
+  'function asSide': 'a side scope (a frame through withPricing)',
+  'function leafHandByCard': 'reads the pointer',
+  'const actingSide': 'reads the pointer',
+  'interface FrameKeys': 'a type',
+  'const keysOf': "a cache of each frame's keys, keyed by the frame object (frames are immutable)",
+  'function frameKeys': 'the key method',
+  'function buildKeys': "the key method's builder",
 };
 
 /**
@@ -149,6 +172,14 @@ describe('AI code health (audit guards)', () => {
     );
     expect(found.filter(key => !(key in MODULE_LETS)), 'a flag that changes what a position is worth goes in pricing.ts (withPricing)').toEqual([]);
     expect(Object.keys(MODULE_LETS).filter(key => !found.includes(key))).toEqual([]);
+  });
+
+  it('holds no module state in pricing.ts but the current frame (B1b bar 3): every top-level declaration is named', () => {
+    const text = readFileSync(new URL('../src/ai/pricing.ts', import.meta.url), 'utf8');
+    const found = [...text.matchAll(/^(?:export )?(const|let|var|function|interface|type|class|enum) (\w+)/gm)].map(m => `${m[1]} ${m[2]}`);
+    expect(found.filter(d => !(d in PRICING_DECLARATIONS)), 'name it in PRICING_DECLARATIONS, with why it is not module state').toEqual([]);
+    expect(Object.keys(PRICING_DECLARATIONS).filter(d => !found.includes(d))).toEqual([]);
+    expect(found.filter(d => /^(let|var) /.test(d))).toEqual(['let current']);
   });
 
   it('names every module-level WeakMap keyed by GameState outside valueModel, and fills the tripwired ones through stateEntries (audit 2026-11-26)', () => {
@@ -778,6 +809,12 @@ describe('AI code health (audit guards)', () => {
   // and mapGames out), pricing.ts + 22 (contextKey, its root ids and comment), effectValues.ts - 16 (threats' string key,
   // its counts and boardFacts out), handValues.ts - 14 (two string keys, their cap clears and comments out, laterMoneys to
   // memo)): corp/ 3,982, src/ai 16,813
+  // Then + 66 in src/ai, corp/ - 1 (ai-pricing-frames, B1b: immutable pricing frames, measured against beta 9154f02):
+  // pricing.ts + 37 (the frame checks: freeze and sealed Sets, framed, installTop, frameKeys with its per-frame cache,
+  // their comments; holdPricing, version, the key functions and rootIds out), handValues.ts + 14 (inDecision and anchorAt
+  // for decisionContext), valueModel.ts + 13 (the generation key, L-26), runner/core.ts + 6 and corp/core.ts + 3 (the
+  // decision entries), runnerAI.ts + 2, corpAI.ts + 1, oracle.ts - 1, effectValues.ts - 2, search.ts - 3 (the
+  // re-notes), corp/rez.ts - 4 (rezzingToUse a patch): corp/ 3,981, src/ai 16,879
   // Then + 8 in src/ai, corp/ unchanged (ai-runner-hidden-zones, B4a 7(a): hqAgendaOdds reads the HQ count by code and
   // count, its comment and import, measured against beta 85a89eb (16,797)): runs.ts + 8: corp/ 3,982, src/ai 16,805
   // Then + 4 in src/ai (ai-runner-hidden-zones, B4a 7(b): rdWorth reads a shuffle's shares, with its comment and import):
@@ -802,11 +839,13 @@ describe('AI code health (audit guards)', () => {
   // 16,813: corp/ 3,982, src/ai 16,872
   // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 16,873 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-runner-hidden-zones)', () => {
+    // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
+    // B1b's 16,879: corp/ 3,981, src/ai 16,939
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 16,939 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones)', () => {
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
-    expect(corp).toBeLessThanOrEqual(3982);
+    expect(corp).toBeLessThanOrEqual(3981);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);
-    expect(all).toBeLessThanOrEqual(16873);
+    expect(all).toBeLessThanOrEqual(16939);
     // The caps are the counts (audit 2026-11-20 AI-LINE-CAP-SLACK, found row 99 c: + 24 lines once went in under a cap
     // with slack and no ledger line above). A cap more than SLACK lines over its count fails: lower it to the count and
     // add the ledger line, so the next growth is stated.

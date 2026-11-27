@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import '../src/ai'; // registers the deck-average hook (handValues.ts)
 import { cardRate } from '../src/ai/valueModel';
-import { asSide, pricing, pricingKey, withPricing } from '../src/ai/pricing';
+import { asSide, frameKeys, pricing, withPricing } from '../src/ai/pricing';
 import { newGame } from './helpers';
+
+const pricingKey = () => frameKeys().pricing;
 
 /**
  * The pricing context (review item 6). Caches are keyed by it: a value worked out under one context (ice being
