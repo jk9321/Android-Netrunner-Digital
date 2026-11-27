@@ -14,8 +14,7 @@ const SG = { hedgeFund: '30075', palisade: '30072' };
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 const view = (s: GameState) => viewFor(s, 'runner', newViewIds(), 'g').view;

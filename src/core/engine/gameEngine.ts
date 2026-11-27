@@ -13,8 +13,8 @@ import { bioroidBreak, boostBreaker, breakSubroutine } from './actions/breaking'
 import { useAbility } from './actions/ability';
 import { bumpTurnFlag, fireSettled, recordPayment, setCreditHold, unrecorded, syncDerivedStats, TurnFlag, whenSettled, withPaymentPlan } from './cardEffects';
 import type { PaymentQuote } from './cardEffects';
-import { findCardAnywhere, forgetHiddenCards, tidySetAside, updateHandKnowledge } from './helpers';
-import { updateRdKnowledge } from './rdKnowledge';
+import { findCardAnywhere, forgetHiddenCards, tidySetAside } from './helpers';
+import { updateKnowledge } from './rdKnowledge';
 import { getCardScript } from '../scripts';
 import { canRezIn, canScoreIn, currentStep, declareIntent, isActionStep, isRunStep, normalizePriority, onWindowClose, passPriority, priorityHolder, usedOption } from './priority';
 import { sideName } from './prompts';
@@ -129,8 +129,7 @@ export function executeAction(prevState: GameState, action: GameAction): GameSta
   trashOverMemoryLimit(state);
   forgetHiddenCards(state);
   tidySetAside(state);
-  updateRdKnowledge(prevState, state);
-  updateHandKnowledge(prevState, state);
+  updateKnowledge(prevState, state);
   // Petty Cash: "Play only if you have not finished an action yet this turn"
   if (taken && isClickAction(prevState, taken) && state.activePlayer === prevState.activePlayer) {
     bumpTurnFlag(state, TurnFlag.actionsFinished);

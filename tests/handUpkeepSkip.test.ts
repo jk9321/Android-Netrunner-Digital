@@ -30,9 +30,9 @@ const taken = () => lastTaken;
 function act(s: GameState, change: (next: GameState) => void = () => {}): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
+  const walk = updateRdKnowledge(s, next);
   const before = { ...handUpkeepCheck.checked };
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, walk);
   lastTaken = Object.fromEntries(Object.entries(handUpkeepCheck.checked).map(([k, v]) => [k, v - before[k as keyof typeof before]]));
   return next;
 }
@@ -45,6 +45,8 @@ function board(hqCodes: string[], seen: number): { s: GameState; ids: string[] }
   s.corp.hq = cards;
   s.corp.knownToRunner = [];
   revealInHand(s, 'corp', cards.slice(0, seen));
+  // The board is a state between actions: the walk after the reveal has taken its notes (B4c's RdNotes.handSeen)
+  delete s.corp.rdNotes;
   return { s, ids: cards.map(c => c.instanceId) };
 }
 /** An unrezzed card installed in a new remote. */
@@ -59,6 +61,7 @@ describe('R-105: the upkeep skip leaves every list as the walk would', () => {
     const { s, ids } = board([SG.hedgeFund, SG.regolith], 2);
     s.runner.grip = [createCardInstance(s, SG.sureGamble)];
     revealInHand(s, 'runner', s.runner.grip);
+    delete s.corp.rdNotes;
     const arc = createCardInstance(s, SG.palisade);
     s.corp.archives.faceDown = [arc];
     s.corp.archKnownToRunner = [{ id: arc.instanceId, code: arc.cardCode }];
@@ -103,12 +106,17 @@ describe('R-105: the upkeep skip leaves every list as the walk would', () => {
     expect(taken().main).toBe(0);
   });
 
-  it('an entry outside HQ that gets an R&D mark in the action still goes (10.2.2b: the Runner followed it)', () => {
-    const { s } = board([SG.hedgeFund], 1);
-    const gone = s.corp.rd[0];
-    s.corp.knownToRunner = [...(s.corp.knownToRunner ?? []), { id: gone.instanceId, code: gone.cardCode }];
-    const after = act(s, n => (n.corp.rdKnownToRunner = [{ id: gone.instanceId, code: gone.cardCode, lo: 0, hi: 0 }]));
-    expect(after.corp.knownToRunner?.map(e => e.id)).toEqual(s.corp.knownToRunner.slice(0, 1).map(e => e.id));
+  // B4c (brief b4c-knowledge-by-copy rev 1, item 4a): the R-105 form of this test listed an R&D card's id and marked it
+  // without the card leaving HQ, a state no action makes. The followed card now leaves HQ in the action, and it forgets
+  // one entry of its title by copy, not the entry with its id.
+  it('an HQ card the Runner follows into R&D in the action forgets an entry of its title (10.2.2b)', () => {
+    const { s, ids } = board([SG.hedgeFund, SG.regolith], 2);
+    const after = act(s, n => {
+      const c = n.corp.hq.splice(1, 1)[0];
+      n.corp.rd.unshift(c);
+      runnerSeesRd(n, c);
+    });
+    expect(after.corp.knownToRunner?.map(e => e.id)).toEqual([ids[0]]);
     expect(taken().main).toBe(0);
   });
 
@@ -144,7 +152,9 @@ describe('R-105: the upkeep skip leaves every list as the walk would', () => {
     const { s } = board([SG.hedgeFund, SG.regolith], 1);
     const after = act(s, n => revealInHand(n, 'corp', [n.corp.hq[1]]));
     expect(codes(after.corp.knownToRunner)).toEqual([SG.hedgeFund, SG.regolith]);
-    expect(taken().main).toBe(1);
+    // B4c: a list changed in the action is a sighting the walk places by copy (helpers.ts placeSightings), so the skip
+    // is not taken; under R-105 it was.
+    expect(taken().main).toBe(0);
   });
 
   it('a card newly hosted on an installed card surfaces and forgets the same-named entry', () => {
