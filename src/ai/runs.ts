@@ -1,4 +1,4 @@
-import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInHand, knownInRd } from '../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -13,6 +13,8 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
+import { certainInArchives, certainInHand } from '../core/engine/helpers';
+import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -923,8 +925,8 @@ export const accessTrap = (code: string): boolean => isTrap(code) && /when the r
  * agenda, counted from the Corp's decklist: the traps still unaccounted for
  * against the traps and agendas still unaccounted for. Unaccounted for
  * means in HQ, R&D, facedown in Archives or installed facedown, and not
- * already accessed by the Runner. Cards that come back to HQ or R&D count
- * again; once every trap is accounted for the odds are 0.
+ * known to the Runner: a card seen in a hidden zone counts by the marks while
+ * it is surely still there, an installed one by what the Runner saw of it.
  */
 export function trapOdds(state: GameState, memory?: RunnerMemory): number {
   const { traps, agendas } = unseenTraps(state, memory);
@@ -935,15 +937,19 @@ export function trapOdds(state: GameState, memory?: RunnerMemory): number {
 function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]; agendas: number } {
   const corp = state.corp;
   const installed = Object.values(corp.servers).flatMap(server => server.root.filter(c => !c.isRezzed && !c.faceUp));
-  const hidden = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed];
-  // The cards it has seen come out by the code it saw, not by whichever code their instance holds now: a planner deal
-  // re-deals the hidden cards among their instances (the threat's on-hit audit read the re-dealt code)
-  const codes = hidden.map(c => c.cardCode);
-  for (const card of hidden) {
-    const seen = memory?.get(card.instanceId);
-    if (seen === undefined) continue;
-    const at = codes.indexOf(seen);
+  const codes = [...corp.hq, ...corp.rd, ...corp.archives.faceDown, ...installed].map(c => c.cardCode);
+  const out = (code: string) => {
+    const at = codes.indexOf(code);
     if (at >= 0) codes.splice(at, 1);
+  };
+  // B4a 7(d): HQ, R&D and facedown Archives by the marks still certain (code and count; 10.2.2b, 1.12.3), not the map
+  for (const [code, n] of [...certainInHand(state, 'corp'), ...certainInArchives(state)]) for (let i = 0; i < n; i++) out(code);
+  for (const e of [...knownInRd(state), ...rdSharesKnownToRunner(state)]) if (!e.left) out(e.code);
+  // An installed card by the code it saw, not whichever code its instance holds now: a planner deal re-deals the hidden
+  // cards among their instances (the threat's on-hit audit read the re-dealt code)
+  for (const card of installed) {
+    const seen = memory?.get(card.instanceId);
+    if (seen !== undefined) out(seen);
   }
   const traps = codes.filter(isTrap);
   const agendas = codes.filter(c => getCardDefinition(c).type_code === 'agenda').length;
@@ -1009,13 +1015,16 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * here, so a second run on the same top cards is not worth making.
  */
 function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
+  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where an exact mark is
   const known = knownInRd(state);
+  const exact = new Set(known.filter(e => e.lo === e.hi && !e.left).map(e => e.lo));
+  const marks = [...known, ...rdSharesKnownToRunner(state)];
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
     let seen = 0;
-    for (const e of known) {
-      if (i < e.lo || i > e.hi) continue;
-      const share = 1 / (e.hi - e.lo + 1);
+    for (const e of marks) {
+      if (i < e.lo || i > e.hi || (e.n0 && exact.has(i))) continue;
+      const share = 1 / (e.n0 ?? e.hi - e.lo + 1);
       seen += share;
       const def = getCardDefinition(e.code);
       if (def.type_code === 'agenda') value += share * (stealWorth(state, def.agenda_points ?? 1, DENY.central) - knownStealHit(state, e.code, grip));
@@ -1070,9 +1079,16 @@ export function stealTax(state: GameState, serverId: string, agenda: CardInstanc
 export function hqAgendaOdds(state: GameState, odds: number): number {
   const size = state.corp.hq.length;
   if (size === 0) return odds;
-  const known = knownInHand(state, 'corp').slice(-size);
-  const agendas = known.filter(k => getCardDefinition(k.code).type_code === 'agenda').length;
-  return (agendas + (size - known.length) * odds) / size;
+  // B4a 7(a): only the seen cards surely still there, by code and count (certainInHand: a card that left unseen and
+  // could be one of them takes it out; red team b4 finding 2, R-100); the list itself only says "could be"
+  let known = 0;
+  let agendas = 0;
+  for (const [code, n] of certainInHand(state, 'corp')) {
+    known += n;
+    if (getCardDefinition(code).type_code === 'agenda') agendas += n;
+  }
+  known = Math.min(known, size);
+  return (Math.min(agendas, known) + (size - known) * odds) / size;
 }
 
 /** A steal's worth less its additional costs (0 when they can't be paid). */
@@ -1163,7 +1179,11 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
     // plan.archivesChosen (Jeff, bug report #5): facedown cards are ones the Corp chose to put there (discards,
     // Hansei Review); a Corp rarely chooses an agenda, with or without ice there
     const chosen = state.corp.servers.archives.ice.length === 0 ? ARCHIVES_CHOSEN_ODDS : ARCHIVES_CHOSEN_ODDS_ICED;
-    value = faceUp.reduce((n, c) => n + stealNet(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c), knownStealHit(state, c.cardCode, grip)), 0) + Math.min(3, state.corp.archives.faceDown.length) * odds * chosen * stealNet(stealWorth(state, points, 0), unseenTax, hit);
+    // B4a 7(c): a facedown card the Runner surely knows is what it is (a known agenda a sure steal), the rest unseen
+    const known = certainInArchives(state).map(([code, n]) => ({ n, def: getCardDefinition(code), c: { instanceId: '', cardCode: code } as CardInstance }));
+    const unseen = state.corp.archives.faceDown.length - known.reduce((n, k) => n + k.n, 0);
+    const sure = known.filter(k => k.def.type_code === 'agenda').reduce((n, k) => n + k.n * stealNet(stealWorth(state, k.def.agenda_points ?? 1, 0), stealTax(state, serverId, k.c), knownStealHit(state, k.c.cardCode, grip)), 0);
+    value = faceUp.reduce((n, c) => n + stealNet(stealWorth(state, cardDef(c).agenda_points ?? 1, 0), stealTax(state, serverId, c), knownStealHit(state, c.cardCode, grip)), 0) + sure + Math.min(3, unseen) * odds * chosen * stealNet(stealWorth(state, points, 0), unseenTax, hit);
   }
   if (repeat > 0 && server.isRemote) return 0;
   const trap = wary ? trapOdds(state, memory) : 1 / 3;

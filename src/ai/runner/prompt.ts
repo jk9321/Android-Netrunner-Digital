@@ -2,6 +2,7 @@ import { CardInstance, GameAction, GameState, activePrompt, getCardDefinition, g
 import type { RunnerMemory } from '../runs';
 import { promptAnswers, scoreOutcome, simulate } from '../prompts';
 import { CARDS } from '../cards';
+import { freezeAsked } from '../valueModel';
 
 /**
  * R-B B3 commit 2 (brief runner-rework/briefs/b3-prompt-view.md rev 2): the deciding Normal Runner answers its prompts
@@ -84,7 +85,7 @@ export function promptShownIds(state: GameState): ReadonlySet<string> {
   if (known) return known;
   const prompt = activePrompt(state);
   const out = new Set<string>();
-  shownByState.set(state, out);
+  shownByState.set(freezeAsked(state), out); // read only once asked (F3's tripwire, B4 brief rev 1d)
   if (!prompt || prompt.side !== 'runner') return out;
   const { view, ids } = viewFor(state, 'runner', newViewIds(), state.id);
   const mine = view.pendingPrompts.find(p => p.id === prompt.id);

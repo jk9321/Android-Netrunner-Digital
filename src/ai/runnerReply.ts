@@ -1,6 +1,6 @@
-import { CardInstance, GameState, cardDef, createRng, getCardDefinition, knownInHand, knownInRd, nextFloat, shuffleInPlace } from '../core';
-import { isAdvanceable } from '../core/engine/helpers';
-import { knownToCorpInRd } from '../core/engine/rdKnowledge';
+import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, knownInRd, nextFloat, shuffleInPlace } from '../core';
+import { certainInArchives, certainInHand, isAdvanceable } from '../core/engine/helpers';
+import { knownToCorpInRd, rdSharesKnownToRunner, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
@@ -57,7 +57,8 @@ export function sampledReply(): boolean {
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
-  for (const e of knownInRd(state)) if (e.lo === e.hi && state.corp.rd[e.lo]?.instanceId === e.id) slots.add(e.lo);
+  // B4a 7(e): an exact mark not open to doubt (no `left`) is where its card is (the engine's invariant); no id is read
+  for (const e of knownInRd(state)) if (e.lo === e.hi && !e.left) slots.add(e.lo);
   return slots;
 }
 
@@ -71,21 +72,27 @@ export function corpKnownRdSlots(state: GameState): Set<number> {
 /**
  * The Runner's memory of R&D as the Corp can know it on its deal `rd` (red team corp-rd-memory finding 1): the Corp does
  * not see what the Runner accesses (7.1.2) or arranges (8.3.3a) there, so an entry for a card the Corp doesn't know
- * names the first dealt card in its range no other entry took (dropped if none): it never points at a moved card.
+ * names the first dealt card in its range no other entry took (dropped if none): it never points at a moved card. A
+ * share a shuffle left (B4a 7(e), red team b4 finding 6) names a dealt card at a random free place, not the top one.
  */
-function runnerRdMemoryOnDeal(state: GameState, rd: CardInstance[], fixed: Set<number>): GameState['corp']['rdKnownToRunner'] {
-  const known = state.corp.rdKnownToRunner;
-  if (!known?.length) return known;
-  const corpKnows = new Set([...fixed].map(i => rd[i].instanceId));
+function runnerRdMemoryOnDeal(state: GameState, rd: CardInstance[], fixed: Set<number>, random: () => number): GameState['corp']['rdKnownToRunner'] {
+  const marks = runnerRdMarksForCorp(state);
+  if (!marks.length) return [];
   const taken = new Set([...fixed]);
-  const out: NonNullable<typeof known> = [];
-  for (const e of known) {
-    let at = e.lo;
-    while (!corpKnows.has(e.id) && at <= Math.min(e.hi, rd.length - 1) && taken.has(at)) at++;
-    if (corpKnows.has(e.id)) out.push(e);
-    else if (at <= Math.min(e.hi, rd.length - 1)) {
-      taken.add(at);
-      out.push({ ...e, id: rd[at].instanceId, code: rd[at].cardCode });
+  const out: RdKnownCard[] = [];
+  const name = (e: RdKnownCard, at: number) => {
+    taken.add(at);
+    out.push({ ...e, id: rd[at].instanceId, code: rd[at].cardCode });
+  };
+  for (const { mark: e, corpAt } of marks) {
+    if (corpAt !== undefined && fixed.has(corpAt)) out.push(e);
+    else if (e.n0) {
+      const open = rd.map((_, i) => i).filter(i => !taken.has(i));
+      if (open.length) name(e, open[Math.floor(random() * open.length)]);
+    } else {
+      let at = e.lo;
+      while (at <= Math.min(e.hi, rd.length - 1) && taken.has(at)) at++;
+      if (at <= Math.min(e.hi, rd.length - 1)) name(e, at);
     }
   }
   return out;
@@ -129,7 +136,7 @@ export function guessHidden(state: GameState, k: number): GameState {
   if (corpKnowsRd()) return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd: [...state.corp.rd] } };
   const fixed = corpKnownRdSlots(state);
   const rd = shuffleRdKeeping(rng, [...state.corp.rd], fixed, common);
-  const rdKnownToRunner = runnerRdMemoryOnDeal(state, rd, fixed);
+  const rdKnownToRunner = runnerRdMemoryOnDeal(state, rd, fixed, () => nextFloat(rng));
   return { ...state, rng: createRng(rng.state), runner: { ...state.runner, grip, stack }, corp: { ...state.corp, rd, rdKnownToRunner } };
 }
 
@@ -137,9 +144,8 @@ export function guessHidden(state: GameState, k: number): GameState {
  * The Corp cards whose identity the Runner can't see, by the slot they fill (rule 10.2.2a): unrezzed ice it doesn't know
  * (B3 commit 0: an ice it saw rezzed stays known through a derez, runnerKnows; rule 1.12.5, "A card that is turned faceup
  * or facedown is still the same object"; the pool unrezzedDamageRisk reads already leaves it out); facedown root
- * cards it hasn't seen (accessed, `memory`; shown in place, runnerKnows; faceup); and the loose cards, HQ less the cards
- * it has seen there (knownInHand, only those still in HQ), R&D less the positions both sides know (knownRdSlots), and
- * facedown Archives. One owner for "which Corp cards the Runner can't see": the deal below, the Hard AI's determinize
+ * cards it hasn't seen (accessed, `memory`; shown in place, runnerKnows; faceup); and the loose cards, HQ, R&D less the
+ * places it knows exactly (knownRdSlots), and facedown Archives (what it knows of those is dealt back by code and count). One owner for "which Corp cards the Runner can't see": the deal below, the Hard AI's determinize
  * (search.ts) and the deciding Runner's prompt guard (runnerAI.ts promptAnswer) all read it.
  */
 export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { ice: CardInstance[]; root: CardInstance[]; loose: CardInstance[] } {
@@ -147,10 +153,10 @@ export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { i
   const ice = installed.flatMap(sv => sv.ice).filter(c => !c.isRezzed && !c.runnerKnows);
   // plan.keepKnownRd: faceup installed cards (BANGUN, Sacrifice Zone Expansion) are public, and so are the cards it has accessed
   const root = installed.flatMap(sv => sv.root).filter(c => !c.isRezzed && !memory?.has(c.instanceId) && !(c.faceUp || c.runnerKnows));
-  // plan.keepKnownHand: HQ cards the Runner has seen (accessed and left, revealed) stay as they are
-  const knownHq = new Set(knownInHand(state, 'corp').map(k => k.id));
+  // B4a 7(e): HQ and facedown Archives are loose whole; the cards the Runner surely knows there are dealt back by code
+  // and count (dealRunnerUnknowns), not kept by instance (brief ruling 5)
   const fixedRd = knownRdSlots(state);
-  const loose = [...state.corp.hq.filter(c => !knownHq.has(c.instanceId)), ...state.corp.rd.filter((_, i) => !fixedRd.has(i)), ...state.corp.archives.faceDown];
+  const loose = [...state.corp.hq, ...state.corp.rd.filter((_, i) => !fixedRd.has(i)), ...state.corp.archives.faceDown];
   return { ice, root, loose };
 }
 
@@ -185,11 +191,33 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
     if (code === undefined) throw new Error('dealRunnerUnknowns: a slot found no code (the pool lost a slot card)');
     return code;
   };
+  // B4a 7(e): what the Runner surely knows of a hidden zone is dealt there first, by code and count, at least that many
+  // copies (10.2.2b, 1.12.3): HQ and facedown Archives by the count rule, R&D by a mark not open to doubt (an interval
+  // mark inside its places, a shuffle's share anywhere in R&D; exact places are not dealt)
+  const kept = new Set<CardInstance>();
+  const keep = (slots: CardInstance[], code: string) => {
+    const open = slots.filter(c => !kept.has(c));
+    const got = open.length ? take(c => c === code) : undefined;
+    if (got === undefined) return;
+    const card = open[Math.floor(random() * open.length)];
+    card.cardCode = got;
+    kept.add(card);
+  };
+  const looseOf = (zone: CardInstance[]) => loose.filter(c => zone.includes(c));
+  for (const [zone, certain] of [[s.corp.hq, certainInHand(s, 'corp')], [s.corp.archives.faceDown, certainInArchives(s)]] as const) {
+    const slots = looseOf(zone);
+    for (const [code, n] of certain) for (let i = 0; i < n; i++) keep(slots, code);
+  }
+  const rdLoose = looseOf(s.corp.rd);
+  for (const e of [...knownInRd(s), ...rdSharesKnownToRunner(s)]) {
+    if (e.left || (e.lo === e.hi && !e.n0)) continue;
+    keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
+  }
   for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));
   const advanced = root.filter(c => c.advancementCounters > 0);
   for (const card of advanced) card.cardCode = dealt(take(code => isRoot(code) && isAdvanceable({ cardCode: code } as CardInstance)) ?? take(isRoot));
   for (const card of root.filter(c => c.advancementCounters <= 0)) card.cardCode = dealt(take(isRoot));
-  loose.forEach((card, i) => (card.cardCode = codes[i]));
+  loose.filter(c => !kept.has(c)).forEach((card, i) => (card.cardCode = codes[i]));
 }
 
 /** A copy of `state` whose Corp cards outside the identity are new objects (so a deal can recode them in place). */

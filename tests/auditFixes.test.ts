@@ -110,6 +110,8 @@ describe('lookahead guesses keep hand cards the guessing side has seen (plan.kee
     s.runner.knownToCorp = [{ id: seen.instanceId, code: seen.cardCode }];
     for (let k = 0; k < 5; k++) expect(guessHidden(s, k).runner.grip.map(c => c.instanceId)).toContain(seen.instanceId);
   });
+  // B4a 7(e) (brief b4-hidden-zones ruling 5, replacing the check by instance): the guess keeps the seen card's code in
+  // HQ, by code and count (10.2.2b), on whichever HQ slot the deal gives it
   it('Hard\'s Runner-side guess keeps an HQ card the Runner saw', () => {
     const s = newGame();
     const seen = s.corp.hq[0];
@@ -117,7 +119,7 @@ describe('lookahead guesses keep hand cards the guessing side has seen (plan.kee
     let n = 0;
     for (let k = 0; k < 5; k++) {
       const g = determinize(s, 'runner', () => ((n = (n * 9301 + 49297) % 233280) / 233280));
-      expect(g.corp.hq.find(c => c.instanceId === seen.instanceId)?.cardCode).toBe(seen.cardCode);
+      expect(g.corp.hq.filter(c => c.cardCode === seen.cardCode).length).toBeGreaterThanOrEqual(1);
     }
   });
 });

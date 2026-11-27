@@ -42,6 +42,8 @@ import { IDENTITY_TEST_DECKS } from '../src/data/testDecks/identityDecks';
 import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
+import { certainCounts } from '../src/core/engine/helpers';
+import type { KnownHandCard } from '../src/core/types/state';
 
 /** Every deck we have (starters, NSG samples, NRDB lists, one per identity: the beta picker draws from these). */
 export const FUZZ_DECKS: DeckList[] = [...new Map([...ALL_DECKS, ...NRDB_TEST_DECKS, ...IDENTITY_TEST_DECKS].map(d => [d.id, d])).values()];
@@ -254,6 +256,29 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     check(stale.length === 0, 'corp-rd-memory-forgets-shuffle', '4.2.2, 8.7.3', () => `after a shuffle the Corp still remembers ${stale.map(e => e.id).join(', ')}`);
   }
   shufflesAt.set(state, rdShuffleProbe.shuffles);
+
+  // --- What each side knows of the other's hidden zones (engine/helpers.ts certainCounts; engine/rdKnowledge.ts): a card
+  // the count calls certain is there (10.2.2b). A departure counts only against the kinds its place allows (where a card
+  // is installed is open: 4.6.6a, d, e, f, 10.2.3a), so a wrong kind or a missed departure shows here. The engine's ids
+  // are read only by this check. ---
+  const hidden: [string, KnownHandCard[] | undefined, CardInstance[]][] = [
+    ['HQ', state.corp.knownToRunner, state.corp.hq],
+    ['the grip', state.runner.knownToCorp, state.runner.grip],
+    ['facedown Archives', state.corp.archKnownToRunner, state.corp.archives.faceDown],
+  ];
+  for (const [zone, list, cards] of hidden) {
+    const inZone = new Set(cards.map(c => c.instanceId));
+    for (const [code, n] of certainCounts(list ?? [])) {
+      const there = (list ?? []).filter(e => e.code === code && inZone.has(e.id)).length;
+      check(there >= n, 'known-hidden-certain', '10.2.2b, 4.6.6e, 10.2.3a', () => `${zone}: ${n} of ${code} counted certain, ${there} of the seen ones are there`);
+    }
+  }
+  // The Runner's R&D marks, placed or shared after a shuffle: a card that cannot have left is in R&D within its places (4.2.3, 10.2.2b)
+  for (const e of state.corp.rdKnownToRunner ?? []) {
+    if (e.left) continue;
+    const at = state.corp.rd.findIndex(c => c.instanceId === e.id);
+    check(at >= e.lo && at <= e.hi, 'runner-rd-memory-in-place', '4.2.3, 10.2.2b', () => `the Runner places ${e.id} (${e.code}) at R&D ${e.lo}-${e.hi}${e.n0 ? ` (shared, n0 ${e.n0})` : ''}, it is at ${at}`);
+  }
 
   // --- Turn number never goes back ---
   if (prev) check(state.turnNumber >= prev.turnNumber, 'turn-number-grows', '5.1.1', () => `turn ${prev.turnNumber} -> ${state.turnNumber}`);

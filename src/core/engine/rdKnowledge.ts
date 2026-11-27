@@ -10,8 +10,10 @@ import { publicCards, revealInHand } from './helpers';
  * added to the top or bottom, or taken from places they can see. When the
  * Corp secretly acts on the top cards (looks at them and installs one,
  * Cultivate, arranges them "in any order", 8.3.3, 1.12.3) the Runner only
- * knows the card is somewhere among them. A shuffle forgets everything.
- * A card follows to HQ only once it has certainly been drawn.
+ * knows the card is somewhere among them. A shuffle forgets where each card
+ * is (4.2.2, 8.7.3) but not that it is in R&D (10.2.2b): each mark becomes a
+ * share of the whole deck (RdKnownCard.n0). A card follows to HQ only once it
+ * has certainly been drawn.
  *
  * Effects call shuffleRD(), noteRdPrivate() and runnerSeesRd() while an
  * action resolves; updateRdKnowledge() then works out the rest from how R&D
@@ -29,13 +31,27 @@ const notes = (state: GameState): RdNotes => (state.corp.rdNotes ??= {});
  */
 export const rdShuffleProbe = { shuffles: 0, corpSeenSince: new Set<string>(), trial: 0 };
 
-/** Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3). */
+/**
+ * Shuffles R&D. Neither player knows where any card in it is any more (rules 4.2.2, 8.7.3), but the Runner still knows
+ * which cards it saw there (10.2.2b): each mark of a card that is surely still in R&D becomes a share of the whole deck,
+ * 1 / n0 per place (a uniform shuffle). A mark that may already have left R&D is dropped, as before. The Corp's own
+ * memory of R&D is about places only, so it is emptied.
+ */
 export function shuffleRD(state: GameState): void {
   shuffleInPlace(state.rng, state.corp.rd);
+  const seenBefore = notes(state).seen ?? [];
   notes(state).shuffled = true;
   notes(state).seen = [];
   notes(state).corpSeen = [];
-  state.corp.rdKnownToRunner = [];
+  const n0 = state.corp.rd.length;
+  const share = (id: string, code: string) => ({ id, code, lo: 0, hi: Math.max(0, n0 - 1), n0 });
+  const marks = (state.corp.rdKnownToRunner ?? []).filter(e => !e.left).map(e => share(e.id, e.code));
+  // A card the Runner saw in R&D earlier in this action, before the shuffle, is in R&D too (step 0 gap 4)
+  for (const id of seenBefore) {
+    const card = state.corp.rd.find(c => c.instanceId === id);
+    if (card && !marks.some(e => e.id === id)) marks.push(share(id, card.cardCode));
+  }
+  state.corp.rdKnownToRunner = marks;
   state.corp.rdKnownToCorp = [];
   if (rdShuffleProbe.trial === 0) {
     rdShuffleProbe.shuffles++;
@@ -113,9 +129,25 @@ export function runnerSeesRd(state: GameState, card: CardInstance): void {
   (notes(state).seen ??= []).push(card.instanceId);
 }
 
-/** The R&D cards the Runner remembers, top first. */
+/** The R&D cards the Runner remembers the place of, top first (not the shares a shuffle left: rdSharesKnownToRunner). */
 export function knownInRd(state: GameState): RdKnownCard[] {
-  return state.corp.rdKnownToRunner ?? [];
+  const all = state.corp.rdKnownToRunner ?? [];
+  return all.some(e => e.n0) ? all.filter(e => !e.n0) : all;
+}
+
+/** The R&D cards the Runner knows are in R&D since a shuffle, each with share 1 / n0 per place between `lo` and `hi`. */
+export function rdSharesKnownToRunner(state: GameState): RdKnownCard[] {
+  return (state.corp.rdKnownToRunner ?? []).filter(e => e.n0);
+}
+
+/**
+ * The Runner's R&D marks (knownInRd, then the shares) as the Corp can place them: `corpAt` is the place of the mark's
+ * card where the Corp knows that card is there (rdKnownToCorp; 4.2.3), else undefined. Ids stay in the engine (brief
+ * b4-hidden-zones ruling 5): the Corp's deal names a card for every other mark by code and place only.
+ */
+export function runnerRdMarksForCorp(state: GameState): { mark: RdKnownCard; corpAt?: number }[] {
+  const at = new Map(knownToCorpInRd(state).filter(e => state.corp.rd[e.at]?.instanceId === e.id).map(e => [e.id, e.at]));
+  return [...knownInRd(state), ...rdSharesKnownToRunner(state)].map(mark => ({ mark, corpAt: at.get(mark.id) }));
 }
 
 /** Ids of `after` that kept their relative order from `before` (longest increasing run of old positions). */
@@ -141,7 +173,58 @@ function keptInOrder(before: string[], after: string[]): Set<string> {
   return kept;
 }
 
-const mergeLeft = (a: RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
+/**
+ * The marks after an action that shuffled R&D (step 0 gaps 2 and 4). shuffleRD turned the marks of the last action's end
+ * into shares; the rest of the action is applied here, from how R&D changed and what is open:
+ * - a marked card that left R&D in the open (or into the cards known in HQ) is followed there, so its share goes;
+ * - any other card that left R&D this action could have been a marked one (1.12.3), so every share may have left;
+ * - a card that was in the open and went into R&D (Spin Doctor, Longevity Serum, Sleipnir shuffle Archives in) is one
+ *   the Runner saw go in (10.2.2b): it gets a share of the deck too (4.2.2, 8.7.3).
+ * Cards the Runner sees after the shuffle are placed by step 6 as usual.
+ */
+function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): RdKnownCard[] {
+  const inRd = new Set(state.corp.rd.map(c => c.instanceId));
+  const departed = prev.corp.rd.filter(c => !inRd.has(c.instanceId)).map(c => c.instanceId);
+  const open = publicCards(state);
+  const inHq = new Set((state.corp.knownToRunner ?? []).map(e => e.id));
+  const followed = new Set(departed.filter(id => open.has(id) || inHq.has(id)));
+  const unseen = departed.some(id => !followed.has(id));
+  let out = known.filter(e => !(e.n0 && followed.has(e.id))).map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  const wasInRd = new Set(prev.corp.rd.map(c => c.instanceId));
+  const openBefore = publicCards(prev);
+  const n0 = state.corp.rd.length;
+  for (const c of state.corp.rd)
+    if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out = [...out, { id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];
+  return out;
+}
+
+/**
+ * The cheap way out of updateRdKnowledge (B4 tracker R-103; it runs after every action of every playout). It applies
+ * when nothing the Runner knows of R&D can have changed: no shuffle, no secret look at the top and nothing seen, and
+ * every card in the same place (rules 4.2.3: a deck's order holds unless a rule or ability changes it). It also needs
+ * every mark already settled the way the full walk would leave it: none that may have left R&D (`left`), each within
+ * R&D and sorted, and each mark's card in R&D inside its range. A card in R&D is in no open zone (rules 1.12.1: a card
+ * is an object in one zone), so the walk's step 5 (a card that turns up in the open) removes nothing. The walk would
+ * then return the list unchanged, so this skip does not change play.
+ */
+function unchangedRd(prev: GameState, state: GameState, note: RdNotes | undefined, known: RdKnownCard[]): boolean {
+  if (note?.shuffled || note?.privateTop || note?.seen?.length) return false;
+  const before = prev.corp.rd;
+  const after = state.corp.rd;
+  if (before.length !== after.length) return false;
+  for (let i = 0; i < after.length; i++) if (before[i].instanceId !== after[i].instanceId) return false;
+  for (let k = 0; k < known.length; k++) {
+    const e = known[k];
+    if (e.left || e.lo < 0 || e.lo > e.hi || e.hi > after.length - 1) return false;
+    if (k > 0 && (known[k - 1].lo > e.lo || (known[k - 1].lo === e.lo && known[k - 1].hi > e.hi))) return false;
+    let found = false;
+    for (let i = e.lo; i <= e.hi && !found; i++) found = after[i].instanceId === e.id;
+    if (!found) return false;
+  }
+  return true;
+}
+
+const mergeLeft = (a:RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
 const isExact = (e: RdKnownCard) => e.lo === e.hi && !e.left;
 
 /**
@@ -153,9 +236,10 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   const note = state.corp.rdNotes;
   delete state.corp.rdNotes;
   updateCorpRdKnowledge(prev, state, note);
-  let known = knownInRd(state);
+  let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
-  if (known.length === 0 && seen.length === 0) return;
+  if (known.length === 0 && seen.length === 0 && !note?.shuffled) return;
+  if (unchangedRd(prev, state, note, known)) return;
 
   const before = prev.corp.rd.map(c => c.instanceId);
   const after = state.corp.rd.map(c => c.instanceId);
@@ -215,10 +299,15 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
     const surfaced = [...publicCards(state)].filter(([id]) => !publicBefore.has(id));
     for (const [id, code] of surfaced) {
       const same = known.findIndex(e => e.id === id);
-      const i = same >= 0 ? same : known.findIndex(e => e.left && e.code === code);
+      // A mark with a place first; a shuffled share only if no such mark has the name
+      const placed = same >= 0 ? same : known.findIndex(e => e.left && !e.n0 && e.code === code);
+      const i = placed >= 0 ? placed : known.findIndex(e => e.left && e.code === code);
       if (i >= 0) known = known.filter((_, j) => j !== i);
     }
   }
+
+  // After a shuffle: the action's other moves, and the cards the Runner saw go in
+  if (note?.shuffled) known = afterShuffle(prev, state, known);
 
   // 6. Cards seen during this action are exactly where they are now
   for (const id of seen) {

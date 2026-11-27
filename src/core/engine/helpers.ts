@@ -1,6 +1,6 @@
 import { CardInstance, SideCode } from '../types/card';
-import { GameState, KnownHandCard, ServerState } from '../types/state';
-import { cardDef } from '../cards';
+import { GameState, KnownHandCard, KnownLosses, ServerState } from '../types/state';
+import { cardDef, getCardDefinition } from '../cards';
 import { IllegalActionError } from './errors';
 import { addLog } from './log';
 import { getCardScript } from '../scripts';
@@ -242,9 +242,11 @@ function setKnownList(state: GameState, owner: SideCode, list: KnownHandCard[]):
  * so the cards stay hidden and the other side only remembers them.
  */
 export function revealInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
-  const known = knownList(state, owner);
+  let known = knownList(state, owner);
+  // Seen again: certain again (no card has left unseen since). The entry keeps its place in the list.
+  if (known.some(e => e.lost && cards.some(c => c.instanceId === e.id))) known = known.map(e => (e.lost && cards.some(c => c.instanceId === e.id) ? { id: e.id, code: e.code } : e));
   const add = cards.filter(c => !known.some(e => e.id === c.instanceId)).map(c => ({ id: c.instanceId, code: c.cardCode }));
-  if (add.length > 0) setKnownList(state, owner, [...known, ...add]);
+  setKnownList(state, owner, add.length > 0 ? [...known, ...add] : known);
 }
 
 /** The other side saw these known cards leave the hand for a hidden place (Touch-ups' shuffle). */
@@ -275,30 +277,183 @@ export function publicCards(state: GameState): Map<string, string> {
   return cards;
 }
 
+type LossKind = keyof KnownLosses;
+
+/**
+ * What the other side can tell about a card that left a hidden zone unseen, from where it went: installed protecting a
+ * server it is ice (rules 4.6.6d), in a remote root an agenda, asset or upgrade, in a central root an upgrade (4.6.6e).
+ * Where a card is installed is open information (4.6.6a, f, 10.2.3a). Anywhere else it could be any card.
+ */
+function lossKind(state: GameState, id: string): LossKind {
+  for (const server of Object.values(state.corp.servers)) {
+    if (server.ice.some(c => c.instanceId === id)) return 'ice';
+    if (server.root.some(c => c.instanceId === id)) return server.isRemote ? 'root' : 'upgrade';
+  }
+  return 'any';
+}
+
+/** Every entry of `list` saw these unseen departures after it was seen. */
+function addLosses(list: KnownHandCard[], kinds: LossKind[]): KnownHandCard[] {
+  if (kinds.length === 0) return list;
+  return list.map(e => {
+    const lost: KnownLosses = { ...e.lost };
+    for (const k of kinds) lost[k] = (lost[k] ?? 0) + 1;
+    return { ...e, lost };
+  });
+}
+
+/** The departures since `e` was seen that could have been a card of type `type`. */
+function lossesFor(e: KnownHandCard, type: string): number {
+  const l = e.lost;
+  if (!l) return 0;
+  const root = type === 'agenda' || type === 'asset' || type === 'upgrade';
+  return (l.any ?? 0) + (type === 'ice' ? (l.ice ?? 0) : 0) + (root ? (l.root ?? 0) : 0) + (type === 'upgrade' ? (l.upgrade ?? 0) : 0);
+}
+
+/**
+ * By code, how many of a list's cards are certainly still in their zone: the entries less the most of them the unseen
+ * departures could have been. A departure can be at most one card, of a kind its place allows, seen before it left
+ * (rules 1.12.3: a card gone to a hidden place is not followed). Taking the newest `j` entries of a code, the departures
+ * after the oldest of them can account for at most that many, so `j - departures` of them are certainly there; the
+ * count is the best such `j` (Hall's theorem: the departures after each entry are nested). Never below 0; a lower
+ * bound, never false certainty.
+ */
+export function certainCounts(list: KnownHandCard[]): [string, number][] {
+  const byCode = new Map<string, number[]>();
+  for (const e of list) {
+    const type = getCardDefinition(e.code)?.type_code ?? '';
+    const ls = byCode.get(e.code) ?? [];
+    ls.push(lossesFor(e, type));
+    byCode.set(e.code, ls);
+  }
+  const out: [string, number][] = [];
+  for (const [code, ls] of byCode) {
+    ls.sort((a, b) => a - b);
+    let best = 0;
+    ls.forEach((l, j) => (best = Math.max(best, j + 1 - l)));
+    if (best > 0) out.push([code, best]);
+  }
+  return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** By code and count, the cards of `owner`'s hand the other side knows are still there. */
+export function certainInHand(state: GameState, owner: SideCode): [string, number][] {
+  return certainCounts(knownList(state, owner));
+}
+
+/**
+ * The instances of `owner`'s hand a reader may treat as known: for each code the other side surely knows is there
+ * (certainInHand), that many of the hand's cards with the code, first in hand order. Chosen by code and count, not by
+ * the list's ids (brief b4-hidden-zones ruling 5): which copy is the seen one is not the reader's to know.
+ */
+export function certainHandCards(state: GameState, owner: SideCode): CardInstance[] {
+  const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
+  return certainInHand(state, owner).flatMap(([code, n]) => hand.filter(c => c.cardCode === code).slice(0, n));
+}
+
+/** The facedown Archives cards the Runner saw go in, oldest first (rules 4.4.6b, c: facedown cards stay hidden). */
+export function archivesKnownToRunner(state: GameState): KnownHandCard[] {
+  return state.corp.archKnownToRunner ?? [];
+}
+
+/** By code and count, the facedown Archives cards the Runner knows are still there. */
+export function certainInArchives(state: GameState): [string, number][] {
+  return certainCounts(archivesKnownToRunner(state));
+}
+
+/**
+ * Facedown Archives: a card the Runner knew (in the open, or seen exactly in R&D) that goes facedown into Archives is
+ * one it knows is there (rules 4.4.6b, 10.2.2b); a card that leaves unseen is a departure it cannot tell (1.12.3); one
+ * that turns up in the open is no longer hidden.
+ */
+function updateArchivesKnowledge(prev: GameState, state: GameState): void {
+  const was = prev.corp.archives.faceDown;
+  const now = state.corp.archives.faceDown;
+  let known = archivesKnownToRunner(state);
+  const wasIds = new Set(was.map(c => c.instanceId));
+  const arrivals = now.filter(c => !wasIds.has(c.instanceId));
+  if (known.length === 0 && arrivals.length === 0) return;
+  if (known.length > 0) {
+    const nowIds = new Set(now.map(c => c.instanceId));
+    const departed = was.filter(c => !nowIds.has(c.instanceId));
+    if (departed.length > 0) {
+      const open = publicCards(state);
+      known = addLosses(
+        known.filter(e => nowIds.has(e.id) || !open.has(e.id)),
+        departed.filter(c => !open.has(c.instanceId)).map(c => lossKind(state, c.instanceId))
+      );
+    }
+  }
+  if (arrivals.length > 0) {
+    const openBefore = publicCards(prev);
+    const exactInRd = new Set((prev.corp.rdKnownToRunner ?? []).filter(e => e.lo === e.hi && !e.left).map(e => e.id));
+    for (const c of arrivals) if ((openBefore.has(c.instanceId) || exactInRd.has(c.instanceId)) && !known.some(e => e.id === c.instanceId)) known = [...known, { id: c.instanceId, code: c.cardCode }];
+  }
+  known = known.slice(Math.max(0, known.length - now.length));
+  if (known.length > 0 || state.corp.archKnownToRunner) state.corp.archKnownToRunner = known;
+}
+
+/**
+ * A card that was in the open and goes back to a hand (a rezzed or known ice returned to HQ: Descent, Hermes, Tatu-Bola;
+ * a heap card taken back to the grip) is one the other side saw go there (10.2.2b, 10.2.3a): it joins the list. Step 0
+ * gap 3. A card drawn from R&D or the stack is left to updateRdKnowledge (the Runner's R&D marks).
+ */
+function noteOpenArrivals(prev: GameState, state: GameState): void {
+  let open: Map<string, string> | undefined;
+  for (const owner of ['corp', 'runner'] as const) {
+    const was = owner === 'corp' ? prev.corp.hq : prev.runner.grip;
+    const now = owner === 'corp' ? state.corp.hq : state.runner.grip;
+    if (now.length === 0) continue;
+    const wasIds = new Set(was.map(c => c.instanceId));
+    const deck = owner === 'corp' ? prev.corp.rd : prev.runner.stack;
+    const arrivals = now.filter(c => !wasIds.has(c.instanceId) && !deck.some(d => d.instanceId === c.instanceId));
+    if (arrivals.length === 0) continue;
+    open ??= publicCards(prev);
+    const seen = arrivals.filter(c => open!.has(c.instanceId));
+    if (seen.length > 0) revealInHand(state, owner, seen);
+  }
+}
+
 /**
  * Keeps each side's memory of the other's hand honest after an action. A
  * known card that leaves the hand unseen stays on the list, since the viewer
- * cannot tell it from the other cards that might have left (rules 1.12.3).
- * When a card with the same name turns up in the open from somewhere the
- * viewer could not follow (not straight from R&D or the stack), it may be the
- * one they knew, so one entry of that name is forgotten. The list never holds
- * more cards than the hand does.
+ * cannot tell it from the other cards that might have left (rules 1.12.3);
+ * every entry counts the departure (KnownHandCard.lost), by the kinds of card
+ * its place allows, so certainInHand() can say which seen cards are surely
+ * still there. When a card with the same name turns up in the open from
+ * somewhere the viewer could not follow (not straight from R&D or the stack),
+ * it may be the one they knew, so one entry of that name is forgotten. The
+ * list never holds more cards than the hand does. Facedown Archives is kept
+ * by the same rule (updateArchivesKnowledge).
  */
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
+  updateArchivesKnowledge(prev, state);
+  noteOpenArrivals(prev, state);
   if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0) return;
   const before = publicCards(prev);
+  const after = publicCards(state);
   const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack].map(c => c.instanceId));
-  const surfaced = [...publicCards(state)].filter(([id]) => !before.has(id) && !fromDeck.has(id));
+  const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
   for (const owner of ['corp', 'runner'] as const) {
     let known = knownList(state, owner);
     if (known.length === 0) continue;
+    const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
+    const inHand = new Set(hand.map(c => c.instanceId));
+    // A card the Runner followed from HQ into R&D (an effect showed it there: it is marked in R&D) is no departure it
+    // cannot tell, and it is no longer in HQ (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program)
+    const followed = owner === 'corp' ? new Set((state.corp.rdKnownToRunner ?? []).map(e => e.id)) : undefined;
+    const departed = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId) && !followed?.has(c.instanceId));
+    if (followed?.size) known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));
+    known = addLosses(
+      known,
+      departed.map(c => lossKind(state, c.instanceId))
+    );
     for (const [id, code] of surfaced) {
       const same = known.findIndex(e => e.id === id);
       const i = same >= 0 ? same : known.findIndex(e => e.code === code);
       if (i >= 0) known = known.filter((_, j) => j !== i);
     }
-    const handSize = (owner === 'corp' ? state.corp.hq : state.runner.grip).length;
-    setKnownList(state, owner, known.slice(Math.max(0, known.length - handSize)));
+    setKnownList(state, owner, known.slice(Math.max(0, known.length - hand.length)));
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, executeAction, GameState, knownInHand } from '../src/core';
-import { revealInHand } from '../src/core/engine/helpers';
+import { certainInHand, revealInHand } from '../src/core/engine/helpers';
 import { answer, cont, giveCard, installCorpForTest, keepGoing, newGame, passTurn, play, run, setIdentity, startRunnerTurn } from './helpers';
 
 // Rules 1.21.3: a revealed card is shown, then returns to its previous state.
@@ -91,6 +91,8 @@ describe('cards known in the opponent\'s hand', () => {
     const installed = Object.values(s.corp.servers).flatMap(sv => sv.root).find(c => c.instanceId === regolith.instanceId)!;
     expect(installed.runnerKnows).toBeFalsy();
     expect(knownInHand(s, 'corp').map(k => k.code)).toEqual([SG.regolith]);
+    // B4a ruling 1: the list still says "could be"; the count no longer calls it certain (a root install may be an asset, 4.6.6e)
+    expect(certainInHand(s, 'corp')).toEqual([]);
     // Rezzing shows a Regolith: it may be the one seen, so that entry goes
     s = executeAction(s, { type: 'REZ_CARD', player: 'corp', cardInstanceId: regolith.instanceId });
     expect(knownInHand(s, 'corp')).toEqual([]);

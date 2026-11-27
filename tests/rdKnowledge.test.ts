@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, GameState, knownInHand } from '../src/core';
-import { knownInRd, noteRdPrivate, runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
+import { knownInRd, noteRdPrivate, rdSharesKnownToRunner, runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
+import { certainInArchives, updateHandKnowledge } from '../src/core/engine/helpers';
 import { answer, cont, newGame, passTurn, run, startRunnerTurn } from './helpers';
 import { getCardDefinition } from '../src/core';
 import { serverValue } from '../src/ai/runs';
@@ -60,11 +61,16 @@ describe('R&D cards the Runner has seen', () => {
     expect(inHq(s)).toContain(id);
   });
 
-  it('a seen card trashed from the top (facedown) is forgotten, not added to HQ', () => {
-    let [s, id] = seenAt(0);
-    s = act(s, n => n.corp.archives.faceDown.push(...n.corp.rd.splice(0, 1)));
+  // B4a ruling 1 (replaces "is forgotten"): the Runner saw it go, so it is known in facedown Archives (4.4.6b, 10.2.2b)
+  it('a seen card trashed from the top (facedown) leaves R&D, is not added to HQ, and is known in facedown Archives', () => {
+    const [prev, id] = seenAt(0);
+    const s = structuredClone(prev);
+    s.corp.archives.faceDown.push(...s.corp.rd.splice(0, 1));
+    updateRdKnowledge(prev, s);
+    updateHandKnowledge(prev, s);
     expect(knownInRd(s)).toEqual([]);
     expect(inHq(s)).not.toContain(id);
+    expect(certainInArchives(s)).toEqual([[SG.hedgeFund, 1]]);
   });
 
   // Jeff: 1 known card in a rearranged top 3 isn't certainly drawn until 3 draws later
@@ -114,10 +120,12 @@ describe('R&D cards the Runner has seen', () => {
     expect(inHq(s)).not.toContain(id); // it might have been the trashed card
   });
 
-  it('a shuffle forgets everything', () => {
-    let [s] = seenAt(0);
+  // B4a ruling 1 (replaces "a shuffle forgets everything"): a shuffle hides the place, not that the card is in R&D
+  it('a shuffle forgets where each seen card is, and keeps it as a share of the deck (4.2.2, 8.7.3, 10.2.2b)', () => {
+    let [s, id] = seenAt(0);
     s = act(s, n => shuffleRD(n));
     expect(knownInRd(s)).toEqual([]);
+    expect(rdSharesKnownToRunner(s).map(e => [e.id, e.lo, e.hi, e.n0])).toEqual([[id, 0, s.corp.rd.length - 1, s.corp.rd.length]]);
   });
 
   it('a seen top card moved to the bottom (ezaM) is known on the bottom', () => {
@@ -136,6 +144,30 @@ describe('R&D cards the Runner has seen', () => {
     s = act(s, n => runnerSeesRd(n, n.corp.rd[0]));
     expect(knownInRd(s).find(e => e.id === id)).toMatchObject({ lo: 1, hi: 2 });
     expect(knownInRd(s).find(e => e.id !== id)).toMatchObject({ lo: 0, hi: 0 });
+  });
+
+  // B4 tracker R-103: updateRdKnowledge's cheap way out when R&D keeps its order (rules 4.2.3) must leave exactly what
+  // the full walk would
+  it('an action that leaves R&D as it was leaves the marks as they were, shares included (4.2.3)', () => {
+    let [s] = seenAt(2);
+    s = act(s, n => shuffleRD(n));
+    s = act(s, n => runnerSeesRd(n, n.corp.rd[4]));
+    const marks = structuredClone(s.corp.rdKnownToRunner);
+    s = act(s, n => (n.corp.credits += 1));
+    expect(s.corp.rdKnownToRunner).toEqual(marks);
+  });
+
+  it('with R&D as it was, a mark that may have left still goes when its card turns up in the open, and an unsorted list is sorted', () => {
+    const s0 = newGame();
+    const fund = createCardInstance(s0, SG.hedgeFund);
+    const [a, b] = [s0.corp.rd[1], s0.corp.rd[3]];
+    s0.corp.rdKnownToRunner = [{ id: fund.instanceId, code: SG.hedgeFund, lo: 0, hi: 2, left: 'other' }];
+    const s1 = act(s0, n => n.corp.archives.faceUp.push(fund));
+    expect(s1.corp.rdKnownToRunner).toEqual([]);
+    const s2 = structuredClone(s0);
+    s2.corp.rdKnownToRunner = [{ id: b.instanceId, code: b.cardCode, lo: 3, hi: 3 }, { id: a.instanceId, code: a.cardCode, lo: 1, hi: 1 }];
+    const s3 = act(s2, n => (n.corp.credits += 1));
+    expect(s3.corp.rdKnownToRunner?.map(e => e.lo)).toEqual([1, 3]);
   });
 
   it('a public card put on top of R&D (from faceup Archives) is known there', () => {
