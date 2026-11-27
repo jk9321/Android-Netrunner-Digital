@@ -25,10 +25,11 @@
  *
  *   ARGS="POOL=batch DEALS=1001 MAX_STEPS=200" npx vite-node scripts/f117/count.ts
  *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb MODE=audit
+ *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb,human MODE=audit TREES=key (speed pass bar 2)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameState } from '../../src/core';
 import { ALL_DECKS } from '../nsg-sample-decks';
@@ -205,6 +206,64 @@ function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
       winner: g.state.winner ?? null,
       ms: Math.round(performance.now() - t0),
       error,
+      audit: { checked: a.checked, mismatches: a.mismatches, otherFrame: a.otherFrame, otherFrameMismatches: a.otherFrameMismatches, otherKnown: a.otherKnown, otherKnownMismatches: a.otherKnownMismatches },
+      byName: Object.fromEntries(a.byName),
+      errors: a.errors.slice(0, 20),
+    });
+  }
+}
+
+/**
+ * POOL=human (speed pass bar 2): each tests/fixtures/human-games file's recorded moves replayed; at every decision each
+ * tree's own persistent agents are asked on a copy (as core-lockstep.ts's human files), with memoAudit on for the asks.
+ */
+function auditHuman(file: string, trees: Record<string, Loaded>) {
+  const r = JSON.parse(readFileSync(file, 'utf8'));
+  if (!r.moves?.length) return;
+  for (const [name, t] of Object.entries(trees)) {
+    t.clear();
+    t.vm.memoAudit.reset();
+    const agents = { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') };
+    let s: GameState;
+    if (r.startsAt === 'state') s = structuredClone(r.state);
+    else {
+      s = t.core.createInitialGameState(t.decks.deckGameSetup(r.config.seed, r.config.corpDeck, r.config.runnerDeck));
+      if (r.startStops) s = { ...s, stops: r.startStops };
+    }
+    const t0 = performance.now();
+    let decisions = 0;
+    let stopped: string | null = null;
+    const errors: string[] = [];
+    for (const [j, move] of (r.moves as any[]).entries()) {
+      const ai = { ...s, stops: { corp: 'ai', runner: 'ai' } } as GameState;
+      if (decisionOf(t.core, ai)) {
+        decisions++;
+        t.vm.memoAudit.on = true;
+        try {
+          new t.GameRunner(structuredClone(ai), agents).step();
+        } catch (e) {
+          if (errors.length < 5) errors.push(`moves[${j}]: ${(e as Error).message.slice(0, 120)}`);
+        } finally {
+          t.vm.memoAudit.on = false;
+        }
+      }
+      try {
+        s = t.core.executeAction(s, move);
+      } catch (e) {
+        stopped = `moves[${j}]: ${(e as Error).message.slice(0, 100)}`;
+        break;
+      }
+    }
+    const a = t.vm.memoAudit;
+    out({
+      kind: 'deal',
+      pool: 'human',
+      seed: file.split('/').pop(),
+      tree: name,
+      steps: decisions,
+      stopped,
+      ms: Math.round(performance.now() - t0),
+      error: errors[0] ?? null,
       audit: { checked: a.checked, mismatches: a.mismatches, otherFrame: a.otherFrame, otherFrameMismatches: a.otherFrameMismatches, otherKnown: a.otherKnown, otherKnownMismatches: a.otherKnownMismatches },
       byName: Object.fromEntries(a.byName),
       errors: a.errors.slice(0, 20),
@@ -469,7 +528,13 @@ async function main() {
     nrdb: process.env.RECORDS_NRDB ?? 'scripts/runner-rework/facts-deals-45458221138.json',
   };
   const sources: { pool: string; d: Deal }[] = [];
+  const humans: string[] = [];
   for (const pool of POOLS) {
+    if (pool === 'human') {
+      const dir = 'tests/fixtures/human-games';
+      for (const f of readdirSync(dir).filter(x => x.endsWith('.json')).sort()) if (!DEALS.length || DEALS.includes(f)) humans.push(join(dir, f));
+      continue;
+    }
     if (!pools[pool]) throw new Error(`unknown pool ${pool}`);
     for (const d of recs(pools[pool])) if (!DEALS.length || DEALS.includes(String(d.seed))) sources.push({ pool, d });
   }
@@ -482,6 +547,15 @@ async function main() {
       else throw new Error(`unknown MODE ${MODE}`);
     } catch (e) {
       out({ kind: 'error', pool: src.pool, seed: src.d.seed, error: (e as Error).stack?.slice(0, 400) });
+    }
+  }
+  for (const [k, file] of humans.entries()) {
+    if ((sources.length + k) % shards !== shard) continue;
+    if (MODE !== 'audit') throw new Error('POOL=human is for MODE=audit');
+    try {
+      auditHuman(file, trees);
+    } catch (e) {
+      out({ kind: 'error', pool: 'human', seed: file, error: (e as Error).stack?.slice(0, 400) });
     }
   }
   out({ kind: 'done', shard, ms: Date.now() - started });
