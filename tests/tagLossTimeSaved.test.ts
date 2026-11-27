@@ -48,7 +48,11 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
     const action = createAgent('corp', 'normal').chooseAction(saved());
     // Brief O1a (tracker R-14b): DRAW_CARD before it; under this decision the Corp's reply priced the rezzed Malapert Data
     // Vault in remote-1 at serverWorth's 0.5 floor 54 times (the formula below 0.5), so with the floor gone the pick moves
-    expect(action).toEqual({ player: 'corp', type: 'GAIN_CREDIT' });
+    // F117 departures (the Mercia ruling, 54adee7): the line after the draw plays Sprint (inst-26), whose two cards
+    // shuffled back are chosen departures priced by their owner's difference at the board before's limit (HQ 7 of 5:
+    // about nothing), where base took the count and the half keep; the draw's line rises from -39.20 to -33.70 against
+    // the click for a credit's -37.35, so the pick moves. The counts below are what this pin is for
+    expect(action).toEqual({ player: 'corp', type: 'DRAW_CARD' });
     // Measured on ai-tag-loss-time (beta 8e28403's clock): 25,222 tag-clock prices, 126,117 rig values inside the clock of
     // 133,173, 56,920 rez budgets asked and 6,242 hold counts started inside it. With ai-tag-loss-bp (a resource priced by
     // its own term plus its share of the plans: no rig value inside the clock): 10,914 prices, 0 inside of 7,044, 4,102
@@ -70,4 +74,9 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
 // need asks the Corp's keep, and the keep's hold count runs inside the clock: 4,790 hold counts started (2,326 on beta
 // 609c4c3; N1 keeps the flat cost inside an open hold count, so none nests). The other counts are unchanged (11,127 prices,
 // 6,215 rig values, 0 inside, 2,234 rez budgets). The hold cap moves by the same headroom (1,150 / 1,080): 2,477 -> 5,100
-const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 5_100 };
+// F117 (deck arrivals; time accepted by Jeff 2026-11-27 15:47Z, "Accept, speed pass right after"): with the departures
+// the pick moves to DRAW_CARD and the planner plays a Sprint line, and on the merged tree (the tag clock's hold path)
+// the clock counts 13,793 prices (11,127 on beta b744f03), 5,448 rez budgets (2,234) and 11,732 hold counts (4,790);
+// rig values 6,217 (6,215), 0 inside. The decision's wall time about +25% (10.4-12.1 s to 13.0-14.8 s in a container).
+// The three that moved take the hold cap's old headroom (1,150 / 1,080): 14,700, 5,800 and 12,500; rig stays
+const PIN = { prices: 14_700, rigIn: 0, rig: 7_750, rez: 5_800, hold: 12_500 };

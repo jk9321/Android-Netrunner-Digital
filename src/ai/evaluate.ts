@@ -476,16 +476,22 @@ export function tagPunisher(card: CardInstance, viewer: SideCode): boolean {
 /** A side's clicks left and its hand, each on its own. */
 export function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
+  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handCount(state, side, viewer);
+  logValue('hand', 'handAndClicks', state, own, side, viewer);
+  return clickPrice(state, side, viewer) * player.clicks + own;
+}
+
+/**
+ * A side's hand priced by count, as `viewer` prices it where the hand is not priced card by card (handAndClicks' count
+ * line; F117 D2 reads it as the count's part C, on a board and on the same board without the seen arrivals).
+ */
+export function handCount(state: GameState, side: SideCode, viewer: SideCode): number {
+  const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
   // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
   const reached = side === 'corp' && viewer === 'corp' && reachCard(state) ? 1 : 0;
-  const own =
-    side === viewer && handByCard(side)
-      ? ownHandValue(state, side)
-      : handValue(hand.length - reached, player.handSizeLimit, viewer);
-  logValue('hand', 'handAndClicks', state, own, side, viewer);
-  return clickPrice(state, side, viewer) * player.clicks + own;
+  return handValue(hand.length - reached, player.handSizeLimit, viewer);
 }
 
 /**

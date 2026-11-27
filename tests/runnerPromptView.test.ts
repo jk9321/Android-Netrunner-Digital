@@ -40,7 +40,8 @@ interface Fixture {
   state: GameState;
 }
 const KINDS = ['muslihat-top', 'tao-swap', 'tao-swap-access', 'topan-host', 'scrounge-host', 'magdalene-host', 'hermes-bounce', 'hermes-bounce-access', 'cataloguer-arrange', 'burner-where'];
-const TODAY = { 'bahia-host-run': 'host', 'muse-install': 'fetch' } as const;
+// F117 removed the 'fetch' class (Mutual Favor, Muse: muse-install below); only the host step keeps today's path
+const TODAY = { 'bahia-host-run': 'host' } as const;
 const path = (k: string) => new URL(k.startsWith('deal-') ? `./fixtures/runner-pins/${k}.json` : `./fixtures/runner-prompt-view/${k}.json`, import.meta.url);
 const load = (k: string): Fixture => JSON.parse(readFileSync(path(k), 'utf8'));
 
@@ -143,6 +144,12 @@ describe('the Runner answers its prompts on the honest view (B3 commit 2)', () =
       expect(prompt.honestPromptAnswer(fx.state, portsOf(fx.state, fx.memory)).path).toBe('today');
     });
   }
+
+  it("muse-install (R-93's 'fetch' class) is answered on the honest view since F117", () => {
+    const fx = load('muse-install');
+    expect(prompt.todayPathKind(fx.state)).toBeNull();
+    expect(prompt.honestPromptAnswer(fx.state, portsOf(fx.state, fx.memory)).path).not.toBe('today');
+  });
 
   it('a Corp decision never builds the honest view (Corp side condition 2)', { timeout: 120_000 }, () => {
     const fx = load('muslihat-top');
