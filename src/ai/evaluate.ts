@@ -435,8 +435,9 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
     // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best.
     // The basic action's cost is its owners' price as `viewer` prices it (F110 part C, rule 5.2.6g): the click's owner
     // and the 2 credits on the credit's owner's slide, read on this board (a stated approximation: the board's own
-    // change for the click and the credits is not read; registry)
-    const cost = clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
+    // change for the click and the credits is not read; registry). N1 (ruling 3, the ai-hold-reentry precedent): inside an
+    // open hold count the cost is the flat CLICK + 2, so the credit's need (the keep's own hold count) is not asked there
+    const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
     trash = Math.max(0, nets[skip] ?? 0) - cost;
   }
   // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner. Which card is one, by view (F114 part P),
