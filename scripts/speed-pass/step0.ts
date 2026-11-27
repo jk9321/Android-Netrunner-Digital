@@ -28,6 +28,9 @@
  *   BOARD=tests/fixtures/tag-loss-time/t18-corp.json npx vite-node scripts/speed-pass/step0.ts   (item 3: one decision)
  *   SHARD=0/64 npx vite-node scripts/speed-pass/step0.ts -- POOL=batch,nrdb
  *   ARGS="POOL=batch DEALS=1001 MAX_STEPS=200" npx vite-node scripts/speed-pass/step0.ts
+ * Step 0b (MAKERS=1): who makes the boards equal in whole state on distinct objects (see `maker` below); with it every
+ * executeAction result is tagged and a content repeat's `sameObj` (the same object asked again) is counted apart.
+ *   SHARD=0/64 npx vite-node scripts/speed-pass/step0.ts -- POOL=batch,nrdb MAKERS=1
  * Summed by scripts/speed-pass/step0-sum.mjs.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -77,6 +80,8 @@ const TIMED: [string, string, 'fn' | 'const'][] = [
   ['ai/cardPlans.ts', 'boardPlansWorth', 'fn'],
   ['ai/corp/hold.ts', 'serverHold', 'fn'],
   ['ai/iceValues.ts', 'rezBudget', 'fn'],
+  // Step 0b: the engine's board maker (its result tagged with the board and action it came from)
+  ['core/engine/gameEngine.ts', 'executeAction', 'fn'],
 ];
 const OTHER: Patch[] = [
   // memo's miss path: the work goes through the B count's hook (the value and the entry are as in play)
@@ -127,7 +132,9 @@ const S = {
   kind: '' as Kind,
   timers: {} as Record<Kind, Record<string, Row>>,
   reps: {} as Record<Kind, Record<string, [n: number, ms: number]>>,
-  content: {} as Record<Kind, Record<string, { asked: number; same: [number, number]; other: [number, number]; inClock: number; inClockSame: number; verified: [number, number]; differ: Record<string, number> }>>,
+  content: {} as Record<Kind, Record<string, { asked: number; same: [number, number]; other: [number, number]; inClock: number; inClockSame: number; verified: [number, number]; sameObj: [number, number]; differ: Record<string, number> }>>,
+  makers: {} as Record<Kind, Record<string, Record<string, { n: number; ms: number; logEq: number }>>>,
+  exec: {} as Record<Kind, { n: number; ms: number; dup: number; dupMs: number; sites: Record<string, [number, number]> }>,
   B: {} as Record<Kind, Record<string, { all: [number, number]; fresh: number; same: [number, number]; other: [number, number]; eq: number; diff: number }>>,
 };
 const depth: Record<string, number> = {};
@@ -168,15 +175,23 @@ function timer(name: string, f: (...a: any[]) => any, a: any[]) {
   if (depth[name]) {
     if (repeat) addRep(name, 0);
     if (content) addContent(name, content, 0);
+    if (name === 'executeAction' && MAKERS) {
+      const t1 = performance.now();
+      const result = f(...a);
+      if (result && typeof result === 'object') born(a[0], a[1], result, performance.now() - t1);
+      return result;
+    }
     return f(...a);
   }
   depth[name] = 1;
   open.push(name);
   const t0 = performance.now();
+  let result: any;
   try {
-    return f(...a);
+    return (result = f(...a));
   } finally {
     const ms = performance.now() - t0;
+    if (name === 'executeAction' && MAKERS && result && typeof result === 'object') born(a[0], a[1], result, ms);
     depth[name] = 0;
     open.pop();
     bumpRow(name, ms, 1);
@@ -210,10 +225,11 @@ const CONTENT: Record<string, (a: any[]) => string> = {
   tagLossPerTurn: a => `${a[1]}#${a[2] ?? 0}`,
   rezMoney: a => JSON.stringify(a[1] ?? {}),
   creditNeed: a => String(a[1]),
+  evaluate: a => String(a[1]),
 };
 const VERIFY = Number(process.env.VERIFY ?? 8);
 let fingerprint: (s: GameState) => string = () => '';
-const contentSeen = new Map<string, { frames: Set<string>; first: object }>();
+const contentSeen = new Map<string, { frames: Set<string>; first: object; objs: Set<object> }>();
 const fullText = new WeakMap<object, string>();
 const whole = (s: any): string => {
   let t = fullText.get(s);
@@ -239,24 +255,100 @@ function contentKey(name: string, a: any[]): [string, string, object] | null {
   return [`${name}#${fingerprint(s)}#${JSON.stringify(s.turnFlags)}#${s.activeRun ? JSON.stringify(s.activeRun) : ''}#${CONTENT[name](a)}`, `${fk.pricing}|${fk.context}`, s];
 }
 function addContent(name: string, [board, fk, state]: [string, string, object], ms: number) {
-  const h = ((S.content[S.kind] ??= {})[name] ??= { asked: 0, same: [0, 0], other: [0, 0], inClock: 0, inClockSame: 0, verified: [0, 0], differ: {} });
+  const h = ((S.content[S.kind] ??= {})[name] ??= { asked: 0, same: [0, 0], other: [0, 0], inClock: 0, inClockSame: 0, verified: [0, 0], sameObj: [0, 0], differ: {} });
   const clock = depth.tagLossPerTurn > 0 && name !== 'tagLossPerTurn';
   h.asked++;
   if (clock) h.inClock++;
   let seen = contentSeen.get(board);
-  if (!seen) contentSeen.set(board, (seen = { frames: new Set(), first: state }));
+  if (!seen) contentSeen.set(board, (seen = { frames: new Set(), first: state, objs: new Set() }));
   const repeat = seen.frames.has(fk) ? 'same' : seen.frames.size ? 'other' : null;
   if (repeat) {
     h[repeat][0]++;
     h[repeat][1] += ms;
     if (clock && repeat === 'same') h.inClockSame++;
-    if (repeatsSeen++ % VERIFY === 0 && seen.first !== state) {
+    // The same board object asked again in the same frame (no memo on it): a repeat that needs no maker
+    if (repeat === 'same' && seen.objs.has(state)) {
+      h.sameObj[0]++;
+      h.sameObj[1] += ms;
+    } else if (repeatsSeen++ % VERIFY === 0 && seen.first !== state) {
       h.verified[0]++;
-      if (whole(seen.first) === whole(state)) h.verified[1]++;
-      else for (const path of diffPaths(seen.first, state)) h.differ[path] = (h.differ[path] ?? 0) + 1;
+      if (whole(seen.first) === whole(state)) {
+        h.verified[1]++;
+        if (MAKERS && repeat === 'same') maker(name, seen.first, state, ms);
+      } else for (const path of diffPaths(seen.first, state)) h.differ[path] = (h.differ[path] ?? 0) + 1;
     }
   }
   seen.frames.add(fk);
+  seen.objs.add(state);
+}
+
+/**
+ * Step 0b (MAKERS=1; ruling-rev0.md "Step 0, ruled" 3): who makes the boards that are equal in whole state on distinct
+ * objects. Every executeAction result inside a decision is tagged with the board and the action it came from; the same
+ * (board object, action) executed again is `dup` (its engine time `dupMs`, and the calling stack `sites`, one in VERIFY).
+ * A verified equal same-frame repeat of a CONTENT name is classed by how its second board was made:
+ *   exec twice       both boards are executeAction results of the same (board object, action)
+ *   exec, equal from both are executeAction results of the same action on two equal boards (the cascade of one above)
+ *   exec             the second is an executeAction result, the first is not or came another way
+ *   copy             the second is no executeAction result (an AI spread copy: withHand, tagCost's copy, ...)
+ * and by the stack it was asked from (src function names, innermost first, the timers' wrappers left out), with whether
+ * the two boards' logs are equal too (the same history, not a transposition). ms: the repeat's own call, on the sample.
+ */
+const MAKERS = !!process.env.MAKERS;
+type Birth = { from: object; action: string; dupOf?: object };
+const birth = new WeakMap<object, Birth>();
+const execSeen = new WeakMap<object, Map<string, object>>();
+let execCount = 0;
+function born(from: object, action: unknown, result: object, ms: number) {
+  if (!S.on) return;
+  const key = JSON.stringify(action);
+  const e = (S.exec[S.kind] ??= { n: 0, ms: 0, dup: 0, dupMs: 0, sites: {} });
+  e.n++;
+  e.ms += ms;
+  let m = execSeen.get(from);
+  if (!m) execSeen.set(from, (m = new Map()));
+  const prev = m.get(key);
+  const b: Birth = { from, action: key };
+  if (prev && prev !== result) {
+    b.dupOf = prev;
+    e.dup++;
+    e.dupMs += ms;
+    if (execCount++ % VERIFY === 0) {
+      const sig = stackSig();
+      const x = (e.sites[sig] ??= [0, 0]);
+      x[0]++;
+      x[1] += ms;
+    }
+  } else m.set(key, result);
+  if (!birth.has(result)) birth.set(result, b);
+}
+function maker(name: string, first: object, second: object, ms: number) {
+  const a = birth.get(first);
+  const b = birth.get(second);
+  const how = b && a && (b.dupOf === first || a.dupOf === second || (a.from === b.from && a.action === b.action)) ? 'exec twice' : b && a && a.action === b.action && whole(a.from) === whole(b.from) ? 'exec, equal from' : b ? 'exec' : 'copy';
+  const sig = `${how} | ${stackSig()}`;
+  const x = (((S.makers[S.kind] ??= {})[name] ??= {})[sig] ??= { n: 0, ms: 0, logEq: 0 });
+  x.n++;
+  x.ms += ms;
+  if (JSON.stringify((first as any).log) === JSON.stringify((second as any).log)) x.logEq++;
+}
+/** The calling stack in the tree's src, innermost first: function names (wrappers and anonymous frames left out), 16 deep. */
+function stackSig(): string {
+  const e: { stack?: string } = {};
+  const lim = Error.stackTraceLimit;
+  Error.stackTraceLimit = 60;
+  Error.captureStackTrace(e);
+  Error.stackTraceLimit = lim;
+  const names: string[] = [];
+  for (const line of (e.stack ?? '').split('\n').slice(1)) {
+    const m = /at (?:([^ ]+) )?\(?(.*?):\d+:\d+\)?$/.exec(line.trim());
+    if (!m || !m[2].includes('/tree/src/')) continue;
+    const fn = (m[1] ?? '').replace(/^Object\./, '').replace(/^__/, '');
+    if (!fn || fn === 'timer' || fn === 'w' || names[names.length - 1] === fn) continue;
+    names.push(`${fn}(${m[2].split('/tree/src/')[1].replace(/\.ts$/, '')})`);
+    if (names.length >= 16) break;
+  }
+  return names.join(' < ');
 }
 
 // Lever B: tagLossPerTurn's copies and the boards made from them, by home (the original) and path
@@ -370,6 +462,8 @@ function playDeal(pool: string, d: Deal, t: Loaded) {
   S.reps = {};
   S.B = {};
   S.content = {};
+  S.makers = {};
+  S.exec = {};
   const ms: Record<Kind, { n: number; ms: number; asked: number; searched: number }> = {};
   const over: Record<string, { n: number; ms: number }> = { corp: { n: 0, ms: 0 }, runner: { n: 0, ms: 0 } };
   let nested = 0;
@@ -435,7 +529,9 @@ function playDeal(pool: string, d: Deal, t: Loaded) {
     winner: g.state.winner ?? null,
     error,
     ms: Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, { ...v, ms: round(v.ms) }])),
-    content: Object.fromEntries(Object.entries(S.content).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([n, x]) => [n, { ...x, same: x.same.map(round), other: x.other.map(round) }]))])),
+    makers: S.makers,
+    exec: Object.fromEntries(Object.entries(S.exec).map(([k, v]) => [k, { ...v, ms: round(v.ms), dupMs: round(v.dupMs) }])),
+    content: Object.fromEntries(Object.entries(S.content).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([n, x]) => [n, { ...x, same: x.same.map(round), other: x.other.map(round), sameObj: x.sameObj.map(round) }]))])),
     over1s: Object.fromEntries(Object.entries(over).map(([k, v]) => [k, { n: v.n, ms: round(v.ms) }])),
     timers: r(S.timers),
     reps: r(S.reps),
