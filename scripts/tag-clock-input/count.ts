@@ -33,6 +33,10 @@
  *   and tagLoss's work-outs per ask. (A lockstep of C1 against base stops at its first difference, which is the Runner's
  *   first main decision of the game in the deal tried: the Runner's price of a tag reads the Corp's credits under C1.)
  *
+ * MODE=lock (phase B bars 2 and 7, ARM_BASE = the merge base): S plays each deal on the branch's own src; at every
+ *   decision base (b), ctl (k), the branch (n) and the arm's tree switched to ruledn1 (X, the build as patches) decide
+ *   on a clone as in MODE=time. The branch's answer against the arm's (arm-vs-branch: one is a stop), time per caller
+ *   kind, and on X the clock prices by the cost they read (N1's fallback, by view).
  *   ARGS="MODE=probe" | ARGS="MODE=probe POOL=people" | ARGS="MODE=record SEEDS=2" | ARGS="MODE=time"
  *   Step 9: ARGS="MODE=probe ARM=ruled" (full games on the arm's tree; the g rows), ARGS="MODE=record ARM=ruled SEEDS=2",
  *   ARGS="MODE=time ASK=ruled PER_POOL=10" (decisions that move against base, by side and kind, the first of each deal,
@@ -497,8 +501,16 @@ function recordDeal(pool: string, rec: Rec) {
 type Tally = Record<string, number>;
 const inc = (t: Tally, k: string, n = 1) => void (t[k] = (t[k] ?? 0) + n);
 type Method = 'chooseAction' | 'chooseRez' | 'chooseOffTurn';
+type AskTree = 'b' | 'k' | 'X' | 'n';
+/** MODE=lock (phase B bars 2 and 7): the branch's own src (n) and the arm's tree switched to ruledn1 (X), beside base and ctl. */
+const LOCK_ASKS: { name: string; tree: AskTree; arm?: Arm }[] = [
+  { name: 'base', tree: 'b' },
+  { name: 'ctl', tree: 'k' },
+  { name: 'branch', tree: 'n' },
+  { name: 'arm', tree: 'X', arm: 'ruledn1' },
+];
 /** The asking trees: b and k the merge base as it is (k: the time control), X the patched tree asked under each switch set. */
-const ASKS: { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[] = [
+const TIME_ASKS: { name: string; tree: AskTree; arm?: Arm }[] = [
   { name: 'base', tree: 'b' },
   { name: 'ctl', tree: 'k' },
   { name: 'off', tree: 'X', arm: 'base' },
@@ -509,8 +521,9 @@ const ASKS: { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[] = [
   { name: 'ruledin', tree: 'X', arm: 'ruledin' },
   { name: 'ruledtag', tree: 'X', arm: 'ruledtag' },
   { name: 'ruledorc', tree: 'X', arm: 'ruledorc' },
-].filter(a => !process.env.ASK || a.name === 'base' || process.env.ASK.split(',').includes(a.name)) as { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[];
-let TT: Record<'b' | 'k' | 'X', T>;
+].filter(a => !process.env.ASK || a.name === 'base' || process.env.ASK.split(',').includes(a.name)) as { name: string; tree: AskTree; arm?: Arm }[];
+const ASKS = MODE === 'lock' ? LOCK_ASKS : TIME_ASKS;
+let TT: Partial<Record<AskTree, T>>;
 function ask(t: T, side: 'corp' | 'runner', method: Method, s: GameState, from: any): string {
   t.clear();
   const agent: any = t.ai.createAgent(side, 'normal');
@@ -550,16 +563,25 @@ function timeDeal(pool: string, rec: Rec) {
     for (const a of order) {
       if (a.arm) setArm('X', a.arm);
       G.__tciKeep = { n: 0, clock: 0 };
+      G.__tciFall = {};
       const t0 = performance.now();
-      answers[a.name] = ask(TT[a.tree], side, method, s, agent);
+      answers[a.name] = ask(TT[a.tree]!, side, method, s, agent);
       inc(ms, `${a.name} ${k}`, performance.now() - t0);
       if (a.tree === 'X') {
         inc(work, `keep ${a.name} ${k}`, G.__tciKeep.n);
         inc(work, `clock ${a.name} ${k}`, G.__tciKeep.clock);
+        // N1's fallback (ruling 3, reported): clock prices by the cost they read ('flat' inside a hold count, or 'c1'), by view
+        for (const [fk, fn] of Object.entries(G.__tciFall as Record<string, number>)) inc(work, `cost ${fk} ${a.name} ${k}`, fn);
       }
       G.__tciKeep = undefined;
+      G.__tciFall = undefined;
     }
     setArm('X', 'base');
+    // bar 2 (MODE=lock): the branch against the arm's scratch tree, answer for answer; one difference is a stop
+    if (answers.branch !== undefined && answers.arm !== undefined && answers.branch !== answers.arm) {
+      inc(differ, `arm-vs-branch ${k}`);
+      inout.push({ i, T: s.turnNumber, k, active: s.activePlayer, tags: s.runner.tags, cc: s.corp.credits, branch: answers.branch.slice(0, 200), arm: answers.arm.slice(0, 200) });
+    }
     // the cost read inside the frame against outside, answer for answer (step 9's nrdb 1281)
     if (answers.ruled !== undefined && answers.ruledin !== undefined && answers.ruled !== answers.ruledin) {
       inc(differ, `ruledin-vs-ruled ${k}`);
@@ -657,7 +679,12 @@ function person(file: string) {
 async function main() {
   const started = Date.now();
   if (process.env.STACK) Error.stackTraceLimit = 100000;
-  if (MODE === 'time') {
+  if (MODE === 'lock') {
+    // S plays on the branch's own src (makeTree with no ref copies the checkout's src), n is the branch asked
+    S = await load('S', makeTree(join(root, 'S'), {}));
+    TT = { b: await tree('b'), k: await tree('k'), n: await load('n', makeTree(join(root, 'n'), {})), X: await tree('X', armPatches('X')) };
+    setArm('X', 'base');
+  } else if (MODE === 'time') {
     S = await tree('S');
     TT = { b: await tree('b'), k: await tree('k'), X: await tree('X', armPatches('X')) };
     setArm('X', 'base');
@@ -689,7 +716,7 @@ async function main() {
       if (src.pool === 'people') person(src.id);
       else if (MODE === 'probe') probeDeal(src.pool, src.id);
       else if (MODE === 'record') recordDeal(src.pool, src.id);
-      else if (MODE === 'time') timeDeal(src.pool, src.id);
+      else if (MODE === 'time' || MODE === 'lock') timeDeal(src.pool, src.id);
       else throw new Error(`unknown MODE ${MODE}`);
     } catch (err) {
       out({ kind: 'err', pool: src.pool, src: typeof src.id === 'string' ? src.id : src.id?.seed, error: (err as Error).stack?.slice(0, 500) });

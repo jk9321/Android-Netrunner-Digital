@@ -15,6 +15,8 @@
  *   p     part P: a punisher is a card with the ifTagged flag AND type operation; the identity's term goes under the same
  *         test (an identity is not an operation, so it is 0).
  *   pCorp with p: P in the Corp's view only; the Runner's view keeps base's test (ruling 1, 2026-11-27 03:08Z).
+ *   n1    with c1 (phase B, ruling 3 N1): inside an open hold count (countingHold) the flat CLICK + 2. Arm ruledn1 is
+ *         ruledin with n1: the build exactly. __tciFall (when set) counts clock prices by the cost read, 'flat' or 'c1'.
  *   dbg   a function: called with tagLoss's parts { nets, cost, viewer, skip, held, punish, id } (read-only).
  * Two counters, read by phase A 1 e (only when the global is set): __tciKeep.n counts rezMoney's keep work-outs (the
  * memo's miss in corp/rezMoney.ts), __tciKeep.clock counts tagLoss's own work-outs.
@@ -27,7 +29,9 @@ import { resolve } from 'node:path';
 import type { Patch } from '../corp-owed/trees';
 
 /** The merge base the brief names (beta 3680b7f, src/ai tree 3fbc3bd6); ARM_BASE overrides it with a full SHA. */
-export const MERGE_BASE = process.env.ARM_BASE ?? '3680b7f21c012f4fa1fbec38f4817cdf49bec654';
+// (read here from ARGS and argv too: this module is evaluated before count.ts copies ARGS into the environment)
+const argBase = `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.match(/(?:^|\s)ARM_BASE=([0-9a-f]{40})/)?.[1];
+export const MERGE_BASE = argBase ?? process.env.ARM_BASE ?? '3680b7f21c012f4fa1fbec38f4817cdf49bec654';
 
 export const NEW_FUNCTION = `
 
@@ -89,7 +93,10 @@ function trashCost(state: GameState, viewer: SideCode): number {
     [
       'ai/evaluate.ts',
       `    trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);`,
-      `    const cost = A.c1 ? trashCostRead ?? trashCost(state, viewer) : CLICK + 2;
+      `    // n1 (ruling 3): inside an open hold count the flat cost; __tciFall counts the clock prices by which cost they read
+    const fall = A.n1 && pricing().countingHold;
+    if (A.c1 && (globalThis as any).__tciFall) ((f: any, k: string) => void (f[k] = (f[k] ?? 0) + 1))((globalThis as any).__tciFall, \`\${fall ? 'flat' : 'c1'} \${viewer}\`);
+    const cost = A.c1 && !fall ? trashCostRead ?? trashCost(state, viewer) : CLICK + 2;
     trash = Math.max(0, nets[skip] ?? 0) - cost;
     if (A.dbg) A.dbg({ part: 'trash', nets, cost, viewer, skip });`,
     ],
@@ -142,14 +149,15 @@ export const BAR: Patch = [
  * read inside the tag-pricing frame (c1in), after step 9's nrdb 1281: read outside, the cost's need (creditNeed -> the
  * keep -> serverHold's walk -> tagCost -> tagsWorth -> tagClock -> the cost) re-enters on new boards without end.
  */
-export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled' | 'ruledin' | 'ruledtag' | 'ruledorc';
+export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled' | 'ruledin' | 'ruledtag' | 'ruledorc' | 'ruledn1';
 /** The arms phase A read side by side (ruled is step 9's, and the time mode's extra ask). */
 export const ARMS: Arm[] = ['base', 'c1', 'p', 'c1p'];
 /** The switch object of an arm. */
 export const armSwitch = (arm: Arm) => {
   // ruledtag / ruledorc (the stop's attribution): the outside read with tags flat / the oracle off during it
-  const ruled = arm === 'ruled' || arm === 'ruledin' || arm === 'ruledtag' || arm === 'ruledorc';
-  return { c1: arm === 'c1' || arm === 'c1p' || ruled, p: arm === 'p' || arm === 'c1p' || ruled, pCorp: ruled, c1in: arm === 'ruledin', tagonly: arm === 'ruledtag', oracleonly: arm === 'ruledorc' };
+  // ruledn1 (phase B, ruling 3): ruledin with N1, the build exactly (bar 2's lockstep)
+  const ruled = arm === 'ruled' || arm === 'ruledin' || arm === 'ruledtag' || arm === 'ruledorc' || arm === 'ruledn1';
+  return { c1: arm === 'c1' || arm === 'c1p' || ruled, p: arm === 'p' || arm === 'c1p' || ruled, pCorp: ruled, c1in: arm === 'ruledin' || arm === 'ruledn1', n1: arm === 'ruledn1', tagonly: arm === 'ruledtag', oracleonly: arm === 'ruledorc' };
 };
 /** Set a tree's switches (keeps dbg). */
 export function setArm(name: string, arm: Arm, extra: Record<string, unknown> = {}) {
