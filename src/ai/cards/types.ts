@@ -262,4 +262,53 @@ export interface CardAI {
   freeInstallHosted?: true;
   /** An identity that clears tags: `tags` tags' worth with it, `turnLoss` a Corp turn's loss; tagsWorth takes the lower (V-B B6). */
   tagClear?: (state: GameState, tags: number, turnLoss: number) => number;
+  /** What the Corp does with this card against a Runner holding tags (TagUse; F119). Every Corp card that uses, needs or
+   * spends the Runner's tags has one; the tag clock (evaluate.ts tagLoss) reads only this, never the ifTagged flag. */
+  tagUse?: TagUse;
+}
+
+/** F119: one effect of a tag use (TagUse.does, TagUse.without). Facts only, never a price: each kind is priced by its
+ * owner where it is read. Today's readers (F119-S, a translation at today's prices): `trashRig` in Retribution's hand
+ * plan (cardPlans.ts, trashedCardCost); `damage` in Mindscaping's and Orbital Superiority's corpTurnDamage; `runnerCredits`
+ * and `corpCredits` in Bigger Picture's hand plan; `freeRez` in freeRez.ts pendingFreeRezzes. The other kinds are stated
+ * for the balance steps (brief f119-punisher-field rev 1, the owners table) and read by nothing yet. */
+export interface TagUseEffect {
+  trashRig?: 1; // trash 1 installed Runner card (Retribution): trashedCardCost
+  damage?: number; // damage dealt, meat or net (damageWorth does not tell them apart)
+  coreDamage?: number; // core damage dealt (Jaguarundi, during a run: the run model's)
+  endRun?: 1; // the run ends (Lamplighter, during a run: the run model's runnerTagsAtLeast)
+  runnerCredits?: number; // credits the Runner loses
+  corpCredits?: number; // credits the Corp gains
+  corpCards?: number; // net cards the Corp gains in HQ
+  runnerPoints?: number; // agenda points taken from the Runner's score area
+  /** an agenda the Corp installs from the Runner's score area (IP Enforcement): its advancement counters, printed
+   * advancement requirement and printed points, all public */
+  corpAgenda?: { counters: number; cost: number; points: number };
+  freeRez?: number; // installed ice rezzed ignoring all costs (Unleash): freeRez.ts's readers
+  advance?: number; // advancement counters placed (Greasing the Palm)
+  install?: number; // a card installed from HQ ignoring all costs (Synapse Global)
+}
+
+/**
+ * F119: what the Corp does with this card against a Runner holding n tags. Facts only; never a price. Every function reads
+ * PUBLIC facts only (counts, credits, score areas, counters, tags; never the contents of HQ or R&D or a facedown card's
+ * identity), because the Runner's view reads them for cards it cannot see (RULE-HIDDEN-INFO). Every function is closed
+ * form in n and finite at n = Infinity (win-now passes Infinity): no loop to n, a min before any product with n.
+ */
+export interface TagUse {
+  /** where the tag is used: on the Corp's own turn from HQ (an operation), the identity, the Runner's score area or as the
+   * agenda is scored; or not on the Corp's turn: during a run (ice), on access, or as a tag is given (tagGiven) */
+  from: 'hq' | 'identity' | 'runnerScoreArea' | 'onScore' | 'run' | 'access' | 'tagGiven';
+  /** tags the use needs (1 for "play only if the Runner is tagged"; 0 for a use on a tag being given) */
+  needs: number;
+  /** tags it removes (IP Enforcement: X; Bigger Picture: the useful count) */
+  spends: (state: GameState, n: number) => number;
+  /** what it does with n tags */
+  does: (state: GameState, n: number) => TagUseEffect;
+  /** the card's best use with no tag, if it has one; several modes: a reader takes the best (Predictive Planogram) */
+  without?: (state: GameState) => TagUseEffect | TagUseEffect[];
+  /** F119-S, the translation (Corp coordinator ruling, 2026-11-27): false records that today's tag clock does not count
+   * this card (the ifTagged flag's set did not hold it: Mindscaping, Greasing the Palm, Oracle Thinktank), so play stays
+   * identical; the first balance step decides it. Unset: the clock counts the card (a new set's entry counts by default). */
+  clock?: false;
 }
