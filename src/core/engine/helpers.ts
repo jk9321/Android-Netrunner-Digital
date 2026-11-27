@@ -711,8 +711,8 @@ export function updateHandKnowledge(prev: GameState, state: GameState, walk: RdW
  *  - an R&D mark drawn into HQ (`joined`) may be the card behind an X entry, so it merges with the surest X entry, keeping
  *    the fewer losses (red team 4b; brief rev 1 item 4b). A mark that may already have been in HQ before the action
  *    (left 'hq') may be any X entry seen since. One drawn this action was in R&D until now: it can only be an X entry
- *    that may have left HQ since its sighting (some loss), shuffled in or put back (1.12.3); an X seen with no departure
- *    since that could be it is still in HQ, another card, and the mark joins beside it.
+ *    that may have gone from HQ to R&D since its sighting (an unseen departure to anywhere, an 'any' loss: shuffled in
+ *    or put back, 1.12.3); any other X entry is still in HQ or on a server, another card, and the mark joins beside it.
  */
 function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk: RdWalk): KnownHandCard[] {
   const was = knownList(prev, owner);
@@ -737,9 +737,10 @@ function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk
     const pendingBefore = new Set((prev.corp.rdKnownToRunner ?? []).filter(m => m.left === 'hq').map(m => m.id));
     for (const j of walk.joined) {
       const type = getCardDefinition(j.code)?.type_code ?? '';
-      // A mark drawn this action was in R&D until now, so it is not a seen X still in HQ with no departure since that
-      // could have been it; an X entry that may have left (lost) may be this very card, shuffled or put back
-      const notIt = pendingBefore.has(j.id) ? undefined : (e: KnownHandCard) => e.id !== j.id && lossesFor(e, type) === 0;
+      // A mark drawn this action was in R&D until now, so it is only an X entry that may have gone from HQ to R&D since
+      // it was seen: one with a departure to a place the Runner could not see (an 'any' loss; one installed as ice or in
+      // a root went to a server, 4.6.6a, not to R&D). An X with none is still in HQ, another card (rework ruling 24)
+      const notIt = pendingBefore.has(j.id) ? undefined : (e: KnownHandCard) => e.id !== j.id && !(e.lost?.any ?? 0);
       const i = surestIndex(base, j.code, j.id, notIt);
       if (i < 0) {
         base.push(j);

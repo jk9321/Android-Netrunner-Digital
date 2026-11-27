@@ -192,6 +192,19 @@ describe('B4c part 1: an R&D mark that joins HQ merges with a sighting it may be
     expect(certainInHand(s, 'corp')).toEqual([[SG.hedgeFund, 1]]);
   });
 
+  it('a mark drawn in the action beside a seen copy whose only loss is an ice install: that copy is on a server or in HQ, so two (ruling 24)', () => {
+    const s0 = newGame();
+    const [p1, p2] = [0, 1].map(() => createCardInstance(s0, SG.palisade));
+    s0.corp.hq = [p1, p2, createCardInstance(s0, SG.hedgeFund)];
+    s0.corp.rd = [createCardInstance(s0, SG.palisade), createCardInstance(s0, SG.hedgeFund)];
+    let s = act(s0, n => revealInHand(n, 'corp', [n.corp.hq[0]]));
+    s = act(s, n => n.corp.servers.hq.ice.push(take(n.corp.hq, p2.instanceId)));
+    expect(s.corp.knownToRunner?.[0].lost).toEqual({ ice: 1 });
+    s = act(s, n => runnerSeesRd(n, n.corp.rd[0]));
+    s = act(s, n => n.corp.hq.push(n.corp.rd.shift()!));
+    expect(s.corp.knownToRunner?.filter(e => e.code === SG.palisade)).toHaveLength(2);
+  });
+
   it('a mark drawn in the action is a card that was in R&D until now: it joins as its own entry beside a seen copy still in HQ', () => {
     const { s: s0 } = twoCopies();
     const m = createCardInstance(s0, SG.hedgeFund);
