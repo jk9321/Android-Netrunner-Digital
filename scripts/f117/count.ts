@@ -237,12 +237,27 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         const had = new Set(handOf(s, dec.side).map(c => c.instanceId));
         let arrivalPossible = false;
         let departurePossible = false;
+        let departureChance = false;
         for (const a of legal) {
           try {
             const after = B.core.executeAction(structuredClone(s), a);
-            const now = new Set(handOf(after, dec.side).map((c: { instanceId: string }) => c.instanceId));
             if (handOf(after, dec.side).some((c: { instanceId: string }) => !had.has(c.instanceId))) arrivalPossible = true;
-            if ([...had].some(id => !now.has(id))) departurePossible = true;
+            // Departures on the scored end board (the departures red team, finding 5): the same source's next prompts of
+            // the same side answered, up to 3 steps, as followChain walks a "pick a card, then where" chain
+            let end = after;
+            const names = new Set<string>(named(a));
+            for (let k = 0; k < 3 && p && 'source' in p; k++) {
+              const q: any = B.core.activePrompt(end);
+              if (!q || q.side !== dec.side || !('source' in q) || q.source.instanceId !== p.source.instanceId) break;
+              const next = B.prompts.answerPrompt(end, dec.side);
+              for (const id of named(next)) names.add(id);
+              end = B.core.executeAction(structuredClone(end), next);
+            }
+            const now = new Set(handOf(end, dec.side).map((c: { instanceId: string }) => c.instanceId));
+            const gone = [...had].filter(id => !now.has(id));
+            if (gone.length) departurePossible = true;
+            const discard = dec.side === 'corp' ? [...end.corp.archives.faceUp, ...end.corp.archives.faceDown, ...end.corp.rd] : [...end.runner.heap, ...end.runner.stack];
+            if (gone.some(id => !names.has(id) && discard.some((c: { instanceId: string }) => c.instanceId === id))) departureChance = true;
           } catch {
             // an answer the engine refuses moves no card
           }
@@ -262,6 +277,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
             differ,
             arrivalPossible,
             departurePossible,
+            departureChance,
             hand: handOf(s, dec.side).length,
             limit: dec.side === 'corp' ? s.corp.handSizeLimit : s.runner.handSizeLimit,
             base: { names: named(answers.base), zones: zones(answers.base) },

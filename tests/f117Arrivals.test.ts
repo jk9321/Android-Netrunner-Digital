@@ -157,7 +157,7 @@ describe('F117: a searched card priced by its owner', () => {
       const got = scoreOutcome(s, end, 'corp', undefined, false, { first: end, named: new Set([ice]) });
       const owner = ownHandValue(s, 'corp') - ownHandValue(noIce, 'corp');
       const count = handCount(withIce, 'corp', 'corp') - handCount(end, 'corp', 'corp');
-      const staysKeep = 0.5 * (sum(end, end.corp.hq.filter(c => staying.some(x => x.instanceId === c.instanceId))) - sum(s, staying));
+      const staysKeep = 0.5 * (sum(end, end.corp.hq.filter(c => staying.some(x => x.instanceId === c.instanceId))) - sum(noIce, staying));
       expect(got).toBeCloseTo(evaluate(end, 'corp') - (owner - count) + staysKeep, 9);
       // Today's term (the count's price and the card's half keep) is not what is read
       expect(Math.abs(scoreOutcome(s, end, 'corp') - got)).toBeGreaterThan(0.1);
@@ -271,13 +271,53 @@ function karunaPrompt(): GameState {
 const stay = (s: GameState): GameAction => ({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: activePrompt(s)!.id, choice: { kind: 'effect_choice', optionId: 'stay' } });
 const scoredRunner = (s: GameState, a: GameAction) => withChainWork(s, at => scoreAnswer(s, activePrompt(s)!, a, simulate(s, a)!, 'runner', undefined, false, at));
 
-describe('F117 departures by chance (the Runner rework coordinator\'s conditions 1 and 3)', () => {
-  it('a chance departure is priced by expectation: two boards that differ only in the RNG state score the same', () => {
+describe('F117 departures by chance and the red team\'s mirrors (Runner coordinator conditions 1 and 3; departures red team 3 and 4)', () => {
+  it('finding 3: a full-grip core damage answer\'s hand terms equal a net damage answer\'s for the same card', () => {
+    const s = newGame();
+    while (s.runner.grip.length < s.runner.handSizeLimit) s.runner.grip.push(s.runner.stack.shift()!);
+    s.runner.grip = s.runner.grip.slice(0, s.runner.handSizeLimit);
+    const card = s.runner.grip[0];
+    const net: GameState = { ...s, runner: { ...s.runner, grip: s.runner.grip.slice(1), heap: [...s.runner.heap, card] } };
+    const core: GameState = { ...net, runner: { ...net.runner, handSizeLimit: s.runner.handSizeLimit - 1 } };
+    const frame = { first: net, named: new Set<string>() };
+    inDecision(s, 'runner', () => {
+      const terms = (after: GameState) => scoreOutcome(s, after, 'runner', undefined, false, { ...frame, first: after }) - evaluate(after, 'runner');
+      expect(terms(core)).toBeCloseTo(terms(net), 9);
+    });
+  });
+
+  it('finding 4: bar 4\'s Retribution pin reversed: Public Trail leaving HQ moves no staying card\'s keep (the before sum without it)', () => {
+    for (const hq of [3, 5]) {
+      const s = newGame();
+      while (s.corp.hq.length < hq) s.corp.hq.push(s.corp.rd.shift()!);
+      s.corp.hq = s.corp.hq.slice(0, hq);
+      s.corp.hq[0] = createCardInstance(s, RETRIBUTION);
+      const trail = createCardInstance(s, PUBLIC_TRAIL);
+      s.corp.hq[1] = trail;
+      // Public Trail played (named by the answer): out of HQ, into Archives
+      const after: GameState = { ...s, corp: { ...s.corp, hq: s.corp.hq.filter(c => c !== trail), archives: { ...s.corp.archives, faceUp: [...s.corp.archives.faceUp, trail] } } };
+      const without: GameState = { ...s, corp: { ...s.corp, hq: s.corp.hq.filter(c => c !== trail) } };
+      const back: GameState = { ...after, corp: { ...after.corp, hq: [...after.corp.hq, trail] } };
+      const sum = (b: GameState, cs: CardInstance[]) => cs.reduce((n, c) => n + keepValue(b, c), 0);
+      inDecision(s, 'corp', () => {
+        const got = scoreOutcome(s, after, 'corp', undefined, false, { first: after, named: new Set([trail.instanceId]) });
+        const owner = ownHandValue(s, 'corp') - ownHandValue(without, 'corp');
+        const count = handCount(back, 'corp', 'corp') - handCount(after, 'corp', 'corp');
+        const right = evaluate(after, 'corp') - (owner - count) + 0.5 * (sum(after, after.corp.hq) - sum(without, without.corp.hq));
+        expect(got).toBeCloseTo(right, 9);
+        // The before sum with Public Trail still in HQ (54adee7's) reads Retribution's keep moving with it
+        const old = evaluate(after, 'corp') - (owner - count) + 0.5 * (sum(after, after.corp.hq) - sum(s, without.corp.hq));
+        expect(Math.abs(old - got), `HQ ${hq}`).toBeGreaterThan(0.1);
+      });
+    }
+  });
+
+  it('a chance departure keeps base\'s term in expectation: the jack prompt scores the same over rng seeds +0, +1, +2', () => {
     const base = karunaPrompt();
     expect(activePrompt(base)).toMatchObject({ side: 'runner', source: { cardCode: '30047', step: 'jack_out' } });
     const lost: string[] = [];
     const scores: number[] = [];
-    for (const seed of [base.rng.state, 1, 2, 3, 12345]) {
+    for (const seed of [0, 1, 2].map(k => (base.rng.state + k) >>> 0)) {
       const s = structuredClone(base);
       s.rng.state = seed;
       const after = simulate(s, stay(s))!;

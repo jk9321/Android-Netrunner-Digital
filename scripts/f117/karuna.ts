@@ -56,6 +56,33 @@ async function main() {
       if (!g.step()) break;
       if (g.last?.player === 'runner') {
         boards[T.name].push({ before, action: g.last, memory: runner });
+        const p0 = T.core.activePrompt(before);
+        if (process.env.VIEW && p0?.source?.cardCode === process.env.VIEW) {
+          // The deciding Runner's own path: its honest view of the prompt, its memory, each answer scored there
+          const rp: any = await import(/* @vite-ignore */ T.name === 'base' ? join(root, 'base', 'src', 'ai/runner/prompt.ts') : resolve('src/ai/runner/prompt.ts'));
+          const rr: any = await import(/* @vite-ignore */ T.name === 'base' ? join(root, 'base', 'src', 'ai/runnerReply.ts') : resolve('src/ai/runnerReply.ts'));
+          const mem = runner.memory;
+          const view0 = runner.ownView(before);
+          const { view } = rp.honestPromptView(before, { view: view0, slots: (x: any) => rr.runnerUnknownSlots(x, mem), memory: mem, synergy: false, answer: (x: any) => T.prompts.answerPrompt(x, 'runner', mem, false) });
+          T.handValues.inDecision(view, 'runner', () => {
+            for (const a of T.core.getLegalActions(view, 'runner').filter((x: any) => x.type === 'RESOLVE_PROMPT')) {
+              const after = T.prompts.simulate(view, a);
+              const sc = T.prompts.withChainWork(view, (at: any) => T.prompts.scoreAnswer(view, T.core.activePrompt(view), a, after, 'runner', mem, false, at));
+              console.log(`    [${T.name} own view] ${label(view, a)}: ${r2(sc)} (grip after ${after.runner.grip.map((c: any) => name(after, c.instanceId)).join(', ')})`);
+            }
+            // The same view under other RNG states (which grip cards the damage takes), each answer
+            for (const a of T.core.getLegalActions(view, 'runner').filter((x: any) => x.type === 'RESOLVE_PROMPT')) {
+              const xs: number[] = [];
+              for (let k = 0; k < Number(process.env.SEEDS ?? 0); k++) {
+                const v = structuredClone(view);
+                v.rng.state = (view.rng.state + k) >>> 0;
+                if (process.env.DECOMP && k < 6) { const af = T.prompts.simulate(v, a); console.log(`      rng+${k} ${label(v, a)}: evaluate ${r2(T.evaluate.evaluate(af, 'runner'))}, runRest ${r2(T.runs.runRestWorth(af, mem, false))}, grip ${af.runner.grip.map((c: any) => name(af, c.instanceId)).join('/')}`); }
+                xs.push(T.prompts.withChainWork(v, (at: any) => T.prompts.scoreAnswer(v, T.core.activePrompt(v), a, T.prompts.simulate(v, a), 'runner', mem, false, at)));
+              }
+              if (xs.length) console.log(`    [${T.name} own view, ${xs.length} rng states] ${label(view, a)}: mean ${r2(xs.reduce((x, y) => x + y, 0) / xs.length)}, min ${r2(Math.min(...xs))}, max ${r2(Math.max(...xs))}`);
+            }
+          });
+        }
         console.log(`  ${label(before, g.last)}${before.activeRun ? ` (run on ${before.activeRun.server})` : ''}; grip ${before.runner.grip.length} -> ${g.state.runner.grip.length}`);
       }
     }
