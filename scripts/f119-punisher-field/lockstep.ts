@@ -39,8 +39,10 @@ const root = resolve(process.env.TROOT ?? 'node_modules/.cache/f119-lockstep', S
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 const key = (a: unknown) => (a ? JSON.stringify(a) : 'null');
 const G = globalThis as any;
-/** The g1 bases named for beta at the branch's start (project memory, BASELINES): the batch pool and the NRDB pool. */
-const RUNS: Record<string, string> = { batch: '46008214593', nrdb: '46012461062' };
+/** The g1 bases on the merge base (beta 7724180, B4b merged: runs 46035681737 and 46035686306), the batch pool and the NRDB
+ * pool; BASE_RUNS=batch:<id>,nrdb:<id> overrides. Their deals.json are committed beside this script. */
+const RUNS: Record<string, string> = { batch: '46035681737', nrdb: '46035686306' };
+for (const kv of (process.env.BASE_RUNS ?? '').split(',').filter(Boolean)) RUNS[kv.split(':')[0]] = kv.split(':')[1];
 
 const RECORD_AT = `  chooseAction(state: GameState): GameAction {
     return asSide('runner', () => this.decide(state));
