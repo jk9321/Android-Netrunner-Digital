@@ -184,16 +184,18 @@ export function arrivalHow(state: GameState, side: SideCode, real: boolean): Arr
 }
 
 const facesShown = new WeakMap<GameState, ReadonlySet<string>>();
-/** The cards `before`'s active prompt shows `side` by face (core/view.ts's face rule), once per prompt state. */
-function shownByPrompt(before: GameState, side: SideCode): ReadonlySet<string> {
+/**
+ * The cards `before`'s active prompt shows `side` by face (core/view.ts's face rule), once per prompt state: the one copy
+ * (D1's seen arrivals here, and runner/prompt.ts promptShownIds, which reads it with its own filter and F3's freeze).
+ */
+export function shownByPrompt(before: GameState, side: SideCode): ReadonlySet<string> {
+  const prompt = activePrompt(before);
+  if (!prompt || prompt.side !== side) return NONE; // the other side's prompt shows it nothing (and is not memoised under its side)
   let shown = facesShown.get(before);
   if (shown) return shown;
-  const prompt = activePrompt(before);
   const out = new Set<string>();
-  if (prompt && prompt.side === side) {
-    const { faced, onTable } = viewShownBeforePrompts(before, side);
-    for (const [id, face] of promptCardFaces(prompt, x => faced.has(x), x => onTable.has(x))) if (face) out.add(id);
-  }
+  const { faced, onTable } = viewShownBeforePrompts(before, side);
+  for (const [id, face] of promptCardFaces(prompt, x => faced.has(x), x => onTable.has(x))) if (face) out.add(id);
   facesShown.set(before, (shown = out));
   return shown;
 }
@@ -350,9 +352,10 @@ export interface ChainAt {
 }
 /**
  * The budget of chained work per answered prompt (F117 D3, ruling 4): a bound on work, not a value (as the settle's
- * SETTLE_DEPTH). Its size is set from step 0 item 5 (the total of scored answers per answered prompt); 150, the brief's
- * lead (above Muse's programs times hosts on a wide board), until that count. An object so a measurement script can lift
- * it; play never writes it.
+ * SETTLE_DEPTH). Its size is the brief's lead, 150, kept after step 0 item 5 counted it (the scored answers per answered
+ * prompt, 331 deals): every real prompt fits (max 135), and 10 nested chains in rankings and playouts go past it
+ * (Poétrï 8, Off the Books 2), each then scored at one step. An object so a measurement script can lift it; play never
+ * writes it.
  */
 export const CHAIN_BUDGET = { size: 150 };
 class ChainBudgetOut extends Error {}
