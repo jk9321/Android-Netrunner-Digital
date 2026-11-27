@@ -36,6 +36,7 @@ Rule ids (2026-11-26): every rule has an id heading. Cite the id (`RULE-ONE-OWNE
 | `RULE-BATCH-LOG-MARKERS` | Conflict markers in the batch log after a merge |
 | `RULE-ENGINE-CHANGE-NOTICE` | Tell the AI Coordinator before an engine change |
 | `RULE-BAR-BEFORE-BATCH` | Written bar before an experiment batch |
+| `RULE-SPLIT-STRUCTURE` | A change mixing structure and new prices ships in two parts; a failed bar parks only what failed |
 | `RULE-OVERRIDE-CHECK` | Fresh-thread yes/no on a borderline merge |
 | `RULE-PIN-HOLES` | Pin human-usable holes |
 | `RULE-HUMAN-FIXTURES` | Human-game fixtures |
@@ -128,7 +129,7 @@ From project memory (2026-11-26). Before any `ai-script` or `ai-batch` launch, r
 Batch sizes (Jeff 2026-11-07: the repo runs at most 20 Actions jobs at once, a full batch is ~600 runner-minutes): "expect identical" checks use `games=1` (any difference shows); win-rate tests start at `games=3` and top up to 10 (`game_from=3`, `add_run`) only when the result is within about 2 SE of the gate. Launch at most 2-3 batches at a time.
 
 ### RULE-SLOT-GATE: Slot gate
-Slot gate (Jeff 2026-11-16; `.github/scripts/batch-slot.cjs`, the `slot` job of both workflows): a batch or script run waits, holding one job, until its 16 shards fit: beside the tail of the run before when nothing is building (all 20 jobs used), with 3 jobs kept free while a CI or Deploy run is queued or running; waiting runs go short first (a 1-game check, a script), then oldest first. So a run may sit in `slot` before it starts: read the slot job's log for why, and count the check times from when the shards start. Where to start the workflow and the queue discipline: `CLAUDE.md`, AI work, "Batch queue" (`RULE-BATCH-QUEUE`). A waiting run is not free: it holds one of the 20 jobs until it starts, so nine waiting runs leave the running batch eleven runners for its sixteen shards.
+Slot gate (Jeff 2026-11-16; `.github/scripts/batch-slot.cjs`, the `slot` job of both workflows): a batch or script run waits, holding one job, until its 16 shards fit: beside the tail of the run before when nothing is building (all 20 jobs used), with 3 jobs kept free while a CI or Deploy run is queued or running; waiting runs go in order: a long run that has waited an hour in `slot` first, then short runs (a 1-game check, a script not labelled "over N minutes"), then oldest first (the hour step from 2026-11-27, after a g3 waited 2 hours behind ten newer short runs). A run waiting on an older copy of the gate is ordered by the old rule on both sides, so changing the order no longer locks two waiting runs (each gate reads the other run's `GATE_VERSION`; raise it with any new ordering rule). So a run may sit in `slot` before it starts: read the slot job's log for why, and count the check times from when the shards start. Where to start the workflow and the queue discipline: `CLAUDE.md`, AI work, "Batch queue" (`RULE-BATCH-QUEUE`). A waiting run is not free: it holds one of the 20 jobs until it starts, so nine waiting runs leave the running batch eleven runners for its sixteen shards.
 
 ### RULE-BATCH-LOG-MARKERS: Batch log after a merge
 From project memory (2026-11-26). After merging beta, check `docs/ai-batch-log.md` for conflict markers.
@@ -138,6 +139,9 @@ From project memory (2026-11-26; standing request 2026-11-17). Before pushing an
 
 ### RULE-BAR-BEFORE-BATCH: Bar before the batch
 Bar before the batch (Jeff 2026-11-12): before an experiment batch is launched, the spec (or a file in `/mnt/project-files/netrunner-ai/redesign/bars/`) states the expected behaviour change and what counts as pass, fail, borderline and stop, including the behaviour numbers (not only win rate). Every arm reports its local fire count (decisions changed per game) before it gets a batch; an arm that barely fires gets a note, not a batch.
+
+### RULE-SPLIT-STRUCTURE: Structure and prices in separate parts
+Structure and prices in separate parts (Jeff 2026-11-27 16:42-16:46Z, after F119): a change that both moves structure (a new field, a new owner, readers moved onto one statement) and sets new prices or new behaviour through it is built as two parts. The structure part goes in first and play identical: today's numbers translated into the new shape, shown by a g1 with deals.json identical (`RULE-BASELINES`) or a lockstep with 0 first differences. The pricing part is judged on its own count, with its own bar written before it (`RULE-BAR-BEFORE-BATCH`). This applies only to such mixed changes: a decision fix (a wrong move corrected, a count's input fixed) ships with real play changes and its own count, as before. The intent is judgment, not strictness: when a bar fails, park only the part that failed and keep the rest moving, and a coordinator who sees a rule leading to a silly result (parking whole work for the rule's sake) says so and asks, rather than following it. Example: F119's tag-use field (2026-11-27): its pricing half failed its bar, and the field went ahead as a play-identical translation.
 
 ### RULE-OVERRIDE-CHECK: Override check
 Override check (Jeff 2026-11-12): a merge that goes ahead on a borderline or failed bar first gets a yes/no from a fresh thread that reads only the batch numbers, the bar and the diff. The AI Coordinator asks the project coordinator to start it and writes the reason for the override in the review file.

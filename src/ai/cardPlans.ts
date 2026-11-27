@@ -5,6 +5,7 @@ import { corpCardValue, tagsWorth } from './evaluate';
 import { damageWorth } from './effectValues';
 import { runStealthCredits, trashedCardCost } from './runs';
 import { CLICK, cardRate, pointGain } from './valueModel';
+import { CARDS } from './cards';
 import { pricing, withPricing } from './pricing';
 
 /**
@@ -46,6 +47,8 @@ const TAGGERS = ['30057', '35065', '36047'];
 const ranLastTurn = (state: GameState) => state.runnerLastTurnRuns.some(r => r.successful);
 const installedCorp = (state: GameState) => Object.values(state.corp.servers).flatMap(s => [...s.ice, ...s.root]);
 const net = (_state: GameState, card: CardInstance, worth: number) => worth - (cardDef(card).cost ?? 0) - CLICK;
+/** A tag use's effect (CardAI tagUse, F119) with the Runner's tags, at least the 1 its play needs (the payoff once ready). */
+const tagUseEffect = (state: GameState, card: CardInstance) => CARDS[card.cardCode]?.tagUse?.does(state, Math.max(1, state.runner.tags)) ?? {};
 /** A tag punisher is ready when the Runner is tagged, half ready with a tagger in HQ, else a long shot. */
 const tagReady = (state: GameState) => (tagged(state) ? 1 : corpHas(state, TAGGERS) ? 0.5 : 0.2);
 
@@ -65,11 +68,18 @@ export const CARD_PLANS: Record<string, CardPlan> = {
     },
   },
   // Retribution: play only if the Runner is tagged; trash a program or hardware
-  '30065': { side: 'corp', hand: { payoff: (state, card) => net(state, card, trashedCardCost(state)), ready: tagReady } },
+  '30065': { side: 'corp', hand: { payoff: (state, card) => net(state, card, (tagUseEffect(state, card).trashRig ?? 0) * trashedCardCost(state)), ready: tagReady } },
   // Bigger Picture: play only if the Runner is tagged; each tag removed is 5 credits from the Runner to the Corp
   '35065': {
     side: 'corp',
-    hand: { payoff: (state, card) => net(state, card, 2 * Math.min(state.runner.credits, 5 * Math.max(1, state.runner.tags))), ready: tagReady },
+    // F119: the credits the Runner loses and the Corp gains, from its tag use (today's 2 * min(credits, 5 * max(1, tags)))
+    hand: {
+      payoff: (state, card) => {
+        const e = tagUseEffect(state, card);
+        return net(state, card, (e.runnerCredits ?? 0) + (e.corpCredits ?? 0));
+      },
+      ready: tagReady,
+    },
   },
   // Public Trail: play only if the Runner made a successful run last turn; a tag unless they pay 8
   '30057': {

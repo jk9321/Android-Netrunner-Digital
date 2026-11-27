@@ -345,6 +345,7 @@ export const CORP_STATE_FIELDS = {
   meliesServer: 'own', // 1.5.2b: secret until the identity flips
   knownToRunner: 'redacted', // shown as hq.known, codes only
   archKnownToRunner: 'dropped', // the Runner's memory of facedown Archives (4.4.6b, c): the AI's; B4a keeps the screen as it was (bar 4)
+  rootUpgradesKnownToRunner: 'dropped', // root cards the Runner knows are upgrades, from open information (3.2.1, 4.6.6e): the AI's; B4b keeps the screen as it was
   rdKnownToRunner: 'own', // the Runner's memory of R&D; names R&D accesses the Corp may not see (7.1.2)
   rdKnownToCorp: 'dropped', // the Corp's memory of R&D (4.2.3, 10.2.2b); names R&D cards the Runner may not see (4.2.2); the Corp's own client does not need it (no AI plays online)
   rdNotes: 'dropped',
@@ -471,6 +472,74 @@ const INST = /inst-\d+/g;
 
 /** A viewer id: c<N> in the Corp's view, r<N> in the Runner's. */
 const VIEW_ID = /\b[cr]\d+\b/g;
+
+// --- The prompt's cards ----------------------------------------------------------
+
+/**
+ * The face rule for the cards a viewer's own prompt names (one copy: viewFor calls it, and so does the AI's reading of
+ * what a prompt shows, F117 / R-96: src/ai/runner/prompt.ts promptShownIds). The viewer's own prompts may name cards from
+ * hidden zones (the top of R&D, the accessed card):
+ * - the card the prompt is about (the accessed card, access_trash) shows its face: the Runner is accessing it (7.1.2);
+ * - a card already shown with its face in this view keeps it (own cards, rezzed, faceup, known: 4.6.3);
+ * - an installed card the viewer sees only facedown stays facedown, so the prompt can still point at it on the table:
+ *   a facedown card is hidden information until accessed (10.2.2a-b), and the Runner must not learn what sits in a
+ *   root before choosing what to access (7.3.4, 8.5.3a). This covers access_order options, effect_choice options and
+ *   effect_cards candidates (Hermes, Chain Reaction, Tāo Salonga name facedown Corp cards);
+ * - a card from a hidden zone (not on the table) that a card effect shows (effect_cards candidates, the card being
+ *   installed) shows its face, as before; one that only an option id names is facedown (its id keeps the option answerable).
+ * `faced`: the card is already shown with its face in this view; `onTable`: it is already shown at all. Returns each
+ * named real id, in the order named, with whether its face is shown (ids of cards not in the state included: the caller
+ * drops them).
+ */
+export function promptCardFaces(p: Prompt, faced: (id: string) => boolean, onTable: (id: string) => boolean): [id: string, face: boolean][] {
+  /** Real id -> whether the prompt shows a hidden-zone card's face (effect_cards, install source). */
+  const named = new Map<string, boolean>();
+  const name = (id: string, shows: boolean) => named.set(id, (named.get(id) ?? false) || shows);
+  const about = p.kind === 'access_trash' ? p.cardInstanceId : undefined;
+  if (about) name(about, true);
+  if (p.kind === 'effect_cards') p.candidateIds.forEach(id => name(id, true));
+  if (p.kind === 'effect_choice' || p.kind === 'effect_cards') {
+    if (p.source.data?.install && typeof p.source.data.cardId === 'string') name(p.source.data.cardId, true);
+  }
+  if (p.kind === 'access_order' || p.kind === 'effect_choice') {
+    for (const o of p.options) for (const m of o.id.match(INST) ?? []) name(m, false);
+  }
+  return [...named].map(([id, shows]) => [id, id === about || faced(id) || (shows && !onTable(id))]);
+}
+
+/**
+ * The cards `side`'s view shows before its prompts' cards are added (viewFor's zones, in its order): `onTable`, every
+ * card shown at all; `faced`, the ones shown with their face. For promptCardFaces' inputs without building the view
+ * (src/ai/runner/prompt.ts promptShownIds; tests/f117View.test.ts holds it equal to viewFor's own on recorded games).
+ */
+export function viewShownBeforePrompts(state: GameState, side: SideCode): { faced: Set<string>; onTable: Set<string> } {
+  const faced = new Set<string>();
+  const onTable = new Set<string>();
+  const show = (c: CardInstance, face: boolean) => {
+    onTable.add(c.instanceId);
+    if (!face) return;
+    faced.add(c.instanceId);
+    for (const h of c.hostedCards ?? []) show(h, true);
+  };
+  const c = state.corp;
+  const r = state.runner;
+  show(c.identity, true);
+  show(r.identity, true);
+  for (const s of Object.values(c.servers)) for (const x of [...s.ice, ...s.root]) show(x, side === 'corp' || x.isRezzed || !!x.faceUp || !!x.runnerKnows);
+  const open = (list: CardInstance[]) => list.forEach(x => show(x, true));
+  open(c.scoreArea);
+  open(c.archives.faceUp);
+  if (side === 'corp') open(c.archives.faceDown);
+  if (side === 'corp') open(c.hq);
+  open(r.rig.programs);
+  open(r.rig.hardware);
+  open(r.rig.resources);
+  open(r.heap);
+  if (side === 'runner') open(r.grip);
+  open(r.scoreArea);
+  open(state.removedFromGame);
+  return { faced, onTable };
+}
 
 // --- viewFor ----------------------------------------------------------------------
 
@@ -600,36 +669,14 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
   const runnerScore = open(r.scoreArea);
   const removed = open(state.removedFromGame);
 
-  // The viewer's own prompts may name cards from hidden zones (the top of R&D, the accessed card). One rule for the face:
-  // - the card the prompt is about (the accessed card, access_trash) shows its face: the Runner is accessing it (7.1.2);
-  // - a card already shown with its face in this view keeps it (own cards, rezzed, faceup, known: 4.6.3);
-  // - an installed card the viewer sees only facedown stays facedown, so the prompt can still point at it on the table:
-  //   a facedown card is hidden information until accessed (10.2.2a-b), and the Runner must not learn what sits in a
-  //   root before choosing what to access (7.3.4, 8.5.3a). This covers access_order options, effect_choice options and
-  //   effect_cards candidates (Hermes, Chain Reaction, Tāo Salonga name facedown Corp cards);
-  // - a card from a hidden zone (not on the table) that a card effect shows (effect_cards candidates, the card being
-  //   installed) shows its face, as before; one that only an option id names is facedown (its id keeps the option answerable).
+  // The viewer's own prompts' cards, by the face rule (promptCardFaces, above)
   const promptCards = new Map<string, CardView[]>();
   for (const p of state.pendingPrompts) {
     if (p.side !== side) continue;
-    /** Real id -> whether the prompt shows a hidden-zone card's face (effect_cards, install source). */
-    const named = new Map<string, boolean>();
-    const name = (id: string, shows: boolean) => named.set(id, (named.get(id) ?? false) || shows);
-    const about = p.kind === 'access_trash' ? p.cardInstanceId : undefined;
-    if (about) name(about, true);
-    if (p.kind === 'effect_cards') p.candidateIds.forEach(id => name(id, true));
-    if (p.kind === 'effect_choice' || p.kind === 'effect_cards') {
-      if (p.source.data?.install && typeof p.source.data.cardId === 'string') name(p.source.data.cardId, true);
-    }
-    if (p.kind === 'access_order' || p.kind === 'effect_choice') {
-      for (const o of p.options) for (const m of o.id.match(INST) ?? []) name(m, false);
-    }
     const cards: CardView[] = [];
-    for (const [id, shows] of named) {
+    for (const [id, face] of promptCardFaces(p, id => faced.has(id), id => out.view[id] !== undefined)) {
       const found = all.get(id);
-      if (!found) continue;
-      const onTable = out.view[id] !== undefined;
-      cards.push(card(found, id === about || faced.has(id) || (shows && !onTable)));
+      if (found) cards.push(card(found, face));
     }
     promptCards.set(p.id, cards);
   }

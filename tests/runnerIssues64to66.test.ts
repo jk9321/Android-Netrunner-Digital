@@ -5,6 +5,8 @@ import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { Agent } from '../src/ai/agent';
 import { GameRunner } from '../src/ai/playout';
+import { remoteAgendaOdds } from '../src/ai/runs';
+import { runnerRootKinds } from '../src/core/engine/helpers';
 
 /**
  * Issues #64, #65 and #66 (saved games in tests/fixtures/runner-issues/issue-64.json and issue-66.json;
@@ -251,9 +253,14 @@ describe('issue #66a: a run priced past two rezzed Brân 1.0s by more clicks tha
   // One pin a turn (review, 2026-11-24): each passes when the Runner makes no run on remote-3 in which it spends
   // bioroid clicks and then jacks out. The same mechanism as issue #59 (tests/runnerDecidedTwice.test.ts): each
   // Brân 1.0 is priced against the same three clicks.
+  // B4b: on T16 the one root card sat beside the agenda scored from that root, so the Runner knows it is an upgrade
+  // (#66b, rules 4.6.6e, 8.5.6a) and no longer runs there for it. #66a's T16 board is therefore the same board with that
+  // card one the Corp installed after the agenda left (its kind unknown: no root-kind mark), so the run #66a prices is
+  // still made.
+  const unknownRoot = (s: GameState) => void delete s.corp.rootUpgradesKnownToRunner;
   for (const turn of [15, 16]) {
     it.fails(`#66a T${turn}: the Runner does not spend bioroid clicks on Brân 1.0 and then jack out`, { timeout: 15_000 }, () => {
-      expect(remote3Runs(turn).filter(r => r.breaks > 0 && r.ended === 'jackedOut')).toEqual([]);
+      expect(remote3Runs(turn, turn === 16 ? unknownRoot : undefined).filter(r => r.breaks > 0 && r.ended === 'jackedOut')).toEqual([]);
     });
   }
 
@@ -262,6 +269,7 @@ describe('issue #66a: a run priced past two rezzed Brân 1.0s by more clicks tha
   // breaks it with clicks and does not jack out in movement.
   it('#66a twin: with only one rezzed Brân 1.0 on T16 the Runner breaks it with clicks and gets past without jacking out', { timeout: 15_000 }, () => {
     const runs = remote3Runs(16, s => {
+      unknownRoot(s);
       s.corp.servers[REMOTE_3].ice[3].isRezzed = false;
     });
     expect(runs.length).toBeGreaterThan(0);
@@ -290,5 +298,18 @@ describe('issue #66b: the card left in remote-3 after the agenda was scored can 
     expect(t15).toContain(left[0].instanceId);
     const other = t15.find(id => id !== left[0].instanceId);
     expect(t16.corp.scoreArea.some(c => c.instanceId === other)).toBe(true);
+  });
+  // B4b pins (brief b4-hidden-zones ruling 9, case iii): the engine keeps that the card sat beside an agenda that left in
+  // the open, and the Runner's price reads it (8.5.6a, 4.6.6e, 10.2.3a)
+  it('#66b T16: the Runner knows the card is an upgrade and prices no agenda there', () => {
+    const s = boardAtRun('issue-66', 16).state;
+    const server = s.corp.servers[REMOTE_3];
+    expect(runnerRootKinds(s, server.root[0])?.kinds).toEqual(['upgrade']);
+    expect(remoteAgendaOdds(s, server, server.root[0], 1 / 3)).toBe(0);
+  });
+  it('#66b T16: the Runner\'s first run is not into remote-3 for an agenda it cannot hold', { timeout: 60_000 }, () => {
+    const { state, runner } = boardAtRun('issue-66', 16);
+    const a = runner.chooseAction(state);
+    expect(a.type === 'INITIATE_RUN' && a.targetServerId === REMOTE_3).toBe(false);
   });
 });

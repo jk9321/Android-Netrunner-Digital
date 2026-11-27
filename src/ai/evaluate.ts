@@ -1,6 +1,7 @@
 import { CardInstance, GameState, SideCode, cardDef } from '../core';
 import { breakerScript, iceSubtypes, isIcebreaker } from '../core/engine/ice';
 import { counters } from '../core/engine/cardEffects';
+import { runnerRootKinds } from '../core/engine/helpers';
 import { cardSynergy } from './synergyTags';
 import { corpKeepValue, runnerCardValue } from './cardValues';
 import { countersWorth } from './counterValues';
@@ -341,7 +342,8 @@ export function corpBoardValue(state: GameState, viewer: SideCode): number {
         // plan.oneAgendaGuess (code audit cleanup item 9): the odds the run choice uses (runs.ts remoteAgendaOdds: more
         // likely an agenda behind ice, and an advanced card one unless it's a trap), so a run doesn't look worth making
         // while the board says the card isn't worth stealing, or the other way round
-        const agenda = plan().oneAgendaGuess && server.isRemote ? remoteAgendaOdds(state, server, card, 1 / 3) : odds.agenda;
+        // B4b (d), R-99: no agenda share where the root allows none (runnerRootKinds: 3.6.1, 3.2.1, 3.3.1)
+        const agenda = runnerRootKinds(state, card)?.kinds.includes('agenda') === false ? 0 : plan().oneAgendaGuess && server.isRemote ? remoteAgendaOdds(state, server, card, 1 / 3) : odds.agenda;
         value += agenda * agendaWorth(state, card.advancementCounters, odds.agendaCost, odds.agendaPoints, server.id) + (1 - agenda) * odds.other;
         continue;
       }
@@ -449,15 +451,8 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
     const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
     trash = Math.max(0, nets[skip] ?? 0) - cost;
   }
-  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner. Which card is one, by view (F114 part P),
-  // the one place the two views differ (Runner rework coordinator, 2026-11-27). The Corp's view: a flagged card the
-  // Corp plays from HQ on its own turn, an operation; an ice, an agenda, an asset or an identity with the flag is no
-  // card to play (Orbital Superiority's damage is the damage clock's, effectValues.ts ownTurnDamage). The Runner's view
-  // keeps the flag alone, as its tagCost has no other reader of Orbital's kill; the split goes when F119 carries that
-  // damage in both views (tracker, F119)
-  const flagged = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
-  const punisherByView: Record<SideCode, (c: CardInstance) => boolean> = { corp: c => flagged(c) && cardDef(c).type_code === 'operation', runner: flagged };
-  const punishes = punisherByView[viewer];
+  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner (tagPunisher, by view)
+  const punishes = (c: CardInstance) => tagPunisher(c, viewer);
   let held: number;
   if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
   else {
@@ -471,19 +466,41 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   return Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
 }
 
+/**
+ * A tag punisher for the tag clock, as `viewer` sees it. Which card is one, by view (F114 part P), the one place the two
+ * views differ (Runner rework coordinator, 2026-11-27). A punisher is a card whose entry states a tag use the clock counts
+ * (CardAI tagUse, F119; never the ifTagged synergy flag). F119-S translated today's set into the entries (the flag's set:
+ * tests/tagUse.test.ts pins it), so a new set's punisher is one by its entry. The Corp's view: one the Corp plays from HQ
+ * on its own turn (`from` 'hq', an operation); an ice, an agenda, an asset or an identity is no card to play (Orbital
+ * Superiority's damage is the damage clock's, effectValues.ts ownTurnDamage). The Runner's view counts every entry the
+ * clock counts, as its tagCost has no other reader of Orbital's kill; the split goes when the damage is carried in both
+ * views (tracker, F119). Exported for tests/tagUse.test.ts.
+ */
+export function tagPunisher(card: CardInstance, viewer: SideCode): boolean {
+  const use = CARDS[card.cardCode]?.tagUse;
+  if (use === undefined || use.clock === false) return false;
+  return viewer === 'runner' || use.from === 'hq';
+}
+
 /** A side's clicks left and its hand, each on its own. */
 export function handAndClicks(state: GameState, side: SideCode, viewer: SideCode): number {
+  const player = side === 'corp' ? state.corp : state.runner;
+  const own = side === viewer && handByCard(side) ? ownHandValue(state, side) : handCount(state, side, viewer);
+  logValue('hand', 'handAndClicks', state, own, side, viewer);
+  return clickPrice(state, side, viewer) * player.clicks + own;
+}
+
+/**
+ * A side's hand priced by count, as `viewer` prices it where the hand is not priced card by card (handAndClicks' count
+ * line; F117 D2 reads it as the count's part C, on a board and on the same board without the seen arrivals).
+ */
+export function handCount(state: GameState, side: SideCode, viewer: SideCode): number {
   const player = side === 'corp' ? state.corp : state.runner;
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // plan.heldMoney: the money operation moneyReach puts on the Corp's credit slide is worth its credits there, not
   // a card in HQ as well (held, Hedge Fund was counted twice and playing it scored below a click for a credit)
   const reached = side === 'corp' && viewer === 'corp' && reachCard(state) ? 1 : 0;
-  const own =
-    side === viewer && handByCard(side)
-      ? ownHandValue(state, side)
-      : handValue(hand.length - reached, player.handSizeLimit, viewer);
-  logValue('hand', 'handAndClicks', state, own, side, viewer);
-  return clickPrice(state, side, viewer) * player.clicks + own;
+  return handValue(hand.length - reached, player.handSizeLimit, viewer);
 }
 
 /**

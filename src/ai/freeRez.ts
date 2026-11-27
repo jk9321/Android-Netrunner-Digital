@@ -1,5 +1,6 @@
 import { CardInstance, GameState, cardDef } from '../core';
 import { rezCost } from '../core/engine/cardEffects';
+import { CARDS } from './cards';
 
 /**
  * Free rezzes the Corp can count on (plan.freeRez, Jeff 2026-10-31: "cheat
@@ -11,21 +12,30 @@ import { rezCost } from '../core/engine/cardEffects';
  *   also when stolen (the Runner must steal an agenda it accesses, rules
  *   7.1.6 and 7.2.3), so one is coming either way.
  * - Unleash (36044) in HQ while the Runner has a tag to remove (its
- *   additional cost).
+ *   additional cost): a card whose tag use (CardAI tagUse, F119) rezzes
+ *   ice, each use paid with the tags it spends.
  *
  * Each such source lets one unrezzed ice the Corp can't pay for still count
  * as ice it will have: the costliest ones, one per source.
  */
 export const SEND_A_MESSAGE = '30069';
-export const UNLEASH = '36044';
 
-
-/** Free rezzes the Corp can count on: installed Send a Message, and Unleash in HQ it can pay for with a Runner tag. */
+/** Free rezzes the Corp can count on: installed Send a Message, and a free-rez tag use in HQ (Unleash) it can pay for with
+ * the Runner's tags. Corp-view only: it reads HQ. */
 export function pendingFreeRezzes(state: GameState): number {
   const corp = state.corp;
   let n = 0;
   for (const server of Object.values(corp.servers)) n += server.root.filter(c => c.cardCode === SEND_A_MESSAGE).length;
-  n += Math.min(state.runner.tags, corp.hq.filter(c => c.cardCode === UNLEASH).length);
+  // F119: each use from HQ while the tags left meet its need, paying the tags it spends (Unleash: 1 each, so min(tags, copies))
+  let tags = state.runner.tags;
+  for (const card of corp.hq) {
+    const use = CARDS[card.cardCode]?.tagUse;
+    if (!use || use.from !== 'hq' || tags < use.needs) continue;
+    const rezzes = use.does(state, tags).freeRez ?? 0;
+    if (rezzes <= 0) continue;
+    n += rezzes;
+    tags -= use.spends(state, tags);
+  }
   return n;
 }
 

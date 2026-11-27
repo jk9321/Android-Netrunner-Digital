@@ -139,7 +139,9 @@ function printIds(cards: CardInstance[]): string {
   return out;
 }
 
-const memos = new WeakMap<GameState, { print: string; values: Map<string, unknown> }>();
+/** A position's memo entries; `made`, the context key each entry was made in, only while memoAudit is on. */
+type MemoEntry = { print: string; values: Map<string, unknown>; made?: Map<string, string> };
+const memos = new WeakMap<GameState, MemoEntry>();
 
 /**
  * A value worked out once per position: the AI prices the same board many
@@ -154,11 +156,111 @@ export function memo<T>(state: GameState, key: string, work: () => T): T {
     entry = { print, values: new Map() };
     memos.set(state, entry);
   }
+  const name = key;
   key = frameKeys().pricing + ':' + key; // values depend on the pricing context: the deciding side, its plan, the guards up (pricing.ts)
-  if (entry.values.has(key)) return entry.values.get(key) as T;
+  if (entry.values.has(key)) {
+    const cached = entry.values.get(key) as T;
+    if (memoAudit.on) auditHit(entry, key, name, cached, work);
+    return cached;
+  }
   const value = work();
   entry.values.set(key, value);
+  if (memoAudit.on) (entry.made ??= new Map()).set(key, frameKeys().context);
   return value;
+}
+
+/**
+ * On-hit audit of memo (test-only, F117 bar 9 and step 0 item 14, as threatsAudit is for damageThreat; off in play): with
+ * `on`, every value served from a memo entry is worked out again on the asking board in the asking frame and compared
+ * (numbers bit for bit, objects field by field). A mismatch is a hit the key let through: a value made in another frame
+ * (`otherFrame`: the entry was made in a frame whose context key, frameKeys().context, differs from the asker's) or on
+ * the same board before something it reads moved. Counts are by the entry's name up to its first ':' (`byName`).
+ * One level: what the recomputation itself asks is served from the entries as in play, not audited again (each of those
+ * entries is audited where it is asked outside an audit). Entries that are homes, not values (an object other entries
+ * hang on: `HOMES`), are not worked out again. A hit counts `otherFrame` whether or not its value differs, and
+ * `otherKnown` where the two frames' known hands differ (the part of the context F117's key is about).
+ */
+export const memoAudit = {
+  on: false,
+  checked: 0,
+  mismatches: 0,
+  otherFrame: 0,
+  otherFrameMismatches: 0,
+  otherKnown: 0,
+  otherKnownMismatches: 0,
+  byName: new Map<string, AuditRow>(),
+  errors: [] as { name: string; otherFrame: boolean; otherKnown: boolean }[],
+  /** Inside an audit's own recomputation (what it asks is not audited again). */
+  auditing: 0,
+  /** Clears the counts. */
+  reset(): void {
+    this.checked = this.mismatches = this.otherFrame = this.otherFrameMismatches = this.otherKnown = this.otherKnownMismatches = 0;
+    this.byName.clear();
+    this.errors.length = 0;
+  },
+};
+type AuditRow = { checked: number; mismatches: number; otherFrame: number; otherFrameMismatches: number; otherKnown: number; otherKnownMismatches: number };
+/** memo entries whose value is an object other caches hang on (its identity is the point), never worked out again by the audit. */
+const HOMES = new Set(['walkPlans', 'nextTurnBoard', 'afterRun']);
+function auditHit<T>(entry: MemoEntry, key: string, name: string, cached: T, work: () => T): void {
+  if (memoAudit.auditing > 0) return;
+  const head = name.split(':')[0];
+  if (HOMES.has(head)) return;
+  const made = entry.made?.get(key);
+  // An entry made before the audit went on has no frame noted: counted as checked, never as another frame's
+  const now = frameKeys().context;
+  const other = made !== undefined && made !== now;
+  // The known hands are the context key's second and third fields (pricing.ts buildKeys)
+  const otherKnown = other && knownPart(made) !== knownPart(now);
+  memoAudit.auditing++;
+  let again: T;
+  try {
+    again = work();
+  } finally {
+    memoAudit.auditing--;
+  }
+  const differs = !sameValue(again, cached);
+  let row = memoAudit.byName.get(head);
+  if (!row) memoAudit.byName.set(head, (row = { checked: 0, mismatches: 0, otherFrame: 0, otherFrameMismatches: 0, otherKnown: 0, otherKnownMismatches: 0 }));
+  memoAudit.checked++;
+  row.checked++;
+  if (other) {
+    memoAudit.otherFrame++;
+    row.otherFrame++;
+  }
+  if (otherKnown) {
+    memoAudit.otherKnown++;
+    row.otherKnown++;
+  }
+  if (differs) {
+    memoAudit.mismatches++;
+    row.mismatches++;
+    if (other) {
+      memoAudit.otherFrameMismatches++;
+      row.otherFrameMismatches++;
+    }
+    if (otherKnown) {
+      memoAudit.otherKnownMismatches++;
+      row.otherKnownMismatches++;
+    }
+    if (memoAudit.errors.length < 200) memoAudit.errors.push({ name, otherFrame: other, otherKnown });
+  }
+}
+const knownPart = (context: string) => context.split('|').slice(1, 3).join('|');
+/** Equal as values: numbers bit for bit (NaN equal to NaN), arrays, Maps, Sets and plain objects field by field; functions alike. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== typeof b || a === null || b === null || typeof a !== 'object') return typeof a === 'function' && typeof b === 'function';
+  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  if (a instanceof Map) {
+    if (!(b instanceof Map) || a.size !== b.size) return false;
+    for (const [k, v] of a) if (!b.has(k) || !sameValue(v, b.get(k))) return false;
+    return true;
+  }
+  if (a instanceof Set) return b instanceof Set && a.size === b.size && [...a].every(x => b.has(x));
+  const ka = Object.keys(a as object);
+  const kb = Object.keys(b as object);
+  return ka.length === kb.length && ka.every(k => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
 
