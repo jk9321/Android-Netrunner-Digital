@@ -156,7 +156,9 @@ export function drawCards(state: GameState, side: SideCode, count: number): numb
       }
       break;
     }
-    (side === 'corp' ? state.corp.hq : state.runner.grip).push(deck.shift()!);
+    const card = deck.shift()!;
+    (side === 'corp' ? state.corp.hq : state.runner.grip).push(card);
+    ((state.corp.rdNotes ??= {}).drawn ??= []).push({ owner: side, id: card.instanceId, code: card.cardCode });
     drawn++;
   }
   return drawn;
@@ -319,8 +321,10 @@ export interface RdWalk {
    * (step 3, RdNotes.privateTop: Cultivate, AU Co.) may be any of them (8.3.3b, 1.12.3).
    */
   followed: string[];
+  /** Cards drawn into a hand this action (RdNotes.drawn): one that left again went unseen (B4c part 3). */
+  drawn: { owner: SideCode; id: string; code: string }[];
 }
-export const NO_RD_WALK: RdWalk = { joined: [], seen: [], followed: [] };
+export const NO_RD_WALK: RdWalk = { joined: [], seen: [], followed: [], drawn: [] };
 
 /** The other side saw these known cards leave the hand for a hidden place (Touch-ups' shuffle). */
 export function forgetInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
@@ -586,7 +590,7 @@ function listUnchanged(was: KnownHandCard[] | undefined, now: KnownHandCard[] | 
 function handWalkIdle(prev: GameState, state: GameState, walk: RdWalk): boolean {
   const hq = state.corp.hq;
   const grip = state.runner.grip;
-  if (walk.joined.length > 0 || walk.seen.length > 0) return false;
+  if (walk.joined.length > 0 || walk.seen.length > 0 || passedThrough(prev, state, walk).length > 0) return false;
   if (!sameIds(prev.corp.hq, hq) || !sameIds(prev.runner.grip, grip)) return false;
   const corp = state.corp.knownToRunner;
   if (!listFits(corp, hq) || !listFits(state.runner.knownToCorp, grip)) return false;
@@ -651,7 +655,9 @@ function updateArchivesKnowledge(prev: GameState, state: GameState, walk: RdWalk
     const openBefore = publicCards(prev);
     // An R&D card counts only if the R&D walk followed it out of an exact place this action (B4c part 2), not every card
     // exactly placed before it: one picked from among cards the Corp looked at in secret is not followed (8.3.3b)
-    const followed = new Set(walk.followed);
+    // A card that passed through HQ in the action left it hidden among its cards: not followed (B4c part 3, C2)
+    const viaHq = new Set(walk.drawn.filter(d => d.owner === 'corp').map(d => d.id));
+    const followed = new Set(walk.followed.filter(id => !viaHq.has(id)));
     for (const c of arrivals) if ((openBefore.has(c.instanceId) || followed.has(c.instanceId)) && !known.some(e => e.id === c.instanceId)) known = [...known, { id: c.instanceId, code: c.cardCode }];
   }
   known = known.slice(Math.max(0, known.length - now.length));
@@ -789,6 +795,16 @@ function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk
   return [...base, ...arrivals];
 }
 
+/**
+ * Cards drawn into a hand during the action that are no longer in it: they left it unseen within the action, as any hand
+ * card can (1.12.3; B4c part 3, red team C1, C2). A card drawn before the action (at setup) was in the hand in `prev`.
+ */
+function passedThrough(prev: GameState, state: GameState, walk: RdWalk): { owner: SideCode; id: string; code: string }[] {
+  if (walk.drawn.length === 0) return [];
+  const hand = (s: GameState, o: SideCode) => (o === 'corp' ? s.corp.hq : s.runner.grip);
+  return walk.drawn.filter(d => !hand(prev, d.owner).some(c => c.instanceId === d.id) && !hand(state, d.owner).some(c => c.instanceId === d.id));
+}
+
 /** updateHandKnowledge's three walks; with `skips` the walks that would write nothing are skipped (R-105), listed in `took`. */
 function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skips: boolean, took?: UpkeepSkip[]): void {
   if (skips && archivesIdle(prev, state)) took?.push('archives');
@@ -805,8 +821,11 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
   }
   const before = publicCards(prev);
   const after = publicCards(state);
-  // A found card waits set aside first (rules 4.8.3: it still counts as coming from its deck)
-  const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId));
+  // A found card waits set aside first (rules 4.8.3: it still counts as coming from its deck). A card drawn and played in
+  // one action came by the hand, hidden among its cards: it surfaces from the hand (B4c part 3)
+  const passed = passedThrough(prev, state, walk);
+  const viaHand = new Set(passed.map(d => d.id));
+  const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId).filter(id => !viaHand.has(id)));
   const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
   for (const owner of ['corp', 'runner'] as const) {
     let known = placeSightings(prev, state, owner, walk);
@@ -820,7 +839,10 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
     // the surest goes (10.2.2b; B4c red team 4a). A mark that may have left R&D (`left`) is not followed: its card may be
     // the one leaving HQ unseen (rules 1.12.3, 4.6.6d).
     const followed = owner === 'corp' ? new Set(marks.filter(e => !e.left).map(e => e.id)) : undefined;
-    const out = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId));
+    const out = (owner === 'corp' ? prev.corp.hq : prev.runner.grip)
+      .filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId))
+      .map(c => ({ instanceId: c.instanceId, cardCode: c.cardCode }));
+    for (const d of passed) if (d.owner === owner && !after.has(d.id)) out.push({ instanceId: d.id, cardCode: d.code });
     const departed = out.filter(c => !followed?.has(c.instanceId));
     for (const c of out) if (followed?.has(c.instanceId)) known = forgetSurest(known, c.cardCode, c.instanceId);
     const kinds = departed.map(c => lossKind(state, c.instanceId));

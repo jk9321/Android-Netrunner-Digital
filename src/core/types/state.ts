@@ -82,6 +82,11 @@ export interface RdNotes {
    * the list, so only this record says it was part of a sighting of several cards.
    */
   handSeen?: { owner: SideCode; ids: string[] }[];
+  /**
+   * Cards drawn into HQ or the grip this action (drawCards), unseen by the other side (1.8.5). One that left the hand
+   * again in the same action left it unseen like any hand card (1.12.3): the hand walk counts it a departure (B4c part 3).
+   */
+  drawn?: { owner: SideCode; id: string; code: string }[];
 }
 
 /** An R&D card the Corp knows the place of (index from the top). See engine/rdKnowledge.ts. */
