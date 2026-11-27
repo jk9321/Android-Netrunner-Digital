@@ -521,6 +521,7 @@ function timeDeal(pool: string, rec: Rec) {
   const differ: Tally = {};
   const work: Tally = {};
   const first: Record<string, any> = {};
+  const inout: any[] = [];
   let i = 0;
   const decide = (side: 'corp' | 'runner', method: Method, s: GameState, agent: any, own: () => unknown) => {
     const kind = method === 'chooseRez' ? 'rez' : method === 'chooseOffTurn' ? 'off' : s.pendingPrompts.length ? 'prompt' : s.activeRun ? 'run' : 'main';
@@ -544,6 +545,8 @@ function timeDeal(pool: string, rec: Rec) {
     // the cost read inside the frame against outside, answer for answer (step 9's nrdb 1281)
     if (answers.ruled !== undefined && answers.ruledin !== undefined && answers.ruled !== answers.ruledin) {
       inc(differ, `ruledin-vs-ruled ${k}`);
+      // every one, with its board (the deal and the decision index: replayed by the step 9 stop's attribution)
+      inout.push({ i, T: s.turnNumber, k, active: s.activePlayer, tags: s.runner.tags, cc: s.corp.credits, ruled: answers.ruled.slice(0, 200), ruledin: answers.ruledin.slice(0, 200) });
       if (!first['ruledin-vs-ruled']) first['ruledin-vs-ruled'] = { i, T: s.turnNumber, k, tags: s.runner.tags, base: answers.ruled.slice(0, 160), arm: answers.ruledin.slice(0, 160) };
     }
     inc(n, k);
@@ -584,7 +587,7 @@ function timeDeal(pool: string, rec: Rec) {
     if ((g.last as any)?.type === 'TRASH_RESOURCE' && t && t.T === s.turnNumber) t.trashes++;
   }
   const r1 = (t: Tally) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Math.round(v * 10) / 10]));
-  out({ kind: 'time', pool, seed: rec.seed, corpDeck: rec.corpDeck, decisions: i, winner: g.state.winner ?? null, T: g.state.turnNumber, n, ms: r1(ms), differ, work, first, turns });
+  out({ kind: 'time', pool, seed: rec.seed, corpDeck: rec.corpDeck, decisions: i, winner: g.state.winner ?? null, T: g.state.turnNumber, n, ms: r1(ms), differ, work, first, turns, inout });
 }
 
 // ------------------------------------------------------------------------------------------------ POOL=people (step 7)
