@@ -16,7 +16,7 @@ import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
 import { knownToCorpInRd } from '../core/engine/rdKnowledge';
 import { memo } from './valueModel';
-import { chainStats, runTermStats, runnerOtherKinds } from './diagnostics';
+import { chainStats, runTermStats, runnerOtherKinds } from './stepCounts';
 export { chainStats, runTermStats, runnerOtherKinds };
 
 /** Applies an action, or returns null if the engine rejects it. */
@@ -128,11 +128,8 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
 }
 
 /**
- * The owner's price of the hand on the board before a prompt's answers: the same for every answer, so worked out once per
- * prompt state and frame (the departures red team's finding 10). Keyed with the frame's whole context (frameKeys().context:
- * frozen, both known hands, the anchor, the decision seed, rezzingToUse), not only the known hands: ownHandValue prices an
- * unseen card at the root's deck prices under `frozen` and reads the anchor's credits (tracker F128; speed pass red team
- * finding 4). Exported for tests/speedPassKeys.test.ts.
+ * The owner's price of the hand before a prompt's answers, once per prompt state and frame (departures red team finding 10),
+ * keyed with the frame's whole context: ownHandValue reads `frozen`'s deck prices and the anchor's credits too (F128).
  */
 export function ownHandBefore(before: GameState, side: SideCode): number {
   return memo(before, `ownHandBefore:${side}:${frameKeys().context}`, () => ownHandValue(before, side));
@@ -361,7 +358,6 @@ export interface ChainAt {
  */
 export const CHAIN_BUDGET = { size: 150 };
 class ChainBudgetOut extends Error {}
-// The chain counts (chainStats) and the run term's (runTermStats, runnerOtherKinds) live in diagnostics.ts
 const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
 const sourceOf = (state: GameState) => {
   const p = activePrompt(state);
@@ -827,10 +823,8 @@ function followChain(
     if (!identity) {
       const id = next.source.data?.cardId;
       if (typeof id !== 'string' || !answerNames(undefined, last).has(id)) return out(state, 'end');
-      if (chainStats.on) {
-        bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
-        if (at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
-      }
+      if (chainStats.on) bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
+      if (chainStats.on && at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
     }
     const inner: ChainAt = { work: at.work, depth: at.depth + depth + 1 };
     const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));

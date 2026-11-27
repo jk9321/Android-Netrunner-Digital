@@ -1,7 +1,7 @@
 import { afterEach, expect } from 'vitest';
 import { askedFreeze } from '../src/ai/valueModel';
 import { frameChecks } from '../src/ai/pricing';
-import { chainStats, runTermStats } from '../src/ai/diagnostics';
+import { chainStats, runTermStats } from '../src/ai/stepCounts';
 import { dealTripwire, handUpkeepCheck } from '../src/core/engine/helpers';
 import { appendFileSync } from 'node:fs';
 
