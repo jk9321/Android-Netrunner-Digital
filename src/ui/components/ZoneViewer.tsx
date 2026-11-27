@@ -180,7 +180,7 @@ export const ZoneViewer: React.FC<ZoneViewerProps> = ({ title, groups, canPeek, 
             </div>
             {group.note && <p className="text-xs text-slate-400 mb-2">{group.note}</p>}
             {group.cards.length === 0 ? (
-              <p className="text-xs text-slate-600 italic">Empty</p>
+              <p className="text-xs text-slate-400 italic">Empty</p>
             ) : (
               <div className="flex flex-wrap gap-3">
                 {group.cards.map((card, i) => (

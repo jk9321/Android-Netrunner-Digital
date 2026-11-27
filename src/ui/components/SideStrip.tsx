@@ -201,8 +201,13 @@ export function SideStrip({
             </span>
           )}
         </div>
-        <div className={`${pillBase} ${style.stat}`}>
-          <ClickIcon className="w-3.5 h-3.5 text-red-400" />
+        <div
+          className={`${pillBase} ${
+            state.activePlayer === side && !state.winner ? style.stat : 'bg-slate-900 border-slate-800 text-slate-400 opacity-75'
+          }`}
+          data-testid={`${side}-clicks-pill`}
+        >
+          <ClickIcon className={`w-3.5 h-3.5 ${state.activePlayer === side && !state.winner ? 'text-red-400' : 'text-slate-500'}`} />
           <span>
             <StatTumbler value={player.clicks} className="font-bold" /> / {player.maxClicks} <Keyword id="click">Clicks</Keyword>
           </span>
@@ -240,8 +245,32 @@ export function SideStrip({
           </>
         ) : (
           <>
-            <div className={plain}>
-              <MuIcon className="w-3.5 h-3.5 text-cyan-400" />
+            <div
+              data-testid="runner-mu-pill"
+              className={`${pillBase} ${
+                runner.memoryUnitsUsed > runner.memoryUnitsTotal
+                  ? 'bg-red-950 border-red-700 text-red-300 font-bold'
+                  : runner.memoryUnitsUsed === runner.memoryUnitsTotal && runner.memoryUnitsTotal > 0
+                    ? 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
+                    : 'bg-slate-900 border-slate-800 text-slate-300'
+              }`}
+              title={
+                runner.memoryUnitsUsed > runner.memoryUnitsTotal
+                  ? 'Over memory limit — trash programs to get back within MU'
+                  : runner.memoryUnitsUsed === runner.memoryUnitsTotal && runner.memoryUnitsTotal > 0
+                    ? 'Memory full — installing another program requires freeing MU'
+                    : 'Memory units used / total'
+              }
+            >
+              <MuIcon
+                className={`w-3.5 h-3.5 ${
+                  runner.memoryUnitsUsed > runner.memoryUnitsTotal
+                    ? 'text-red-400'
+                    : runner.memoryUnitsUsed === runner.memoryUnitsTotal && runner.memoryUnitsTotal > 0
+                      ? 'text-amber-400'
+                      : 'text-cyan-400'
+                }`}
+              />
               <span><Keyword id="mu">MU</Keyword>: <StatTumbler value={runner.memoryUnitsUsed} /> / {runner.memoryUnitsTotal}</span>
             </div>
             {zoneButton('runner-score', 'Stolen', runner.scoreArea.length, <AgendaDiamondIcon className="w-3.5 h-3.5 text-pink-400" />)}

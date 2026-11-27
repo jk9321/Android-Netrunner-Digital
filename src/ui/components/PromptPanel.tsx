@@ -381,11 +381,46 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     </button>
   ) : null;
 
+  const hasBoardTargets = (() => {
+    if (trashing) return false;
+    const ownHand = prompt.side === 'corp' ? state.corp.hq : state.runner.grip;
+    const inOwnHand = (id: string) => ownHand.some(c => c.instanceId === id);
+    if (prompt.kind === 'discard') return ownHand.length > 0;
+    if (prompt.kind === 'access_order') {
+      return prompt.options.some(opt =>
+        opt.id.startsWith('root:')
+          ? !!findCardAnywhere(state, opt.id.slice('root:'.length))
+          : !!state.corp.servers[opt.id],
+      );
+    }
+    if (prompt.kind === 'effect_cards') {
+      return prompt.candidateIds.some(id => {
+        const c = findCardAnywhere(state, id);
+        return !!c && (isInstalledCard(state, c) || inOwnHand(id));
+      });
+    }
+    if (prompt.kind === 'effect_choice') {
+      return prompt.options.some(opt => {
+        if (state.corp.servers[opt.id]) return true;
+        const c = findCardAnywhere(state, opt.id);
+        return !!c && (isInstalledCard(state, c) || inOwnHand(opt.id));
+      });
+    }
+    return false;
+  })();
+
   const promptContent = (
     <>
-      <h3 className={docked ? 'text-sm text-slate-100 font-bold leading-snug' : 'text-sm text-slate-100 font-bold mb-4'}>
-        <CardNameText text={prompt.message} />
-      </h3>
+      <div className={docked ? 'space-y-0.5' : 'mb-4 space-y-1'}>
+        <h3 className="text-sm text-slate-100 font-bold leading-snug">
+          <CardNameText text={prompt.message} />
+        </h3>
+        {hasBoardTargets && (
+          <p className="text-[11px] text-slate-400 font-mono" data-testid="board-target-hint">
+            Click a highlighted target on the board, or choose below
+          </p>
+        )}
+      </div>
 
       {prompt.kind === 'mulligan' && (
         <>

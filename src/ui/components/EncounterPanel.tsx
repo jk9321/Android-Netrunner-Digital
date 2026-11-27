@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import {
+  availableCredits,
   boostCostOf,
   GameAction,
   GameState,
@@ -90,6 +91,9 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
   };
 
   const subs = iceSubroutines(state, ice);
+  const currentIceTypes = iceSubtypes(ice, state);
+  const runnerCredits = availableCredits(state, 'runner');
+  const allSubroutinesBroken = subs.length > 0 && encounter.broken.every(Boolean);
   const legal = readOnly ? [] : legalFor(seat, 'runner');
   const titleOf = (id: string) => {
     const card = state.runner.rig.programs.find(c => c.instanceId === id);
@@ -152,7 +156,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
     <div className="mt-3 border-t border-pink-900/50 pt-3 space-y-3" data-testid="encounter-panel">
       <div className="text-xs font-mono text-slate-300 flex flex-wrap items-center gap-x-1">
         <Keyword id="encounter">Encountering</Keyword>
-        <IceTypeIcons types={iceSubtypes(ice, state)} side="ice" row className="text-[10px]" />
+        <IceTypeIcons types={currentIceTypes} side="ice" row className="text-[10px]" />
         <span className="text-pink-300 font-bold">{cardDef(ice).title}</span> —{' '}
         <Keyword id="strength">strength</Keyword>{' '}
         <span className="text-cyan-300 font-bold">{iceStrength(state, ice)}</span>
@@ -181,6 +185,30 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
             const bStr = breakerStrength(state, breaker);
             const targetStrength = iceStrength(state, ice);
             const hasEnoughStrength = bStr >= targetStrength;
+            const strGap = Math.max(0, targetStrength - bStr);
+            const bTypes = breakerTypes(breaker);
+            const matchesType =
+              script?.breaks === 'any' || bTypes.length === 0 || bTypes.some(t => currentIceTypes.includes(t));
+            const boostCost = boostCostOf(state, breaker);
+            const breakCost = script ? script.breakCost(state, breaker) : Infinity;
+            const unusedReason = (() => {
+              if (readOnly) return 'Waiting on Runner';
+              if (allSubroutinesBroken) return 'All broken';
+              if (!matchesType) return 'Wrong type';
+              if (!hasEnoughStrength) {
+                if (Number.isFinite(boostCost) && runnerCredits < boostCost) {
+                  return `Needs +${strGap} str (need ${boostCost}c)`;
+                }
+                return `Needs +${strGap} str`;
+              }
+              if (Number.isFinite(breakCost) && runnerCredits < breakCost) {
+                return `Need ${breakCost}c to break`;
+              }
+              return 'Unavailable';
+            })();
+            const boostDisabledTitle =
+              seat.reason({ type: 'BOOST_BREAKER', player: 'runner', breakerInstanceId: breaker.instanceId }) ??
+              'Not available';
             return (
               // Buttons wrap within their own column on desktop, and stack cleanly under the breaker name on narrow screens or when sidebar-docked
               <div
@@ -190,7 +218,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
               >
                 <span className={`text-[12px] font-mono text-slate-400 w-full ${compact ? '' : 'sm:w-40 sm:min-h-[28px]'} shrink-0 min-h-[24px] flex items-center gap-1.5 min-w-0`}>
                   {/* Same icons as on the ice above, so the Runner can check the breaker matches */}
-                  <IceTypeIcons types={breakerTypes(breaker)} side="breaker" row className="text-[10px] shrink-0" />
+                  <IceTypeIcons types={bTypes} side="breaker" row className="text-[10px] shrink-0" />
                   <span className={`min-w-0 flex flex-1 ${compact ? 'items-baseline justify-between gap-2' : 'sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0'} leading-tight`}>
                     <span className="truncate text-slate-200 font-semibold" title={cardDef(breaker).title}>
                       {cardDef(breaker).title}
@@ -201,7 +229,8 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                       }`}
                       title={hasEnoughStrength ? `Meets ice strength (${targetStrength})` : `Below ice strength (${targetStrength})`}
                     >
-                      str <StatTumbler value={bStr} />
+                      str <StatTumbler value={bStr} />{' '}
+                      <span className="font-normal opacity-90">{hasEnoughStrength ? '✓' : `(-${strGap})`}</span>
                     </span>
                   </span>
                 </span>
@@ -212,15 +241,16 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                   {(() => {
                     const boost = actions.find(a => a.type === 'BOOST_BREAKER');
                     // No credit boost at all (Hantu boosts only by spending counters).
-                    if (!Number.isFinite(boostCostOf(state, breaker))) return null;
+                    if (!Number.isFinite(boostCost)) return null;
                     return (
                       <button
                         onClick={() => boost && onAction(boost)}
                         disabled={!boost}
+                        title={boost ? undefined : boostDisabledTitle}
                         className={boost ? `${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900` : usedBtn}
                       >
                         <BoostIcon />
-                        +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
+                        +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCost} />)
                       </button>
                     );
                   })()}
@@ -253,7 +283,11 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                 </>
               ) : (
                 <>
-              {actions.length === 0 && own.length === 0 && <span className="text-[12px] font-mono text-slate-600">no legal use</span>}
+              {actions.length === 0 && own.length === 0 && (
+                <span className="text-[12px] font-mono text-slate-400" data-testid={`breaker-status-${breaker.instanceId}`}>
+                  {unusedReason}
+                </span>
+              )}
               {actions.map((a, k) =>
                 a.type === 'BOOST_BREAKER' ? (
                   <button
@@ -262,7 +296,7 @@ export const EncounterPanel: React.FC<EncounterPanelProps> = ({ state, onAction,
                     className={`${btn} bg-cyan-950 border-cyan-700 text-cyan-200 hover:bg-cyan-900`}
                   >
                     <BoostIcon />
-                    +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCostOf(state, breaker)} />)
+                    +{script?.boostAmount(state, breaker) ?? 0} strength (<Credits amount={boostCost} />)
                   </button>
                 ) : a.type === 'BREAK_SUBROUTINE' ? (
                   <button

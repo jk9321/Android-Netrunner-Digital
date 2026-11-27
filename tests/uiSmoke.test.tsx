@@ -26,11 +26,13 @@ import { breakerTypes } from '../src/ui/components/IceTypeIcons';
 import { ZoomContext, createZoomStore } from '../src/ui/components/ZoomPanel';
 import { clearBoardTargets, setBoardTargets } from '../src/ui/promptHighlight';
 import { SeatContext } from '../src/ui/seat';
+import { AbilityBar, abilityActionKey } from '../src/ui/components/AbilityBar';
+import { EncounterPanel } from '../src/ui/components/EncounterPanel';
 import { HandoffScreen } from '../src/ui/components/HandoffScreen';
 import { DeckListColumn } from '../src/ui/components/DeckListColumn';
 import { summarize } from '../src/ui/deckPickerUtils';
-import { executeAction } from '../src/core';
-import { newGame, startRunnerTurn } from './helpers';
+import { executeAction, findCardAnywhere } from '../src/core';
+import { installCorpForTest, installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
 
 const corpStarter = STARTER_DECKS.find(d => d.side === 'corp')!;
 const runnerStarter = STARTER_DECKS.find(d => d.side === 'runner')!;
@@ -785,5 +787,124 @@ describe('UI component smoke renders', () => {
       />,
     );
     expect(onlineBlockedHtml).toMatch(/disabled=""[^>]*data-testid="random-corp-deck"|data-testid="random-corp-deck"[^>]*disabled=""/);
+  });
+
+  it('RunOverlay formats phase labels, flags Let N Subroutines Fire with warning styling, and trims docked encounter text', () => {
+    const base = newGame();
+    startRunnerTurn(base);
+    // Palisade (Barrier, str 2, 1 subroutine) on HQ + Cleaver (Fracter, str 3) and Unity (Decoder, str 1)
+    const iceId = installIceForTest(base, '30072', 'hq', true);
+    const cleaverId = installProgramForTest(base, '30006');
+    const unityId = installProgramForTest(base, '30026');
+    const s = executeAction(base, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'hq' });
+    s.runner.credits = 0;
+    const runState = s.activeRun!;
+    runState.phase = 'encounter_ice';
+    runState.icePosition = 0;
+    runState.encounter = { iceId, broken: [false], resolvingIndex: null, boosts: {}, iceStrengthModifier: 0 };
+    const seat = { can: () => false, reason: () => 'Not enough credits', legal: [], waitingOn: null } as unknown as React.ContextType<typeof SeatContext>;
+
+    const dockedHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <RunOverlay
+          state={s}
+          onContinueRun={() => {}}
+          onJackOut={() => {}}
+          runnerControls
+          canPeekCorp={false}
+          onAction={() => {}}
+          docked
+        />
+      </SeatContext.Provider>,
+    );
+    expect(dockedHtml).toContain('Encounter Ice');
+    expect(dockedHtml).not.toContain('ENCOUNTER_ICE');
+    expect(dockedHtml).toContain('Let 1 Subroutine Fire');
+    expect(dockedHtml).toContain('data-warning="true"');
+    // EncounterPanel shows colorblind-safe strength markers + concise diagnostics instead of "no legal use"
+    expect(dockedHtml).not.toContain('no legal use');
+    expect(dockedHtml).toContain(`data-testid="breaker-status-${unityId}"`);
+    expect(dockedHtml).toContain('Wrong type');
+    expect(dockedHtml).toContain(`data-testid="breaker-status-${cleaverId}"`);
+    expect(dockedHtml).toContain('Need 1c to break');
+    expect(dockedHtml).toContain('✓');
+    expect(dockedHtml).toContain('(-1)');
+
+    // When all subroutines are broken, Pass Ice drops warning styling and breakers report All broken
+    runState.encounter.broken = [true];
+    const brokenHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <EncounterPanel state={s} onAction={() => {}} />
+      </SeatContext.Provider>,
+    );
+    expect(brokenHtml).toContain('All broken');
+  });
+
+  it('AbilityBar omits actions already listed in excludeKeys', () => {
+    const s = newGame();
+    const fermenterId = installProgramForTest(s, '30007');
+    findCardAnywhere(s, fermenterId)!.tokens.virus = 2;
+    const action = { type: 'USE_ABILITY' as const, player: 'runner' as const, cardInstanceId: fermenterId, abilityIndex: 0 };
+    const seat = { can: () => true, reason: () => null, legal: [action], waitingOn: null } as unknown as React.ContextType<typeof SeatContext>;
+
+    const fullHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <AbilityBar state={s} side="runner" onAction={() => {}} />
+      </SeatContext.Provider>,
+    );
+    expect(fullHtml).toContain('data-testid="ability-bar-runner"');
+
+    const excludedHtml = renderToStaticMarkup(
+      <SeatContext.Provider value={seat}>
+        <AbilityBar state={s} side="runner" onAction={() => {}} excludeKeys={new Set([abilityActionKey(action)])} />
+      </SeatContext.Provider>,
+    );
+    expect(excludedHtml).toBe('');
+  });
+
+  it('SideStrip, DockedHandBar, and CardView show MU/flatline urgency cues and agenda progress without leaking facedown agendas', () => {
+    const s = newGame();
+    // Corp turn: Runner clicks pill dims; MU full -> amber, MU over limit -> red
+    s.runner.memoryUnitsUsed = 4;
+    s.runner.memoryUnitsTotal = 4;
+    const fullMuHtml = renderToStaticMarkup(
+      <SideStrip side="runner" state={s} viewer="runner" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(fullMuHtml).toContain('data-testid="runner-mu-pill"');
+    expect(fullMuHtml).toContain('bg-amber-950');
+    expect(fullMuHtml).toContain('opacity-75');
+
+    s.runner.memoryUnitsUsed = 5;
+    const overMuHtml = renderToStaticMarkup(
+      <SideStrip side="runner" state={s} viewer="runner" onInspect={() => {}} onOpenZone={() => {}} />,
+    );
+    expect(overMuHtml).toContain('bg-red-950');
+
+    // Runner DockedHandBar with 1 card shows FLATLINE RISK + promptHint override
+    const lowGripHtml = renderToStaticMarkup(
+      <DockedHandBar
+        side="runner"
+        position="bottom"
+        cards={s.runner.grip.slice(0, 1)}
+        handSizeLimit={5}
+        isSelectable={false}
+        selectedCardId={null}
+        onSelect={() => {}}
+        discardedIds={new Set()}
+        promptHint="Click highlighted card to choose"
+      />,
+    );
+    expect(lowGripHtml).toContain('data-low-danger="true"');
+    expect(lowGripHtml).toContain('FLATLINE RISK');
+    expect(lowGripHtml).toContain('Click highlighted card to choose');
+
+    // CardView shows 2/3 on Corp's own unrezzed agenda, but hides /3 from Runner when facedown
+    const agendaId = installCorpForTest(s, '30068', 'remote1', false); // Send a Message (5/3) or Orbital Superiority (3/2)
+    const agenda = findCardAnywhere(s, agendaId)!;
+    agenda.advancementCounters = 2;
+    const corpViewHtml = renderToStaticMarkup(<CardView card={agenda} isFaceDown canPeek />);
+    const runnerViewHtml = renderToStaticMarkup(<CardView card={agenda} isFaceDown canPeek={false} />);
+    expect(corpViewHtml).toContain('/3');
+    expect(runnerViewHtml).not.toContain('/3');
   });
 });

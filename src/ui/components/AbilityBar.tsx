@@ -6,10 +6,17 @@ import { ClickIcon, Credits, renderSymbols } from './CreditIcon';
 import { cardPositionLabel } from '../cardLabels';
 import { hoverPromptTarget } from '../promptHighlight';
 
+/** Stable key identifying a single card ability action for deduplicating across panels. */
+export function abilityActionKey(action: { cardInstanceId: string; abilityIndex: number }): string {
+  return `${action.cardInstanceId}:${action.abilityIndex}`;
+}
+
 interface AbilityBarProps {
   state: GameState;
   side: SideCode;
   onAction: (action: GameAction) => void;
+  /** Ability keys already shown by an active run/encounter panel, omitted here to avoid duplicates. */
+  excludeKeys?: ReadonlySet<string>;
 }
 
 /** The counters on a card in words, e.g. "3 virus, 1 power", or null when it has none. */
@@ -25,8 +32,11 @@ function countersLabel(card: CardInstance): string | null {
  * are numbered in board order (with their counters), so two Fermenters
  * can't be mixed up.
  */
-export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction }) => {
-  const actions = legalFor(useSeat(), side).filter(a => a.type === 'USE_ABILITY');
+export const AbilityBar: React.FC<AbilityBarProps> = ({ state, side, onAction, excludeKeys }) => {
+  const actions = legalFor(useSeat(), side).filter(
+    (a): a is Extract<GameAction, { type: 'USE_ABILITY' }> =>
+      a.type === 'USE_ABILITY' && !(excludeKeys && excludeKeys.has(abilityActionKey(a))),
+  );
   // The button goes away once the ability is used; don't leave its card lit
   useEffect(() => () => hoverPromptTarget(null), []);
   if (actions.length === 0) return null;
