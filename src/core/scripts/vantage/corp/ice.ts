@@ -2,7 +2,7 @@ import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { corpSeesRd, shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { findInstalledCorpCard, removeCard, revealInHand } from '../../../engine/helpers';
+import { findInstalledCorpCard, fromSetAside, removeCard, revealInHand, setAside } from '../../../engine/helpers';
 import { dealNetDamage, giveTags, installedRunnerCards, trashInstalledRunnerCard, uninstallRunnerCard } from '../../../engine/damage';
 import { endRun, endTheRun } from '../../../engine/runEnd';
 import {
@@ -478,27 +478,37 @@ export const flywheel: CardScript = {
 const iceOfType = (state: GameState, subtype: string) =>
   state.corp.rd.filter(c => type(c) === 'ice' && new RegExp(`\\b${subtype}\\b`, 'i').test(keywords(c)));
 
-/** Tocsin's search: adds the chosen ice to HQ, then searches for a sentry (after the barrier) or shuffles R&D. */
-const tocsinFound = (ctx: EffectContext, picked: string[], after: 'sentry' | 'shuffle') => {
+/**
+ * Tocsin's search: each ice found is set aside (rules 8.7.2, 4.8.4) until the search is done, then R&D is shuffled
+ * (8.7.3) and the found ice are revealed and added to HQ. `held` names the barrier waiting for the sentry search.
+ */
+const tocsinFound = (ctx: EffectContext, picked: string[], after: 'sentry' | 'done', held: string[] = []) => {
   const { state } = ctx;
   for (const id of picked) {
     const found = state.corp.rd.find(c => c.instanceId === id);
     if (!found) continue;
     removeCard(state.corp.rd, found);
+    setAside(state, found, 'rd');
+    held = [...held, found.instanceId];
+  }
+  if (after === 'sentry') {
+    tocsinFlow.cards(ctx, 'sentry', cardsQuestion('corp', 'Tocsin: search R&D for up to 1 sentry.', ids(iceOfType(state, 'sentry')), 0, 1), { held: held.join(',') });
+    return;
+  }
+  shuffleRD(state);
+  for (const id of held) {
+    const found = state.setAside?.find(c => c.instanceId === id);
+    if (!found) continue;
+    fromSetAside(state, found);
     state.corp.hq.push(found);
     revealInHand(state, 'corp', [found]);
     addLog(state, 'corp', `Corp revealed ${title(found)} and added it to HQ (Tocsin).`);
-  }
-  if (after === 'sentry') {
-    tocsinFlow.cards(ctx, 'sentry', cardsQuestion('corp', 'Tocsin: search R&D for up to 1 sentry.', ids(iceOfType(state, 'sentry')), 0, 1));
-  } else {
-    shuffleRD(state);
   }
 };
 
 const tocsinFlow = prompts({
   barrier: cards((ctx, a) => tocsinFound(ctx, a.ids, 'sentry')),
-  sentry: cards((ctx, a) => tocsinFound(ctx, a.ids, 'shuffle')),
+  sentry: cards<{ held: string }>((ctx, a, data) => tocsinFound(ctx, a.ids, 'done', (data.held ?? '').split(',').filter(Boolean))),
 });
 
 export const tocsin: CardScript = {

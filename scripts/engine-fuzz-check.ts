@@ -119,6 +119,7 @@ export function cardsByZone(state: GameState): { zone: string; card: CardInstanc
     ['resources', r.rig.resources],
     ['Runner score area', r.scoreArea],
     ['removed from game', state.removedFromGame],
+    ['set aside', state.setAside ?? []],
   ];
   return zones.flatMap(([zone, list]) => list.flatMap(withHosted).map(card => ({ zone, card })));
 }
@@ -149,6 +150,19 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
   for (const [id, zones] of where) check(zones.length === 1, 'card-in-one-zone', '4.1.1c', () => `${id} (${titleOf(state, id)}) is in ${zones.join(' and ')}`);
   for (const id of ids) check(where.has(id), 'card-lost', '4.1.2b', () => `${id} is in no zone`);
   for (const id of where.keys()) check(ids.has(id), 'card-created', '4.1.2', () => `${id} (${titleOf(state, id)}) appeared from nowhere`);
+  // A set-aside card waits only while the effect that set it aside is still resolving (4.8.1, 8.7.4): some pending prompt
+  // names it in its data, or the card is out of every visible zone for the rest of the game
+  if (!over) {
+    for (const c of state.setAside ?? []) {
+      const named = new RegExp(`\\b${c.instanceId}\\b`);
+      const held = state.pendingPrompts.some(p => 'source' in p && named.test(JSON.stringify(p.source.data ?? {})));
+      check(held, 'set-aside-held', '4.8.1, 8.7.4', () => `${c.instanceId} (${title(c)}) is set aside with no pending prompt that names it`);
+    }
+  }
+  check(!state.setAside || state.setAside.length > 0, 'set-aside-tidy', '4.8.1', () => 'an empty set-aside zone was left in the state');
+  const origins = Object.keys(state.setAsideFrom ?? {}).sort().join(',');
+  const asideIds = (state.setAside ?? []).map(c => c.instanceId).sort().join(',');
+  check(origins === asideIds, 'set-aside-origin', '4.8.3', () => `set-aside cards [${asideIds}] but origins for [${origins}]`);
 
   // --- Counters: credits, clicks, tags, bad publicity, advancement and hosted counters are physical pieces (1.9.1, 1.10.2) ---
   for (const side of SIDES) {

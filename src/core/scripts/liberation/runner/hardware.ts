@@ -3,7 +3,7 @@ import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
 import { shuffleInPlace } from '../../../rng';
 import { addLog } from '../../../engine/log';
-import { removeCard } from '../../../engine/helpers';
+import { fromSetAside, removeCard, setAside as setAsideCard } from '../../../engine/helpers';
 import { breachOutsideRun, startRun } from '../../../engine/actions/run';
 import { dealDamage, PREVENT_DAMAGE_STEP, PreventDamageData } from '../../../engine/damage';
 import {
@@ -189,35 +189,47 @@ export const amanuensis: CardScript = {
 // this turn. [trash]: Choose hardware, program, or resource. Set aside cards from the top of your
 // stack faceup until you set aside 2 cards of the chosen type. You may install 1 of those 2 cards,
 // ignoring all costs. Shuffle the rest of the set-aside cards into your stack.
+/** Shuffles the Wizard's Chest's set-aside cards that were not installed (`held`, comma-separated ids) into the stack. */
+function chestShuffleRest(state: GameState, held: string): void {
+  for (const id of held.split(',').filter(Boolean)) {
+    const card = state.setAside?.find(c => c.instanceId === id);
+    if (card && fromSetAside(state, card)) state.runner.stack.push(card);
+  }
+  shuffleInPlace(state.rng, state.runner.stack);
+}
+
 const chestFlow = prompts({
   type: choice((ctx, a) => {
     const { state } = ctx;
-    const setAside: CardInstance[] = [];
-    let found = 0;
-    while (found < 2 && state.runner.stack.length > 0) {
+    const found: CardInstance[] = [];
+    let n = 0;
+    // Every card set aside stays in the set-aside zone (rules 4.8.1, 4.8.6: faceup) until the install choice is made;
+    // "the rest of the set-aside cards" are shuffled into the stack after it
+    while (n < 2 && state.runner.stack.length > 0) {
       const card = state.runner.stack.shift()!;
-      setAside.push(card);
-      if (type(card) === a.optionId) found++;
+      setAsideCard(state, card, 'stack');
+      found.push(card);
+      if (type(card) === a.optionId) n++;
     }
-    addLog(state, 'runner', `Runner set aside ${setAside.map(title).join(', ') || 'nothing'} (The Wizard's Chest).`);
-    // Set-aside cards wait in the grip-free "removed" limbo: kept on the stack's bottom until the choice is made
-    const chosen = setAside.filter(c => type(c) === a.optionId);
-    const rest = setAside.filter(c => !chosen.includes(c));
-    state.runner.stack.push(...rest);
-    shuffleInPlace(state.rng, state.runner.stack);
-    state.runner.stack.push(...chosen);
-    const options = installableRunnerCards(state, chosen, 99);
+    addLog(state, 'runner', `Runner set aside ${found.map(title).join(', ') || 'nothing'} (The Wizard's Chest).`);
+    const held = ids(found).join(',');
+    const options = installableRunnerCards(state, found.filter(c => type(c) === a.optionId), 99);
     if (options.length > 0) {
-      chestFlow.runnerInstall(ctx, 'install', { message: "The Wizard's Chest: you may install 1 of them, ignoring all costs.", candidateIds: ids(options), min: 0, max: 1 }, { chosen: ids(chosen).join(',') });
-    } else shuffleInPlace(state.rng, state.runner.stack);
+      chestFlow.runnerInstall(ctx, 'install', { message: "The Wizard's Chest: you may install 1 of them, ignoring all costs.", candidateIds: ids(options), min: 0, max: 1 }, { held });
+    } else chestShuffleRest(state, held);
   }),
-  install: cards<{ chosen: string }>((ctx, a) => {
-    if (a.ids[0]) chestFlow.installRunner(ctx, a.ids[0], 'host', 99, a.trashFirst);
-    shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
+  install: cards<{ held: string }>((ctx, a, data) => {
+    const { state } = ctx;
+    const held = data.held ?? '';
+    const id = a.ids[0];
+    // A trojan asks for its host ice first: every set-aside card waits for that answer
+    if (id) chestFlow.installRunner(ctx, id, 'host', 99, a.trashFirst, { held });
+    const waiting = !!id && state.pendingPrompts.some(p => 'source' in p && p.source?.step === 'host' && p.source.data?.cardId === id);
+    if (!waiting) chestShuffleRest(state, held);
   }),
-  host: choice<RunnerHostData>((ctx, a, _d, source) => {
+  host: choice<RunnerHostData & { held: string }>((ctx, a, d, source) => {
     installRunnerHostChoice(ctx.state, source, a.raw);
-    shuffleInPlace(ctx.state.rng, ctx.state.runner.stack);
+    chestShuffleRest(ctx.state, d.held ?? d.cardId);
   }),
 });
 

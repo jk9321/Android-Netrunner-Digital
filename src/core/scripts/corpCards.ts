@@ -436,7 +436,9 @@ const amazeAmusements: CardScript = {
 const malapertFlow = prompts({
   search: cards(({ state }, a) => {
     if (a.ids.length === 0) return;
-    const card = state.corp.rd.find(c => c.instanceId === a.ids[0])!;
+    const card = state.corp.rd.find(c => c.instanceId === a.ids[0]);
+    // The card left R&D after this prompt was made (another search took it): nothing is found, R&D is still shuffled (8.7.3)
+    if (!card) return shuffleRD(state);
     removeCard(state.corp.rd, card);
     state.corp.hq.push(card);
     revealInHand(state, 'corp', [card]);

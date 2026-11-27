@@ -111,7 +111,7 @@ export function trashTopOfRD(state: GameState, source: string): CardInstance | u
 /** Where to install a card, among the given server options (ids from corpInstallOptions); null if there are none. Ask it with data { cardId, install: true }. */
 export function installAmongQuestion(state: GameState, cardId: string, options: { id: string; label: string }[]): ChoiceQuestion | null {
   if (options.length === 0) return null;
-  const card = [...state.corp.hq, ...state.corp.rd, ...archivesCards(state)].find(c => c.instanceId === cardId);
+  const card = [...state.corp.hq, ...state.corp.rd, ...archivesCards(state), ...(state.setAside ?? [])].find(c => c.instanceId === cardId);
   return { side: 'corp', message: `Install ${card ? title(card) : 'the card'} where?`, options };
 }
 
@@ -151,7 +151,7 @@ export function installAndRezOptions(state: GameState, ice: CardInstance, discou
 
 /** Installs the chosen card ignoring costs, pays the combined cost less the discount, and rezzes it. */
 export function installAndRez(state: GameState, cardId: string, serverOption: string, discount: number, ignoreAll = false): void {
-  const card = [...state.corp.hq, ...state.corp.rd, ...archivesCards(state)].find(c => c.instanceId === cardId);
+  const card = [...state.corp.hq, ...state.corp.rd, ...archivesCards(state), ...(state.setAside ?? [])].find(c => c.instanceId === cardId);
   const zone = card && corpZoneOf(state, cardId);
   if (!card || !zone) return;
   const serverId = serverOption === 'new' ? null : serverOption;

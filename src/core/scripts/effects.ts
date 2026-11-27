@@ -108,7 +108,7 @@ export interface CorpInstallChoice {
 /** The zone a Corp card is in, among those effects install from (HQ, R&D, Archives, the Runner's score area). */
 export function corpZoneOf(state: GameState, instanceId: string): CardInstance[] | undefined {
   const { hq, rd, archives } = state.corp;
-  return [hq, rd, archives.faceUp, archives.faceDown, state.runner.scoreArea].find(z => z.some(c => c.instanceId === instanceId));
+  return [hq, rd, archives.faceUp, archives.faceDown, state.runner.scoreArea, state.setAside ?? []].find(z => z.some(c => c.instanceId === instanceId));
 }
 
 /** Where the Corp could install this card: 'new' (a new remote) and server ids. */
@@ -168,11 +168,11 @@ export function installCorpChoice(state: GameState, source: EffectSource, answer
   return serverId ?? Object.keys(state.corp.servers).find(id => !before.has(id)) ?? null;
 }
 
-/** The zone a Runner card is in, among those effects install from (grip, heap, stack, cards hosted faceup). */
+/** The zone a Runner card is in, among those effects install from (grip, heap, stack, cards hosted faceup, set aside). */
 export function runnerZoneOf(state: GameState, instanceId: string): CardInstance[] | undefined {
   const { grip, heap, stack, rig } = state.runner;
   const hosted = [...rig.programs, ...rig.hardware, ...rig.resources].flatMap(c => (c.hostedCards ? [c.hostedCards] : []));
-  return [grip, heap, stack, ...hosted].find(z => z.some(c => c.instanceId === instanceId));
+  return [grip, heap, stack, ...hosted, state.setAside ?? []].find(z => z.some(c => c.instanceId === instanceId));
 }
 
 /**

@@ -89,6 +89,9 @@ export interface ServerState {
   root: CardInstance[]; // Cards installed in the root of the server (assets, agendas, upgrades)
 }
 
+/** The zone a set-aside card came from (rules 4.8.3). */
+export type SetAsideOrigin = 'hq' | 'rd' | 'archives' | 'stack' | 'heap' | 'grip';
+
 export interface CorpState {
   credits: number;
   clicks: number;
@@ -461,6 +464,13 @@ export interface GameState {
   turnFlags: Record<string, number>;
   /** Cards removed from the game (Spin Doctor). */
   removedFromGame: CardInstance[];
+  /**
+   * The set-aside zone (rules 4.8.1): cards found by a search wait here facedown until the effect that searched acts
+   * on them (8.7.2, 4.8.4), so they are in neither the searched deck nor a hand. Missing when empty.
+   */
+  setAside?: CardInstance[];
+  /** Where each set-aside card was before (rules 4.8.3: it counts as moving from there), by instance id. */
+  setAsideFrom?: Record<string, SetAsideOrigin>;
   /** A turn transition waiting on prompts or the Corp (end of turn, start of the Corp's turn, mandatory draw). */
   turnStep?: TurnStep | null;
   /** The paid ability window waiting on a player, when it isn't simply the active player's move (see PriorityWindow). */
