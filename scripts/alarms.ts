@@ -105,17 +105,27 @@ export class AlarmTracker {
   /** The Corp's current run of turn starts under 3 credits (turn 3+), and its 'Corp stayed broke' alarm once fired */
   private brokeStretch: { from: number; starts: number; alarm?: Alarm } | null = null;
 
+  /**
+   * 'valuation not a number' boards, kept during the game and evaluated after it (R-79, runner-rework/briefs/
+   * r79-alarm-after-game.md): an evaluate beside the game fills the AI's module caches and so can change the game's
+   * play (the script rule `RULE-SCRIPT-RULES`: never ask the tree that plays the source game). Kept by reference: the
+   * engine makes a new state for every step, so a kept board is not edited later. `at` is where the alarm would have
+   * gone in the list, so a record lists its alarms in the same order as before.
+   */
+  private toValue: { state: GameState; side: 'corp' | 'runner'; note: string; at: number }[] = [];
+
+  /** `value` (tests): the board worth the 'valuation not a number' check reads; the acting side's evaluate by default. */
+  constructor(private value: (state: GameState, side: 'corp' | 'runner') => number = (state, side) => asSide(side, () => evaluate(state, side))) {}
+
   private fire(kind: AlarmKind, turn: number, side: 'corp' | 'runner', note: string, detail?: string) {
     this.alarms.push({ kind, turn, side, note, ...(detail ? { detail } : {}) });
   }
 
   step(before: GameState, after: GameState, action?: GameAction) {
-    // 'valuation not a number': the board the acting side just decided from, in the pricing context of that decision
+    // 'valuation not a number': the board the acting side just decided from, checked after the game (checkValues)
     const side = actingSide(before);
-    // NO_EVAL_ALARM=1 (R-79 step 0): leave the evaluate out, to count what it changes in play
-    if (process.env.NO_EVAL_ALARM !== '1' && action && side && action.player === side && !before.activeRun && !before.pendingPrompts.length) {
-      const value = asSide(side, () => evaluate(before, side));
-      if (!Number.isFinite(value)) this.fire('valuation not a number', before.turnNumber, side, `evaluate ${value} before ${action.type}`);
+    if (action && side && action.player === side && !before.activeRun && !before.pendingPrompts.length) {
+      this.toValue.push({ state: before, side, note: action.type, at: this.alarms.length });
     }
     const delta = after.corp.credits - before.corp.credits;
     if (delta !== 0) {
@@ -168,8 +178,24 @@ export class AlarmTracker {
 
   /** At the game's end: a 'Corp stayed broke' stretch still open never recovered (its detail already says so). */
   done(end: GameState) {
+    this.checkValues();
     const stretch = this.brokeStretch;
     if (stretch?.alarm) stretch.alarm.note += `; the game ended on turn ${end.turnNumber} still under 3`;
+  }
+
+  /**
+   * 'valuation not a number' after the game: evaluates every kept board (in the pricing context the game ended in, with
+   * the deciding side set: only whether the value is finite is read) and puts each alarm where step() would have.
+   * done() calls it; a script that never calls done() and wants this alarm calls it itself after its game.
+   */
+  checkValues() {
+    let fired = 0;
+    for (const { state, side, note, at } of this.toValue) {
+      const value = this.value(state, side);
+      if (Number.isFinite(value)) continue;
+      this.alarms.splice(at + fired++, 0, { kind: 'valuation not a number', turn: state.turnNumber, side, note: `evaluate ${value} before ${note}` });
+    }
+    this.toValue = [];
   }
 
   private startCorpTurn(s: GameState) {

@@ -8,6 +8,8 @@
  *   noalarm-noopen  playLogged with NO_EVAL_ALARM=1 and OPENING=0 (the opening audit's rankings left out too)
  *   plain           a plain GameRunner, same step and turn limits
  *
+ * ARMS=logged,plain plays only those (bar 1 on the fixed tree: there NO_EVAL_ALARM is gone, so noalarm = logged).
+ *
  * and records every agent answer (chooseAction, chooseRez, chooseOffTurn: turn, side, method, answer). A deal is
  * compared arm against plain (and logged against noalarm) by its first differing answer. The last shard also plays g3
  * shard 28's first two deals in order (1092, then 1303: deal index 92), the O1a bar 6 deal.
@@ -35,8 +37,10 @@ const decksOf = (seed: number) => {
   const p = Math.floor((seed - 1001) / 10);
   return { c: corpDecks[Math.floor(p / runnerDecks.length)], r: runnerDecks[p % runnerDecks.length] };
 };
-const ARMS = ['logged', 'noalarm', 'noalarm-noopen', 'plain'] as const;
-type Arm = (typeof ARMS)[number];
+const ALL_ARMS = ['logged', 'noalarm', 'noalarm-noopen', 'plain'] as const;
+type Arm = (typeof ALL_ARMS)[number];
+// ARMS=logged,plain (R-79 bar 1, on the fixed tree, where NO_EVAL_ALARM no longer exists): only those arms
+const ARMS = ALL_ARMS.filter(a => (process.env.ARMS ?? ALL_ARMS.join(',')).split(',').includes(a));
 interface Game {
   seed: number;
   answers: string[];
@@ -119,6 +123,7 @@ if (process.env.CHILD) {
     for (const seed of job.report) {
       const g = Object.fromEntries(ARMS.map(a => [a, byArm[a].find(x => x.seed === seed)!])) as Record<Arm, Game>;
       const cmp = (a: Arm, b: Arm) => {
+        if (!g[a] || !g[b]) return undefined;
         const k = firstDiff(g[a].answers, g[b].answers);
         return k < 0 ? null : { at: k, of: g[b].answers.length, [a]: g[a].answers[k]?.slice(0, 300) ?? 'end', [b]: g[b].answers[k]?.slice(0, 300) ?? 'end' };
       };
@@ -129,8 +134,8 @@ if (process.env.CHILD) {
           seed,
           answers: g.plain.answers.length,
           winners: Object.fromEntries(ARMS.map(a => [a, `${g[a].winner} T${g[a].turns}`])),
-          nanAlarms: Object.fromEntries(ARMS.slice(0, 3).map(a => [a, g[a].nanAlarms])),
-          alarms: Object.fromEntries(ARMS.slice(0, 3).map(a => [a, g[a].alarms])),
+          nanAlarms: Object.fromEntries(ARMS.filter(a => a !== 'plain').map(a => [a, g[a].nanAlarms])),
+          alarms: Object.fromEntries(ARMS.filter(a => a !== 'plain').map(a => [a, g[a].alarms])),
           ms: Object.fromEntries(ARMS.map(a => [a, g[a].ms])),
           loggedVsPlain: cmp('logged', 'plain'),
           noalarmVsPlain: cmp('noalarm', 'plain'),
