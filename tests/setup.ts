@@ -28,5 +28,5 @@ if (noAssertFile) {
 /** F3 (brief-build rev 1): an asked state is read only; every state with a by-position value entry is frozen in the tests. */
 askedFreeze.on = true;
 
-/** B1b (brief rev 1 item 3): a pricing frame is never written; in the tests a write to a frame, its known record, leaves, anchor or a Set it holds throws. */
+/** B1b (brief rev 1 item 3): a pricing frame is never written; in the tests a write to a frame, its known record, leaves, anchor or a Set it holds throws. R-109: the Runner's deal keeps its tripwire too (a slot with no code throws, no fallback). */
 frameChecks.on = true;

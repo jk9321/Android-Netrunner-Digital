@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createCardInstance, createInitialGameState, executeAction, GameAction, GameState } from '../src/core';
+import { createCardInstance, createInitialGameState, createRng, executeAction, GameAction, GameState, getCardDefinition, nextFloat } from '../src/core';
 import { certainInHand, updateHandKnowledge } from '../src/core/engine/helpers';
 import { knownInRd, runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { deckGameSetup } from '../src/data/decks';
-import { guessRunnerView } from '../src/ai/runnerReply';
+import { dealFallbacks, dealRunnerUnknowns, guessRunnerView } from '../src/ai/runnerReply';
+import { frameChecks } from '../src/ai/pricing';
 import { cardsByZone, checkInvariants, FUZZ_DECKS } from '../scripts/engine-fuzz-check';
 import { newGame } from './helpers';
 import '../src/ai';
@@ -74,5 +75,49 @@ describe('NRDB g1 seed 1471: the capture that threw', () => {
     expect(s.corp.servers['remote-6'].ice.map(c => c.instanceId)).toContain('inst-42');
     expect(certainInHand(s, 'corp').find(([code]) => code === SG.funhouse)).toBeUndefined();
     for (let k = 0; k < 8; k++) expect(() => guessRunnerView(s, k)).not.toThrow();
+  });
+});
+
+describe('the deal\'s safety net (R-109): a knowledge bug falls back to an unkept deal in play, and throws in the tests', () => {
+  /** A board whose HQ list claims the one unrezzed ice is in HQ: the deal keeps it there and the ice slot finds no ice. */
+  function wrong(): GameState {
+    const s = newGame();
+    const wall = createCardInstance(s, SG.palisade);
+    s.corp.hq = [createCardInstance(s, SG.hedgeFund)];
+    s.corp.rd = [createCardInstance(s, SG.hedgeFund)]; // no other ice for the ice slot to take
+    s.corp.servers.hq.ice.push(wall);
+    s.corp.knownToRunner = [{ id: wall.instanceId, code: SG.palisade }];
+    return s;
+  }
+  const deal = (s: GameState) => {
+    const v = structuredClone(s);
+    const rng = createRng(5);
+    dealRunnerUnknowns(v, () => nextFloat(rng));
+    return v;
+  };
+
+  it('throws with the tripwire on (tests/setup.ts, the fuzzer)', () => {
+    expect(frameChecks.on).toBe(true);
+    expect(() => deal(wrong())).toThrow(/a slot found no code/);
+  });
+
+  it('in play it deals again without the knowledge, counts it and logs it', () => {
+    const was = dealFallbacks.count;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    frameChecks.on = false;
+    try {
+      const v = deal(wrong());
+      expect(dealFallbacks.count).toBe(was + 1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[deal-fallback]'));
+      expect(getCardDefinition(v.corp.servers.hq.ice[0].cardCode).type_code).toBe('ice');
+      expect(v.corp.hq).toHaveLength(1);
+      // A board with nothing wrong never falls back
+      const ok = newGame();
+      deal(ok);
+      expect(dealFallbacks.count).toBe(was + 1);
+    } finally {
+      frameChecks.on = true;
+      warn.mockRestore();
+    }
   });
 });
