@@ -66,4 +66,8 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
 // board's deck average to another, so the clock starts 2,326 hold counts (1,080 before) and asks 2,234 rez budgets (1,187);
 // Jeff took the time cost of exact caches (2026-11-26 00:09Z). The hold cap moves by its old headroom (1,150 / 1,080):
 // 2,477. The other caps stay
-const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 2_477 };
+// F114 + F110 (brief tag-clock-input rev 2, ruling 3 point 4): the trash's cost is the credits' owner's price (part C), whose
+// need asks the Corp's keep, and the keep's hold count runs inside the clock: 4,790 hold counts started (2,326 on beta
+// 609c4c3; N1 keeps the flat cost inside an open hold count, so none nests). The other counts are unchanged (11,127 prices,
+// 6,215 rig values, 0 inside, 2,234 rez budgets). The hold cap moves by the same headroom (1,150 / 1,080): 2,477 -> 5,100
+const PIN = { prices: 12_000, rigIn: 0, rig: 7_750, rez: 4_500, hold: 5_100 };
