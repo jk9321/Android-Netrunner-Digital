@@ -31,6 +31,10 @@ async function main() {
   const write = (p: string, t: string) => writeFileSync(p, t);
   applyPatches(dir, HOOKS.filter(([, , to]) => to.includes('__ans') || to.includes("__lkScope: 'oracle'")), 'hooks', read, write);
   applyPatches(dir, gPatches(ARM === 'off'), `G ${ARM}`, read, write);
+  // Each listed mismatch with the context it was made in and the asker's (pricing.ts buildKeys: frozen|known corp|known
+  // runner|anchor id:credits:side:root|decision seed|rezzing), so the part of the context the key leaves out is named
+  const at = '    if (memoAudit.errors.length < 200) memoAudit.errors.push({ name, otherFrame: other, otherKnown });';
+  applyPatches(dir, [['ai/valueModel.ts', at, at.replace('otherKnown });', 'otherKnown, made, now } as any);')]], 'audit', read, write);
   const t = (await loadTree(ARM, dir)) as any;
   const vm = await import(/* @vite-ignore */ join(dir, 'src', 'ai/valueModel.ts'));
   const pools: Record<string, string> = { batch: 'scripts/f117/recs/deals-45940481387.json', nrdb: 'scripts/runner-rework/facts-deals-45458221138.json' };

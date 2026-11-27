@@ -17,6 +17,17 @@ export function gPatches(off = false): Patch[] {
   let __gCalls = 0;
   // G_SKIP=<caller,...>: those callers build their own board (a local bisect of a difference)
   const __gSkip = new Set((process.env.G_SKIP ?? '').split(',').filter(Boolean));
+  // G_KEY: what of the asker's frame the board's key holds besides the action (deal 2691's difference: a memo on a served
+  // board, made in an unfrozen frame, hit in a frozen one with a decision seed). '' none; 'frame' frozen and the decision
+  // seed; 'context' the whole context and pricing keys (pricing.ts frameKeys), so a board is served only to its own frame
+  const __gKey = process.env.G_KEY ?? '';
+  const __gFrame = (): string => {
+    if (!__gKey) return '';
+    const k = frameKeys();
+    if (__gKey === 'context') return k.pricing + '#' + k.context + '#';
+    const f = k.context.split('|');
+    return f[0] + '|' + f[4] + '#';
+  };
   const __gCanon = (x: unknown): string =>
     x === null || typeof x !== 'object'
       ? (JSON.stringify(x) ?? 'u')
@@ -31,7 +42,7 @@ export function gPatches(off = false): Patch[] {
     // g0-heap.ts's real peak: heapUsed polled every 32 asks (both arms)
     if (++__gCalls % 32 === 0) (globalThis as any).__g0heap?.();
     if (__gSkip.has(caller)) return executeAction(state, structuredClone(action));
-    const key = __gCanon(action);
+    const key = __gFrame() + __gCanon(action);
     let m = __gCache.get(state);
     const hit = m?.get(key);
     if (hit) {
@@ -74,8 +85,8 @@ export function gPatches(off = false): Patch[] {
   }
   `;
   const G: Patch[] = [
-    ['ai/diagnostics.ts', "import { installTop, pricing, withPricing } from './pricing';", "import { installTop, pricing, withPricing } from './pricing';\nimport { executeAction } from '../core';"],
-    ['ai/diagnostics.ts', 'export const runnerOtherKinds = new Map<string, number>();', `export const runnerOtherKinds = new Map<string, number>();\n${CACHE}`],
+    ['ai/diagnostics.ts', "import { installTop, pricing, withPricing } from './pricing';", "import { frameKeys, installTop, pricing, withPricing } from './pricing';\nimport { executeAction } from '../core';"],
+    ['ai/diagnostics.ts', '  return withPricing({ diagnostics: d }, () => fn(d));\n}\n', `  return withPricing({ diagnostics: d }, () => fn(d));\n}\n${CACHE}`],
     // simulate (prompts.ts)
     ['ai/prompts.ts', "import { encounteredIce } from '../core/engine/ice';", "import { encounteredIce } from '../core/engine/ice';\nimport { builtBoard } from './diagnostics';"],
     ['ai/prompts.ts', '  try {\n    return executeAction(state, action);\n  } catch {\n    return null;\n  }', "  try {\n    return builtBoard(state, action, 'simulate');\n  } catch {\n    return null;\n  }"],

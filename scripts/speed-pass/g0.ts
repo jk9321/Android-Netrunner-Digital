@@ -43,5 +43,5 @@ process.on('exit', () => {
   const vl = (globalThis as any).__vlTrees ?? {};
   log(JSON.stringify({ kind: 'g0loops', trees: Object.fromEntries(Object.entries(vl).map(([url, m]) => [/\/(base|branch|control)\//.exec(url)?.[1] ?? url, Object.fromEntries(m as Map<string, number>)])) }));
 });
-// The f117 trees carry D1's rollout line (scripts/f117/lockstep.ts swaps that one hook, then runs core-lockstep)
-await import('../f117/lockstep');
+// core-hooks.ts's rollout hook matches before and after F117 since beta c8eee20 (f117/lockstep.ts's swap now throws)
+await import('../runner-rework/core-lockstep');
