@@ -2,7 +2,11 @@
 // when nothing is building, leave room when something is). A run's first job waits here until its 16 shards fit:
 //   - nothing is building: other heavy runs may hold at most 4 jobs (the tail of the run before), so all 20 are used;
 //   - a CI or Deploy run is queued or running: other heavy runs may hold at most 1, so 3 jobs stay free for the build.
-// Waiting runs go in order: short ones first (a 1-game identical check, a measurement script), then oldest first.
+// Waiting runs go in order: a long run that has waited AGE_MS first, then short ones (a 1-game identical check, a
+// measurement script not labelled "over N minutes"), then oldest first. Without the age step a g3 batch waited behind every
+// g1 and script launched after it (2026-11-27: run 46026051159 waited 2 hours while ten newer short runs went ahead).
+// A run whose gate is older (no GATE_VERSION 2 in its batch-slot.cjs) is ordered by the old rule on both sides, so a gate
+// change never makes two waiting runs each put the other first (CLAUDE.md, RULE-BATCH-QUEUE).
 // A waiting run holds one job, never sixteen, so a push's CI never queues behind a batch that has not started.
 // Before changing this gate, check that no run is waiting: a waiting run shows as in_progress (its `slot` job is running),
 // not queued, so "no run waiting" means no ai-batch/ai-script run with its `slot` job in progress.
@@ -13,23 +17,50 @@ const RESERVE = 3;
 const POLL_MS = 120_000;
 const MAX_WAIT_MS = 5.5 * 3600_000;
 const JUST_PASSED_MS = 180_000;
+const AGE_MS = 60 * 60_000;
+const GATE_VERSION = 2;
 // Matched by workflow file, never by run.name (isShort too: a waiting script's name is its expanded title, not "AI script"): the API's run.name is the run-name title ("AI batch g1 · ...").
 // Matching on name made every started batch invisible to this gate, and only a run still queued with no jobs
 // (its name not yet expanded, so plain "AI batch") was seen, and counted as 16 held jobs (2026-11-16 lockups).
 const HEAVY = ['.github/workflows/ai-batch.yml', '.github/workflows/ai-script.yml'];
 const BUILD = ['.github/workflows/ci.yml', '.github/workflows/deploy.yml'];
 
-const isShort = run => run.path === '.github/workflows/ai-script.yml' || /^AI batch g1\b/.test(run.display_title ?? '');
+// the rule of gates before version 2, kept to order runs that still wait on an old gate
+const isShortOld = run => run.path === '.github/workflows/ai-script.yml' || /^AI batch g1\b/.test(run.display_title ?? '');
+// a script labelled "over 30 minutes" (RULE-BATCH-QUEUE) is a long run
+const isShort = run => isShortOld(run) && !/\bover \d+ (min|minutes|hours?)\b/i.test(run.display_title ?? '');
+// 0 goes first: a long run that has waited AGE_MS, then short runs, then the other long runs; ties go to the older run
+const rank = (short, waitedMs) => (short ? 1 : waitedMs >= AGE_MS ? 0 : 2);
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 module.exports = async ({ github, context, core }) => {
   const { owner, repo } = context.repo;
   const me = context.runId;
-  const mineShort = process.env.SHORT === '1';
+  const mineShortOld = process.env.SHORT === '1';
   const started = Date.now();
+  const gateVersions = new Map();
+  // whether the run at this commit waits on a gate of version 2 or later (it orders runs the same way as this one)
+  const newGate = async sha => {
+    if (!gateVersions.has(sha)) {
+      const file = await github.rest.repos.getContent({ owner, repo, path: '.github/scripts/batch-slot.cjs', ref: sha });
+      const text = Buffer.from(file.data.content ?? '', 'base64').toString('utf8');
+      const version = Number(/const GATE_VERSION = (\d+);/.exec(text)?.[1] ?? 1);
+      gateVersions.set(sha, version >= GATE_VERSION);
+    }
+    return gateVersions.get(sha);
+  };
+  let mine = null;
   let errors = 0;
   for (;;) {
     try {
+      if (!mine) {
+        // this run's own wait is counted from its slot job's start, the same clock the other runs read for it
+        const run = (await github.rest.actions.getWorkflowRun({ owner, repo, run_id: me })).data;
+        const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { owner, repo, run_id: me, filter: 'latest', per_page: 100 });
+        const slot = jobs.find(job => job.name === 'slot');
+        mine = { short: isShort(run), since: new Date(slot?.started_at ?? started).getTime() };
+      }
+      const mineRank = rank(mine.short, Date.now() - mine.since);
       const runs = new Map();
       for (const status of ['queued', 'in_progress']) {
         const page = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, { owner, repo, status, per_page: 100 });
@@ -50,7 +81,13 @@ module.exports = async ({ github, context, core }) => {
           // a run from a branch whose workflow has no gate: it takes its jobs as GitHub hands them out
           held += active;
         } else if (slot.status !== 'completed') {
-          const first = isShort(run) !== mineShort ? isShort(run) : run.id < me;
+          let first;
+          if (await newGate(run.head_sha)) {
+            const theirs = rank(isShort(run), Date.now() - new Date(slot.started_at ?? run.created_at).getTime());
+            first = theirs !== mineRank ? theirs < mineRank : run.id < me;
+          } else {
+            first = isShortOld(run) !== mineShortOld ? isShortOld(run) : run.id < me;
+          }
           if (first) ahead = `${run.id} (${run.display_title})`;
         } else {
           const justPassed = Date.now() - new Date(slot.completed_at).getTime() < JUST_PASSED_MS;
