@@ -1,4 +1,5 @@
-import { CardInstance, GameAction, GameState, activePrompt, getCardDefinition, getLegalActions, isLegalAction, newViewIds, viewFor } from '../../core';
+import { CardInstance, GameAction, GameState, activePrompt, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../../core';
+import { promptCardFaces, viewShownBeforePrompts } from '../../core/view';
 import type { RunnerMemory } from '../runs';
 import { promptAnswers, scoreOutcome, simulate } from '../prompts';
 import { CARDS } from '../cards';
@@ -79,7 +80,12 @@ function todaysAnswer(state: GameState, ports: PromptViewPorts): GameAction {
   return isLegalAction(state, answer) ? answer : ports.answer(state);
 }
 
-/** The ids of the cards the engine shows the Runner face up in its active prompt (core/view.ts, the prompt's cards). */
+/**
+ * The ids of the cards the engine shows the Runner face up in its active prompt: the screen's face rule for a prompt's
+ * cards (core/view.ts promptCardFaces, the one copy viewFor also calls), with what the Runner's view shows before its
+ * prompts (viewShownBeforePrompts), without building the whole view (F117, tracker R-96). The active prompt is the
+ * first pending one, so no earlier prompt of the view has shown a card first.
+ */
 export function promptShownIds(state: GameState): ReadonlySet<string> {
   const known = shownByState.get(state);
   if (known) return known;
@@ -87,12 +93,11 @@ export function promptShownIds(state: GameState): ReadonlySet<string> {
   const out = new Set<string>();
   shownByState.set(freezeAsked(state), out); // read only once asked (F3's tripwire, B4 brief rev 1d)
   if (!prompt || prompt.side !== 'runner') return out;
-  const { view, ids } = viewFor(state, 'runner', newViewIds(), state.id);
-  const mine = view.pendingPrompts.find(p => p.id === prompt.id);
-  for (const c of mine?.cards ?? []) if (c.cardCode !== undefined && ids.real[c.instanceId]) out.add(ids.real[c.instanceId]);
+  const { faced, onTable } = viewShownBeforePrompts(state, 'runner');
+  for (const [id, face] of promptCardFaces(prompt, x => faced.has(x), x => onTable.has(x))) if (face && findCardAnywhere(state, id)) out.add(id);
   return out;
 }
-/** promptShownIds per state (the engine's whole view is built once a prompt; a state is never edited once read). */
+/** promptShownIds per state (worked out once a prompt; a state is never edited once read). */
 const shownByState = new WeakMap<GameState, ReadonlySet<string>>();
 
 /** The cards the active prompt shows in place: its source entry's `promptShows.inPlace` key of the prompt's data. */
