@@ -39,6 +39,7 @@ import type { Prompt, PromptChoice } from './types/prompts';
 import { IllegalActionError } from './engine/errors';
 import { actingSide } from './engine/priority';
 import { activeCards } from './engine/triggers';
+import { knownInRd } from './engine/rdKnowledge';
 
 // --- Types ------------------------------------------------------------------------
 
@@ -310,6 +311,8 @@ export const GAME_STATE_FIELDS = {
   whenSettled: 'dropped', // engine bookkeeping for "when you finish" triggers
   turnFlags: 'redacted', // keys naming a card the viewer can't see are left out, the rest remapped
   removedFromGame: 'public', // 4.9.6
+  setAside: 'dropped', // facedown (4.8.4); a prompt naming a found card shows it by the prompt rule below
+  setAsideFrom: 'dropped', // engine bookkeeping: where each set-aside card came from (4.8.3)
   turnStep: 'public',
   priority: 'redacted', // the declared intent is the active player's own
   stops: 'public',
@@ -341,6 +344,7 @@ export const CORP_STATE_FIELDS = {
   bonusClicksNextTurn: 'public',
   meliesServer: 'own', // 1.5.2b: secret until the identity flips
   knownToRunner: 'redacted', // shown as hq.known, codes only
+  archKnownToRunner: 'dropped', // the Runner's memory of facedown Archives (4.4.6b, c): the AI's; B4a keeps the screen as it was (bar 4)
   rdKnownToRunner: 'own', // the Runner's memory of R&D; names R&D accesses the Corp may not see (7.1.2)
   rdKnownToCorp: 'dropped', // the Corp's memory of R&D (4.2.3, 10.2.2b); names R&D cards the Runner may not see (4.2.2); the Corp's own client does not need it (no AI plays online)
   rdNotes: 'dropped',
@@ -577,6 +581,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     c.hq, c.rd, c.archives.faceUp, c.archives.faceDown, c.scoreArea,
     r.grip, r.stack, r.heap, r.rig.programs, r.rig.hardware, r.rig.resources, r.scoreArea,
     state.removedFromGame,
+    state.setAside ?? [],
   ]) list.forEach(index);
 
   // Cards, in a fixed order so ids are minted the same way every time
@@ -651,8 +656,9 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     hq: hand(hqCards, c.hq.length, c.knownToRunner),
     rd: {
       count: c.rd.length,
-      ...(side === 'runner' && c.rdKnownToRunner?.length && {
-        known: c.rdKnownToRunner.map(k => ({ code: k.code, lo: k.lo, hi: k.hi, ...(k.left && { left: k.left }) })),
+      // The marks with a place; a shuffle's shares are the AI's, and the screen's note says "until R&D is shuffled" (B4a bar 4)
+      ...(side === 'runner' && knownInRd(state).length && {
+        known: knownInRd(state).map(k => ({ code: k.code, lo: k.lo, hi: k.hi, ...(k.left && { left: k.left }) })),
       }),
     },
     archives: { faceUp: faceUpArchives, faceDown: { count: c.archives.faceDown.length, cards: faceDownArchives } },

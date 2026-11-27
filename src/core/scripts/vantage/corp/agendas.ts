@@ -2,7 +2,7 @@ import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { findInstalledCorpCard, removeCard, revealInHand, turnKey } from '../../../engine/helpers';
+import { findInstalledCorpCard, fromSetAside, revealInHand, setAside, turnKey } from '../../../engine/helpers';
 import { runnerSeesRd } from '../../../engine/rdKnowledge';
 import { dealMeatDamage, giveTags } from '../../../engine/damage';
 import { addCounters, gainFromCard, moveUpgrade, removeTags, takeBadPublicity, turnFlag, upgradeAllowedIn, useOncePerTurn } from '../../../engine/cardEffects';
@@ -141,20 +141,22 @@ const ltdFlow = prompts({
     takeFromCorpZone(state, card);
     if (data.zone === 'rd') shuffleRD(state);
     addLog(state, 'corp', `Corp revealed ${title(card)} (Let Them Dream).`);
-    state.corp.hq.push(card);
+    // Set aside while its place is chosen (rules 8.7.2, 4.8.4), not in HQ
+    setAside(state, card, data.zone === 'hq' ? 'hq' : data.zone === 'rd' ? 'rd' : 'archives');
     ltdFlow.choice(ctx, 'where', choiceQuestion('corp', `Let Them Dream: add ${title(card)} to HQ or the bottom of R&D?`, [
       { id: 'hq', label: 'Add it to HQ' },
       { id: 'bottom', label: 'Bottom of R&D' },
     ]), { cardId: card.instanceId });
   }),
   where: choice<{ cardId: string }>(({ state }, a, data) => {
-    const card = state.corp.hq.find(c => c.instanceId === data.cardId);
+    const card = state.setAside?.find(c => c.instanceId === data.cardId);
     if (!card) return;
+    fromSetAside(state, card);
     if (a.optionId === 'bottom') {
-      removeCard(state.corp.hq, card);
       state.corp.rd.push(card);
       runnerSeesRd(state, card); // revealed, then put on the bottom
     } else {
+      state.corp.hq.push(card);
       revealInHand(state, 'corp', [card]);
     }
   }),

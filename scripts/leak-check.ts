@@ -24,6 +24,7 @@ import {
 } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { activeCards } from '../src/core/engine/triggers';
+import { certainHandCards } from '../src/core/engine/helpers';
 import type { DeckList } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import type { Agent } from '../src/ai/agent';
@@ -61,7 +62,7 @@ const withHosted = (list: CardInstance[]): CardInstance[] => list.flatMap(c => [
 export function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; hiddenIds: Set<string>; shownIds: Set<string>; allowed: Set<string>; textCodes: Set<string>; openCodes: Set<string> } {
   const c = state.corp;
   const r = state.runner;
-  const hidden: CardInstance[] = [...c.rd, ...r.stack];
+  const hidden: CardInstance[] = [...c.rd, ...r.stack, ...(state.setAside ?? [])]; // set-aside cards: facedown (4.8.4), shown only through a prompt
   const open: CardInstance[] = [c.identity, r.identity, ...c.archives.faceUp, ...c.scoreArea, ...r.scoreArea, ...r.heap, ...r.rig.programs, ...r.rig.hardware, ...r.rig.resources, ...state.removedFromGame];
   const installed = Object.values(c.servers).flatMap(s => [...s.ice, ...s.root]);
   if (side === 'corp') {
@@ -78,9 +79,10 @@ export function visibility(state: GameState, side: SideCode): { hidden: CardInst
   const shownIds = new Set<string>();
   // Hosted faceup cards show whatever the host is (4.6.3)
   for (const x of hidden) for (const h of withHosted(x.hostedCards ?? [])) shownIds.add(h.instanceId);
-  // What the side remembers, by instance: cards seen in the other hand, the Runner's R&D knowledge
-  for (const k of (side === 'corp' ? r.knownToCorp : c.knownToRunner) ?? []) shownIds.add(k.id);
-  if (side === 'runner') for (const k of c.rdKnownToRunner ?? []) shownIds.add(k.id);
+  // What the side remembers of the other hand and of R&D: only the marks still certain (brief b4-hidden-zones ruling 5;
+  // an entry whose card may have left unseen allows nothing new), the hand by code and count
+  for (const x of certainHandCards(state, side === 'corp' ? 'runner' : 'corp')) shownIds.add(x.instanceId);
+  if (side === 'runner') for (const k of c.rdKnownToRunner ?? []) if (!k.left) shownIds.add(k.id);
   // The side's own prompts may show it cards from hidden zones (the top of R&D, the card being accessed), but only
   // the cards a prompt is about (view.ts): the accessed card (access_trash, 7.1.2), and effect_cards candidates and
   // the card being installed when they come from a hidden zone. A card an access_order or effect_choice option names,

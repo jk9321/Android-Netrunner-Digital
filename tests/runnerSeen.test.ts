@@ -4,9 +4,11 @@ import {
   createCardInstance,
   executeAction,
   findCardAnywhere,
+  knownInHand,
 } from "../src/core";
 import { installCorpCardFrom } from "../src/core/engine/actions/install";
 import { derez } from "../src/core/engine/cardEffects";
+import { updateHandKnowledge } from "../src/core/engine/helpers";
 import { HeuristicRunnerAI } from "../src/ai/runnerAI";
 import {
   answer,
@@ -91,10 +93,9 @@ describe("Runner AI: what it has seen of the Corp installed cards is the engine 
     expect(seen(afterRun, after).has(card)).toBe(false);
   });
 
-  // The boundary (brief, fix point 3): an entry whose card is no longer installed is left as it was. Part of it is
-  // knowledge the rules allow (a known card returned to HQ: the Runner saw which installed card went back), part a read
-  // by instance identity; sorting them needs an engine mark (Runner rework R-B). Rules 1.12.3, 10.2.2b.
-  it("an entry for a card now in HQ is kept as before (the hidden-zone boundary, rule 1.12.3)", () => {
+  // B4a 7(i) (brief b4-hidden-zones): the map's entry for a card now in HQ goes; what the Runner knows of HQ is the
+  // engine's marks (gap 3: a card seen going back to HQ joins the HQ list, 10.2.2b). Replaces the "kept as before" test.
+  it("an entry for a card now in HQ goes from the map; the HQ list holds it (rules 1.12.3, 10.2.2b)", () => {
     const { s: afterRun, card } = accessedInRemote(ANOETIC);
     const s = structuredClone(afterRun);
     const root = s.corp.servers["remote-1"].root;
@@ -104,7 +105,9 @@ describe("Runner AI: what it has seen of the Corp installed cards is the engine 
         1,
       ),
     );
-    expect(seen(afterRun, s).has(card)).toBe(true);
+    expect(seen(afterRun, s).has(card)).toBe(false);
+    updateHandKnowledge(afterRun, s);
+    expect(knownInHand(s, "corp").map((k) => k.id)).toContain(card);
   });
 
   // Rule 7.2.1: the card is accessed (seen) at its access; under an access limit a candidate that is never accessed is

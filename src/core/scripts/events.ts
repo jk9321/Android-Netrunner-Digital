@@ -1,6 +1,6 @@
 import { cardDef } from '../cards';
 import { addLog } from '../engine/log';
-import { drawCards, madeSuccessfulRunThisTurn, revealInHand } from '../engine/helpers';
+import { drawCards, fromSetAside, madeSuccessfulRunThisTurn, revealInHand, setAside, setAsideZone } from '../engine/helpers';
 import { shuffleInPlace } from '../rng';
 import { CardScript, EffectContext } from './types';
 import { runBlocked, startRun } from '../engine/actions/run';
@@ -83,10 +83,10 @@ const mutualFavorFlow = prompts({
       return;
     }
     const card = state.runner.stack.find(c => c.instanceId === id)!;
-    // Pull the card aside, shuffle, and keep it at the top while deciding.
+    // The found card is set aside while the stack is shuffled and the install is decided (rules 8.7.2, 4.8.4, 8.7.3)
     state.runner.stack = state.runner.stack.filter(c => c.instanceId !== id);
     shuffleInPlace(state.rng, state.runner.stack);
-    state.runner.stack.unshift(card);
+    setAside(state, card, 'stack');
     addLog(state, 'runner', `Runner revealed ${cardDef(card).title} and shuffled their Stack.`);
 
     if (madeSuccessfulRunThisTurn(state) && installableRunnerCards(state, [card]).length > 0) {
@@ -102,15 +102,18 @@ const mutualFavorFlow = prompts({
       );
       return;
     }
-    state.runner.grip.push(state.runner.stack.shift()!);
+    fromSetAside(state, card);
+    state.runner.grip.push(card);
     revealInHand(state, 'runner', [card]);
     addLog(state, 'runner', `Runner added ${cardDef(card).title} to their grip.`);
   }),
   install: choice<InstallData>(({ state }, a, data) => {
-    const card = state.runner.stack.find(c => c.instanceId === data.cardId)!;
-    // Installing may first trash programs to make room (rules 8.5.6c); if it can't be installed, it goes to the grip
-    if (a.optionId !== 'install' || !installRunnerTrashing(state, card, state.runner.stack, undefined, 0, a.trashFirst)) {
-      state.runner.stack.shift();
+    const card = state.setAside?.find(c => c.instanceId === data.cardId);
+    if (!card) return;
+    // Installing may first trash programs to make room (rules 8.5.6c); if it can't be installed, it goes to the grip.
+    // Installed from the set-aside zone, it counts as installed from the stack (4.8.3)
+    if (a.optionId !== 'install' || !installRunnerTrashing(state, card, setAsideZone(state), undefined, 0, a.trashFirst)) {
+      fromSetAside(state, card);
       state.runner.grip.push(card);
       revealInHand(state, 'runner', [card]);
       addLog(state, 'runner', `Runner added ${cardDef(card).title} to their grip.`);

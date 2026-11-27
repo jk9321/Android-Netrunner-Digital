@@ -12,6 +12,26 @@ import { Prompt } from './prompts';
 export interface KnownHandCard {
   id: string;
   code: string;
+  /**
+   * Cards that left the zone unseen since this one was seen, by what the place each went to allows it to be. Where a
+   * card is installed is open information (rules 4.6.6a, f, 10.2.3a): a card installed protecting a server is ice
+   * (4.6.6d), one installed in a remote root an agenda, asset or upgrade, one in a central root an upgrade (4.6.6e). Any
+   * other unseen departure (a draw, a facedown discard, a card shuffled or put into R&D) could be any card. Read through
+   * certainInHand() / certainInArchives(), by code and count.
+   */
+  lost?: KnownLosses;
+}
+
+/** Unseen departures from a hidden zone since a card was seen there, by the kinds of card each could have been. */
+export interface KnownLosses {
+  /** Could have been any card. */
+  any?: number;
+  /** Installed in an ice position: could only have been ice. */
+  ice?: number;
+  /** Installed in a remote root: could only have been an agenda, asset or upgrade. */
+  root?: number;
+  /** Installed in a central root: could only have been an upgrade. */
+  upgrade?: number;
 }
 
 /**
@@ -29,6 +49,13 @@ export interface RdKnownCard {
   lo: number;
   hi: number;
   left?: 'hq' | 'other';
+  /**
+   * Set when R&D was shuffled after the card was seen: R&D held `n0` cards then, and the card is in any of them with
+   * share 1 / n0 per place (rules 4.2.2, 8.7.3: a shuffle hides where each card is, not which cards are there; 10.2.2a,
+   * b: nothing un-learns it). `lo`, `hi` and `left` then follow draws and moves as for any mark. knownInRd() leaves these
+   * out; rdSharesKnownToRunner() reads them.
+   */
+  n0?: number;
 }
 
 /** What the Runner saw happen to R&D during one action, beyond what the change itself shows. */
@@ -62,6 +89,9 @@ export interface ServerState {
   root: CardInstance[]; // Cards installed in the root of the server (assets, agendas, upgrades)
 }
 
+/** The zone a set-aside card came from (rules 4.8.3). */
+export type SetAsideOrigin = 'hq' | 'rd' | 'archives' | 'stack' | 'heap' | 'grip';
+
 export interface CorpState {
   credits: number;
   clicks: number;
@@ -93,6 +123,12 @@ export interface CorpState {
    * the Runner only remembers them. See revealInHand(), updateHandKnowledge().
    */
   knownToRunner?: KnownHandCard[];
+  /**
+   * Cards the Runner saw go facedown into Archives (a card it knew, trashed or discarded facedown), kept by the same
+   * count rule as HQ (see KnownHandCard.lost). Facedown Archives cards are hidden from the Runner (rules 4.4.6b, c,
+   * 10.2.2a); seeing one go in is not un-learnt (10.2.2b). See updateHandKnowledge(), certainInArchives().
+   */
+  archKnownToRunner?: KnownHandCard[];
   /** Cards the Runner has seen in R&D and where they may be now. See engine/rdKnowledge.ts. */
   rdKnownToRunner?: RdKnownCard[];
   /**
@@ -428,6 +464,13 @@ export interface GameState {
   turnFlags: Record<string, number>;
   /** Cards removed from the game (Spin Doctor). */
   removedFromGame: CardInstance[];
+  /**
+   * The set-aside zone (rules 4.8.1): cards found by a search wait here facedown until the effect that searched acts
+   * on them (8.7.2, 4.8.4), so they are in neither the searched deck nor a hand. Missing when empty.
+   */
+  setAside?: CardInstance[];
+  /** Where each set-aside card was before (rules 4.8.3: it counts as moving from there), by instance id. */
+  setAsideFrom?: Record<string, SetAsideOrigin>;
   /** A turn transition waiting on prompts or the Corp (end of turn, start of the Corp's turn, mandatory draw). */
   turnStep?: TurnStep | null;
   /** The paid ability window waiting on a player, when it isn't simply the active player's move (see PriorityWindow). */

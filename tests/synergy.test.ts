@@ -8,6 +8,7 @@ import { HeuristicCorpAI, HeuristicRunnerAI, createAgent, playAIGame } from '../
 import { MAX_NUDGE, deckProfile, nudge, opponentProfile } from '../src/ai/synergy';
 import { CONDITIONS, CONDITION_PATTERNS, SYNERGY, THEMES, inferSynergy } from '../src/ai/synergyTags';
 import { newGame } from './helpers';
+import { revealInHand } from '../src/core/engine/helpers';
 import { RunnerMemory, isTrap, serverValue, trapOdds } from '../src/ai/runs';
 import { answerPrompt, untaianPick } from '../src/ai/prompts';
 import { taoSwap } from '../src/ai/cards/systemGateway';
@@ -163,9 +164,19 @@ describe('trap caution', () => {
     s.corp.rd.push(createCardInstance(s, '30045'), createCardInstance(s, '35050')); // Urtica Cipher, Byte!
     const before = trapOdds(s, new Map());
     expect(before).toBeGreaterThan(0);
-    // Traps the Runner has accessed are accounted for
-    const seen: RunnerMemory = new Map(hiddenTraps(s).slice(0, 1).map(c => [c.instanceId, c.cardCode]));
-    expect(trapOdds(s, seen)).toBeLessThan(before);
+    // Traps the Runner has seen are accounted for: in HQ by the engine's marks while surely still there (B4a 7(d),
+    // rules 10.2.2b, 1.12.3), installed facedown by the Runner's map of what it saw
+    const inHq = structuredClone(s);
+    const trap = inHq.corp.rd.splice(inHq.corp.rd.findIndex(c => c.cardCode === '30045'), 1)[0];
+    inHq.corp.hq.push(trap);
+    expect(trapOdds(inHq, new Map())).toBe(before);
+    revealInHand(inHq, 'corp', [trap]);
+    expect(trapOdds(inHq, new Map())).toBeLessThan(before);
+    const installed = structuredClone(s);
+    const byte = installed.corp.rd.splice(installed.corp.rd.findIndex(c => c.cardCode === '35050'), 1)[0];
+    installed.corp.servers['remote-9'] = { id: 'remote-9', name: 'Server 9', isRemote: true, ice: [], root: [byte] };
+    const seen: RunnerMemory = new Map([[byte.instanceId, byte.cardCode]]);
+    expect(trapOdds(installed, seen)).toBeLessThan(trapOdds(installed, new Map()));
   });
 
   it('knows when every trap is accounted for, and counts one shuffled back in again', () => {

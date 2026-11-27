@@ -1,5 +1,6 @@
-import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { CardInstance, GameAction, GameState, activePrompt, cardDef, executeAction, findCardAnywhere, getLegalActions, isLegalAction } from '../core';
 import { TurnFlag, turnFlag } from '../core/engine/cardEffects';
+import { certainHandCards } from '../core/engine/helpers';
 import { plan } from './pricing';
 import { tally } from './diagnostics';
 import { clicksGivenOf, dividendsOf, placesCountersOf } from './cards';
@@ -291,7 +292,8 @@ export function winNowAction(state: GameState): GameAction | null {
   // would name the type knowing the grip and count the kill on the smaller grip. Damage picks its cards at random and
   // only their number matters (rule 10.4.2), so a card gone to the heap is no leak. A win by points does not read the
   // grip, and score-now never does, so neither is cut: Touch-ups still places its counters on those lines.
-  const known = new Set(knownInHand(state, 'runner').map(e => e.id));
+  // B4a ruling 6: per code, no more grip cards than the Corp surely knows are there (certainHandCards; 10.2.2b, 1.12.3)
+  const known = new Set(certainHandCards(state, 'runner').map(c => c.instanceId));
   const hidden = state.runner.grip.filter(c => !known.has(c.instanceId)).map(c => c.instanceId);
   const blind = (s: GameState) => hidden.every(id => s.runner.grip.some(c => c.instanceId === id) || s.runner.heap.some(c => c.instanceId === id));
   const seen = new Set<string>();

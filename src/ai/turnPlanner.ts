@@ -341,8 +341,11 @@ export function runnerDecisionView(state: GameState, memory?: RunnerMemory): Gam
   // Kept while nothing it deals from has changed (tests edit a state in place): the seed, the plan, the board, the cards
   const cards = (list: { instanceId: string; cardCode: string }[]) => list.map(c => `${c.instanceId}:${c.cardCode}`).join(',');
   const installed = Object.values(state.corp.servers).map(v => `${cards(v.ice)}/${cards(v.root)}`).join(';');
-  const known = memory ? [...memory].map(([id, code]) => `${id}:${code}`).join(',') : '';
-  const sig = `${seed}|${fingerprint(state)}|${cards(state.corp.hq)}|${cards(state.corp.rd)}|${cards(state.corp.archives.faceDown)}|${installed}|${cards(state.runner.stack)}|${known}|${JSON.stringify(plan())}`;
+  // B4a 7(h): the deal reads the map for installed cards only, and the hidden zones by the marks (runnerUnknownSlots)
+  const roots = new Set(Object.values(state.corp.servers).flatMap(v => v.root.map(c => c.instanceId)));
+  const known = memory ? [...memory].filter(([id]) => roots.has(id)).map(([id, code]) => `${id}:${code}`).join(',') : '';
+  const marks = JSON.stringify([state.corp.knownToRunner, state.corp.rdKnownToRunner, state.corp.archKnownToRunner]);
+  const sig = `${seed}|${fingerprint(state)}|${cards(state.corp.hq)}|${cards(state.corp.rd)}|${cards(state.corp.archives.faceDown)}|${installed}|${cards(state.runner.stack)}|${known}|${marks}|${JSON.stringify(plan())}`;
   const kept = runnerViews.get(state);
   if (kept?.sig === sig) return kept.view;
   const view = withPricing({ decisionSeed: seed }, () => guessRunnerView(state, HIDDEN_DRAW_SAMPLE, memory));
