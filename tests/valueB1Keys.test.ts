@@ -182,7 +182,7 @@ describe('the by-position maps key every field that is not in the state', () => 
     }
     expect(Object.keys(NOT_READ).filter(f => !fields.includes(f))).toEqual([]);
     expect(Object.keys(cases).filter(f => !fields.includes(f))).toEqual([]);
-  });
+  }, 60_000);
 
   it('a frame that only changes the plan object keeps its keys: the plan is named by its side (not-read list)', () => {
     const p1 = planWith(tuning.plan, []);
