@@ -297,6 +297,17 @@ export function revealInHand(state: GameState, owner: SideCode, cards: CardInsta
   setKnownList(state, owner, add.length > 0 ? [...known, ...add] : known);
 }
 
+/**
+ * Cards the other side knows went into `owner`'s hand without seeing them there (an R&D mark certainly drawn), each with
+ * the unseen departures since it may have arrived (RdKnownCard.lost, rules 1.12.3). Unlike revealInHand, an entry
+ * already on the list keeps its losses: nothing was seen.
+ */
+export function joinHand(state: GameState, owner: SideCode, entries: KnownHandCard[]): void {
+  const known = knownList(state, owner);
+  const add = entries.filter(e => !known.some(k => k.id === e.id));
+  if (add.length > 0) setKnownList(state, owner, [...known, ...add]);
+}
+
 /** The other side saw these known cards leave the hand for a hidden place (Touch-ups' shuffle). */
 export function forgetInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
   const known = knownList(state, owner);
@@ -340,14 +351,17 @@ function lossKind(state: GameState, id: string): LossKind {
   return 'any';
 }
 
+/** `lost` with these unseen departures added. */
+function withLosses(was: KnownLosses | undefined, kinds: LossKind[]): KnownLosses {
+  const lost: KnownLosses = { ...was };
+  for (const k of kinds) lost[k] = (lost[k] ?? 0) + 1;
+  return lost;
+}
+
 /** Every entry of `list` saw these unseen departures after it was seen. */
 function addLosses(list: KnownHandCard[], kinds: LossKind[]): KnownHandCard[] {
   if (kinds.length === 0) return list;
-  return list.map(e => {
-    const lost: KnownLosses = { ...e.lost };
-    for (const k of kinds) lost[k] = (lost[k] ?? 0) + 1;
-    return { ...e, lost };
-  });
+  return list.map(e => ({ ...e, lost: withLosses(e.lost, kinds) }));
 }
 
 /** The departures since `e` was seen that could have been a card of type `type`. */
@@ -477,7 +491,10 @@ function noteOpenArrivals(prev: GameState, state: GameState): void {
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
   updateArchivesKnowledge(prev, state);
   noteOpenArrivals(prev, state);
-  if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0) return;
+  // An R&D mark that may already be in HQ (left 'hq') counts the HQ departures too (RdKnownCard.lost)
+  const marks = state.corp.rdKnownToRunner ?? [];
+  const mayBeInHq = marks.some(e => e.left === 'hq');
+  if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0 && !mayBeInHq) return;
   const before = publicCards(prev);
   const after = publicCards(state);
   // A found card waits set aside first (rules 4.8.3: it still counts as coming from its deck)
@@ -485,18 +502,21 @@ export function updateHandKnowledge(prev: GameState, state: GameState): void {
   const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
   for (const owner of ['corp', 'runner'] as const) {
     let known = knownList(state, owner);
-    if (known.length === 0) continue;
+    const listed = known.length > 0;
+    const pending = owner === 'corp' && mayBeInHq;
+    if (!listed && !pending) continue;
     const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
     const inHand = new Set(hand.map(c => c.instanceId));
     // A card the Runner followed from HQ into R&D (an effect showed it there: it is marked in R&D) is no departure it
-    // cannot tell, and it is no longer in HQ (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program)
-    const followed = owner === 'corp' ? new Set((state.corp.rdKnownToRunner ?? []).map(e => e.id)) : undefined;
+    // cannot tell, and it is no longer in HQ (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program). A mark that
+    // may have left R&D (`left`) is not followed: its card may be the one leaving HQ unseen (rules 1.12.3, 4.6.6d).
+    const followed = owner === 'corp' ? new Set(marks.filter(e => !e.left).map(e => e.id)) : undefined;
     const departed = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId) && !followed?.has(c.instanceId));
     if (followed?.size) known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));
-    known = addLosses(
-      known,
-      departed.map(c => lossKind(state, c.instanceId))
-    );
+    const kinds = departed.map(c => lossKind(state, c.instanceId));
+    known = addLosses(known, kinds);
+    if (pending && kinds.length > 0) state.corp.rdKnownToRunner = marks.map(e => (e.left === 'hq' ? { ...e, lost: withLosses(e.lost, kinds) } : e));
+    if (!listed) continue;
     for (const [id, code] of surfaced) {
       const same = known.findIndex(e => e.id === id);
       const i = same >= 0 ? same : known.findIndex(e => e.code === code);
