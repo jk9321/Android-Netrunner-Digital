@@ -48,7 +48,11 @@ describe('the slow tag-clock decision (seed 104, Corp turn 18) in call counts', 
     const action = createAgent('corp', 'normal').chooseAction(saved());
     // Brief O1a (tracker R-14b): DRAW_CARD before it; under this decision the Corp's reply priced the rezzed Malapert Data
     // Vault in remote-1 at serverWorth's 0.5 floor 54 times (the formula below 0.5), so with the floor gone the pick moves
-    expect(action).toEqual({ player: 'corp', type: 'GAIN_CREDIT' });
+    // F117 departures (the Mercia ruling, 54adee7): the line after the draw plays Sprint (inst-26), whose two cards
+    // shuffled back are chosen departures priced by their owner's difference at the board before's limit (HQ 7 of 5:
+    // about nothing), where base took the count and the half keep; the draw's line rises from -39.20 to -33.70 against
+    // the click for a credit's -37.35, so the pick moves. The counts below are what this pin is for
+    expect(action).toEqual({ player: 'corp', type: 'DRAW_CARD' });
     // Measured on ai-tag-loss-time (beta 8e28403's clock): 25,222 tag-clock prices, 126,117 rig values inside the clock of
     // 133,173, 56,920 rez budgets asked and 6,242 hold counts started inside it. With ai-tag-loss-bp (a resource priced by
     // its own term plus its share of the plans: no rig value inside the clock): 10,914 prices, 0 inside of 7,044, 4,102
