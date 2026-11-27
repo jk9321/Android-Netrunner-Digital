@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { answer, giveCard, installCorpForTest, keepGoing, newGame, passTurn, play, scoreForTest, startRunnerTurn, useAbility } from './helpers';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, knownInHand, newViewIds, viewFor } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, getLegalActions, knownInHand, newViewIds, viewFor } from '../src/core';
 import { turnFlag, TurnFlag } from '../src/core/engine/cardEffects';
+import { revealInHand } from '../src/core/engine/helpers';
+import { cardsByZone, checkInvariants } from '../scripts/engine-fuzz-check';
 
 // Rule 8.7.2: "While a player is searching, they may FIND an appropriate number of cards matching any criteria of the
 // search by taking them from the zone being searched and setting them aside facedown." Rule 4.8.4: "Cards found during
@@ -21,6 +23,8 @@ const CHEST = '34070';
 const T400 = '30031';
 const DOCKLANDS = '30013';
 const LET_THEM_DREAM = '36066';
+const MALAPERT = '30066';
+const TOCSIN = '36060';
 
 const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
 const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
@@ -144,16 +148,18 @@ describe('a card found by a search is set aside, not put in HQ or on the stack (
     startRunnerTurn(s);
     s.runsThisTurn = ['hq', 'rd', 'archives'].map(server => ({ server, successful: true }));
     const a = createCardInstance(s, T400);
+    const x = createCardInstance(s, MUTUAL_FAVOR); // not hardware: one of "the rest of the set-aside cards"
     const b = createCardInstance(s, DOCKLANDS);
-    s.runner.stack.unshift(a, b);
+    s.runner.stack.unshift(a, x, b);
     const stack = s.runner.stack.length;
     s = useAbility(s, 'runner', wc.instanceId);
     s = choose(s, 'hardware');
-    expect(setAsideIds(s).sort()).toEqual([a.instanceId, b.instanceId].sort());
-    expect(s.runner.stack).toHaveLength(stack - 2);
+    // All three wait set aside until the install choice; none sits at a known place in the stack
+    expect(setAsideIds(s).sort()).toEqual([a.instanceId, x.instanceId, b.instanceId].sort());
+    expect(s.runner.stack).toHaveLength(stack - 3);
     s = pick(s, [b.instanceId]);
     expect(s.runner.rig.hardware.map(c => c.instanceId)).toContain(b.instanceId);
-    expect(s.runner.stack.map(c => c.instanceId)).toContain(a.instanceId);
+    expect(s.runner.stack.map(c => c.instanceId)).toEqual(expect.arrayContaining([a.instanceId, x.instanceId]));
     expect(s.setAside).toBeUndefined();
   });
 
@@ -216,6 +222,132 @@ describe('a card found by a search is set aside, not put in HQ or on the stack (
     s = choose(s, 'hq');
     expect(inHQ(s, off.instanceId)).toBe(true);
     expect(knownInHand(s, 'corp').map(c => c.id)).toContain(off.instanceId);
+    expect(s.setAside).toBeUndefined();
+  });
+
+  // Fuzz invariant set-aside-held (tier 1, RULE-ENGINE-FUZZER): a set-aside card must be named by a pending prompt, or it
+  // is out of every visible zone for the rest of the game. Planted fault: the flow ends without taking the card out.
+  it('the set-aside-held invariant passes mid-prompt and fires when a flow drops its prompt with the card still set aside', () => {
+    const { s: before, found } = offTheBooksSearch(OFFWORLD);
+    const s = pick(before, [found]);
+    const ids = new Set(cardsByZone(s).map(z => z.card.instanceId));
+    const checks = (t: GameState) => checkInvariants(t, null, ids).failures.map(f => f.check).filter(c => c.startsWith('set-aside'));
+    expect(checks(s)).toEqual([]);
+    const planted = structuredClone(s);
+    planted.pendingPrompts = [];
+    expect(checks(planted)).toEqual(['set-aside-held']);
+    const untidy = structuredClone(s);
+    untidy.setAside = [];
+    untidy.corp.hq.push(...s.setAside!.map(c => structuredClone(c)));
+    expect(checks(untidy)).toEqual(['set-aside-tidy', 'set-aside-origin']);
+  });
+
+  // Red team finding 2: the Runner's or Corp's memory of a hand survives a found copy being installed (the found card
+  // counts as coming from its deck, 4.8.3), and a hand card that is only set aside is still remembered
+  it('hand memory: a known HQ Palisade stays known when Tucana finds and installs another Palisade', () => {
+    let s = newGame();
+    const inHq = createCardInstance(s, PALISADE);
+    s.corp.hq.push(inHq);
+    revealInHand(s, 'corp', [inHq]);
+    const pal = createCardInstance(s, PALISADE);
+    s.corp.rd.push(pal);
+    installCorpForTest(s, TUCANA, 'remote-score', true);
+    s = scoreForTest(s, OFFWORLD);
+    s = pick(s, [pal.instanceId]);
+    s = choose(s, 'hq');
+    expect(findCardAnywhere(s, pal.instanceId)!.isRezzed).toBe(true);
+    expect(knownInHand(s, 'corp').map(e => e.id)).toEqual([inHq.instanceId]);
+  });
+
+  it('hand memory: a known grip breaker stays known when Mutual Favor finds and installs another copy', () => {
+    let s = newGame();
+    startRunnerTurn(s);
+    s.runner.credits = 20;
+    s = executeAction(s, { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'archives' });
+    s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+    s = executeAction(s, { type: 'CONTINUE_RUN', player: 'runner' });
+    const breaker = s.runner.stack.find(c => /icebreaker/i.test(cardDef(c).keywords ?? ''))!;
+    const copy = createCardInstance(s, breaker.cardCode);
+    s.runner.grip.push(copy);
+    revealInHand(s, 'runner', [copy]);
+    s = play(s, 'runner', giveCard(s, 'runner', MUTUAL_FAVOR));
+    s = answer(s, { kind: 'effect_cards', cardInstanceIds: [breaker.instanceId] });
+    s = answer(s, { kind: 'effect_choice', optionId: 'install' });
+    expect(s.runner.rig.programs.some(c => c.instanceId === breaker.instanceId)).toBe(true);
+    expect(knownInHand(s, 'runner').map(e => e.id)).toEqual([copy.instanceId]);
+  });
+
+  it('hand memory: Let Them Dream searching an all-known HQ forgets none of it', () => {
+    let s = newGame();
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    const off = createCardInstance(s, OFFWORLD);
+    s.corp.hq.push(off);
+    revealInHand(s, 'corp', [...s.corp.hq]);
+    const before = knownInHand(s, 'corp').map(e => e.id);
+    s = scoreForTest(s, LET_THEM_DREAM);
+    s = choose(s, 'hq');
+    s = pick(s, [off.instanceId]);
+    expect(knownInHand(s, 'corp').map(e => e.id)).toEqual(before);
+    s = choose(s, 'hq');
+    expect(knownInHand(s, 'corp').map(e => e.id).sort()).toEqual([...before].sort());
+  });
+
+  // Red team finding 3, rule 4.8.3: "An ability cannot see the set-aside zone unless it specifically sets objects aside
+  // or refers to set-aside objects": a second search queued behind the first does not offer the card the first found
+  it.each([
+    ['Malapert Data Vault', MALAPERT, OFFWORLD],
+    ['Eminent Domain', null, EMINENT],
+  ] as const)('a search queued behind Tucana (%s) does not offer the ice Tucana set aside', (_name, upgrade, agenda) => {
+    let s = newGame();
+    const pal = createCardInstance(s, PALISADE);
+    s.corp.rd.push(pal);
+    installCorpForTest(s, TUCANA, 'remote-score', true);
+    if (upgrade) installCorpForTest(s, upgrade, 'remote-score', true);
+    s.corp.credits = 10;
+    s = scoreForTest(s, agenda);
+    expect(source(s)?.cardCode).toBe(TUCANA);
+    s = pick(s, [pal.instanceId]);
+    expect(setAsideIds(s)).toEqual([pal.instanceId]);
+    const second = s.pendingPrompts[0];
+    expect(second.kind === 'effect_cards' && second.candidateIds).toContain(pal.instanceId); // listed when it was queued
+    const answers = getLegalActions(s, 'corp').filter(a => a.type === 'RESOLVE_PROMPT');
+    expect(answers.some(a => JSON.stringify(a).includes(`"${pal.instanceId}"`))).toBe(false);
+    expect(() => answer(s, { kind: 'effect_cards', cardInstanceIds: [pal.instanceId] })).toThrow(/offered cards/);
+  });
+
+  it('Malapert Data Vault: an answer naming a card that has left R&D finds nothing and does not throw', () => {
+    let s = newGame();
+    const pal = createCardInstance(s, PALISADE);
+    s.corp.rd.push(pal);
+    installCorpForTest(s, MALAPERT, 'remote-score', true);
+    s = scoreForTest(s, OFFWORLD);
+    expect(source(s)?.cardCode).toBe(MALAPERT);
+    const t = structuredClone(s);
+    t.corp.rd = t.corp.rd.filter(c => c.instanceId !== pal.instanceId);
+    t.corp.archives.faceUp.push(structuredClone(pal));
+    const hq = t.corp.hq.length;
+    const after = pick(t, [pal.instanceId]);
+    expect(after.corp.hq).toHaveLength(hq);
+  });
+
+  it('Tocsin: the barrier waits set aside while the sentry is searched for, then both go to HQ', () => {
+    let s = newGame();
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    s.corp.clicks = 3;
+    s.corp.credits = 5;
+    const barrier = createCardInstance(s, PALISADE);
+    s.corp.rd.push(barrier);
+    const tocsin = giveCard(s, 'corp', TOCSIN);
+    const hq = s.corp.hq.length;
+    s = useAbility(s, 'corp', tocsin);
+    s = pick(s, [barrier.instanceId]);
+    expect(setAsideIds(s)).toEqual([barrier.instanceId]);
+    expect(s.corp.hq).toHaveLength(hq - 1); // Tocsin itself was trashed from HQ
+    s = pick(s, []);
+    expect(inHQ(s, barrier.instanceId)).toBe(true);
+    expect(knownInHand(s, 'corp').map(e => e.id)).toContain(barrier.instanceId);
     expect(s.setAside).toBeUndefined();
   });
 });

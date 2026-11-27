@@ -6,7 +6,7 @@ import { cardDef } from '../../cards';
 import { shuffleInPlace } from '../../rng';
 import { shuffleRD } from '../rdKnowledge';
 import { addLog } from '../log';
-import { findCardAnywhere, illegal, locateCorpCard, noteTrashedFromHand, removeCard } from '../helpers';
+import { findCardAnywhere, illegal, locateCorpCard, noteTrashedFromHand, offeredCandidates, removeCard } from '../helpers';
 import { getCardScript } from '../../scripts';
 import { NOTHING_QUALIFIES_STEP } from '../../scripts/types';
 import { activePrompt, sideName } from '../prompts';
@@ -108,7 +108,8 @@ function answerPrompt(state: GameState, action: ResolvePromptAction): void {
     case 'effect_cards': {
       if (choice.kind !== 'effect_cards') return;
       const ids = choice.cardInstanceIds;
-      if (new Set(ids).size !== ids.length || ids.some(id => !prompt.candidateIds.includes(id))) {
+      const offered = offeredCandidates(state, prompt.candidateIds, prompt.source.data);
+      if (new Set(ids).size !== ids.length || ids.some(id => !offered.includes(id))) {
         illegal('Choose only from the offered cards');
       }
       if (choice.trashFirst?.length && !prompt.source.data?.install) illegal('This choice does not install a card');

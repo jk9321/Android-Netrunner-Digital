@@ -147,7 +147,7 @@ const tucanaFlow = prompts({
     const ice = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
     if (!ice) return shuffleRD(state);
     // Set aside while the server is chosen (rules 8.7.2, 4.8.4); installed from there, it counts as from R&D (4.8.3)
-    setAside(state, ice);
+    setAside(state, ice, 'rd');
     const options = installAndRezOptions(state, ice, 3);
     if (!tucanaFlow.askIf(ctx, 'server', installAmongQuestion(state, ice.instanceId, options), { cardId: ice.instanceId, install: true })) tucanaReturn(state, ice.instanceId);
   }),

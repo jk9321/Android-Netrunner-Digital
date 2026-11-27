@@ -390,17 +390,25 @@ const eminentDomainFlow = prompts({
     const card = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
     if (!card) return shuffleRD(state);
     // The found card is set aside (rules 8.7.2, 4.8.4), not put in HQ: it is installed as though from R&D (4.8.3)
-    setAside(state, card);
+    setAside(state, card, 'rd');
     const asked = eminentDomainFlow.askIf(ctx, 'rd-server', installAmongQuestion(state, card.instanceId, installAndRezOptions(state, card, 0, true)), { cardId: card.instanceId, install: true });
     // A card that can't be installed couldn't be found (8.7.2b): it goes back, and R&D is shuffled again
-    if (!asked) {
-      fromSetAside(state, card);
-      state.corp.rd.push(card);
-      shuffleRD(state);
-    }
+    if (!asked) eminentReturn(state, card.instanceId);
   }),
-  'rd-server': choice<InstallData>(({ state }, a, data) => installAndRez(state, data.cardId, a.optionId, 0, true)),
+  'rd-server': choice<InstallData>(({ state }, a, data) => {
+    installAndRez(state, data.cardId, a.optionId, 0, true);
+    eminentReturn(state, data.cardId);
+  }),
 });
+
+/** The card Eminent Domain found goes back into R&D, shuffled, if it is still set aside (not installed; rules 8.7.2b, 8.7.3). */
+function eminentReturn(state: GameState, id: string): void {
+  const card = state.setAside?.find(c => c.instanceId === id);
+  if (!card) return;
+  fromSetAside(state, card);
+  state.corp.rd.push(card);
+  shuffleRD(state);
+}
 
 export const eminentDomain: CardScript = {
   abilities: [

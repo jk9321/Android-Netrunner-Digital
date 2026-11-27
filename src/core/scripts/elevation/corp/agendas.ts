@@ -175,7 +175,7 @@ const offTheBooksFlow = prompts({
     const card = takeFromRD(state, a.ids[0]);
     if (!card) return;
     // Set aside while choosing (rules 8.7.2, 4.8.4), not in HQ: installed from there, it counts as installed from R&D (4.8.3)
-    setAside(state, card);
+    setAside(state, card, 'rd');
     const options = type(card) === 'operation' ? [] : corpInstallOptions(state, card, { ignoreCosts: true });
     if (options.length === 0) return offTheBooksToHQ(state, card);
     // 'to-hand', not 'hq': the HQ server is an install option of its own (ice or an upgrade on HQ). install: true lets
@@ -191,7 +191,8 @@ const offTheBooksFlow = prompts({
     );
   }),
   install: choice<InstallData>(({ state }, a, data, source) => {
-    if (a.optionId !== OFF_THE_BOOKS_TO_HAND) return void installCorpChoice(state, source, a.raw, { ignoreCosts: true, revealed: true });
+    if (a.optionId !== OFF_THE_BOOKS_TO_HAND) installCorpChoice(state, source, a.raw, { ignoreCosts: true, revealed: true });
+    // "If you do not [install it], add it to HQ": also the fallback if the install did not happen
     const card = state.setAside?.find(c => c.instanceId === data.cardId);
     if (card) offTheBooksToHQ(state, card);
   }),
