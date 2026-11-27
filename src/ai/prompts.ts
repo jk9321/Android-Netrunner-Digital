@@ -40,9 +40,9 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * board evaluation it counts which cards are in hand (so the AI discards
  * its least useful cards) and, for the Runner, the run still in progress.
  */
-export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, arrivals = false): number {
+export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, arrivals: GameState | false = false): number {
   let score = evaluate(after, side);
-  if (arrivals) score += arrivalTerms(before, after, side, synergy);
+  if (arrivals) score += arrivalTerms(before, after, side, synergy, arrivals);
   else {
     // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
     const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
@@ -66,21 +66,36 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
  * (handCount, on both boards: the reach card can differ). Where the frame prices the hand by card (handByCard), the
  * owner already holds A. The half-keep term is the code's (half of the keep of the cards in the hand after less the keep
  * of the hand before), with no arrival in its list, seen or not, from any zone, and with seen arrivals taken on the board
- * without A: what A does to the staying cards is in M. With no seen arrival it is today's term to the digit (every
- * unseen arrival is a deck card, which today's list leaves out too).
+ * without A: what A does to the staying cards is in M. The cards a chain's later steps brought (in the hand at its end,
+ * not after its first answer, and not seen: a rez's draws) are put back in the deck on that board: the staying cards'
+ * keep reads the hand and the deck, which would tell it which cards the simulated deck gave (bar 6, Eminent Domain
+ * fetching Spin Doctor). With no seen
+ * arrival and no chain it is today's term to the digit (every unseen arrival is a deck card, which today's list leaves
+ * out too). `first`: the board after the answer itself.
  */
-function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean): number {
+function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean, first: GameState): number {
   const had = new Set(hand(before, side).map(c => c.instanceId));
   const known = pricing().known[side];
   const seen = known ? hand(after, side).filter(c => !had.has(c.instanceId) && known.has(c.instanceId)) : [];
+  const late = after === first ? [] : hand(after, side).filter(c => !had.has(c.instanceId) && !known?.has(c.instanceId) && !hand(first, side).some(f => f.instanceId === c.instanceId));
+  const without = (cs: CardInstance[]) => {
+    const ids = new Set(cs.map(c => c.instanceId));
+    return withHand(after, side, hand(after, side).filter(c => !ids.has(c.instanceId)));
+  };
   let term = 0;
-  let keepBoard = after;
-  if (seen.length) {
-    const ids = new Set(seen.map(c => c.instanceId));
-    keepBoard = withHand(after, side, hand(after, side).filter(c => !ids.has(c.instanceId)));
-    if (!handByCard(side)) term += ownHandValue(after, side) - ownHandValue(keepBoard, side) - (handCount(after, side, side) - handCount(keepBoard, side, side));
+  if (seen.length && !handByCard(side)) {
+    const mBoard = without(seen);
+    term += ownHandValue(after, side) - ownHandValue(mBoard, side) - (handCount(after, side, side) - handCount(mBoard, side, side));
   }
+  const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
   return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(before, hand(before, side), synergy));
+}
+
+/** `state` with `cards` taken from `side`'s hand and put at the bottom of its deck (a copy, only priced). */
+function toDeck(state: GameState, side: SideCode, cards: CardInstance[]): GameState {
+  const ids = new Set(cards.map(c => c.instanceId));
+  const board = withHand(state, side, hand(state, side).filter(c => !ids.has(c.instanceId)));
+  return side === 'corp' ? { ...board, corp: { ...board.corp, rd: [...board.corp.rd, ...cards] } } : { ...board, runner: { ...board.runner, stack: [...board.runner.stack, ...cards] } };
 }
 
 /** `state` with `side`'s hand set to `cards` (a copy, only priced). */
@@ -363,7 +378,7 @@ export function scoreAnswer(
     board = withHand({ ...board, setAside: (board.setAside ?? []).filter(c => !ids.has(c.instanceId)) }, side, [...hand(board, side), ...kept]);
   }
   return withKnownCards(side, kept.length ? [...chain.seen, ...kept.map(c => c.instanceId)] : chain.seen, () => {
-    const score = scoreOutcome(state, board, side, memory, synergy, true);
+    const score = scoreOutcome(state, board, side, memory, synergy, after);
     return finish ? finish(score, board) : score;
   });
 }
@@ -603,12 +618,27 @@ function todayAnswer(state: GameState, side: SideCode, memory: RunnerMemory | un
       if (skip && after.activeRun?.encounter?.iceId === skip.iceId) s -= skip.cost;
       return s;
     });
-    if (score > bestScore) {
+    if (score > bestScore || (score === bestScore && deckTie(state, action, best))) {
       bestScore = score;
       best = action;
     }
   }
   return best;
+}
+
+/**
+ * F117 bar 7: a tie between two answers that each name a card of a deck (a search's candidates, listed in the deck's
+ * order: a guess in a dealt view) goes to the one whose named codes sort first, not to the list's order. Answers naming
+ * the same codes stay in the prompt's order (either is the same play); every other tie keeps the list's order, as today.
+ */
+function deckTie(state: GameState, action: GameAction, best: GameAction): boolean {
+  const deck = new Set([...state.corp.rd, ...state.runner.stack].map(c => c.instanceId));
+  const key = (a: GameAction) => {
+    const ids = [...answerNames(undefined, a)];
+    return ids.some(id => deck.has(id)) ? ids.map(id => findCardAnywhere(state, id)?.cardCode ?? id).sort().join(',') : null;
+  };
+  const [k, b] = [key(action), key(best)];
+  return k !== null && b !== null && k < b;
 }
 
 /**
@@ -964,7 +994,7 @@ function greedyCards(
     for (const id of prompt.candidateIds) {
       if (chosen.includes(id)) continue;
       const score = value([...chosen, id]);
-      if (score > bestScore) {
+      if (score > bestScore || (score === bestScore && bestId !== null && deckTie(state, answer([...chosen, id]), answer([...chosen, bestId])))) {
         bestScore = score;
         bestId = id;
       }
