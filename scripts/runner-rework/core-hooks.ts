@@ -50,7 +50,9 @@ export const HOOKS: Patch[] = [
     `    const ranked = corpLine ? corpLine.rank(now) : ai.rank(now);`,
     `    const ranked = corpLine ? corpLine.rank(now) : ai.rank(now);\n    if (side === 'runner') (globalThis as any).__lkRank?.(now, ranked);`,
   ],
-  ['ai/turnPlanner.ts', `        answer = ai.answer(state);`, `        answer = ai.answer(state);\n        if (side === 'runner') (globalThis as any).__lkAns?.('rollout', state, answer);`],
+  // anchored after the answer's guard, a line both before and after F117 (which wraps the call in withKnownCards): an
+  // undefined answer is no longer counted, the same in every tree
+  ['ai/turnPlanner.ts', `      if (!answer) break;`, `      if (!answer) break;\n      if (side === 'runner') (globalThis as any).__lkAns?.('rollout', state, answer);`],
   [
     'ai/turnPlanner.ts',
     `      next = executeAction(next, ai.answer(next));`,
