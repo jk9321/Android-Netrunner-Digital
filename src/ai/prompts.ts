@@ -133,8 +133,10 @@ function withLimit(board: GameState, side: SideCode, from: GameState): GameState
  * The boards a scored answer's chance departures stand for (the departures red team, ruled 09:32Z: base's term, never the
  * cards the simulated RNG took): the scored board as each set of that many cards of the hand the damage met (the hand
  * before less the chosen departures) leaves it, the set in the chance cards' places and the chance cards back in the
- * hand. Every set alike, up to 70 sets (the first 70 by hand order past that, as hqChanceLoss caps); the board itself
- * when nothing left by chance. The board's own readers (evaluate's heap and grip, runRestWorth) are averaged with it.
+ * hand. Every set alike, up to CHANCE_SETS (chanceSets, hqChanceLoss's enumerator; past it the first 70 in the hand's
+ * order); the board itself when nothing left by chance. The board's own readers (evaluate's heap and grip,
+ * runRestWorth) are averaged with it. Only scoreAnswer's framed path (the side's own hand) calls it: the null slot and
+ * the other side's model keep one-pick scoring (ruling "chanceBoards deviation", condition 2).
  */
 function chanceBoards(before: GameState, board: GameState, side: SideCode, named: ReadonlySet<string>): GameState[] {
   const now = new Set(hand(board, side).map(c => c.instanceId));
@@ -142,14 +144,8 @@ function chanceBoards(before: GameState, board: GameState, side: SideCode, named
   const chance = gone.filter(c => byChance(board, side, named, c));
   if (chance.length === 0) return [board];
   const pool = hand(before, side).filter(c => now.has(c.instanceId) || chance.includes(c));
-  const sets: CardInstance[][] = [];
-  const pick = (from: number, chosen: CardInstance[]) => {
-    if (sets.length >= 70) return;
-    if (chosen.length === chance.length) return void sets.push(chosen);
-    for (let i = from; i < pool.length; i++) pick(i + 1, [...chosen, pool[i]]);
-  };
-  pick(0, []);
-  return sets.map(set => {
+  // Past the cap: the first CHANCE_SETS sets in the hand before's order (deterministic, never the RNG)
+  return chanceSets(pool, chance.length).slice(0, CHANCE_SETS).map(set => {
     // The set takes the chance cards' places (in order), the chance cards not in the set come back to the hand
     const swap = new Map(chance.map((c, i) => [c.instanceId, set[i]]));
     const taken = new Set(set.map(c => c.instanceId));
@@ -1039,23 +1035,35 @@ function rigMove(state: GameState, board: GameState): number {
   return corpBoardValue(board, 'corp') - corpBoardValue(back, 'corp');
 }
 
+/** The cap on the sets of cards a chance loss is averaged over (hqChanceLoss's, and chanceBoards'). */
+const CHANCE_SETS = 70;
+/**
+ * The one enumerator of chance sets (hqChanceLoss and chanceBoards; ruling "chanceBoards deviation"): every set of `k`
+ * of `items`, in the items' order (lexicographic by position), stopping once there are more than CHANCE_SETS, so a list
+ * longer than the cap means the sets did not all fit. Never the RNG.
+ */
+function chanceSets<T>(items: readonly T[], k: number): T[][] {
+  const sets: T[][] = [];
+  const pick = (from: number, chosen: T[]) => {
+    if (sets.length > CHANCE_SETS) return;
+    if (chosen.length === k) {
+      sets.push(chosen);
+      return;
+    }
+    for (let i = from; i < items.length; i++) pick(i + 1, [...chosen, items[i]]);
+  };
+  pick(0, []);
+  return sets;
+}
+
 /** The expected loss of `x` cards of HQ at random, by ownHandValue: every set of x alike (up to 70 sets; past that, x times a single card's mean). */
 function hqChanceLoss(state: GameState, x: number): number {
   const hq = state.corp.hq;
   if (x <= 0 || hq.length === 0) return 0;
   const full = ownHandValue(state, 'corp');
   const without = (ids: Set<string>) => full - ownHandValue({ ...state, corp: { ...state.corp, hq: hq.filter(c => !ids.has(c.instanceId)) } }, 'corp');
-  const sets: string[][] = [];
-  const pick = (from: number, chosen: string[]) => {
-    if (sets.length > 70) return;
-    if (chosen.length === x) {
-      sets.push(chosen);
-      return;
-    }
-    for (let i = from; i < hq.length; i++) pick(i + 1, [...chosen, hq[i].instanceId]);
-  };
-  pick(0, []);
-  if (sets.length <= 70) return sets.reduce((n, ids) => n + without(new Set(ids)), 0) / sets.length;
+  const sets = chanceSets(hq.map(c => c.instanceId), x);
+  if (sets.length <= CHANCE_SETS) return sets.reduce((n, ids) => n + without(new Set(ids)), 0) / sets.length;
   return (x * hq.reduce((n, c) => n + without(new Set([c.instanceId])), 0)) / hq.length;
 }
 

@@ -199,6 +199,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
       const answers: Record<string, any> = {};
       let stats: ReturnType<typeof statsDelta> | null = null;
       const order = names.map((_, k) => names[(k + i) % names.length]);
+      const took: Record<string, number> = {};
       for (const n of order) {
         const t = trees[n];
         const copy = structuredClone(s);
@@ -212,7 +213,8 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
           if (errors.length < 5) errors.push(`${n} step ${i}: ${(e as Error).message.slice(0, 160)}`);
         }
         const k = (time[n][`${dec.side}:${dec.kind}`] ??= { ms: 0, n: 0 });
-        k.ms += performance.now() - t0;
+        took[n] = Math.round((performance.now() - t0) * 10) / 10;
+        k.ms += took[n];
         k.n++;
         if (was) stats = statsDelta(t.prompts.chainStats, was);
       }
@@ -278,6 +280,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
             arrivalPossible,
             departurePossible,
             departureChance,
+            ms: took,
             hand: handOf(s, dec.side).length,
             limit: dec.side === 'corp' ? s.corp.handSizeLimit : s.runner.handSizeLimit,
             base: { names: named(answers.base), zones: zones(answers.base) },
