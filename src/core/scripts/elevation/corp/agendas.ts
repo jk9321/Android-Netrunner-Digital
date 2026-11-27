@@ -3,7 +3,7 @@ import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { removeCard, revealInHand } from '../../../engine/helpers';
+import { fromSetAside, removeCard, revealInHand, setAside } from '../../../engine/helpers';
 import { corpSeesRd, runnerSeesRd } from '../../../engine/rdKnowledge';
 import { moveRunnerTo } from '../../../engine/ice';
 import {
@@ -174,13 +174,10 @@ const offTheBooksFlow = prompts({
     const { state } = ctx;
     const card = takeFromRD(state, a.ids[0]);
     if (!card) return;
-    // Set aside in HQ while choosing; installing takes it from there
-    state.corp.hq.push(card);
+    // Set aside while choosing (rules 8.7.2, 4.8.4), not in HQ: installed from there, it counts as installed from R&D (4.8.3)
+    setAside(state, card);
     const options = type(card) === 'operation' ? [] : corpInstallOptions(state, card, { ignoreCosts: true });
-    if (options.length === 0) {
-      revealInHand(state, 'corp', [card]);
-      return;
-    }
+    if (options.length === 0) return offTheBooksToHQ(state, card);
     // 'to-hand', not 'hq': the HQ server is an install option of its own (ice or an upgrade on HQ). install: true lets
     // the answer name cards to trash first (rules 8.5.6a-b)
     offTheBooksFlow.ask(
@@ -195,10 +192,17 @@ const offTheBooksFlow = prompts({
   }),
   install: choice<InstallData>(({ state }, a, data, source) => {
     if (a.optionId !== OFF_THE_BOOKS_TO_HAND) return void installCorpChoice(state, source, a.raw, { ignoreCosts: true, revealed: true });
-    const card = state.corp.hq.find(c => c.instanceId === data.cardId);
-    if (card) revealInHand(state, 'corp', [card]);
+    const card = state.setAside?.find(c => c.instanceId === data.cardId);
+    if (card) offTheBooksToHQ(state, card);
   }),
 });
+
+/** "If you do not [install it], add it to HQ": the revealed card is known in HQ (rules 1.21.3). */
+function offTheBooksToHQ(state: GameState, card: CardInstance): void {
+  fromSetAside(state, card);
+  state.corp.hq.push(card);
+  revealInHand(state, 'corp', [card]);
+}
 
 export const offTheBooks = dividendAgenda(1, 'search R&D for 1 card', state => state.corp.rd.length > 0, offTheBooksFlow);
 

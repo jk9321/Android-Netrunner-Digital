@@ -117,6 +117,7 @@ export function cardsByZone(state: GameState): { zone: string; card: CardInstanc
     ['resources', r.rig.resources],
     ['Runner score area', r.scoreArea],
     ['removed from game', state.removedFromGame],
+    ['set aside', state.setAside ?? []],
   ];
   return zones.flatMap(([zone, list]) => list.flatMap(withHosted).map(card => ({ zone, card })));
 }

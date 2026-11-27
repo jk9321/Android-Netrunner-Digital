@@ -310,6 +310,7 @@ export const GAME_STATE_FIELDS = {
   whenSettled: 'dropped', // engine bookkeeping for "when you finish" triggers
   turnFlags: 'redacted', // keys naming a card the viewer can't see are left out, the rest remapped
   removedFromGame: 'public', // 4.9.6
+  setAside: 'dropped', // facedown (4.8.4); a prompt naming a found card shows it by the prompt rule below
   turnStep: 'public',
   priority: 'redacted', // the declared intent is the active player's own
   stops: 'public',
@@ -577,6 +578,7 @@ export function viewFor(state: GameState, side: SideCode, ids: ViewIds, gameId: 
     c.hq, c.rd, c.archives.faceUp, c.archives.faceDown, c.scoreArea,
     r.grip, r.stack, r.heap, r.rig.programs, r.rig.hardware, r.rig.resources, r.scoreArea,
     state.removedFromGame,
+    state.setAside ?? [],
   ]) list.forEach(index);
 
   // Cards, in a fixed order so ids are minted the same way every time

@@ -428,6 +428,11 @@ export interface GameState {
   turnFlags: Record<string, number>;
   /** Cards removed from the game (Spin Doctor). */
   removedFromGame: CardInstance[];
+  /**
+   * The set-aside zone (rules 4.8.1): cards found by a search wait here facedown until the effect that searched acts
+   * on them (8.7.2, 4.8.4), so they are in neither the searched deck nor a hand. Missing when empty.
+   */
+  setAside?: CardInstance[];
   /** A turn transition waiting on prompts or the Corp (end of turn, start of the Corp's turn, mandatory draw). */
   turnStep?: TurnStep | null;
   /** The paid ability window waiting on a player, when it isn't simply the active player's move (see PriorityWindow). */

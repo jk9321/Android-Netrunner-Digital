@@ -2,7 +2,7 @@ import { CardInstance } from '../../../types/card';
 import { GameState } from '../../../types/state';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { removeCard } from '../../../engine/helpers';
+import { fromSetAside, setAside } from '../../../engine/helpers';
 import { dealMeatDamage } from '../../../engine/damage';
 import { availableCredits, corpTrashFromHQ, derez, installedIce, moveUpgrade, spendCredits, threatLevel, turnFlag, TurnFlag, upgradeAllowedIn, useOncePerTurn } from '../../../engine/cardEffects';
 import { CardScript, EffectContext } from '../../types';
@@ -146,19 +146,25 @@ const tucanaFlow = prompts({
     const { state } = ctx;
     const ice = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
     if (!ice) return shuffleRD(state);
-    state.corp.rd.unshift(ice); // set aside where takeFromRD left it: back on top while the server is chosen
+    // Set aside while the server is chosen (rules 8.7.2, 4.8.4); installed from there, it counts as from R&D (4.8.3)
+    setAside(state, ice);
     const options = installAndRezOptions(state, ice, 3);
-    if (!tucanaFlow.askIf(ctx, 'server', installAmongQuestion(state, ice.instanceId, options), { cardId: ice.instanceId, install: true })) {
-      removeCard(state.corp.rd, ice);
-      state.corp.rd.push(ice);
-      shuffleRD(state);
-    }
+    if (!tucanaFlow.askIf(ctx, 'server', installAmongQuestion(state, ice.instanceId, options), { cardId: ice.instanceId, install: true })) tucanaReturn(state, ice.instanceId);
   }),
   server: choice<InstallData>(({ state }, a, data) => {
     installAndRez(state, data.cardId, a.optionId, 3);
-    shuffleRD(state);
+    tucanaReturn(state, data.cardId);
   }),
 });
+
+/** Ice Tucana found but could not install goes back into R&D, which is shuffled again (rules 8.7.2b, 8.7.3). */
+function tucanaReturn(state: GameState, id: string): void {
+  const ice = state.setAside?.find(c => c.instanceId === id);
+  if (!ice) return;
+  fromSetAside(state, ice);
+  state.corp.rd.push(ice);
+  shuffleRD(state);
+}
 
 const tucanaSearch = (ctx: EffectContext) => {
   const ice = ctx.state.corp.rd.filter(c => type(c) === 'ice');
