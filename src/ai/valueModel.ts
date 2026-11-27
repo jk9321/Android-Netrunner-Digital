@@ -411,6 +411,25 @@ export function sideCreditValue(state: GameState, side: SideCode, viewer: SideCo
 }
 
 /**
+ * What `n` credits less cost `side`, as `viewer` prices them (F110, brief tag-clock-input rev 2, part C): sideCreditValue's
+ * own difference between the credits now and `n` fewer, with the need read once. Exact: the need does not read the side's
+ * credits (the Corp's keep asks its hold count with corpCredits Infinity, corp/rezMoney.ts; the Runner-view boardNeed and
+ * buildTarget read none), so both reads of sideCreditValue would work it out on the same number. The money in reach is
+ * read at both credit counts, as the owner does (a money operation the n credits put out of reach is charged: a stated
+ * approximation, registry). The credit's owner's own marginal (docs/ai-priced-quantities.md).
+ */
+export function creditsLessCost(state: GameState, side: SideCode, viewer: SideCode, n: number): number {
+  const credits = side === 'corp' ? state.corp.credits : state.runner.credits;
+  const need = creditNeed(state, side);
+  const own = side === 'corp' && viewer === 'corp';
+  const broke = own ? BROKE_SLOPE : 0;
+  const worth = (c: number, reach: number) => (reach ? creditSlide(c + reach, need, broke) + Math.min(c, 0) : creditSlide(c, need, broke));
+  const now = worth(credits, own ? moneyReach(state) : 0);
+  const less = worth(credits - n, own ? moneyReach({ ...state, corp: { ...state.corp, credits: credits - n } }) : 0);
+  return logValue('credit', 'creditsLessCost', state, now - less, side, viewer, n);
+}
+
+/**
  * plan.payoutSlide (Jeff, 2026-11-04: Telework Contract and Fermenter held while clicking for credits): credits a card
  * will still pay out sit on the same slide as the credits in hand. Spent credits were priced on the slide (up to 1.8
  * each when broke) but payouts at a flat 1, so a broke side never found an econ card worth installing. The worth of

@@ -28,12 +28,17 @@ vi.mock('../src/ai/cardPlans', async importOriginal => {
 const { hqTrashCardsLoss, runnerRigValue, tagLossPerTurn, unseenCorpPool } = await import('../src/ai/evaluate');
 const { BAKER, KNICKKNACK, PRINCIPIA, principiaFuel } = await import('../src/ai/cardPlans');
 const { clearHandCaches } = await import('../src/ai/handValues');
-const { plan, withPricing } = await import('../src/ai/pricing');
-const { CLICK } = await import('../src/ai/valueModel');
+const { plan, pricing, withPricing } = await import('../src/ai/pricing');
+const { CLICK, creditsLessCost } = await import('../src/ai/valueModel');
+const { clickPrice } = await import('../src/ai/handValues');
 const { cardSynergy } = await import('../src/ai/synergyTags');
 const { trashedCardCost } = await import('../src/ai/runs');
 
-/** tagLoss as on beta fddc803 (arm 0 in, before BP): each resource priced by the whole rig less the rig without it. */
+/**
+ * tagLoss as on beta fddc803 (arm 0 in, before BP): each resource priced by the whole rig less the rig without it. Its
+ * owners follow tagLoss's since F114 + F110 (brief tag-clock-input rev 2, ruling 3): the trash's cost is the click's and
+ * the credits' owners' price (part C, with N1's flat CLICK + 2 inside an open hold count), a punisher is the view's (part P).
+ */
 function tagLossToday(state: GameState, viewer: SideCode, skip: number): number {
   return withPricing({ pricingTagLoss: true }, () => {
     const corp = state.corp;
@@ -44,9 +49,11 @@ function tagLossToday(state: GameState, viewer: SideCode, skip: number): number 
       const resources = owned.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: owned.filter(c => c !== r) } } }));
       const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
       const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);
-      trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
+      const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
+      trash = Math.max(0, nets[skip] ?? 0) - cost;
     }
-    const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+    const flagged = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+    const punishes = (c: CardInstance) => flagged(c) && (viewer === 'runner' || cardDef(c).type_code === 'operation');
     let held: number;
     if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
     else {
@@ -165,7 +172,7 @@ describe('ai-tag-loss-bp: a resource priced by its own term plus its share of th
     expect(rig.programs.map(c => c.cardCode)).toContain('36022');
     const r = measure(structuredClone(s), 'runner');
     expect(r.today).toBeCloseTo(1.111340, 5);
-    expect(r.now).toBeCloseTo(9.212026, 5);
+    expect(r.now).toBeCloseTo(8.768984, 5); // 9.212026 before F110: the Runner view's trash cost on this board (part C)
     const programs = (keepRws: boolean) => (keepRws ? rig.programs : rig.programs.filter(c => c.cardCode !== '36022'));
     const lost = (keepRws: boolean) => {
       clearHandCaches();

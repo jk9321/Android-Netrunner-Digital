@@ -9,7 +9,7 @@ import { AI_BREAKER_SHARE, breakerTypeWorth, iceTypeOdds, iceWorth } from './ice
 import { inIcedServer, payoutWait, payoutWorth, profileOf, turnsLeft } from './cardProfiles';
 import { resourceTrashHqCost } from '../core/engine/actions/basic';
 import { HAND_FLOOR, clickPrice, handByCard, heldWorth, ownHandValue, playedWorth } from './handValues';
-import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue } from './valueModel';
+import { CLICK, KNOBS, RATES, cardRate, flatlineWorth, guardLoop, handFilter, logValue, mean, memo, payoutSlide, pointValue, reachCard, setRunnerAgendaOdds, sideCreditValue, creditsLessCost } from './valueModel';
 import { PACE, STEAL, coreSlotWorth, flatlineOdds, lifeGrip, runSuccess, stealOdds } from './effectValues';
 import { remoteAgendaOdds, trapOdds, trashedCardCost } from './runs';
 import { plan, pricing, withPricing } from './pricing';
@@ -407,7 +407,10 @@ function tagClock(state: GameState, viewer: SideCode, tags: number, actual: bool
 
 /** What a tagged Runner stands to lose each Corp turn, as `viewer` sees it (exported for tests/tagLossTime.test.ts). */
 export function tagLossPerTurn(state: GameState, viewer: SideCode, skip = 0): number {
-  // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop)
+  // The tag clock is pricing the rig: tags are the flat rate in there (a copy of the position, so it is not a value loop).
+  // The trash's cost (part C) is read in here too, inside the frame: read outside it, its need (creditNeed -> the keep
+  // -> the hold walk -> tagCost -> tagsWorth) re-entered the clock on new boards without end (F110 step 9, NRDB deal
+  // 1281; tests/tagClockInput.test.ts). Inside, tagsWorth is the flat rate and the walk ends
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));
 }
 
@@ -429,11 +432,23 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
     // plan.hqTrashCost: a resource that also costs cards from HQ to trash is worth that much less to trash
     const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
     const nets = resources.map((v, i) => v - extra(owned[i])).sort((a, b) => b - a);
-    // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best
-    trash = Math.max(0, nets[skip] ?? 0) - (CLICK + 2);
+    // plan.tagTrashNow: a Corp that can trash now takes the best one this turn; the turns after lose the next best.
+    // The basic action's cost is its owners' price as `viewer` prices it (F110 part C, rule 5.2.6g): the click's owner
+    // and the 2 credits on the credit's owner's slide, read on this board (a stated approximation: the board's own
+    // change for the click and the credits is not read; registry). N1 (ruling 3, the ai-hold-reentry precedent): inside an
+    // open hold count the cost is the flat CLICK + 2, so the credit's need (the keep's own hold count) is not asked there
+    const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
+    trash = Math.max(0, nets[skip] ?? 0) - cost;
   }
-  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner
-  const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner. Which card is one, by view (F114 part P),
+  // the one place the two views differ (Runner rework coordinator, 2026-11-27). The Corp's view: a flagged card the
+  // Corp plays from HQ on its own turn, an operation; an ice, an agenda, an asset or an identity with the flag is no
+  // card to play (Orbital Superiority's damage is the damage clock's, effectValues.ts ownTurnDamage). The Runner's view
+  // keeps the flag alone, as its tagCost has no other reader of Orbital's kill; the split goes when F119 carries that
+  // damage in both views (tracker, F119)
+  const flagged = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+  const punisherByView: Record<SideCode, (c: CardInstance) => boolean> = { corp: c => flagged(c) && cardDef(c).type_code === 'operation', runner: flagged };
+  const punishes = punisherByView[viewer];
   let held: number;
   if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
   else {
