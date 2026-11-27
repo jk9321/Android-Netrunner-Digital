@@ -153,7 +153,7 @@ function decisionOf(core: any, s: GameState): { side: Side; kind: string } | nul
 }
 /** Where card `id` is on `s` (the arrival's origin zone, item 1). */
 function zoneOf(s: GameState, id: string): string {
-  const has = (cs: { instanceId: string; hosted?: any[] }[] | undefined): boolean => !!cs?.some(c => c.instanceId === id || has(c.hosted));
+  const has = (cs: { instanceId: string; hosted?: any[] }[] | undefined): boolean => Array.isArray(cs) && cs.some(c => c.instanceId === id || has(c.hosted));
   if (s.corp.rd.some(c => c.instanceId === id)) return 'rd';
   if (s.corp.hq.some(c => c.instanceId === id)) return 'hq';
   if (has(s.corp.archives.faceUp) || has(s.corp.archives.faceDown)) return 'archives';
@@ -165,7 +165,7 @@ function zoneOf(s: GameState, id: string): string {
     if (sv.ice.some(c => c.instanceId === id) || sv.root.some(c => c.instanceId === id)) return 'table';
     if (has(sv.ice as any) || has(sv.root as any)) return 'host';
   }
-  if (has(s.runner.rig as any)) return 'rig';
+  if (has(Object.values(s.runner.rig).flat() as any)) return 'rig';
   return 'other';
 }
 const handOf = (s: GameState, side: Side) => (side === 'corp' ? s.corp.hq : s.runner.grip);
