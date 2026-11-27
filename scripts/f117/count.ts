@@ -277,6 +277,8 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   // Item 13: prompts whose staying cards' keep moved with A (any scored answer), by source, with the largest move
   const keeps: Record<string, { n: number; moved: number; max: number }> = {};
   const second = { asked: 0, match: 0, mismatch: [] as Record<string, unknown>[], noRecord: 0 };
+  // The first decision the two trees answer differently (on the branch's game), for tracing a deal
+  let firstDiffer: Record<string, unknown> | null = null;
   let steps = 0;
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.state;
@@ -338,6 +340,10 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         }
       }
       const differ = JSON.stringify(answers.base) !== JSON.stringify(answers.branch);
+      if (differ && !firstDiffer) {
+        const q: any = dec.kind === 'prompt' ? B.core.activePrompt(s) : null;
+        firstDiffer = { step: i, T: s.turnNumber, side: dec.side, kind: dec.kind, src: q && 'source' in q ? `${q.source.cardCode}:${q.source.step ?? ''}` : q?.kind, base: JSON.stringify(answers.base).slice(0, 240), branch: JSON.stringify(answers.branch).slice(0, 240) };
+      }
       if (expect && dec.kind === 'prompt') {
         const q: any = B.core.activePrompt(s);
         if (q && q.side === expect.side && 'source' in q && `${q.source.instanceId}:${q.source.step ?? ''}` === expect.src) {
@@ -439,7 +445,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
     }
   }
   const ms = Object.fromEntries(names.map(n => [n, Object.fromEntries(Object.entries(time[n]).map(([k, v]) => [k, { ms: Math.round(v.ms), n: v.n }]))]));
-  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, second, paths, keeps, errors, ...(process.env.SPLIT ? { split: splits } : {}) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, second, paths, keeps, firstDiffer, errors, ...(process.env.SPLIT ? { split: splits } : {}) });
   promptsSeen.corp = 0;
   promptsSeen.runner = 0;
 }
