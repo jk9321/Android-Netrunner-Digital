@@ -95,7 +95,10 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
   // NOT turned by the memory fix above: their fix is R-B's honest prompt view (the Runner answers on its own view with
   // the named cards in place).
   it("D2 (setup): each fixture's control answer is the one recorded in the fixture", () => {
-    for (const d of [TOPAN, MUTUAL_FAVOR]) expect(ask(d.state, d.memory)).toBe(JSON.stringify(d.played));
+    expect(ask(TOPAN.state, TOPAN.memory)).toBe(JSON.stringify(TOPAN.played));
+    // The Mutual Favor fixture's recorded move (inst-81, Carmen) comes from the base before the set-aside fix (rules 8.7.2,
+    // 4.8.4: the found card waits set aside, not on top of the stack); since that fix the control answer is inst-78 (Buzzsaw)
+    expect(JSON.parse(ask(MUTUAL_FAVOR.state, MUTUAL_FAVOR.memory))).toMatchObject({ choice: { cardInstanceIds: ['inst-78'] } });
     const options = (TOPAN.state.pendingPrompts[0] as unknown as { options: { id: string }[] }).options.map(o => o.id);
     expect(options).toEqual(expect.arrayContaining([TOPAN_PICK, TOPAN_OTHER]));
     const [a, b] = [TOPAN_PICK, TOPAN_OTHER].map(id => findCardAnywhere(TOPAN.state, id)!);
@@ -113,7 +116,12 @@ describe('Runner AI pins (known-failing until after main is pushed: the Runner r
   // Deal 2061 T4: Mutual Favor searches the stack for an icebreaker. After the search the stack is shuffled (rule 8.7.3:
   // "the deck is always shuffled upon completion of the search"), so its order is unknowable; reversing the order of the
   // cards the prompt does not name changes the pick.
-  it.fails('D2 Mutual Favor search (deal 2061 T4): the pick does not move with the stack order', () => {
+  // Passes since the set-aside fix (rules 8.7.2, 4.8.4): the found card no longer sits on top of the stack while the
+  // install is decided. Checked on 12 orders of the unnamed stack cards (5 rotations, the reverse, 6 seeded shuffles) and
+  // with the candidate list reversed: Buzzsaw (inst-78) every time, the best score (19.67 against 19.32 Marjanah and
+  // 19.12 Carmen by evaluate), so not a tie broken by list order. The 'fetch' path's real-state read stays (rulings 19.6)
+  // until F117 removes it: this pin does not say the leak is closed in the AI.
+  it('D2 Mutual Favor search (deal 2061 T4): the pick does not move with the stack order', () => {
     const named = new Set((MUTUAL_FAVOR.state.pendingPrompts[0] as unknown as { candidateIds: string[] }).candidateIds);
     const b = structuredClone(MUTUAL_FAVOR.state);
     const free = b.runner.stack.map((_, i) => i).filter(i => !named.has(b.runner.stack[i].instanceId));

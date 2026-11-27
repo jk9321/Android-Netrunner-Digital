@@ -23,6 +23,7 @@ function everyId(state: GameState): Set<string> {
     corp.hq, corp.rd, corp.archives.faceUp, corp.archives.faceDown, corp.scoreArea,
     runner.grip, runner.stack, runner.heap, runner.rig.programs, runner.rig.hardware, runner.rig.resources, runner.scoreArea,
     state.removedFromGame,
+    state.setAside,
   ];
   return ids(lists.flatMap(l => l ?? []));
 }

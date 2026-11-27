@@ -82,12 +82,37 @@ export function locateCorpCard(
   return null;
 }
 
+/**
+ * Sets aside a card a search found (rules 8.7.2, 4.8.4). The effect then acts on it from the set-aside zone, and
+ * the card counts as moving from where it was before (4.8.3): call `fromSetAside` to take it back out.
+ */
+export function setAside(state: GameState, card: CardInstance): void {
+  (state.setAside ??= []).push(card);
+}
+
+/** The set-aside zone, to install from (installs read it as neither HQ nor the stack: rules 4.8.3). */
+export function setAsideZone(state: GameState): CardInstance[] {
+  return (state.setAside ??= []);
+}
+
+/** Drops the set-aside zone once it is empty, so states without set-aside cards stay as they were. */
+export function tidySetAside(state: GameState): void {
+  if (state.setAside && state.setAside.length === 0) delete state.setAside;
+}
+
+/** Takes a card out of the set-aside zone (to put it in a hand, say). */
+export function fromSetAside(state: GameState, card: CardInstance): boolean {
+  const removed = !!state.setAside && removeCard(state.setAside, card);
+  tidySetAside(state);
+  return removed;
+}
+
 /** Finds any card in any zone of either player, for effects and UI. */
 export function findCardAnywhere(state: GameState, instanceId: string): CardInstance | undefined {
   const corp = locateCorpCard(state, instanceId);
   if (corp) return corp.card;
   const r = state.runner;
-  const zones = [r.grip, r.stack, r.heap, r.rig.programs, r.rig.hardware, r.rig.resources, r.scoreArea, state.corp.scoreArea, state.removedFromGame, [r.identity, state.corp.identity]];
+  const zones = [r.grip, r.stack, r.heap, r.rig.programs, r.rig.hardware, r.rig.resources, r.scoreArea, state.corp.scoreArea, state.removedFromGame, state.setAside ?? [], [r.identity, state.corp.identity]];
   const hosted = [...r.rig.programs, ...r.rig.hardware, ...r.rig.resources].flatMap(c => c.hostedCards ?? []);
   return [...zones.flat(), ...hosted].find(c => c.instanceId === instanceId);
 }

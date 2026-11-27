@@ -3,7 +3,7 @@ import { GameState } from '../../../types/state';
 import { cardDef } from '../../../cards';
 import { shuffleRD } from '../../../engine/rdKnowledge';
 import { addLog } from '../../../engine/log';
-import { checkAgendaVictory, removeCard, turnKey } from '../../../engine/helpers';
+import { checkAgendaVictory, fromSetAside, removeCard, setAside, turnKey } from '../../../engine/helpers';
 import { rezForFree } from '../../../engine/actions/corp';
 import { dealCoreDamage, dealNetDamage, giveTags } from '../../../engine/damage';
 import { beginEncounter, isIcebreaker } from '../../../engine/ice';
@@ -389,8 +389,15 @@ const eminentDomainFlow = prompts({
     const { state } = ctx;
     const card = a.ids.length ? takeFromRD(state, a.ids[0]) : undefined;
     if (!card) return shuffleRD(state);
-    state.corp.hq.push(card);
-    eminentDomainFlow.askIf(ctx, 'rd-server', installAmongQuestion(state, card.instanceId, installAndRezOptions(state, card, 0, true)), { cardId: card.instanceId, install: true });
+    // The found card is set aside (rules 8.7.2, 4.8.4), not put in HQ: it is installed as though from R&D (4.8.3)
+    setAside(state, card);
+    const asked = eminentDomainFlow.askIf(ctx, 'rd-server', installAmongQuestion(state, card.instanceId, installAndRezOptions(state, card, 0, true)), { cardId: card.instanceId, install: true });
+    // A card that can't be installed couldn't be found (8.7.2b): it goes back, and R&D is shuffled again
+    if (!asked) {
+      fromSetAside(state, card);
+      state.corp.rd.push(card);
+      shuffleRD(state);
+    }
   }),
   'rd-server': choice<InstallData>(({ state }, a, data) => installAndRez(state, data.cardId, a.optionId, 0, true)),
 });
