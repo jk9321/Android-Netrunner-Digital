@@ -13,7 +13,7 @@ import {
   trashableFirst,
 } from '../../core';
 import { playableHostZones } from '../../core/engine/actions/install';
-import { getCardFaceImageUrl } from '../../data/cards';
+import { getCardFaceImageUrl, shownCardDef } from '../../data/cards';
 import { cardPositionLabel, typeLine } from '../cardLabels';
 import { cardTextHtml } from '../cardText';
 import { liveCardModifiers } from '../liveValues';
@@ -62,7 +62,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
   const isIdentity =
     card.instanceId === state.corp.identity.instanceId ||
     card.instanceId === state.runner.identity.instanceId;
-  const def = cardDef(card);
+  const def = shownCardDef(card, state);
   const isCorpCard = def.side_code === 'corp';
   const hiddenPlaceholder = isHidden(card);
   const faceVisible =
@@ -414,7 +414,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
           {/* Top Summary: Art thumbnail + Live Stats */}
           <div className="flex items-start gap-3">
             <img
-              src={getCardFaceImageUrl(card)}
+              src={getCardFaceImageUrl(card, state)}
               alt={def.title}
               className="w-20 rounded-[4px] border border-slate-700 shrink-0 bg-slate-950"
             />

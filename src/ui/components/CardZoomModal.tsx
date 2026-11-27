@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
 import { findCardAnywhere } from '../../core/engine/helpers';
-import { cardDef, getCardFaceImageUrl } from '../../data/cards';
+import { getCardFaceImageUrl, shownCardDef } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { X, Shield, Trash2, AlertCircle } from 'lucide-react';
 import { cardTextHtml, flavorTextHtml } from '../cardText';
@@ -43,7 +43,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
 
   if (!card) return null;
   const liveCard = gameState ? findCardAnywhere(gameState, card.instanceId) ?? card : card;
-  const def = cardDef(liveCard);
+  const def = shownCardDef(liveCard, gameState);
   const isCorp = def.side_code === 'corp';
   const showUnrezzed = !!gameState && isInstalledCorpCard(gameState, liveCard) && !liveCard.isRezzed && !liveCard.faceUp;
   const mods = gameState ? liveCardModifiers(gameState, liveCard) : undefined;
@@ -80,7 +80,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
         {/* Large Crisp Card Image */}
         <div className="w-full md:w-72 shrink-0 flex items-center justify-center">
           <img
-            src={getCardFaceImageUrl(liveCard)}
+            src={getCardFaceImageUrl(liveCard, gameState)}
             alt={def.title}
             className="w-auto max-w-full h-auto max-h-[36dvh] sm:max-h-[42dvh] md:max-h-[460px] object-contain rounded-[2px] shadow-2xl border border-slate-800"
           />
