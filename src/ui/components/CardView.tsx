@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
-import { cardDef, FLIP_SIDE_CODES, getCardFaceImageUrl, getCardBackUrl } from '../../data/cards';
+import { cardDef, FLIP_CARDS, getCardFaceImageUrl, getCardBackUrl, shownCardDef } from '../../data/cards';
 import { isHidden } from '../../core/cards';
 import { Lock, Eye, ArrowRight } from 'lucide-react';
 import { CardPopout } from './CardPopout';
@@ -94,7 +94,9 @@ const CardFace: React.FC<
   // that takes its place) is a double click, and must not open the inspect view
   const lastButtonClick = useRef(-Infinity);
   const lastTouchTime = useRef(-Infinity);
-  const def = cardDef(card);
+  // The side that is up (a flipped identity shows its back's title and text)
+  const liveState = useLiveGameState();
+  const def = shownCardDef(card, liveState);
 
   // Sizing definitions: Much larger than original 64x96!
   // sm: 112x160 (75% larger than original sm)
@@ -195,7 +197,7 @@ const CardFace: React.FC<
   // Card is visible (or Corp is peeking at their own unrezzed card!)
   const isCorp = def.side_code === 'corp';
   const isUnrezzed = !notInstalled && (isFaceDown || !card.isRezzed);
-  const imageUrl = getCardFaceImageUrl(card);
+  const imageUrl = getCardFaceImageUrl(card, liveState);
 
   return (
     <div
@@ -438,7 +440,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
   const shown = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
   // A double-sided identity turning over plays the same flip as a rez
-  const face = !showsBack && props.card.flipped && FLIP_SIDE_CODES.has(props.card.cardCode) ? `${shown}-flipped` : shown;
+  const face = !showsBack && props.card.flipped && FLIP_CARDS[props.card.cardCode] ? `${shown}-flipped` : shown;
   // Only table cards (inside the zoom provider) answer to the prompt's hover/clicks; the prompt's own copies don't
   const onTable = useZoom() !== null;
   const mark = usePromptHighlight(props.card.instanceId);
