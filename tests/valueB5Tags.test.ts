@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, GameState } from '../src/core';
+import { CardInstance, createCardInstance, GameState } from '../src/core';
 import '../src/ai'; // corpPorts filled (the Vic board's boardNeed reads keep)
 import { CARDS } from '../src/ai/cards';
 import { cardTag, tagRemoved, tagsWorth, tagTaken } from '../src/ai/evaluate';
-import { muWorth, perTurn } from '../src/ai/effectValues';
+import { muWorth, optionalTerm, perTurn } from '../src/ai/effectValues';
 import { tagCost } from '../src/ai/runs';
 import { asSide, withPricing } from '../src/ai/pricing';
 import { clearHandCaches } from '../src/ai/handValues';
@@ -51,31 +51,34 @@ describe('V-B B5: a tag read from its owner', () => {
   it("on the board the six Runner formulas read the owner's tag, not the flat (arm F)", () => {
     const on = (tags: number, code: string) => {
       const s = board(tags);
-      s.runner.rig.resources.push(createCardInstance(s, code));
-      return s;
+      const card = createCardInstance(s, code);
+      s.runner.rig.resources.push(card);
+      return { s, card };
     };
     const bg = on(0, '36013');
-    expect(CARDS['36013'].runner!(bg, '36013')).toBe(muWorth(bg) - tagTaken(bg)); // Borrowed Goods
+    // Borrowed Goods on the board: its install tag is already taken (red team minor 4), so no tag term
+    expect(CARDS['36013'].runner!(bg.s, '36013', bg.card)).toBe(muWorth(bg.s));
     const foaf = CARDS['34074'].runner!;
     const ft = on(1, '34074');
     const fu = on(0, '34074');
-    expect(foaf(ft, '34074')).toBe(5 + tagRemoved(ft) - CLICK); // Friend of a Friend
-    expect(foaf(fu, '34074')).toBe(9 - tagTaken(fu) * 0.7 - CLICK);
-    const badge = CARDS['34003'].counters!.power as (s: GameState) => number; // Solidarity Badge: the card's 0.5 kept
+    expect(foaf(ft.s, '34074', ft.card)).toBe(5 + tagRemoved(ft.s) - CLICK); // Friend of a Friend
+    expect(foaf(fu.s, '34074', fu.card)).toBe(optionalTerm(9 - tagTaken(fu.s) * 0.7 - CLICK));
+    const badge = CARDS['34003'].counters!.power!; // Solidarity Badge: the card's 0.5 kept
     const bt = on(1, '34003');
-    expect(badge(bt)).toBe(Math.max(cardRate(bt, 'runner', 'later'), tagRemoved(bt) * 0.5));
+    expect(badge(bt.s, bt.card)).toBe(optionalTerm(Math.max(cardRate(bt.s, 'runner', 'later'), tagRemoved(bt.s) * 0.5)));
   });
 
   it('off the board (in the hand, drawn) and inside the deck average, they read the flat rate, as beta did (arm F)', () => {
     const untagged = board(0);
     const tagged = board(1);
     const flat = RATES.tagAgainstRunner;
+    const hand = (s: GameState, code: string) => createCardInstance(s, code);
     expect(cardTag(untagged, '36013')).toBe(flat);
-    expect(CARDS['36013'].runner!(untagged, '36013')).toBe(muWorth(untagged) - flat);
-    expect(CARDS['34074'].runner!(tagged, '34074')).toBe(5 + flat - CLICK);
-    expect(CARDS['34074'].runner!(untagged, '34074')).toBe(9 - flat * 0.7 - CLICK);
-    const badge = CARDS['34003'].counters!.power as (s: GameState) => number;
-    expect(badge(tagged)).toBe(Math.max(cardRate(tagged, 'runner', 'later'), flat * 0.5));
+    expect(CARDS['36013'].runner!(untagged, '36013', hand(untagged, '36013'))).toBe(muWorth(untagged) - flat);
+    expect(CARDS['34074'].runner!(tagged, '34074', hand(tagged, '34074'))).toBe(5 + flat - CLICK);
+    expect(CARDS['34074'].runner!(untagged, '34074', hand(untagged, '34074'))).toBe(optionalTerm(9 - flat * 0.7 - CLICK));
+    const badge = CARDS['34003'].counters!.power!;
+    expect(badge(tagged, hand(tagged, '34003'))).toBe(optionalTerm(Math.max(cardRate(tagged, 'runner', 'later'), flat * 0.5)));
     // on the board too, inside the averaging frame (the deck's average card)
     const s = board(0);
     s.runner.rig.resources.push(createCardInstance(s, '36013'));
@@ -83,11 +86,29 @@ describe('V-B B5: a tag read from its owner', () => {
     withPricing({ averaging: true }, () => expect(cardTag(s, '36013')).toBe(flat));
   });
 
+  it('a second copy in the hand reads the flat while the installed copy reads the owner (red team minor 3: by instance)', () => {
+    const s = board(0);
+    const installed = createCardInstance(s, '34074');
+    s.runner.rig.resources.push(installed);
+    const inHand = createCardInstance(s, '34074');
+    expect(cardTag(s, '34074', false, installed)).toBe(tagTaken(s));
+    expect(cardTag(s, '34074', false, inHand)).toBe(RATES.tagAgainstRunner);
+    // counterWorthOf's probe instance falls back to the code: any installed copy
+    const probe = { cardCode: '34074', instanceId: 'probe', tokens: {} } as unknown as CardInstance;
+    expect(cardTag(s, '34074', false, probe)).toBe(tagTaken(s));
+  });
+
+  it('optional terms floor at 0 (rules 9.5.3, 9.6.9): an ability is never worth less than not using it', () => {
+    expect(optionalTerm(-1.96)).toBe(0);
+    expect(optionalTerm(4.4)).toBe(4.4);
+  });
+
   it("Arruaceiras Crew skips the tag when tagged (its term is 0): bit for bit the full-B5 value (lever 4)", () => {
     const s = board(1);
-    s.runner.rig.resources.push(createCardInstance(s, '34073'));
+    const card = createCardInstance(s, '34073');
+    s.runner.rig.resources.push(card);
     const full = perTurn(s, 0.3 * (2 - 0.3 * tagTaken(s) * (1 - 1)), 'runner') + 1.5;
-    expect(Object.is(CARDS['34073'].runner!(s, '34073'), full)).toBe(true);
+    expect(Object.is(CARDS['34073'].runner!(s, '34073', card), full)).toBe(true);
   });
 });
 

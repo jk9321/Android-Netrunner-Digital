@@ -5,7 +5,7 @@ import { abilityUsedKey } from '../../core/engine/actions/ability';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { serverValue, spendCost, tagCost } from '../runs';
-import { cardTag, keepValue } from '../evaluate';
+import { cardTag, keepValue, onBoard } from '../evaluate';
 import { bakerWantsFuel } from '../cardPlans';
 import { tuning } from '../synergy';
 import { badPublicityWorth } from '../prompts';
@@ -123,8 +123,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   '36013': {
     synergy: { wants: { tags: 0.5 } },
     value: { rig: 1 }, // +1 MU for a tag
-    // +1 MU for a tag when untagged (inside the tag clock the owner serves the flat rate, so the loop is cut there)
-    runner: (state, code) => muWorth(state) - (state.runner.tags > 0 ? 0 : cardTag(state, code)),
+    // +1 MU for a tag when untagged: on the board that tag is already taken (0); in the hand or deck, the flat rate
+    runner: (state, code, card) => muWorth(state) - (state.runner.tags > 0 || onBoard(state, code, card) ? 0 : cardTag(state, code, false, card)),
   },
   // Rotary
   '36014': {

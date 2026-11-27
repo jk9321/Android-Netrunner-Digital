@@ -112,6 +112,8 @@ export function muWorth(state: GameState): number {
 }
 
 /** Worth of `x` each turn for the turns left, less the risk of losing the card each turn (a number: a Corp card's ctx.risk). */
+/** An optional ability's worth to its controller: never below not using it (paid abilities are always optional, rule 9.5.3; a "may" conditional ability, 9.6.9). */
+export const optionalTerm = (x: number): number => Math.max(0, x);
 export function perTurn(state: GameState, x: number, owner: 'corp' | 'runner' | number, minTurns = 0, maxTurns = Infinity, wait = 1, lock = 1): number {
   // A Runner card at the untagged rate, tagged or not (F108, 2026-11-25): what a tag puts at risk is the tag clock's (tagsWorth)
   const risk = typeof owner === 'number' ? owner : owner === 'corp' ? PAYOUT_RISK.corpBare : PAYOUT_RISK.runnerUntagged;
