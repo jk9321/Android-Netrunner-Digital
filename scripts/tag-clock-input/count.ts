@@ -549,9 +549,21 @@ function timeDeal(pool: string, rec: Rec) {
     });
   S.clear();
   const g = new S.po.GameRunner(dealState(S, rec), { corp: watched('corp', S.ai.createAgent('corp', 'normal')), runner: watched('runner', S.ai.createAgent('runner', 'normal')) });
-  for (let j = 0; j < 4000; j++) if (!g.step()) break;
+  // approximation 4: Corp turns that start (the first main decision) tagged, with a resource, under 2 credits; trashes that turn
+  const turns: { T: number; cc: number; trashes: number }[] = [];
+  let lastT = -1;
+  for (let j = 0; j < 4000; j++) {
+    const s: GameState = g.state;
+    if (corpMain(s) && s.turnNumber !== lastT) {
+      lastT = s.turnNumber;
+      if (s.runner.tags > 0 && s.runner.rig.resources.length > 0 && s.corp.credits < 2) turns.push({ T: s.turnNumber, cc: s.corp.credits, trashes: 0 });
+    }
+    if (!g.step()) break;
+    const t = turns[turns.length - 1];
+    if ((g.last as any)?.type === 'TRASH_RESOURCE' && t && t.T === s.turnNumber) t.trashes++;
+  }
   const r1 = (t: Tally) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Math.round(v * 10) / 10]));
-  out({ kind: 'time', pool, seed: rec.seed, corpDeck: rec.corpDeck, decisions: i, winner: g.state.winner ?? null, T: g.state.turnNumber, n, ms: r1(ms), differ, work, first });
+  out({ kind: 'time', pool, seed: rec.seed, corpDeck: rec.corpDeck, decisions: i, winner: g.state.winner ?? null, T: g.state.turnNumber, n, ms: r1(ms), differ, work, first, turns });
 }
 
 // ------------------------------------------------------------------------------------------------ POOL=people (step 7)
