@@ -141,6 +141,16 @@ export function unseenInHand(state: GameState, side: SideCode): CardInstance[] {
   return seen ? hand.filter(c => !seen.has(c.instanceId)) : [];
 }
 
+/**
+ * The key part of a cached value that reads what the deciding AI knows of HQ (F117 D1c, ruling 1): the ids of the
+ * board's HQ cards it hasn't seen (unseenInHand). A value that reads `known` only through unseenInHand(state, 'corp')
+ * (centralAccess, and the iceProtects entries above it) depends on the frame only through these ids, so a board asked in
+ * two frames that see its HQ alike shares one entry, and a board seen apart gets one entry per reading.
+ */
+export function unseenKey(state: GameState): string {
+  return unseenInHand(state, 'corp').map(c => c.instanceId).join(',');
+}
+
 const deckAverage = new WeakMap<GameState, Map<string, number>>();
 /**
  * On-hit audits of handValues' maps (test-only: tests/handCacheAudit.test.ts, scripts/cache-bisect.ts): with `on`, every
