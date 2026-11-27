@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { answer, giveCard, installCorpForTest, keepGoing, newGame, passTurn, play, scoreForTest, startRunnerTurn, useAbility } from './helpers';
-import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, knownInHand } from '../src/core';
+import { cardDef, createCardInstance, executeAction, findCardAnywhere, GameState, knownInHand, newViewIds, viewFor } from '../src/core';
 import { turnFlag, TurnFlag } from '../src/core/engine/cardEffects';
 
 // Rule 8.7.2: "While a player is searching, they may FIND an appropriate number of cards matching any criteria of the
@@ -20,6 +20,7 @@ const TUCANA = '34064';
 const CHEST = '34070';
 const T400 = '30031';
 const DOCKLANDS = '30013';
+const LET_THEM_DREAM = '36066';
 
 const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
 const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
@@ -153,6 +154,68 @@ describe('a card found by a search is set aside, not put in HQ or on the stack (
     s = pick(s, [b.instanceId]);
     expect(s.runner.rig.hardware.map(c => c.instanceId)).toContain(b.instanceId);
     expect(s.runner.stack.map(c => c.instanceId)).toContain(a.instanceId);
+    expect(s.setAside).toBeUndefined();
+  });
+
+  // The view (multiplayer boundary): set-aside cards are facedown (4.8.4), so neither view carries the zone; the found
+  // card reaches the prompted side only through its prompt, and a card the text reveals is still named in the log
+  it.each([
+    ['Off the Books', true],
+    ['Tucana', false],
+  ] as const)("%s: the Runner's view holds no code for the found card; the Corp sees it only in the prompt", (_which, viaOffTheBooks) => {
+    let s: GameState;
+    let found: string;
+    if (viaOffTheBooks) {
+      const o = offTheBooksSearch(STOKE);
+      s = pick(o.s, [o.found]);
+      found = o.found;
+    } else {
+      s = newGame();
+      const stoke = createCardInstance(s, STOKE);
+      const ice = createCardInstance(s, PALISADE);
+      s.corp.rd.push(ice);
+      s.corp.rd.push(stoke); // a Stoke in R&D too, unseen: Palisade is the found card
+      installCorpForTest(s, TUCANA, 'remote-score', true);
+      s = scoreForTest(s, OFFWORLD);
+      s = pick(s, [ice.instanceId]);
+      found = ice.instanceId;
+    }
+    expect(setAsideIds(s)).toEqual([found]);
+    const code = findCardAnywhere(s, found)!.cardCode;
+    const runner = viewFor(s, 'runner', newViewIds(), 'g').view;
+    expect('setAside' in runner).toBe(false);
+    const cardObjects = (v: unknown): { cardCode?: string }[] =>
+      v && typeof v === 'object' ? [...(('cardCode' in v) ? [v as { cardCode?: string }] : []), ...Object.values(v).flatMap(cardObjects)] : [];
+    const { log: runnerLog, ...runnerRest } = runner;
+    expect(cardObjects(runnerRest).some(c => c.cardCode === code)).toBe(false);
+    // Revealed by takeFromRD's log line ("Corp revealed <title> and shuffled R&D."), at the same moment as before
+    expect(runnerLog.some(l => l.message.includes(`revealed ${cardDef(findCardAnywhere(s, found)!).title}`))).toBe(true);
+    const corp = viewFor(s, 'corp', newViewIds(), 'g').view;
+    expect('setAside' in corp).toBe(false);
+    const { pendingPrompts, log: _corpLog, ...corpRest } = corp;
+    void _corpLog;
+    expect(cardObjects(pendingPrompts).some(c => c.cardCode === code)).toBe(true);
+    // Only the found copy is hidden from the zones: the Corp's other cards with that code are where they are
+    const elsewhere = [...s.corp.rd, ...s.corp.hq].filter(c => c.cardCode === code).length;
+    expect(cardObjects(corpRest).filter(c => c.cardCode === code).length).toBe(elsewhere);
+  });
+
+  // Let Them Dream: "search HQ, R&D, or Archives for 1 agenda and reveal it. Add that agenda to HQ or the bottom of R&D."
+  it('Let Them Dream: the agenda found waits set aside, not in HQ, while its place is chosen', () => {
+    let s = newGame();
+    s.activePlayer = 'corp';
+    s.phase = 'corp_turn';
+    const off = createCardInstance(s, OFFWORLD);
+    s.corp.archives.faceUp.push(off);
+    const hq = s.corp.hq.length;
+    s = scoreForTest(s, LET_THEM_DREAM);
+    s = choose(s, 'archives');
+    s = pick(s, [off.instanceId]);
+    expect(setAsideIds(s)).toEqual([off.instanceId]);
+    expect(s.corp.hq).toHaveLength(hq);
+    s = choose(s, 'hq');
+    expect(inHQ(s, off.instanceId)).toBe(true);
+    expect(knownInHand(s, 'corp').map(c => c.id)).toContain(off.instanceId);
     expect(s.setAside).toBeUndefined();
   });
 });
