@@ -2,7 +2,7 @@
 // on its own tree against base. Arm and base are different games, so every difference is UNPAIRED: its error is the root
 // of the sum of the two runs' squared errors, each a by-game jackknife.
 //   node scripts/tag-clock-input/step9.mjs ARM=ruled BASE_PROBE=<dir> BASE_RECORD=<dir> ARM_PROBE=<dir> ARM_RECORD=<dir>
-//        [BASE_PLAY=<dir: base g rows with tagsEnd>] [MOVES=<dir: MODE=time ASK=<arm> rows>]
+//        [BASE_PLAY=<dir: base g rows with tagsEnd>] [MOVES=<dir: MODE=time ASK=<arm> rows>] [POOLS=g3 (phase B bar 6)]
 // The bars it reads are the brief's, written before the batch (RULE-BAR-BEFORE-BATCH), never reworded:
 //   the check: the pool's weighted |deck mean gap| (clock lines, Corp view) on the arm not above base's by more than 1 SE;
 //   the take guard: trashes per chance and the take per unit not below base's by more than 2 SE (1 to 2: named);
@@ -34,7 +34,7 @@ const mean = a => (a.length ? a.reduce((n, v) => n + v, 0) / a.length : NaN);
 const sum = a => a.reduce((n, v) => n + v, 0);
 const f2 = x => (Number.isFinite(x) ? x.toFixed(2) : String(x));
 const gk = r => `${r.pool}:${r.seed}`;
-const POOLS = ['batch', 'nrdb'];
+const POOLS = (A.POOLS ?? 'batch,nrdb').split(','); // bar 6: POOLS=g3
 const say = s => console.log(s);
 function jack(units, stat) {
   const by = new Map();

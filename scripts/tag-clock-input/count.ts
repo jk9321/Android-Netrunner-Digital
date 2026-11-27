@@ -292,7 +292,8 @@ function readU(s: GameState, orbitalDeck: boolean) {
 // ------------------------------------------------------------------------------------------------ deals
 type Rec = { seed: number; corpDeck: string; runnerDeck: string; winner: string | null; cr: number[]; sc: number[] };
 const DECK_POOL: any[] = [...ALL_DECKS, ...NRDB_TEST_DECKS];
-const RUNS: Record<string, string> = { batch: '45830886377', nrdb: '45834898534' };
+// g3 (phase B bar 6): the g3 deal set (seeds and decks; the same in every g3 run), from run 45717969976
+const RUNS: Record<string, string> = { batch: '45830886377', nrdb: '45834898534', g3: '45717969976' };
 function dealState(t: T, rec: Rec): GameState {
   const c = DECK_POOL.find(d => d.side === 'corp' && d.name === rec.corpDeck);
   const r = DECK_POOL.find(d => d.side === 'runner' && d.name === rec.runnerDeck);
