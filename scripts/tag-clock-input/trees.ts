@@ -113,12 +113,19 @@ export const BAR: Patch = [
   `if (side === 'runner' && hasClick && state.runner.tags > 0 && !(globalThis as any).__owBar) candidates.push({ type: 'REMOVE_TAG', player: 'runner' });`,
 ];
 
-/** ruled: ruling 1's arm (2026-11-27 03:08Z): C1 in both views, P in the Corp's view only. */
-export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled';
+/**
+ * ruled: ruling 1's arm (2026-11-27 03:08Z): C1 in both views, P in the Corp's view only. ruledin: the same with C1's cost
+ * read inside the tag-pricing frame (c1in), after step 9's nrdb 1281: read outside, the cost's need (creditNeed -> the
+ * keep -> serverHold's walk -> tagCost -> tagsWorth -> tagClock -> the cost) re-enters on new boards without end.
+ */
+export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled' | 'ruledin';
 /** The arms phase A read side by side (ruled is step 9's, and the time mode's extra ask). */
 export const ARMS: Arm[] = ['base', 'c1', 'p', 'c1p'];
 /** The switch object of an arm. */
-export const armSwitch = (arm: Arm) => ({ c1: arm === 'c1' || arm === 'c1p' || arm === 'ruled', p: arm === 'p' || arm === 'c1p' || arm === 'ruled', pCorp: arm === 'ruled' });
+export const armSwitch = (arm: Arm) => {
+  const ruled = arm === 'ruled' || arm === 'ruledin';
+  return { c1: arm === 'c1' || arm === 'c1p' || ruled, p: arm === 'p' || arm === 'c1p' || ruled, pCorp: ruled, c1in: arm === 'ruledin' };
+};
 /** Set a tree's switches (keeps dbg). */
 export function setArm(name: string, arm: Arm, extra: Record<string, unknown> = {}) {
   const G = globalThis as any;

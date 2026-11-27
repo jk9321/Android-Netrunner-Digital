@@ -494,6 +494,7 @@ const ASKS: { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[] = [
   { name: 'p', tree: 'X', arm: 'p' },
   { name: 'c1p', tree: 'X', arm: 'c1p' },
   { name: 'ruled', tree: 'X', arm: 'ruled' },
+  { name: 'ruledin', tree: 'X', arm: 'ruledin' },
 ].filter(a => !process.env.ASK || a.name === 'base' || process.env.ASK.split(',').includes(a.name)) as { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[];
 let TT: Record<'b' | 'k' | 'X', T>;
 function ask(t: T, side: 'corp' | 'runner', method: Method, s: GameState, from: any): string {
@@ -540,6 +541,11 @@ function timeDeal(pool: string, rec: Rec) {
       G.__tciKeep = undefined;
     }
     setArm('X', 'base');
+    // the cost read inside the frame against outside, answer for answer (step 9's nrdb 1281)
+    if (answers.ruled !== undefined && answers.ruledin !== undefined && answers.ruled !== answers.ruledin) {
+      inc(differ, `ruledin-vs-ruled ${k}`);
+      if (!first['ruledin-vs-ruled']) first['ruledin-vs-ruled'] = { i, T: s.turnNumber, k, tags: s.runner.tags, base: answers.ruled.slice(0, 160), arm: answers.ruledin.slice(0, 160) };
+    }
     inc(n, k);
     if (tagged) inc(n, k + tagged);
     for (const a of ASKS.slice(1))
@@ -629,6 +635,7 @@ function person(file: string) {
 // ------------------------------------------------------------------------------------------------ main
 async function main() {
   const started = Date.now();
+  if (process.env.STACK) Error.stackTraceLimit = 100000;
   if (MODE === 'time') {
     S = await tree('S');
     TT = { b: await tree('b'), k: await tree('k'), X: await tree('X', armPatches('X')) };
@@ -646,7 +653,9 @@ async function main() {
     else {
       const recs: Rec[] = JSON.parse(readFileSync(`scripts/corp-owed/deals-${RUNS[pool]}.json`, 'utf8'));
       const picked = recs.filter(r => !DEALS.length || DEALS.includes(String(r.seed)));
-      for (const r of PER_POOL ? picked.slice(0, PER_POOL) : picked) sources.push({ pool, id: r });
+      // SPREAD=1: PER_POOL deals spread evenly through the pool's file (its decks in order), not its first PER_POOL
+      const step = PER_POOL && process.env.SPREAD === '1' ? Math.max(1, Math.floor(picked.length / PER_POOL)) : 1;
+      for (const r of PER_POOL ? picked.filter((_, i) => i % step === 0).slice(0, PER_POOL) : picked) sources.push({ pool, id: r });
     }
   }
   // interleave the pools, then a fixed shuffle by seed (a run cut short is still a fair sample of the decks)
@@ -663,6 +672,16 @@ async function main() {
       else throw new Error(`unknown MODE ${MODE}`);
     } catch (err) {
       out({ kind: 'err', pool: src.pool, src: typeof src.id === 'string' ? src.id : src.id?.seed, error: (err as Error).stack?.slice(0, 500) });
+      // STACK=1: the whole stack, as frame counts by function (a deep recursion shows as one name many times)
+      if (process.env.STACK) {
+        const fr: Record<string, number> = {};
+        for (const l of ((err as Error).stack ?? '').split('\n').slice(1)) {
+          const m = l.match(/at (\S+) \((.*\/src\/)?([^:)]+)/);
+          const k = m ? `${m[1]} ${m[3]}` : l.trim().slice(0, 80);
+          fr[k] = (fr[k] ?? 0) + 1;
+        }
+        out({ kind: 'stack', frames: Object.entries(fr).sort((a, b) => b[1] - a[1]).slice(0, 40) });
+      }
     }
   }
   out({ kind: 's', shard, mode: MODE, arm: ARM, mergeBase: MERGE_BASE, ms: Date.now() - started, rss: Math.round(process.memoryUsage().rss / 1e6) });

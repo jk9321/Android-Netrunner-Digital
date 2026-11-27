@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 const A = Object.fromEntries(process.argv.slice(2).filter(x => x.includes('=')).map(x => x.split('=')));
 const ARM = A.ARM ?? 'ruled';
-const COLUMN = ARM === 'ruled' ? 'C1+P' : { c1: 'C1', p: 'P', c1p: 'C1+P' }[ARM];
+const COLUMN = ARM === 'ruled' || ARM === 'ruledin' ? 'C1+P' : { c1: 'C1', p: 'P', c1p: 'C1+P' }[ARM];
 function rowsOf(dir) {
   if (!dir) return [];
   const files = [];
