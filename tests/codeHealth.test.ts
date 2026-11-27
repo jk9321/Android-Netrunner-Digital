@@ -839,8 +839,8 @@ describe('AI code health (audit guards)', () => {
   // 16,813: corp/ 3,982, src/ai 16,872
   // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
-    // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
-    // B1b's 16,879: corp/ 3,981, src/ai 16,939
+  // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
+  // B1b's 16,879: corp/ 3,981, src/ai 16,939
   // Then + 28 in src/ai (ai-b4a-knowledge-fix, R-109: runnerReply.ts's safety net, a deal whose slot finds no code is
   // dealt again unkept in play, counted and logged; a throw under frameChecks): corp/ 3,981, src/ai 16,967
   // Then + 16 in src/ai (ai-runner-hidden-zones, B4b (a): the deal gives a root slot only a kind it can be, with its
