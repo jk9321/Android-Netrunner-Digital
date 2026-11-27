@@ -63,8 +63,21 @@ export function armPatches(name: string): Patch[] {
       `  return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip));\n}`,
       `  const A = ${A};
   // C1: the trash's cost read on the board it is given, before the frame and the copy, only when a resource is priced
-  const cost = A.c1 && !A.c1in && state.runner.rig.resources.length > skip && state.corp.credits >= 2 ? trashCost(state, viewer) : undefined;
+  const cost = A.c1 && !A.c1in && state.runner.rig.resources.length > skip && state.corp.credits >= 2 ? attributed(A, () => trashCost(state, viewer)) : undefined;
   return withPricing({ pricingTagLoss: true }, () => tagLoss({ ...state }, viewer, skip, cost));
+}
+
+/** Step 9 stop's attribution (scratch only): during the outside read, tags flat (tagonly) or the oracle off (oracleonly). */
+function attributed<X>(A: any, f: () => X): X {
+  const G = globalThis as any;
+  const was = [G.__tciFlat, G.__tciNoOracle];
+  G.__tciFlat = was[0] || !!A.tagonly;
+  G.__tciNoOracle = was[1] || !!A.oracleonly;
+  try {
+    return f();
+  } finally {
+    [G.__tciFlat, G.__tciNoOracle] = was;
+  }
 }
 
 /** The basic trash action's cost to the Corp as \`viewer\` prices it: the click's owner and the credit's owner (rule 5.2.6g). */
@@ -97,6 +110,17 @@ function trashCost(state: GameState, viewer: SideCode): number {
       `  return logValue('credit', 'sideCreditValue', state, reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke), side, viewer);\n}`,
       `  return logValue('credit', 'sideCreditValue', state, reach ? creditSlide(credits + reach, need, broke) + Math.min(credits, 0) : creditSlide(credits, need, broke), side, viewer);\n}${NEW_FUNCTION}`,
     ],
+    // the step 9 stop's attribution flags (unset: the merge base's lines)
+    [
+      'ai/evaluate.ts',
+      `  if (pricing().pricingTagLoss) return logValue('tag', 'tagsWorth flat (tag clock)', state, tags * RATES.tagAgainstRunner, viewer, count);`,
+      `  if (pricing().pricingTagLoss || (globalThis as any).__tciFlat) return logValue('tag', 'tagsWorth flat (tag clock)', state, tags * RATES.tagAgainstRunner, viewer, count);`,
+    ],
+    [
+      'ai/oracle.ts',
+      `  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.planning) return undefined;`,
+      `  if (c.oracleRunning || c.averaging || c.pricingIce || c.pricingTagLoss || c.planning || (globalThis as any).__tciNoOracle) return undefined;`,
+    ],
     // 1 e's counter: a keep work-out (rezMoney's memo missed)
     [
       'ai/corp/rezMoney.ts',
@@ -118,13 +142,14 @@ export const BAR: Patch = [
  * read inside the tag-pricing frame (c1in), after step 9's nrdb 1281: read outside, the cost's need (creditNeed -> the
  * keep -> serverHold's walk -> tagCost -> tagsWorth -> tagClock -> the cost) re-enters on new boards without end.
  */
-export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled' | 'ruledin';
+export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled' | 'ruledin' | 'ruledtag' | 'ruledorc';
 /** The arms phase A read side by side (ruled is step 9's, and the time mode's extra ask). */
 export const ARMS: Arm[] = ['base', 'c1', 'p', 'c1p'];
 /** The switch object of an arm. */
 export const armSwitch = (arm: Arm) => {
-  const ruled = arm === 'ruled' || arm === 'ruledin';
-  return { c1: arm === 'c1' || arm === 'c1p' || ruled, p: arm === 'p' || arm === 'c1p' || ruled, pCorp: ruled, c1in: arm === 'ruledin' };
+  // ruledtag / ruledorc (the stop's attribution): the outside read with tags flat / the oracle off during it
+  const ruled = arm === 'ruled' || arm === 'ruledin' || arm === 'ruledtag' || arm === 'ruledorc';
+  return { c1: arm === 'c1' || arm === 'c1p' || ruled, p: arm === 'p' || arm === 'c1p' || ruled, pCorp: ruled, c1in: arm === 'ruledin', tagonly: arm === 'ruledtag', oracleonly: arm === 'ruledorc' };
 };
 /** Set a tree's switches (keeps dbg). */
 export function setArm(name: string, arm: Arm, extra: Record<string, unknown> = {}) {

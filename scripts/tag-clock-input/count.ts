@@ -63,6 +63,8 @@ const PER_POOL = Number(process.env.PER_POOL ?? 0);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
 const SEEDS = Number(process.env.SEEDS ?? 2);
 /** The arms read beside each board: phase A's four, and step 9's arm when it is another (ruled). */
+/** ONLY=<file> (MODE=time): ask only at the listed decisions, "pool:seed:i" lines (the step 9 stop's attribution). */
+const ONLY: Set<string> | null = process.env.ONLY ? new Set(readFileSync(process.env.ONLY, 'utf8').split('\n').filter(Boolean)) : null;
 /** NOREAD=1 (MODE=probe): the g rows only, no d or u reads (step 9's base tags at the end). */
 const NOREAD = process.env.NOREAD === '1';
 const READ: Arm[] = ARMS.includes(ARM) ? ARMS : [...ARMS, ARM];
@@ -320,6 +322,7 @@ function probeDeal(pool: string, rec: Rec) {
   let lastU = -1;
   let lastRunner: GameState | null = null;
   let chanceTurn = -1;
+  const acts: unknown[] = [];
   for (let n = 0; n < 8000 && !g.state.winner; n++) {
     const s: GameState = g.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -352,8 +355,17 @@ function probeDeal(pool: string, rec: Rec) {
       kind = kind || 'e';
     }
     if (runnerMain(s)) lastRunner = s;
-    if (!g.step()) break;
+    let stepped: boolean;
+    try {
+      stepped = g.step();
+    } catch (e) {
+      // CAPTURE=1 (the step 9 stop's test board): the actions so far and the board the failing step started from
+      if (process.env.CAPTURE === '1') out({ kind: 'capture', pool, seed: rec.seed, corpDeck: rec.corpDeck, runnerDeck: rec.runnerDeck, n, acts, state: s });
+      throw e;
+    }
+    if (!stepped) break;
     const a: any = g.last;
+    if (process.env.CAPTURE === '1') acts.push(a);
     recd.step(s, a, g.state);
     const dt = g.state.runner.tags - s.runner.tags;
     if (dt > 0) {
@@ -495,6 +507,8 @@ const ASKS: { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[] = [
   { name: 'c1p', tree: 'X', arm: 'c1p' },
   { name: 'ruled', tree: 'X', arm: 'ruled' },
   { name: 'ruledin', tree: 'X', arm: 'ruledin' },
+  { name: 'ruledtag', tree: 'X', arm: 'ruledtag' },
+  { name: 'ruledorc', tree: 'X', arm: 'ruledorc' },
 ].filter(a => !process.env.ASK || a.name === 'base' || process.env.ASK.split(',').includes(a.name)) as { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[];
 let TT: Record<'b' | 'k' | 'X', T>;
 function ask(t: T, side: 'corp' | 'runner', method: Method, s: GameState, from: any): string {
@@ -528,6 +542,10 @@ function timeDeal(pool: string, rec: Rec) {
     const k = `${side}:${kind}`;
     const tagged = s.runner.tags > 0 ? ' tagged' : '';
     const answers: Record<string, string> = {};
+    if (ONLY && !ONLY.has(`${pool}:${rec.seed}:${i}`)) {
+      i++;
+      return own();
+    }
     const order = ASKS.map((_, j) => ASKS[(j + i) % ASKS.length]);
     for (const a of order) {
       if (a.arm) setArm('X', a.arm);
@@ -546,7 +564,7 @@ function timeDeal(pool: string, rec: Rec) {
     if (answers.ruled !== undefined && answers.ruledin !== undefined && answers.ruled !== answers.ruledin) {
       inc(differ, `ruledin-vs-ruled ${k}`);
       // every one, with its board (the deal and the decision index: replayed by the step 9 stop's attribution)
-      inout.push({ i, T: s.turnNumber, k, active: s.activePlayer, tags: s.runner.tags, cc: s.corp.credits, ruled: answers.ruled.slice(0, 200), ruledin: answers.ruledin.slice(0, 200) });
+      inout.push({ i, T: s.turnNumber, k, active: s.activePlayer, tags: s.runner.tags, cc: s.corp.credits, ruled: answers.ruled.slice(0, 200), ruledin: answers.ruledin.slice(0, 200), ...(answers.ruledtag !== undefined ? { tagSame: answers.ruledtag === answers.ruledin, orcSame: answers.ruledorc === answers.ruledin } : {}) });
       if (!first['ruledin-vs-ruled']) first['ruledin-vs-ruled'] = { i, T: s.turnNumber, k, tags: s.runner.tags, base: answers.ruled.slice(0, 160), arm: answers.ruledin.slice(0, 160) };
     }
     inc(n, k);
