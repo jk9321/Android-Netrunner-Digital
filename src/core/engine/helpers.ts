@@ -884,9 +884,10 @@ function updateRootKinds(prev: GameState, state: GameState): void {
   };
   for (const sv of Object.values(state.corp.servers)) if (sv.isRemote && knownAgendaOrAsset(sv.root)) sv.root.forEach(mark);
   // A facedown agenda or asset that left its root in the open (scored, stolen, trashed faceup: 4.5.2, 4.4.6c, 10.2.3a)
-  // shows what it was; the cards that sat beside it and are still there are upgrades (#66b)
-  const open = publicCards(state);
-  for (const [id, sv] of Object.entries(prev.corp.servers)) {
+  // shows what it was; the cards that sat beside it and are still there are upgrades (#66b). Only a hidden root card
+  // gone from the roots (or no longer hidden) can have; publicCards is built only then (B4b review note N2)
+  const open = [...was].some(id => !now.has(id)) ? publicCards(state) : undefined;
+  if (open) for (const [id, sv] of Object.entries(prev.corp.servers)) {
     if (!sv.isRemote || !sv.root.some(c => hiddenRoot(c) && ['agenda', 'asset'].includes(cardDef(c).type_code) && open.has(c.instanceId))) continue;
     const beside = new Set(sv.root.map(c => c.instanceId));
     for (const c of state.corp.servers[id]?.root ?? []) if (beside.has(c.instanceId)) mark(c);
