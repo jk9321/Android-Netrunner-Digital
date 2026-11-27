@@ -1,5 +1,5 @@
 import { CardInstance, SideCode } from '../types/card';
-import { GameState, KnownHandCard, ServerState } from '../types/state';
+import { GameState, KnownHandCard, ServerState, SetAsideOrigin } from '../types/state';
 import { cardDef } from '../cards';
 import { IllegalActionError } from './errors';
 import { addLog } from './log';
@@ -83,11 +83,12 @@ export function locateCorpCard(
 }
 
 /**
- * Sets aside a card a search found (rules 8.7.2, 4.8.4). The effect then acts on it from the set-aside zone, and
- * the card counts as moving from where it was before (4.8.3): call `fromSetAside` to take it back out.
+ * Sets aside a card a search found (rules 8.7.2, 4.8.4), noting where it was. The effect then acts on it from the
+ * set-aside zone, and the card counts as moving from `from` (4.8.3): call `fromSetAside` to take it back out.
  */
-export function setAside(state: GameState, card: CardInstance): void {
+export function setAside(state: GameState, card: CardInstance, from: SetAsideOrigin): void {
   (state.setAside ??= []).push(card);
+  (state.setAsideFrom ??= {})[card.instanceId] = from;
 }
 
 /** The set-aside zone, to install from (installs read it as neither HQ nor the stack: rules 4.8.3). */
@@ -95,8 +96,13 @@ export function setAsideZone(state: GameState): CardInstance[] {
   return (state.setAside ??= []);
 }
 
-/** Drops the set-aside zone once it is empty, so states without set-aside cards stay as they were. */
+/** Drops the set-aside zone and its origins once they are empty (and origins of cards no longer set aside). */
 export function tidySetAside(state: GameState): void {
+  if (state.setAsideFrom) {
+    const held = new Set((state.setAside ?? []).map(c => c.instanceId));
+    for (const id of Object.keys(state.setAsideFrom)) if (!held.has(id)) delete state.setAsideFrom[id];
+    if (Object.keys(state.setAsideFrom).length === 0) delete state.setAsideFrom;
+  }
   if (state.setAside && state.setAside.length === 0) delete state.setAside;
 }
 
@@ -105,6 +111,23 @@ export function fromSetAside(state: GameState, card: CardInstance): boolean {
   const removed = !!state.setAside && removeCard(state.setAside, card);
   tidySetAside(state);
   return removed;
+}
+
+/**
+ * The candidates a card prompt may still be answered with: a card another effect has set aside is out of reach (rules
+ * 4.8.3: "An ability cannot see the set-aside zone unless it specifically sets objects aside or refers to set-aside
+ * objects"). A prompt refers to a set-aside card when its data names it (its own flow's next step).
+ */
+export function offeredCandidates(state: GameState, candidateIds: string[], data: unknown): string[] {
+  if (!state.setAside?.length) return candidateIds;
+  const text = JSON.stringify(data ?? {});
+  const away = new Set(state.setAside.map(c => c.instanceId).filter(id => !new RegExp(`\\b${id}\\b`).test(text)));
+  return away.size ? candidateIds.filter(id => !away.has(id)) : candidateIds;
+}
+
+/** Set-aside cards that came from `from` (rules 4.8.3). */
+export function setAsideFrom(state: GameState, ...from: SetAsideOrigin[]): CardInstance[] {
+  return (state.setAside ?? []).filter(c => from.includes(state.setAsideFrom?.[c.instanceId] as SetAsideOrigin));
 }
 
 /** Finds any card in any zone of either player, for effects and UI. */
@@ -312,7 +335,8 @@ export function publicCards(state: GameState): Map<string, string> {
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
   if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0) return;
   const before = publicCards(prev);
-  const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack].map(c => c.instanceId));
+  // A found card waits set aside first (rules 4.8.3: it still counts as coming from its deck)
+  const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId));
   const surfaced = [...publicCards(state)].filter(([id]) => !before.has(id) && !fromDeck.has(id));
   for (const owner of ['corp', 'runner'] as const) {
     let known = knownList(state, owner);
@@ -322,7 +346,8 @@ export function updateHandKnowledge(prev: GameState, state: GameState): void {
       const i = same >= 0 ? same : known.findIndex(e => e.code === code);
       if (i >= 0) known = known.filter((_, j) => j !== i);
     }
-    const handSize = (owner === 'corp' ? state.corp.hq : state.runner.grip).length;
+    // A hand card set aside by a search (Let Them Dream searching HQ) is still the viewer's to remember
+    const handSize = (owner === 'corp' ? state.corp.hq : state.runner.grip).length + setAsideFrom(state, owner === 'corp' ? 'hq' : 'grip').length;
     setKnownList(state, owner, known.slice(Math.max(0, known.length - handSize)));
   }
 }

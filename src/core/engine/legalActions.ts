@@ -6,7 +6,7 @@ import { activePrompt } from './prompts';
 import { breakerScript, encounteredIce, iceScript } from './ice';
 import { abilitySources, abilityUsableFrom } from './actions/ability';
 import { ANY_DISCOUNT, canInstallFaceUp, combinationsOf, makeRoomSets, playableHostZones } from './actions/install';
-import { findCardAnywhere } from './helpers';
+import { findCardAnywhere, offeredCandidates } from './helpers';
 import { CardInstance } from '../types/card';
 import { runBlocked } from './actions/run';
 import { getCardScript } from '../scripts';
@@ -227,7 +227,7 @@ function promptAnswers(state: GameState): GameAction[] {
       // list them all; every answer is still legal, only the listing stops.
       const answers: GameAction[] = [];
       outer: for (let k = prompt.min; k <= prompt.max; k++) {
-        for (const cardInstanceIds of combinationsOf(prompt.candidateIds, k)) {
+        for (const cardInstanceIds of combinationsOf(offeredCandidates(state, prompt.candidateIds, prompt.source.data), k)) {
           answers.push({ ...base, choice: { kind: 'effect_cards' as const, cardInstanceIds } });
           // A Runner card to install: the same answer, trashing programs first to make room (rules 8.5.6c)
           const card = prompt.source.data?.install && prompt.side === 'runner' && cardInstanceIds.length === 1 ? findCardAnywhere(state, cardInstanceIds[0]) : undefined;

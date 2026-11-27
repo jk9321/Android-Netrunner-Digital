@@ -61,7 +61,7 @@ const withHosted = (list: CardInstance[]): CardInstance[] => list.flatMap(c => [
 export function visibility(state: GameState, side: SideCode): { hidden: CardInstance[]; hiddenIds: Set<string>; shownIds: Set<string>; allowed: Set<string>; textCodes: Set<string>; openCodes: Set<string> } {
   const c = state.corp;
   const r = state.runner;
-  const hidden: CardInstance[] = [...c.rd, ...r.stack];
+  const hidden: CardInstance[] = [...c.rd, ...r.stack, ...(state.setAside ?? [])]; // set-aside cards: facedown (4.8.4), shown only through a prompt
   const open: CardInstance[] = [c.identity, r.identity, ...c.archives.faceUp, ...c.scoreArea, ...r.scoreArea, ...r.heap, ...r.rig.programs, ...r.rig.hardware, ...r.rig.resources, ...state.removedFromGame];
   const installed = Object.values(c.servers).flatMap(s => [...s.ice, ...s.root]);
   if (side === 'corp') {

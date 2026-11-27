@@ -86,7 +86,7 @@ const mutualFavorFlow = prompts({
     // The found card is set aside while the stack is shuffled and the install is decided (rules 8.7.2, 4.8.4, 8.7.3)
     state.runner.stack = state.runner.stack.filter(c => c.instanceId !== id);
     shuffleInPlace(state.rng, state.runner.stack);
-    setAside(state, card);
+    setAside(state, card, 'stack');
     addLog(state, 'runner', `Runner revealed ${cardDef(card).title} and shuffled their Stack.`);
 
     if (madeSuccessfulRunThisTurn(state) && installableRunnerCards(state, [card]).length > 0) {

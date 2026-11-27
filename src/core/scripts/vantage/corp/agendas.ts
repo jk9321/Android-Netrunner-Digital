@@ -142,7 +142,7 @@ const ltdFlow = prompts({
     if (data.zone === 'rd') shuffleRD(state);
     addLog(state, 'corp', `Corp revealed ${title(card)} (Let Them Dream).`);
     // Set aside while its place is chosen (rules 8.7.2, 4.8.4), not in HQ
-    setAside(state, card);
+    setAside(state, card, data.zone === 'hq' ? 'hq' : data.zone === 'rd' ? 'rd' : 'archives');
     ltdFlow.choice(ctx, 'where', choiceQuestion('corp', `Let Them Dream: add ${title(card)} to HQ or the bottom of R&D?`, [
       { id: 'hq', label: 'Add it to HQ' },
       { id: 'bottom', label: 'Bottom of R&D' },
