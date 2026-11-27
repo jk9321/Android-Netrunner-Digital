@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useSyncExternalStore } from 'react';
 import { CardInstance } from '../../core/types/card';
-import { cardDef, getCardBackUrl, getCardImageUrl } from '../../data/cards';
+import { cardDef, getCardBackUrl, getCardFaceImageUrl } from '../../data/cards';
 import { typeLine } from '../cardLabels';
 import { GameState } from '../../core/types/state';
 import { findCardAnywhere } from '../../core/engine/helpers';
@@ -69,7 +69,7 @@ export const ZoomPanel: React.FC<{ store: ZoomStore; state: GameState; onInspect
 
   const { card, hidden, seen } = target;
   const def = cardDef(card);
-  const src = hidden ? getCardBackUrl(def.side_code || 'corp') : getCardImageUrl(card.cardCode);
+  const src = hidden ? getCardBackUrl(def.side_code || 'corp') : getCardFaceImageUrl(card);
   // The hovered instance is a snapshot; read counters and zones from the live state (never on hidden or remembered facedown cards)
   const live = hidden || seen ? [] : liveValues(state, findCardAnywhere(state, card.instanceId) ?? card);
 

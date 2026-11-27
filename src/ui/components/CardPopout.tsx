@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
-import { cardDef, getCardImageUrl } from '../../data/cards';
+import { cardDef, getCardFaceImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { Shield, Trash2, AlertCircle, Lock, X } from 'lucide-react';
 import { GLOSSARY, cardKeywords } from '../glossary';
@@ -184,7 +184,7 @@ export const CardPopout: React.FC<CardPopoutProps> = ({
             {/* The whole card, uncropped (compact thumbnail on phones, full side column on sm+) */}
             <div className="relative w-24 sm:w-[44%] sm:max-w-[260px] shrink-0">
               <img
-                src={getCardImageUrl(card.cardCode)}
+                src={getCardFaceImageUrl(card)}
                 alt={def.title}
                 className="w-full h-auto aspect-[63/88] rounded-[2px] border border-slate-800 shadow-inner bg-black/60"
               />

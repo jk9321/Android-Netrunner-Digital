@@ -13,7 +13,7 @@ import {
   trashableFirst,
 } from '../../core';
 import { playableHostZones } from '../../core/engine/actions/install';
-import { getCardImageUrl } from '../../data/cards';
+import { getCardFaceImageUrl } from '../../data/cards';
 import { cardPositionLabel, typeLine } from '../cardLabels';
 import { cardTextHtml } from '../cardText';
 import { liveCardModifiers } from '../liveValues';
@@ -414,7 +414,7 @@ export const MobileCardSheet: React.FC<MobileCardSheetProps> = ({
           {/* Top Summary: Art thumbnail + Live Stats */}
           <div className="flex items-start gap-3">
             <img
-              src={getCardImageUrl(card.cardCode)}
+              src={getCardFaceImageUrl(card)}
               alt={def.title}
               className="w-20 rounded-[4px] border border-slate-700 shrink-0 bg-slate-950"
             />

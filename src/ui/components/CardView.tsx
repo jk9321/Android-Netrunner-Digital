@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CardInstance } from '../../core/types/card';
-import { cardDef, getCardImageUrl, getCardBackUrl } from '../../data/cards';
+import { cardDef, FLIP_SIDE_CODES, getCardFaceImageUrl, getCardBackUrl } from '../../data/cards';
 import { isHidden } from '../../core/cards';
 import { Lock, Eye, ArrowRight } from 'lucide-react';
 import { CardPopout } from './CardPopout';
@@ -195,7 +195,7 @@ const CardFace: React.FC<
   // Card is visible (or Corp is peeking at their own unrezzed card!)
   const isCorp = def.side_code === 'corp';
   const isUnrezzed = !notInstalled && (isFaceDown || !card.isRezzed);
-  const imageUrl = getCardImageUrl(card.cardCode);
+  const imageUrl = getCardFaceImageUrl(card);
 
   return (
     <div
@@ -428,7 +428,7 @@ const CardOverlays: React.FC<{
 
 /**
  * A card that flips when it turns over: dealt face down or face up, rezzed,
- * or revealed. The key changes with what the viewer sees, which replays the flip.
+ * revealed, or a double-sided identity turning to its other side. The key changes with what the viewer sees, which replays the flip.
  */
 export const CardView: React.FC<CardViewProps> = props =>
   // A placeholder (a card this screen may not see, core/view/reconstruct.ts) only ever shows its back
@@ -436,7 +436,9 @@ export const CardView: React.FC<CardViewProps> = props =>
 
 const FlippingCard: React.FC<CardViewProps> = props => {
   const showsBack = Boolean(props.isFaceDown) && props.canPeek === false;
-  const face = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
+  const shown = showsBack ? 'back' : props.card.isRezzed ? 'rezzed' : props.seen ? 'seen' : 'face';
+  // A double-sided identity turning over plays the same flip as a rez
+  const face = !showsBack && props.card.flipped && FLIP_SIDE_CODES.has(props.card.cardCode) ? `${shown}-flipped` : shown;
   // Only table cards (inside the zoom provider) answer to the prompt's hover/clicks; the prompt's own copies don't
   const onTable = useZoom() !== null;
   const mark = usePromptHighlight(props.card.instanceId);
@@ -468,7 +470,7 @@ const FlippingCard: React.FC<CardViewProps> = props => {
   // - First mount (install): Option 1 Caddy Settle (y: -8 -> 0 over 160ms with cubic-bezier(0.16, 1, 0.3, 1))
   // - Face flip (rez / reveal): Option D Ultra-Fast Blade Snap (rotateY: -90 -> 0 over 140ms snappy spring)
   const isFlip = flipCount.current > 0;
-  const isRezFlash = isFlip && props.card.isRezzed;
+  const isRezFlash = isFlip && props.card.isRezzed && face === 'rezzed';
 
   return (
     <motion.div

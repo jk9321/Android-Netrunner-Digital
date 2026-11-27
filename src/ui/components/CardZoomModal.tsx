@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CardInstance } from '../../core/types/card';
-import { cardDef, getCardImageUrl } from '../../data/cards';
+import { cardDef, getCardFaceImageUrl } from '../../data/cards';
 import { FACTION_COLOR, FACTION_LABEL, typeLine } from '../cardLabels';
 import { X, Shield, Trash2, AlertCircle } from 'lucide-react';
 import { cardTextHtml, flavorTextHtml } from '../cardText';
@@ -62,7 +62,7 @@ export const CardZoomModal: React.FC<CardZoomModalProps> = ({
         {/* Large Crisp Card Image */}
         <div className="w-full md:w-72 shrink-0 flex items-center justify-center">
           <img
-            src={getCardImageUrl(card.cardCode)}
+            src={getCardFaceImageUrl(card)}
             alt={def.title}
             className="w-auto max-w-full h-auto max-h-[36dvh] sm:max-h-[42dvh] md:max-h-[460px] object-contain rounded-[2px] shadow-2xl border border-slate-800"
           />
