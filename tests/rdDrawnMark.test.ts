@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createCardInstance, createInitialGameState, createRng, executeAction, GameAction, GameState, getCardDefinition, nextFloat } from '../src/core';
-import { certainInHand, updateHandKnowledge } from '../src/core/engine/helpers';
+import { certainInHand, dealTripwire, updateHandKnowledge } from '../src/core/engine/helpers';
 import { knownInRd, runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { deckGameSetup } from '../src/data/decks';
 import { dealFallbacks, dealRunnerUnknowns, guessRunnerView } from '../src/ai/runnerReply';
@@ -98,6 +98,8 @@ describe('the deal\'s safety net (R-109): a knowledge bug falls back to an unkep
   it('throws with the tripwire on (tests/setup.ts, the fuzzer)', () => {
     expect(frameChecks.on).toBe(true);
     expect(() => deal(wrong())).toThrow(/a slot found no code/);
+    // made on purpose: recorded, then cleared so tests/setup.ts's check passes (B4c part 4)
+    expect(dealTripwire.failures.splice(0)).toHaveLength(1);
   });
 
   it('in play it deals again without the knowledge, counts it and logs it', () => {
@@ -114,6 +116,7 @@ describe('the deal\'s safety net (R-109): a knowledge bug falls back to an unkep
       const ok = newGame();
       deal(ok);
       expect(dealFallbacks.count).toBe(was + 1);
+      expect(dealTripwire.failures.splice(0)).toHaveLength(1);
     } finally {
       frameChecks.on = true;
       warn.mockRestore();

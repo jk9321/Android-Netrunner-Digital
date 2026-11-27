@@ -1,5 +1,5 @@
 import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, knownInRd, nextFloat, shuffleInPlace } from '../core';
-import { certainInArchives, certainInHand, isAdvanceable, runnerRootKinds } from '../core/engine/helpers';
+import { certainInArchives, certainInHand, dealTripwire, isAdvanceable, runnerRootKinds } from '../core/engine/helpers';
 import { knownToCorpInRd, rdSharesKnownToRunner, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
@@ -176,10 +176,10 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
   try {
     dealSlots(s, slots, random, canonical, true);
   } catch (e) {
-    if (frameChecks.on || !(e instanceof Error && e.message.startsWith(NO_CODE))) throw e;
-    // R-109 safety net: in play a knowledge bug must not end a person's game. This guess is dealt again without what
-    // the Runner knows of HQ, R&D and Archives (the deal before B4a 7(e)), counted and logged; under the tests and the
-    // fuzzer (frameChecks.on) it stays a throw, so the next such bug is seen.
+    if (!(e instanceof Error && e.message.startsWith(NO_CODE))) throw e;
+    // Recorded first, so a catch in a play-out can't hide it (B4c part 4); a throw under the tests and fuzzer (frameChecks)
+    if (dealTripwire.failures.push(e.message) && frameChecks.on) throw e;
+    // R-109 safety net: in play a knowledge bug must not end a game; dealt again without what the Runner knows (pre-B4a)
     dealFallbacks.count++;
     console.warn(`[deal-fallback] ${e.message}; this guess is dealt without the Runner's knowledge (${dealFallbacks.count} so far)`);
     cards.forEach((c, i) => (c.cardCode = was[i]));

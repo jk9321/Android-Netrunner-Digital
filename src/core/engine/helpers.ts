@@ -507,6 +507,14 @@ type UpkeepField = 'knownToRunner' | 'knownToCorp' | 'archKnownToRunner' | 'rdKn
  * `failures` (which skips were taken, the field, both values) before the throw, so a catch in the look-ahead that
  * swallows the throw cannot hide it. Not a play switch: it changes no decision, on or off.
  */
+/**
+ * B4c part 4 (red team finding 4): each deal of the Runner's guess that found no code for a slot (runnerReply.ts
+ * dealRunnerUnknowns), recorded before it is rethrown (tests, fuzzer) or dealt again without the Runner's knowledge
+ * (play), so a catch in a play-out can't hide it. tests/setup.ts and the fuzzer's AI-mode games assert it stays empty.
+ * Kept here, not in runnerReply.ts, so tests/setup.ts can read it without loading the AI (module order, R-109).
+ */
+export const dealTripwire = { failures: [] as string[] };
+
 export const handUpkeepCheck = {
   on: false,
   checked: { archives: 0, arrivals: 0, main: 0 } as Record<UpkeepSkip, number>,
