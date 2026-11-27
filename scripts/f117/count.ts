@@ -64,14 +64,18 @@ const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: [
 const SPLIT_TIMER = `const __split = (name: string, f: (...a: any[]) => any) => (...a: any[]) => { const g = (globalThis as any).__f117split; if (!g) return f(...a); const t = performance.now(); g.depth[name] = (g.depth[name] ?? 0) + 1; try { return f(...a); } finally { if (--g.depth[name] === 0) g.ms[name] = (g.ms[name] ?? 0) + performance.now() - t; } };
 `;
 const SPLIT_PATCHES: Patch[] = [
-  ['ai/prompts.ts', `import { knownToCorpInRd } from '../core/engine/rdKnowledge';\n`, `import { knownToCorpInRd } from '../core/engine/rdKnowledge';\n${SPLIT_TIMER}`],
+  ['ai/prompts.ts', `import { SHRED_STEP } from '../core/engine/runEnd';\n`, `import { SHRED_STEP } from '../core/engine/runEnd';\n${SPLIT_TIMER}`],
   ['ai/prompts.ts', 'export function answerPrompt(', `export const answerPrompt = __split('answerPrompt', __answerPrompt);
 function __answerPrompt(`],
   ['ai/prompts.ts', 'export function scoreAnswer(', `export const scoreAnswer = __split('scoreAnswer', __scoreAnswer);
 function __scoreAnswer(`],
   ['ai/prompts.ts', 'function arrivalTerms(', `const arrivalTerms = __split('arrivalTerms', __arrivalTerms);
 function __arrivalTerms(`],
-  ['ai/prompts.ts', 'const scores = memo(board, key, () => boards.map(one));', `const scores = memo(board, key, __split('chanceAverage', () => boards.map(one)));`],
+  [
+    'ai/prompts.ts',
+    'const score = scoreOutcome(state, b, side, memory, synergy, frame);',
+    `const score = boards.length > 1 ? __split('chanceAverage', scoreOutcome)(state, b, side, memory, synergy, frame) : scoreOutcome(state, b, side, memory, synergy, frame);`,
+  ],
 ];
 
 /** BASE's commit in this clone (a shallow CI checkout fetches it; the shards wait on git's shallow lock in turn). */
@@ -106,6 +110,7 @@ function makeTree(name: string): string {
       const path = join(dir, 'src', f);
       const text = readFileSync(path, 'utf8');
       if (text.split(at).length === 2) writeFileSync(path, text.replace(at, () => to));
+      else if (to.includes('const __split')) throw new Error(`tree ${name}: the SPLIT timer's line is not in ${f}`);
     }
   for (const [f, at, to] of patches) {
     const path = join(dir, 'src', f);
