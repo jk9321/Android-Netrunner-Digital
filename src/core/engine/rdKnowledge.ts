@@ -1,7 +1,7 @@
 import { CardInstance } from '../types/card';
 import { GameState, RdCorpKnownCard, RdKnownCard, RdNotes } from '../types/state';
 import { shuffleInPlace } from '../rng';
-import { joinHand, publicCards } from './helpers';
+import { NO_RD_WALK, publicCards, RdWalk, updateHandKnowledge } from './helpers';
 
 /**
  * The Runner's memory of R&D. A card the Runner accesses or looks at in R&D
@@ -208,7 +208,8 @@ function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): 
  * then return the list unchanged, so this skip does not change play.
  */
 function unchangedRd(prev: GameState, state: GameState, note: RdNotes | undefined, known: RdKnownCard[]): boolean {
-  if (note?.shuffled || note?.privateTop || note?.seen?.length) return false;
+  // A Corp draw with R&D the same after it put a card back where it was (B4c part 3: step 0 forgets it)
+  if (note?.shuffled || note?.privateTop || note?.seen?.length || note?.drawn?.some(d => d.owner === 'corp')) return false;
   const before = prev.corp.rd;
   const after = state.corp.rd;
   if (before.length !== after.length) return false;
@@ -227,24 +228,34 @@ function unchangedRd(prev: GameState, state: GameState, note: RdNotes | undefine
 const mergeLeft = (a:RdKnownCard['left'], b: 'hq' | 'other'): 'hq' | 'other' => (a === undefined || a === b ? b : 'other');
 const isExact = (e: RdKnownCard) => e.lo === e.hi && !e.left;
 
+/** Both knowledge walks after an action, in order: R&D first, then the hands and Archives with what it handed over (RdWalk). */
+export function updateKnowledge(prev: GameState, state: GameState): void {
+  updateHandKnowledge(prev, state, updateRdKnowledge(prev, state));
+}
+
 /**
  * Brings the Runner's memory of R&D up to date after an action. Runs after
- * every action, before updateHandKnowledge() (a card certainly drawn joins
- * the cards known in HQ).
+ * every action, before updateHandKnowledge(), and returns what that walk
+ * needs from this one (RdWalk: a card certainly drawn joins the cards known
+ * in HQ).
  */
-export function updateRdKnowledge(prev: GameState, state: GameState): void {
+export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
   const note = state.corp.rdNotes;
   delete state.corp.rdNotes;
   updateCorpRdKnowledge(prev, state, note);
   let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
-  if (known.length === 0 && seen.length === 0 && !note?.shuffled) return;
-  if (unchangedRd(prev, state, note, known)) return;
+  const idle: RdWalk = note?.handSeen || note?.drawn ? { ...NO_RD_WALK, seen: note.handSeen ?? [], drawn: note.drawn ?? [] } : NO_RD_WALK;
+  if (known.length === 0 && seen.length === 0 && !note?.shuffled) return idle;
+  if (unchangedRd(prev, state, note, known)) return idle;
 
   const before = prev.corp.rd.map(c => c.instanceId);
   const after = state.corp.rd.map(c => c.instanceId);
   const afterPos = new Map(after.map((id, i) => [id, i]));
   const gone: RdKnownCard[] = [];
+  // Cards the Runner followed out of an exact place (step 2): the only R&D cards whose next zone it can know
+  const followed: string[] = [];
+  const drawnIds = new Set((note?.drawn ?? []).filter(d => d.owner === 'corp').map(d => d.id));
 
   if (!note?.shuffled && known.length > 0) {
     const beforePos = new Map(before.map((id, i) => [id, i]));
@@ -255,6 +266,10 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
     const hiddenRemovals = before.map((id, p) => ({ id, p })).filter(x => x.p < top && !kept.has(x.id) && !afterPos.has(x.id)).length;
     // A card the Corp moved within the cards it acted on in secret is just part of that secret
     const movedWithinTop = (id: string) => beforePos.get(id)! < top && afterPos.has(id) && afterPos.get(id)! < top - hiddenRemovals;
+
+    // 0. A card drawn and back in R&D in the same action went by HQ, hidden among its cards: the Runner can't follow it
+    // (1.12.3; B4c part 3)
+    if (drawnIds.size > 0) known = known.filter(e => !(drawnIds.has(e.id) && afterPos.has(e.id)));
 
     // 1. Cards the Corp acted on in secret could now be anywhere among them (rules 8.3.3)
     if (top > 0) known = known.map(e => (e.lo < top ? { ...e, lo: 0, hi: Math.max(e.hi, top - 1) } : e));
@@ -269,7 +284,10 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
       for (const e of known) {
         if (isExact(e) && e.lo === p) {
           if (moved) carried.set(id, e);
-          else gone.push({ ...e, left: destOf(id) });
+          else {
+            gone.push({ ...e, left: destOf(id) });
+            followed.push(id);
+          }
         } else if (e.lo <= p && p <= e.hi) next.push({ ...e, hi: e.hi - 1, left: mergeLeft(e.left, moved ? 'other' : destOf(id)) });
         else if (e.lo > p) next.push({ ...e, lo: e.lo - 1, hi: e.hi - 1 });
         else next.push(e);
@@ -299,9 +317,12 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
     const surfaced = [...publicCards(state)].filter(([id]) => !publicBefore.has(id));
     for (const [id, code] of surfaced) {
       const same = known.findIndex(e => e.id === id);
-      // A mark with a place first; a shuffled share only if no such mark has the name
-      const placed = same >= 0 ? same : known.findIndex(e => e.left && !e.n0 && e.code === code);
-      const i = placed >= 0 ? placed : known.findIndex(e => e.left && e.code === code);
+      // Its own mark if it has one; else it may be any copy of its title the Runner thought could have left (10.2.2b),
+      // so the mark that could make the strongest claim goes (B4c, brief rev 1 item 4): one that may be in HQ ('hq')
+      // before one gone elsewhere, and a mark with a place before a shuffled share
+      const rank = (e: RdKnownCard) => (e.left === 'hq' ? 0 : 2) + (e.n0 ? 1 : 0);
+      let i = same;
+      if (i < 0) known.forEach((e, j) => { if (e.left && e.code === code && (i < 0 || rank(e) < rank(known[i]))) i = j; });
       if (i >= 0) known = known.filter((_, j) => j !== i);
     }
   }
@@ -322,11 +343,11 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   for (const e of known) if (e.lo > e.hi) gone.push(e);
   known = known.filter(e => e.lo <= e.hi);
   // A drawn card is not seen in HQ (rules 1.8.5): it joins with the unseen HQ departures since it may have been drawn
-  const drawn = gone.filter(e => e.left === 'hq');
-  if (drawn.length > 0) joinHand(state, 'corp', drawn.map(e => ({ id: e.id, code: e.code, ...(e.lost ? { lost: e.lost } : {}) })));
+  const joined = gone.filter(e => e.left === 'hq').map(e => ({ id: e.id, code: e.code, ...(e.lost ? { lost: e.lost } : {}) }));
 
   const last = state.corp.rd.length - 1;
   state.corp.rdKnownToRunner = known
     .map(e => ({ ...e, hi: Math.min(e.hi, last) }))
     .sort((a, b) => a.lo - b.lo || a.hi - b.hi);
+  return { joined, seen: note?.handSeen ?? [], followed, drawn: note?.drawn ?? [] };
 }

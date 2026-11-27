@@ -76,6 +76,17 @@ export interface RdNotes {
   corpSeen?: string[];
   /** Cards the Runner arranged in secret this action (rules 8.3.3a): the Corp forgets where they are. */
   corpForgets?: string[];
+  /**
+   * Cards seen in a hand this action, one group per reveal or access (revealInHand, rules 1.21.3, 7.4.3), by instance
+   * id. The hand walk places them by copy (B4c part 1): an entry seen again with nothing lost since changes nothing on
+   * the list, so only this record says it was part of a sighting of several cards.
+   */
+  handSeen?: { owner: SideCode; ids: string[] }[];
+  /**
+   * Cards drawn into HQ or the grip this action (drawCards), unseen by the other side (1.8.5). One that left the hand
+   * again in the same action left it unseen like any hand card (1.12.3): the hand walk counts it a departure (B4c part 3).
+   */
+  drawn?: { owner: SideCode; id: string; code: string }[];
 }
 
 /** An R&D card the Corp knows the place of (index from the top). See engine/rdKnowledge.ts. */

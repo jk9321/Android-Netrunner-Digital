@@ -16,8 +16,7 @@ const SG = { hedgeFund: '30075', palisade: '30072', regolith: '30071', sureGambl
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 const take = <T extends { instanceId: string }>(zone: T[], id: string): T => zone.splice(zone.findIndex(c => c.instanceId === id), 1)[0];

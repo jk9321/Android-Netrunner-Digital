@@ -43,8 +43,15 @@ import { createAgent } from '../src/ai';
 import { GameRunner } from '../src/ai/playout';
 import { frameChecks } from '../src/ai/pricing';
 import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
-import { certainCounts, handUpkeepCheck } from '../src/core/engine/helpers';
+import { certainCounts, dealTripwire, handUpkeepCheck } from '../src/core/engine/helpers';
 import type { KnownHandCard } from '../src/core/types/state';
+
+/**
+ * Counts the fuzzer prints but does not fail on. `idCertainShort`: states where fewer of the listed ids are in their zone
+ * than the count calls certain (known-hidden-certain's id form before B4c; the by-code form is the check).
+ * `byCopyChecked`: actions run twice by known-by-copy.
+ */
+export const fuzzDiagnostics = { idCertainShort: 0, byCopyChecked: 0 };
 
 /** Every deck we have (starters, NSG samples, NRDB lists, one per identity: the beta picker draws from these). */
 // The tests' checks are on in the fuzzer too (tests/setup.ts): frames frozen, and the Runner's deal keeps its tripwire
@@ -287,10 +294,16 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
   ];
   for (const [zone, list, cards] of hidden) {
     const inZone = new Set(cards.map(c => c.instanceId));
+    // By code (B4c part 4, red team finding 5): which copy of a title was seen is not the viewer's to know (10.2.2b), so
+    // n certain is wrong only if fewer than n cards of that code are there. The entry ids name the copy last seen; the
+    // id form (fewer of the listed ids there than n) stays a diagnostic only, counted in fuzzDiagnostics.
     for (const [code, n] of certainCounts(list ?? [])) {
-      const there = (list ?? []).filter(e => e.code === code && inZone.has(e.id)).length;
-      check(there >= n, 'known-hidden-certain', '10.2.2b, 4.6.6e, 10.2.3a', () => `${zone}: ${n} of ${code} counted certain, ${there} of the seen ones are there`);
+      const there = cards.filter(c => c.cardCode === code).length;
+      check(there >= n, 'known-hidden-certain', '10.2.2b, 4.6.6e, 10.2.3a', () => `${zone}: ${n} of ${code} counted certain, ${there} of that code are there`);
+      if ((list ?? []).filter(e => e.code === code && inZone.has(e.id)).length < n) fuzzDiagnostics.idCertainShort++;
     }
+    const ids = (list ?? []).map(e => e.id);
+    check(new Set(ids).size === ids.length, 'known-ids-once', '1.12.1', () => `${zone}: an entry id is listed twice (${ids.join(', ')})`);
   }
   // The Runner's R&D marks, placed or shared after a shuffle: a card that cannot have left is in R&D within its places (4.2.3, 10.2.2b)
   for (const e of state.corp.rdKnownToRunner ?? []) {
@@ -416,8 +429,47 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
   }
 }
 
+/** The three lists of what one side knows of the other's hidden cards, as a multiset of code and losses (ids stripped). */
+export function knownByCopy(s: GameState): string {
+  const strip = (l: KnownHandCard[] | undefined) =>
+    (l ?? [])
+      .map(e => `${e.code}:${['any', 'ice', 'root', 'upgrade'].map(k => e.lost?.[k as keyof typeof e.lost] ?? 0).join('/')}`)
+      .sort()
+      .join(',');
+  return `HQ ${strip(s.corp.knownToRunner)} | grip ${strip(s.runner.knownToCorp)} | Archives ${strip(s.corp.archKnownToRunner)}`;
+}
+
+/**
+ * known-by-copy (B4c part 4, red team finding 3; brief rev 1 item 3): `state` with one listed id moved to an unlisted
+ * copy of the same title in the same zone (HQ, the grip, facedown Archives), or null if no zone has one. The copy is
+ * made before any legality call on it (RULE-NO-MUTATE-AFTER-LEGALITY). A card accessed this run is left as it is (its
+ * id marks the breach's sightings, 7.4.3). R&D marks are not relabelled: a known gap (brief rev 1 item 4).
+ */
+export function relabelledCopy(state: GameState): GameState | null {
+  const accessed = new Set((state.activeRun?.accessed ?? []).map(a => a.id));
+  const zones: [KnownHandCard[] | undefined, CardInstance[], (s: GameState) => KnownHandCard[]][] = [
+    [state.corp.knownToRunner, state.corp.hq, s => s.corp.knownToRunner!],
+    [state.runner.knownToCorp, state.runner.grip, s => s.runner.knownToCorp!],
+    [state.corp.archKnownToRunner, state.corp.archives.faceDown, s => s.corp.archKnownToRunner!],
+  ];
+  for (const [list, cards, of] of zones) {
+    if (!list?.length) continue;
+    const listed = new Set(list.map(e => e.id));
+    for (const [i, e] of list.entries()) {
+      if (typeof e !== 'object' || !cards.some(c => c.instanceId === e.id) || accessed.has(e.id)) continue;
+      const other = cards.find(c => c.cardCode === e.code && !listed.has(c.instanceId) && !accessed.has(c.instanceId));
+      if (!other) continue;
+      const copy = structuredClone(state);
+      of(copy)[i] = { ...of(copy)[i], id: other.instanceId };
+      return copy;
+    }
+  }
+  return null;
+}
+
 function fuzzOneGame(seed: number, corp: DeckList, runner: DeckList, opts: FuzzOptions): EngineFuzzResult {
   let upkeepSeen = handUpkeepCheck.failures.length;
+  let dealSeen = dealTripwire.failures.length;
   const maxSteps = opts.maxSteps ?? 1500;
   const stopAtFirst = opts.stopAtFirst ?? true;
   const rng = createRng(seed ^ 0x5eed);
@@ -492,6 +544,30 @@ function fuzzOneGame(seed: number, corp: DeckList, runner: DeckList, opts: FuzzO
     const res = checkInvariants(next, state, ids);
     checks += res.checks;
     record(step, action, res.failures);
+    // known-by-copy: the same move from the same state with the list naming the other copy must leave the same lists,
+    // ids aside (10.2.2b). The shuffle probe is put back after the extra run, as for the AI's look-ahead
+    const relabelled = relabelledCopy(state);
+    if (relabelled) {
+      const probe = { shuffles: rdShuffleProbe.shuffles, seen: new Set(rdShuffleProbe.corpSeenSince) };
+      let other: GameState | null = null;
+      try {
+        other = executeAction(relabelled, action);
+      } catch {
+        // refused or crashed only on the copy: the real move is checked above
+      }
+      rdShuffleProbe.shuffles = probe.shuffles;
+      rdShuffleProbe.corpSeenSince = probe.seen;
+      fuzzDiagnostics.byCopyChecked++;
+      checks++;
+      if (other && knownByCopy(other) !== knownByCopy(next)) {
+        record(step, action, [{ check: 'known-by-copy', rule: '10.2.2b', detail: `the list naming the other copy ends ${knownByCopy(other)}; as played ${knownByCopy(next)}` }]);
+      }
+    }
+    if (dealTripwire.failures.length > dealSeen) {
+      const fs = dealTripwire.failures.slice(dealSeen).map(f => ({ check: 'deal-no-code', rule: '- (R-109: the Runner\'s deal found no code for a slot)', detail: f.slice(0, 300) }));
+      dealSeen = dealTripwire.failures.length;
+      record(step, action, fs);
+    }
     if (handUpkeepCheck.failures.length > upkeepSeen) {
       const fs = handUpkeepCheck.failures.slice(upkeepSeen).map(f => ({ check: 'hand-upkeep-skip', rule: '1.12.3, 10.2.2 (R-105: the skip and the walk disagree)', detail: `skips ${f.skips}, ${f.field}: skipped ${f.skipped.slice(0, 120)} / walked ${f.walked.slice(0, 120)}` }));
       upkeepSeen = handUpkeepCheck.failures.length;
