@@ -43,7 +43,7 @@ const MAX_STEPS = Number(process.env.MAX_STEPS ?? 4000);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
 const MODE = process.env.MODE ?? 'audit';
 const TREES = (process.env.TREES ?? (MODE === 'step0' ? 'base,branch' : 'nokey,key')).split(',');
-const BASE = process.env.BASE ?? 'b4c26a9';
+const BASE = process.env.BASE ?? 'b4c26a9a0d6ea81f0387e19c4a7bb39228e832e0';
 const started = Date.now();
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 
