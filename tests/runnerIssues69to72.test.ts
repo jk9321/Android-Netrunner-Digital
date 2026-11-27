@@ -195,11 +195,11 @@ describe('issue #72: a run into a known Karunā, the first damage taken, then a 
     expect(r.moves[124]).toMatchObject({ type: 'RESOLVE_PROMPT', choice: { kind: 'effect_choice', optionId: 'jack' } });
   });
 
-  // Passes when no run this turn takes Karunā's damage and then jacks out at its prompt. Passing since F117's departures
-  // (ai-deck-arrivals; the chance ones by expectation): the new play is not a fix. At the jack-out prompt the Runner now
-  // stays (-20.23 against jack -23.16), takes the second 2 net, accesses Urtica Cipher, takes its damage and ends the turn
-  // at grip 1: the two cards the damage takes are priced by the owner's expected loss of 2 of the 5 (4.17), where base
-  // charged the count (3.20) and their half keep (4.18) on top. I72 stays open to R-C1 (the run price's tank damage)
+  // Passes when no run this turn takes Karunā's damage and then jacks out at its prompt (the issue's deciding twice).
+  // (1) Passing since F117's departures (ai-deck-arrivals a50cde1): the two cards the second damage takes are priced once,
+  // by the owner's expected loss of 2 of the 5 (4.17), where base charged the count (3.20) and their half keep (4.18).
+  // (2) The play now: stay at the jack-out (-20.23 against jack -23.16), take the second 2 net, access Urtica Cipher, end
+  // the turn at grip 1. (3) Not I72's fix: the run price is R-C1's walk (tracker I72), which must price this board in order
   it('#72 T8: the Runner does not take Karunā\'s first damage and then jack out', { timeout: 60_000 }, () => {
     const { state, runner } = boardBefore(72, KARUNA_AT);
     const jacked: string[] = [];
