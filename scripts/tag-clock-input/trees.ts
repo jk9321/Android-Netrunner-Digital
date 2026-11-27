@@ -14,6 +14,7 @@
  *   c1in  with c1: the same cost read inside the frame, on tagLoss's copy (phase A 1 f's identity: inside against outside).
  *   p     part P: a punisher is a card with the ifTagged flag AND type operation; the identity's term goes under the same
  *         test (an identity is not an operation, so it is 0).
+ *   pCorp with p: P in the Corp's view only; the Runner's view keeps base's test (ruling 1, 2026-11-27 03:08Z).
  *   dbg   a function: called with tagLoss's parts { nets, cost, viewer, skip, held, punish, id } (read-only).
  * Two counters, read by phase A 1 e (only when the global is set): __tciKeep.n counts rezMoney's keep work-outs (the
  * memo's miss in corp/rezMoney.ts), __tciKeep.clock counts tagLoss's own work-outs.
@@ -82,7 +83,7 @@ function trashCost(state: GameState, viewer: SideCode): number {
     [
       'ai/evaluate.ts',
       `  const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;`,
-      `  const punishes = (c: CardInstance) => (cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false) && (!A.p || cardDef(c).type_code === 'operation');`,
+      `  const punishes = (c: CardInstance) => (cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false) && (!A.p || (A.pCorp && viewer !== 'corp') || cardDef(c).type_code === 'operation');`,
     ],
     [
       'ai/evaluate.ts',
@@ -112,10 +113,12 @@ export const BAR: Patch = [
   `if (side === 'runner' && hasClick && state.runner.tags > 0 && !(globalThis as any).__owBar) candidates.push({ type: 'REMOVE_TAG', player: 'runner' });`,
 ];
 
-export type Arm = 'base' | 'c1' | 'p' | 'c1p';
+/** ruled: ruling 1's arm (2026-11-27 03:08Z): C1 in both views, P in the Corp's view only. */
+export type Arm = 'base' | 'c1' | 'p' | 'c1p' | 'ruled';
+/** The arms phase A read side by side (ruled is step 9's, and the time mode's extra ask). */
 export const ARMS: Arm[] = ['base', 'c1', 'p', 'c1p'];
 /** The switch object of an arm. */
-export const armSwitch = (arm: Arm) => ({ c1: arm === 'c1' || arm === 'c1p', p: arm === 'p' || arm === 'c1p' });
+export const armSwitch = (arm: Arm) => ({ c1: arm === 'c1' || arm === 'c1p' || arm === 'ruled', p: arm === 'p' || arm === 'c1p' || arm === 'ruled', pCorp: arm === 'ruled' });
 /** Set a tree's switches (keeps dbg). */
 export function setArm(name: string, arm: Arm, extra: Record<string, unknown> = {}) {
   const G = globalThis as any;

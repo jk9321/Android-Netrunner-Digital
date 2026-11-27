@@ -3,7 +3,8 @@
  * last section). Counts only: no src change. Started from the red team's probes/probe2.ts (pass 2), ported to separate
  * trees (RULE-SCRIPT-RULES: the tree that plays the source game is never asked or cleared). Trees (trees.ts): every one
  * from the merge base's src by `git archive` (ARM_BASE, default beta 3680b7f), dirs through resolve().
- *   S  plays the source games: the merge base's src as it is (ARM=base) or the arm's tree, switched on (ARM=c1|p|c1p: step 9).
+ *   S  plays the source games: the merge base's src as it is (ARM=base) or the arm's tree, switched on (step 9: ARM=ruled,
+ *      ruling 1's arm, C1 in both views and P in the Corp's view; read beside the four phase A arms).
  *   B  prices: the merge base's src with the arm patches, switched per read (unset = the merge base); the record set
  *      (record-set.ts) is priced here with every switch off.
  *   L  (MODE=record) plays the legs: B's patches and the legs' REMOVE_TAG bar, switched to ARM.
@@ -33,6 +34,9 @@
  *   first main decision of the game in the deal tried: the Runner's price of a tag reads the Corp's credits under C1.)
  *
  *   ARGS="MODE=probe" | ARGS="MODE=probe POOL=people" | ARGS="MODE=record SEEDS=2" | ARGS="MODE=time"
+ *   Step 9: ARGS="MODE=probe ARM=ruled" (full games on the arm's tree; the g rows), ARGS="MODE=record ARM=ruled SEEDS=2",
+ *   ARGS="MODE=time ASK=ruled PER_POOL=10" (decisions that move against base, by side and kind, the first of each deal,
+ *   rezzes on the Runner's turn and credit clicks on a tagged board named apart). Summed by step9.mjs.
  *   (ai-script: SHARD=<k>/64; local: SHARD=0/4 npx vite-node scripts/tag-clock-input/count.ts -- MODE=probe)
  * HIDDEN-READ (the measuring script, never an agent): reads price the real board; seed k >= 1 reshuffles.
  */
@@ -58,6 +62,10 @@ const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const PER_POOL = Number(process.env.PER_POOL ?? 0);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
 const SEEDS = Number(process.env.SEEDS ?? 2);
+/** The arms read beside each board: phase A's four, and step 9's arm when it is another (ruled). */
+/** NOREAD=1 (MODE=probe): the g rows only, no d or u reads (step 9's base tags at the end). */
+const NOREAD = process.env.NOREAD === '1';
+const READ: Arm[] = ARMS.includes(ARM) ? ARMS : [...ARMS, ARM];
 const root = treeRoot(shard);
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 const r3 = (x: any): any => (typeof x === 'number' ? (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : x > 0 ? 'Inf' : '-Inf') : x);
@@ -219,13 +227,13 @@ function readD(s: GameState, lastRunner: GameState | null, firstOfTurn: boolean)
       rotary: hasRotary(st),
     };
   });
-  for (const arm of ARMS) row[arm] = inCtx(s, 'corp', arm, st => ({ ...parts(st, 'corp', arm), clock: r3(B.ev.tagsWorth(st, 'corp')), skip1: parts(st, 'corp', arm, 1).perTurn }));
+  for (const arm of READ) row[arm] = inCtx(s, 'corp', arm, st => ({ ...parts(st, 'corp', arm), clock: r3(B.ev.tagsWorth(st, 'corp')), skip1: parts(st, 'corp', arm, 1).perTurn }));
   // 1 f: C1's cost read inside the frame (on tagLoss's copy) against outside it
   row.c1in = inCtx(s, 'corp', 'c1', st => parts(st, 'corp', 'c1', 0, { c1in: true }), { c1in: true });
   // approximation 5: the cost at the credits now against 2 credits down
   row.c1down2 = inCtx(s, 'corp', 'c1', st => r3(c1Cost(down2(st), 'corp')));
   // the Runner's view of the same board read as the Runner (its own decision), and asked under the Corp's
-  row.rv = Object.fromEntries(ARMS.map(arm => [arm, inCtx(s, 'runner', arm, st => parts(st, 'runner', arm))]));
+  row.rv = Object.fromEntries(READ.map(arm => [arm, inCtx(s, 'runner', arm, st => parts(st, 'runner', arm))]));
   row.rvAsCorp = inCtx(s, 'corp', 'c1', st => parts(st, 'runner', 'c1'));
   row.firstOfTurn = firstOfTurn;
   // approximation 2: the cost on the last Runner-turn board before this Corp turn (the Corp's view, the Corp deciding)
@@ -327,9 +335,12 @@ function probeDeal(pool: string, rec: Rec) {
       if (chance(s)) {
         const first = s.turnNumber !== chanceTurn;
         chanceTurn = s.turnNumber;
-        row = readD(s, lastRunner, first);
-        kind = 'd';
-      } else if (runnerMain(s) && s.turnNumber !== lastU && ARM === 'base') {
+        if (NOREAD) st.chances++;
+        else {
+          row = readD(s, lastRunner, first);
+          kind = 'd';
+        }
+      } else if (runnerMain(s) && s.turnNumber !== lastU && ARM === 'base' && !NOREAD) {
         lastU = s.turnNumber;
         if (s.runner.tags > 0 || (s.runner.rig.resources.length > 0 && (s.turnNumber + rec.seed) % 4 === 0)) {
           row = readU(s, orbitalDeck);
@@ -360,7 +371,7 @@ function probeDeal(pool: string, rec: Rec) {
   }
   recd.flush(g.state);
   const matches = ARM === 'base' ? (g.state.winner ?? null) === rec.winner && key(cr) === key(rec.cr) && key(sc) === key(rec.sc) : null;
-  out({ kind: 'g', pool, seed: rec.seed, corpDeck: rec.corpDeck, runnerDeck: rec.runnerDeck, arm: ARM, ...st, uses: recd.uses, winner: g.state.winner ?? null, T: g.state.turnNumber, matchesBatch: matches, ms: Date.now() - t0 });
+  out({ kind: 'g', pool, seed: rec.seed, corpDeck: rec.corpDeck, runnerDeck: rec.runnerDeck, arm: ARM, ...st, tagsEnd: g.state.runner.tags, uses: recd.uses, winner: g.state.winner ?? null, T: g.state.turnNumber, matchesBatch: matches, ms: Date.now() - t0 });
 }
 
 // ------------------------------------------------------------------------------------------------ MODE=record
@@ -448,7 +459,7 @@ function recordDeal(pool: string, rec: Rec) {
     const s = u.s;
     const beside: any = { cc: s.corp.credits, rc: s.runner.credits, tags: s.runner.tags, nres: s.runner.rig.resources.length, hq: s.corp.hq.length };
     try {
-      for (const arm of ARMS) {
+      for (const arm of READ) {
         beside[arm] = {
           c: inCtx(s, 'corp', arm, st => ({ ...parts(st, 'corp', arm), clock: r3(B.ev.tagsWorth(st, 'corp')) })),
           r: inCtx(s, 'runner', arm, st => ({ ...parts(st, 'runner', arm), clock: r3(B.ev.tagsWorth(st, 'runner')) })),
@@ -482,7 +493,8 @@ const ASKS: { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[] = [
   { name: 'c1', tree: 'X', arm: 'c1' },
   { name: 'p', tree: 'X', arm: 'p' },
   { name: 'c1p', tree: 'X', arm: 'c1p' },
-];
+  { name: 'ruled', tree: 'X', arm: 'ruled' },
+].filter(a => !process.env.ASK || a.name === 'base' || process.env.ASK.split(',').includes(a.name)) as { name: string; tree: 'b' | 'k' | 'X'; arm?: Arm }[];
 let TT: Record<'b' | 'k' | 'X', T>;
 function ask(t: T, side: 'corp' | 'runner', method: Method, s: GameState, from: any): string {
   t.clear();
@@ -534,6 +546,9 @@ function timeDeal(pool: string, rec: Rec) {
       if (answers[a.name] !== answers.base) {
         inc(differ, `${a.name} ${k}`);
         if (tagged) inc(differ, `${a.name} ${k}${tagged}`);
+        // step 9 (finding 11): rezzes on the Runner's turn and credit clicks on a tagged board, named apart
+        if (kind === 'rez' && s.activePlayer === 'runner') inc(differ, `${a.name} rez on the Runner's turn`);
+        if (tagged && (answers.base.includes('GAIN_CREDIT') || answers[a.name].includes('GAIN_CREDIT'))) inc(differ, `${a.name} credit click tagged`);
         if (!first[a.name]) first[a.name] = { i, T: s.turnNumber, k, tags: s.runner.tags, base: answers.base.slice(0, 120), arm: answers[a.name].slice(0, 120) };
       }
     i++;
