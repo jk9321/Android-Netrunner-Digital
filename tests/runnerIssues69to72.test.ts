@@ -195,8 +195,9 @@ describe('issue #72: a run into a known Karunā, the first damage taken, then a 
     expect(r.moves[124]).toMatchObject({ type: 'RESOLVE_PROMPT', choice: { kind: 'effect_choice', optionId: 'jack' } });
   });
 
-  // Passes when no run this turn takes Karunā's damage and then jacks out at its prompt
-  it.fails('#72 T8: the Runner does not take Karunā\'s first damage and then jack out', { timeout: 60_000 }, () => {
+  // Passes when no run this turn takes Karunā's damage and then jacks out at its prompt. Passing since F117's departures
+  // (ai-deck-arrivals, the Mercia ruling): the grip cards a prompt answer loses are priced by their owner, not by count
+  it('#72 T8: the Runner does not take Karunā\'s first damage and then jack out', { timeout: 60_000 }, () => {
     const { state, runner } = boardBefore(72, KARUNA_AT);
     const jacked: string[] = [];
     playTurn(state, runner, (a, before) => {

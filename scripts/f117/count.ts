@@ -15,7 +15,7 @@
  * prompts, the step before the design) and a fresh agent of the branch are asked on copies of the state, in a turn that
  * rotates, each timed by side and kind (main, prompt, off, rez). Per prompt: its source, the base and branch answers,
  * the cards each answer names with their zone, whether any answer brings a card into the side's hand (an arrival is
- * possible), the hand against its limit, and the branch's chain counts made while it answered (prompts.ts chainStats:
+ * possible) or takes one out of it (a departure; the first step of each answer only), the hand against its limit, and the branch's chain counts made while it answered (prompts.ts chainStats:
  * widened, capped, aside, used, rootRunner). Main decisions: whether the pick differs.
  *   ARGS="MODE=step0 POOL=batch DEALS=1001 MAX_STEPS=300" npx vite-node scripts/f117/count.ts
  *
@@ -235,18 +235,22 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         const p: any = B.core.activePrompt(s);
         const legal = B.core.getLegalActions(s, dec.side).filter((a: any) => a.type === 'RESOLVE_PROMPT');
         const had = new Set(handOf(s, dec.side).map(c => c.instanceId));
-        const arrivalPossible = legal.some((a: any) => {
+        let arrivalPossible = false;
+        let departurePossible = false;
+        for (const a of legal) {
           try {
             const after = B.core.executeAction(structuredClone(s), a);
-            return handOf(after, dec.side).some((c: { instanceId: string }) => !had.has(c.instanceId));
+            const now = new Set(handOf(after, dec.side).map((c: { instanceId: string }) => c.instanceId));
+            if (handOf(after, dec.side).some((c: { instanceId: string }) => !had.has(c.instanceId))) arrivalPossible = true;
+            if ([...had].some(id => !now.has(id))) departurePossible = true;
           } catch {
-            return false;
+            // an answer the engine refuses moves no card
           }
-        });
+        }
         const zones = (a: any) => named(a).map(id => `${B.cards[B.core.findCardAnywhere(s, id)?.cardCode]?.type_code ?? '?'}@${zoneOf(s, id)}`);
         const st = stats!;
         const chained = Object.keys(st.widened).length + Object.keys(st.capped).length + Object.keys(st.aside).length + st.used.length + st.rootRunner > 0;
-        if (differ || chained || arrivalPossible)
+        if (differ || chained || arrivalPossible || departurePossible)
           prompts.push({
             step: i,
             T: s.turnNumber,
@@ -257,6 +261,7 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
             n: legal.length,
             differ,
             arrivalPossible,
+            departurePossible,
             hand: handOf(s, dec.side).length,
             limit: dec.side === 'corp' ? s.corp.handSizeLimit : s.runner.handSizeLimit,
             base: { names: named(answers.base), zones: zones(answers.base) },

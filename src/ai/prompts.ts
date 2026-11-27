@@ -58,25 +58,33 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
 }
 
 /**
- * F117 / R-93 D2 (brief netrunner-ai/f117-deck-arrivals/design-brief.md rev 2): the hand terms of an answer's score in its
- * answer frame (scoreAnswer). The seen arrivals A are the cards in the hand after that were not in it before and that the
- * frame knows (its `known` slot: the caller's set and every seen arrival still in the hand). Where the hand is priced by
- * count (every prompt score today), A is priced by its owner in place of the count: M - C, M the owner's difference
- * (ownHandValue of the board less the same board without A, its sort and hand limit with it) and C the count's
- * (handCount, on both boards: the reach card can differ). Where the frame prices the hand by card (handByCard), the
- * owner already holds A. The half-keep term is the code's (half of the keep of the cards in the hand after less the keep
- * of the hand before), with no arrival in its list, seen or not, from any zone, and with seen arrivals taken on the board
+ * F117 / R-93 D2 (brief netrunner-ai/f117-deck-arrivals/design-brief.md rev 2; addendum-departures.md): the hand terms of
+ * an answer's score in its answer frame (scoreAnswer). Where the hand is priced by count (every prompt score today), the
+ * cards that move in or out of the side's own hand are priced by the hand's owner in place of the count:
+ *  - the seen arrivals A (in the hand after, not before, and known to the frame: the caller's set and every seen arrival
+ *    still in the hand): M - C, M the owner's difference (ownHandValue of the board less the same board without A, its
+ *    sort and hand limit with it) and C the count's (handCount, on both boards: the reach card can differ);
+ *  - the departures D (in the hand before, not after: installed, played, discarded, trashed, paid as a cost), the
+ *    mirror: less (M_D - C_D), M_D the owner's difference on the board before (ownHandValue of it less the same board
+ *    without D: where the cards were held, so a card now installed is not also priced in the hand of a board that
+ *    holds it on a server) and C_D the count's on the board after (handCount with D back in the hand less without:
+ *    what evaluate's count took for them).
+ * Where the frame prices the hand by card (handByCard), the owner already holds both. The half-keep term is the code's
+ * over the staying cards only (in the hand before and after): no arrival in its list, seen or not, from any zone, and no
+ * departure, whose keep is inside the owner's difference (ruling, condition 1); seen arrivals are taken on the board
  * without A: what A does to the staying cards is in M. The cards a chain's later steps brought (in the hand at its end,
  * not after its first answer, and not seen: a rez's draws) are put back in the deck on that board: the staying cards'
  * keep reads the hand and the deck, which would tell it which cards the simulated deck gave (bar 6, Eminent Domain
- * fetching Spin Doctor). With no seen
- * arrival and no chain it is today's term to the digit (every unseen arrival is a deck card, which today's list leaves
- * out too). `first`: the board after the answer itself.
+ * fetching Spin Doctor). With no arrival seen, no departure and no chain it is today's term to the digit. Own hand only:
+ * the null slot (the other side's hand, every card known) keeps today's term (scoreAnswer). `first`: the board after
+ * the answer itself.
  */
 function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean, first: GameState): number {
   const had = new Set(hand(before, side).map(c => c.instanceId));
+  const now = new Set(hand(after, side).map(c => c.instanceId));
   const known = pricing().known[side];
   const seen = known ? hand(after, side).filter(c => !had.has(c.instanceId) && known.has(c.instanceId)) : [];
+  const gone = hand(before, side).filter(c => !now.has(c.instanceId));
   const late = after === first ? [] : hand(after, side).filter(c => !had.has(c.instanceId) && !known?.has(c.instanceId) && !hand(first, side).some(f => f.instanceId === c.instanceId));
   const without = (cs: CardInstance[]) => {
     const ids = new Set(cs.map(c => c.instanceId));
@@ -87,8 +95,14 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
     const mBoard = without(seen);
     term += ownHandValue(after, side) - ownHandValue(mBoard, side) - (handCount(after, side, side) - handCount(mBoard, side, side));
   }
+  if (gone.length && known && !handByCard(side)) {
+    const ids = new Set(gone.map(c => c.instanceId));
+    const owner = ownHandValue(before, side) - ownHandValue(withHand(before, side, hand(before, side).filter(c => !ids.has(c.instanceId))), side);
+    const count = handCount(withHand(after, side, [...hand(after, side), ...gone]), side, side) - handCount(after, side, side);
+    term -= owner - count;
+  }
   const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
-  return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(before, hand(before, side), synergy));
+  return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(before, hand(before, side).filter(c => now.has(c.instanceId)), synergy));
 }
 
 /** `state` with `cards` taken from `side`'s hand and put at the bottom of its deck (a copy, only priced). */

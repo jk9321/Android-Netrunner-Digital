@@ -4,7 +4,7 @@
  * that board prices both answers: the branch's scoreAnswer (its chain followed to the end board) with the end boards'
  * terms (evaluate's Corp and Runner sides, the Corp's hand, board, credits and the rest), and base's (BASE tree) today's
  * one-step score of each answer, as base's fallback scored them.
- *   ARGS="BOARDS=batch:1731:169,batch:1771:258,batch:1691:79" npx vite-node scripts/f117/mercia.ts
+ *   ARGS="BOARDS=batch:1731:169,batch:1771:258,batch:1691:79 PLAYER=94ae7228e46cf1ae2359df38122c64fe7b697877" npx vite-node scripts/f117/mercia.ts
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
@@ -32,6 +32,13 @@ async function main() {
   execSync(`git archive ${BASE} src | tar -x -C ${join(root, 'base')}`);
   const base: any = await loadTree('base', join(root, 'base'));
   base.prompts = await import(/* @vite-ignore */ join(root, 'base', 'src', 'ai/prompts.ts'));
+  // The tree that plays the deal to the board (PLAYER: a commit, e.g. the step 0 run's 94ae722; default this checkout)
+  let player: any = null;
+  if (process.env.PLAYER) {
+    mkdirSync(join(root, 'player'), { recursive: true });
+    execSync(`git archive ${process.env.PLAYER} src | tar -x -C ${join(root, 'player')}`);
+    player = await loadTree('player', join(root, 'player'));
+  }
   const B: any = {
     core: await import('../../src/core'),
     decks: await import('../../src/data/decks'),
@@ -45,9 +52,10 @@ async function main() {
     const d = (JSON.parse(readFileSync(files[pool], 'utf8')) as any[]).find(x => String(x.seed) === seedS);
     const c = DECK_POOL.find(x => x.side === 'corp' && x.name === d.corpDeck)!;
     const r = DECK_POOL.find(x => x.side === 'runner' && x.name === d.runnerDeck)!;
-    const g = new B.po.GameRunner(B.core.createInitialGameState(B.decks.deckGameSetup(d.seed, c, r)), { corp: B.ai.createAgent('corp', 'normal'), runner: B.ai.createAgent('runner', 'normal') });
+    const P = player ?? { GameRunner: B.po.GameRunner, core: B.core, decks: B.decks, createAgent: B.ai.createAgent };
+    const g = new P.GameRunner(P.core.createInitialGameState(P.decks.deckGameSetup(d.seed, c, r)), { corp: P.createAgent('corp', 'normal'), runner: P.createAgent('runner', 'normal') });
     for (let i = 0; i < Number(stepS); i++) g.step();
-    const s: GameState = g.state;
+    const s: GameState = structuredClone(g.state);
     const p: any = B.core.activePrompt(s);
     if (p?.source?.cardCode !== '35045') {
       console.log(`${pool} ${seedS} step ${stepS}: not a Mercia prompt (${p?.source?.cardCode}:${p?.source?.step})`);

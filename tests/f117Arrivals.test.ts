@@ -5,11 +5,11 @@
  * Off the Books board: 12 credits and an iced empty remote, Send a Message's install preferred by 6.30).
  */
 import { describe, expect, it } from 'vitest';
-import { answer, installCorpForTest, installIceForTest, keepGoing, newGame, passTurn, scoreForTest } from './helpers';
+import { answer, giveCard, installCorpForTest, installIceForTest, keepGoing, newGame, passTurn, scoreForTest } from './helpers';
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { ALL_CARDS } from '../src/core/cards';
 import { createAgent } from '../src/ai';
-import { CHAIN_BUDGET, chainStats, scoreAnswer, scoreOutcome, simulate, withChainWork } from '../src/ai/prompts';
+import { CHAIN_BUDGET, answerPrompt, chainStats, scoreAnswer, scoreOutcome, simulate, withChainWork } from '../src/ai/prompts';
 import { evaluate, handCount, keepValue } from '../src/ai/evaluate';
 import { inDecision, ownHandValue, withKnownCards } from '../src/ai/handValues';
 
@@ -21,6 +21,7 @@ const PUBLIC_TRAIL = '30057';
 const RETRIBUTION = '30065';
 const EMINENT = '34122';
 const SPIN_DOCTOR = '30053';
+const MERCIA = '35045';
 
 const pick = (s: GameState, ids: string[]) => keepGoing(answer(s, { kind: 'effect_cards', cardInstanceIds: ids }));
 const choose = (s: GameState, optionId: string) => keepGoing(answer(s, { kind: 'effect_choice', optionId }));
@@ -131,6 +132,38 @@ describe('F117: a searched card priced by its owner', () => {
         expect(Math.abs(parts.wrong - parts.right), `HQ ${hq}`).toBeGreaterThan(0.1);
       });
     }
+  });
+
+  it('departures (the Mercia ruling): a card leaving the own hand is priced by its owner, its keep inside that price', () => {
+    let s = newGame();
+    installCorpForTest(s, MERCIA, 'remote-1', true);
+    const ice = giveCard(s, 'corp', PALISADE);
+    s.corp.clicks = 0;
+    s = executeAction(s, { type: 'END_TURN', player: 'corp' });
+    expect(activePrompt(s)).toMatchObject({ kind: 'effect_cards', source: { cardCode: MERCIA } });
+    // The install's end board: Palisade on R&D (the server step answered), Mercia moved with it
+    const first = simulate(s, resolve(s, cards([ice])))!;
+    const end = simulate(first, resolve(first, { kind: 'effect_choice', optionId: 'rd' }))!;
+    expect(end.corp.servers.rd.ice.some(c => c.instanceId === ice)).toBe(true);
+    const staying = s.corp.hq.filter(c => c.instanceId !== ice);
+    const sum = (b: GameState, cs: CardInstance[]) => cs.reduce((n, c) => n + keepValue(b, c), 0);
+    const withIce = { ...end, corp: { ...end.corp, hq: [...end.corp.hq, findCardAnywhere(s, ice)!] } };
+    const noIce = { ...s, corp: { ...s.corp, hq: staying } };
+    inDecision(s, 'corp', () => {
+      const got = scoreOutcome(s, end, 'corp', undefined, false, end);
+      const owner = ownHandValue(s, 'corp') - ownHandValue(noIce, 'corp');
+      const count = handCount(withIce, 'corp', 'corp') - handCount(end, 'corp', 'corp');
+      const staysKeep = 0.5 * (sum(end, end.corp.hq.filter(c => staying.some(x => x.instanceId === c.instanceId))) - sum(s, staying));
+      expect(got).toBeCloseTo(evaluate(end, 'corp') - (owner - count) + staysKeep, 9);
+      // Today's term (the count's price and the card's half keep) is not what is read
+      expect(Math.abs(scoreOutcome(s, end, 'corp') - got)).toBeGreaterThan(0.1);
+    });
+    // The null slot (the Corp's hand inside a Runner decision) keeps today's term
+    inDecision(s, 'runner', () => {
+      const a = resolve(s, cards([ice]));
+      const chainEnd = simulate(first, answerPrompt(first, 'corp'))!;
+      expect(scored(s, a)).toBe(scoreOutcome(s, chainEnd, 'corp'));
+    });
   });
 
   it('bar 4: the null slot (a Corp prompt priced inside a Runner decision) keeps today\'s hand term to the digit', () => {
