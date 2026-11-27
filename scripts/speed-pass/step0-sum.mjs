@@ -14,6 +14,8 @@ const timers = {};
 const reps = {};
 const B = {};
 const content = {};
+const makers = {};
+const exec = {};
 const over = { corp: { n: 0, ms: 0 }, runner: { n: 0, ms: 0 } };
 const errors = [];
 const calib = [];
@@ -64,8 +66,22 @@ for (const f of files)
         x.same = addArr(x.same, c.same);
         x.other = addArr(x.other, c.other);
         x.verified = addArr(x.verified, c.verified);
+        x.sameObj = addArr(x.sameObj ?? [0, 0], c.sameObj ?? [0, 0]);
         for (const [p, m] of Object.entries(c.differ ?? {})) x.differ[p] = (x.differ[p] ?? 0) + m;
       }
+    for (const [k, v] of Object.entries(o.makers ?? {}))
+      for (const [n, sigs] of Object.entries(v))
+        for (const [sig, m] of Object.entries(sigs)) {
+          const x = (((makers[k] ??= {})[n] ??= {})[sig] ??= { n: 0, ms: 0, logEq: 0 });
+          x.n += m.n;
+          x.ms += m.ms;
+          x.logEq += m.logEq;
+        }
+    for (const [k, e] of Object.entries(o.exec ?? {})) {
+      const x = (exec[k] ??= { n: 0, ms: 0, dup: 0, dupMs: 0, sites: {} });
+      for (const f2 of ['n', 'ms', 'dup', 'dupMs']) x[f2] += e[f2] ?? 0;
+      for (const [sig, m] of Object.entries(e.sites ?? {})) x.sites[sig] = addArr(x.sites[sig], m);
+    }
   }
 
 const s1 = x => (x / 1000).toFixed(1);
@@ -101,6 +117,27 @@ for (const k of order) {
   if (Object.keys(r).length) console.log(`  Lever D, repeats on the same board object and frame (n, s): ${Object.entries(r).map(([n, x]) => `${n} ${x[0]} ${s1(x[1])} s (${pct(x[1], of)})`).join(', ')}`);
   const c = content[k] ?? {};
   for (const [n, x] of Object.entries(c))
-    console.log(`  content repeats ${n}: asked ${x.asked} (in the clock ${x.inClock}); same frame ${x.same[0]} ${s1(x.same[1])} s (in the clock ${x.inClockSame}); other frame ${x.other[0]} ${s1(x.other[1])} s; verified whole state equal ${x.verified[1]} of ${x.verified[0]}${x.verified[0] - x.verified[1] ? `; differ ${Object.entries(x.differ).sort((p, q) => q[1] - p[1]).slice(0, 4).map(([p, m]) => `${p} ${m}`).join(', ')}` : ''}`);
+    console.log(`  content repeats ${n}: asked ${x.asked} (in the clock ${x.inClock}); same frame ${x.same[0]} ${s1(x.same[1])} s (in the clock ${x.inClockSame}; the same object again ${x.sameObj[0]} ${s1(x.sameObj[1])} s); other frame ${x.other[0]} ${s1(x.other[1])} s; verified whole state equal ${x.verified[1]} of ${x.verified[0]}${x.verified[0] - x.verified[1] ? `; differ ${Object.entries(x.differ).sort((p, q) => q[1] - p[1]).slice(0, 4).map(([p, m]) => `${p} ${m}`).join(', ')}` : ''}`);
+  // Step 0b: the makers of the verified equal same-frame repeats, sampled (one repeat in VERIFY is checked); the scale
+  // takes the sample to all repeats of the name on distinct objects (same + other frame, less the same object again)
+  const mk = makers[k] ?? {};
+  for (const [n, sigs] of Object.entries(mk)) {
+    const x = c[n];
+    const scale = x && x.verified[0] ? (x.same[0] + x.other[0] - x.sameObj[0]) / x.verified[0] : 0;
+    const byHow = {};
+    for (const [sig, m] of Object.entries(sigs)) {
+      const how = sig.split(' | ')[0];
+      const h = (byHow[how] ??= { n: 0, ms: 0 });
+      h.n += m.n;
+      h.ms += m.ms;
+    }
+    console.log(`  makers of ${n}'s equal repeats (sampled; x${scale.toFixed(1)} for all): ${Object.entries(byHow).sort((p, q) => q[1].ms - p[1].ms).map(([h, m]) => `${h} ${m.n} (${s1(m.ms)} s, est ${s1(m.ms * scale)} s = ${pct(m.ms * scale, of)})`).join('; ')}`);
+    for (const [sig, m] of Object.entries(sigs).sort((p, q) => q[1].ms - p[1].ms).slice(0, 6)) console.log(`    ${m.n} (${s1(m.ms)} s, est ${pct(m.ms * scale, of)}; logs equal ${m.logEq}) ${sig}`);
+  }
+  const e = exec[k];
+  if (e) {
+    console.log(`  executeAction: ${e.n} (${s1(e.ms)} s, ${pct(e.ms, of)}); the same (board, action) again ${e.dup} (${s1(e.dupMs)} s, ${pct(e.dupMs, of)})`);
+    for (const [sig, m] of Object.entries(e.sites).sort((p, q) => q[1][1] - p[1][1]).slice(0, 6)) console.log(`    ${m[0]} sampled (${s1(m[1])} s) ${sig}`);
+  }
 }
-if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ deals, errors, kinds, timers, reps, B, content, over, calib: per }));
+if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ deals, errors, kinds, timers, reps, B, content, makers, exec, over, calib: per }));
