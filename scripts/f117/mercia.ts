@@ -77,6 +77,10 @@ async function main() {
           end = B.prompts.simulate(end, next);
         }
         const where = (a as any).choice.cardInstanceIds.map((id: string) => Object.values(end.corp.servers).find((sv: any) => sv.ice.some((x: any) => x.instanceId === id))?.id ?? 'not installed');
+        const left = s.corp.hq.filter(x => !end.corp.hq.some((y: any) => y.instanceId === x.instanceId));
+        const ownLoss = left.length ? B.hv.ownHandValue(s, 'corp') - B.hv.ownHandValue({ ...s, corp: { ...s.corp, hq: s.corp.hq.filter(x => !left.includes(x)) } }, 'corp') : 0;
+        const countLoss = left.length ? B.ev.handCount(s, 'corp', 'corp') - B.ev.handCount({ ...s, corp: { ...s.corp, hq: s.corp.hq.filter(x => !left.includes(x)) } }, 'corp', 'corp') : 0;
+        if (left.length) console.log(`   ${label(a)}: the owner prices the card leaving HQ at ${r2(ownLoss)} (the count at ${r2(countLoss)})`);
         console.log(`   ${label(a)}: branch score ${r2(score)}; chain ${steps.join(' ') || '-'} -> ice on ${where.join(',') || '-'}; end board ${JSON.stringify(terms(end))}; one-step board ${JSON.stringify(terms(after))}, set aside ${(after.setAside ?? []).length}, HQ ${after.corp.hq.length}`);
       }
     });
