@@ -384,12 +384,15 @@ describe('AI code health (audit guards)', () => {
   // the valuation cycle, so nextTurnMoney.ts joins it: cardPlans, cardProfiles, cardValues, cards/{elevation, index,
   // liberation, systemGateway, vantagePoint}, counterValues, effectValues, evaluate, handValues, iceValues, nextTurnMoney,
   // prompts, runs, threatModel. A copy of the money in handValues would keep 16 and break one owner per quantity.
-  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 17 modules (29 before R8)', () => {
+  // 17 to 18 (ai-punisher-field, F119-S addendum-structure.md item 2): freeRez.ts's pendingFreeRezzes reads the free-rez tag
+  // use from the card entries (cards/, in the cycle), in place of Unleash's code, so freeRez.ts joins it. A code list in
+  // freeRez.ts would keep 17 and leave a new set's free-rez card out.
+  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 18 modules (29 before R8)', () => {
     const found = cycles(importGraph());
     expect(found.filter(c => c.some(f => f.startsWith('corp/'))), 'corp/ reads the valuation layer; the layer reads corp/ only through corpPorts.ts').toEqual([]);
     // R-B B1 (and the Corp side's conditions for parking the cycle below, tracker R-28): runner/ holds the order only
     expect(found.filter(c => c.some(f => f.startsWith('runner/'))), 'runner/ reads the agent only through its context (runner/core.ts RunnerContext)').toEqual([]);
-    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(17);
+    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(18);
   });
 
   // R-B B1, tracker R-28 (parked by both coordinators 2026-11-24): the cycle that holds the Runner agent is these four and
@@ -878,10 +881,14 @@ describe('AI code health (audit guards)', () => {
   // beta, chanceSets and CHANCE_SETS gone): src/ai 17,538
   // Then the merge of beta 7724180 (B4b) into ai-deck-arrivals: F117's + 537 on the tag clock's 17,001 (to 17,538), on B4b's
   // 17,025: src/ai 17,562
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,562 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-deck-arrivals)', () => {
+  // Then + 218 in src/ai (ai-punisher-field, F119-S addendum-structure.md: the TagUse type, 17 tagUse entries with their card
+  // text, ipPick, the clock's tagPunisher, freeRez and the two hand plans reading the field), on 17,025: corp/ 3,981, src/ai 17,243
+  // Then the merge of beta 6a7731e (F119-S) into ai-deck-arrivals: F119-S's + 218 and F117's + 537, both on B4b's 17,025:
+  // src/ai 17,780
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,780 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3981;
-    const AI_CAP = 17562;
+    const AI_CAP = 17780;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

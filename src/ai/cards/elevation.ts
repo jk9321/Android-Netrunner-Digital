@@ -130,6 +130,20 @@ function breaksRezzedIce(state: GameState, breaker: CardInstance): boolean {
   return Object.values(state.corp.servers).some(server => server.ice.some(ice => ice.isRezzed && (breaks === 'any' || iceSubtypes(ice, state).includes(breaks))));
 }
 
+/** IP Enforcement's agenda (F119): one in the Runner's score area with printed points X, 1 <= X <= n (the engine's ipTargets,
+ * core/scripts/elevation/corp/operations.ts), the most points, then the lowest printed requirement. Public: the score area. */
+function ipPick(state: GameState, n: number): { points: number; cost: number } | undefined {
+  let best: { points: number; cost: number } | undefined;
+  for (const a of state.runner.scoreArea) {
+    const def = cardDef(a);
+    const points = def.agenda_points ?? 0;
+    const cost = def.advancement_cost ?? 0;
+    if (points < 1 || points > n) continue;
+    if (!best || points > best.points || (points === best.points && cost < best.cost)) best = { points, cost };
+  }
+  return best;
+}
+
 export const ELEVATION: Record<string, CardAI> = {
   // Ryō "Phoenix" Ōno
   '35001': { synergy: { gives: { denial: 0.5 }, wants: { runs: 1, hq: 0.5 } } },
@@ -507,7 +521,17 @@ export const ELEVATION: Record<string, CardAI> = {
   // Nebula Talent Management
   '35057': { synergy: { wants: { operations: 2 }, when: ['successfulRun'] } },
   // Synapse Global
-  '35058': { synergy: { gives: { econ: 0.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
+  '35058': {
+    synergy: { gives: { econ: 0.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] },
+    tagUse: {
+      // F119: "[click], remove 1 tag: Gain 2 credits." and "The first time each turn a tag is removed, you may reveal and install 1
+      // card from HQ, ignoring all costs." (the click's tag as the first removal on the Corp's next turn; HQ's size only)
+      from: 'identity',
+      needs: 1,
+      spends: () => 1,
+      does: state => ({ corpCredits: 2, install: state.corp.hq.length > 0 ? 1 : 0 }),
+    },
+  },
   // Embedded Reporting
   '35059': {
     dividends: 2,
@@ -547,13 +571,41 @@ export const ELEVATION: Record<string, CardAI> = {
     },
   },
   // Doomscroll
-  '35063': { synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged'] } },
+  '35063': {
+    synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged'] },
+    // F119: "Do 2 net damage if the Runner has at least 2 tags." (a subroutine, during a run)
+    tagUse: { from: 'run', needs: 2, spends: () => 0, does: () => ({ damage: 2 }) },
+  },
   // N-Pot
   '35064': { synergy: { gives: { ice: 1, denial: 0.5 }, when: ['threat'] } },
   // Bigger Picture
-  '35065': { synergy: { gives: { denial: 1.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] } },
+  '35065': {
+    synergy: { gives: { denial: 1.5 }, wants: { tags: 1.5 }, when: ['ifTagged'] },
+    tagUse: {
+      // F119: "Remove any number of tags. The Runner loses 5 credits for each tag removed this way. Gain credits equal to the
+      // number of credits the Runner lost." Tags past ceil(credits / 5) buy nothing (rule 1.10.3b). cardPlans.ts reads it
+      from: 'hq',
+      needs: 1,
+      spends: (state, n) => Math.min(n, Math.ceil(state.runner.credits / 5)),
+      does: (state, n) => ({ runnerCredits: Math.min(state.runner.credits, 5 * n), corpCredits: Math.min(state.runner.credits, 5 * n) }),
+    },
+  },
   // IP Enforcement
-  '35066': { synergy: { wants: { tags: 1 }, when: ['ifTagged'] } },
+  '35066': {
+    synergy: { wants: { tags: 1 }, when: ['ifTagged'] },
+    tagUse: {
+      // F119: "As an additional cost to play this operation, remove X tags. Install 1 agenda from the Runner's score area with a
+      // printed agenda point value equal to X. If the Runner is still tagged, place 1 advancement counter on that agenda."
+      // (X is an additional cost, rules 1.16.10 and 1.16.2c)
+      from: 'hq',
+      needs: 1,
+      spends: (state, n) => ipPick(state, n)?.points ?? 0,
+      does: (state, n) => {
+        const pick = ipPick(state, n);
+        return pick ? { runnerPoints: pick.points, corpAgenda: { counters: n > pick.points ? 1 : 0, cost: pick.cost, points: pick.points } } : {};
+      },
+    },
+  },
   // Touch-ups
   '35067': { synergy: { gives: { advance: 2 } }, setup: true },
   // BANGUN
@@ -611,7 +663,11 @@ export const ELEVATION: Record<string, CardAI> = {
   // "When you rez this ice during a run against this server, purge virus counters"
   '35079': { synergy: { gives: { ice: 1 } }, rezEffect: true, holdFacts: { rezDuringRun: { purgeVirus: true } } },
   // Lamplighter
-  '35080': { synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] } },
+  '35080': {
+    synergy: { gives: { ice: 1, tags: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'onScore'] },
+    // F119: "End the run if the Runner is tagged." (a subroutine, during a run)
+    tagUse: { from: 'run', needs: 1, spends: () => 0, does: () => ({ endRun: 1 }) },
+  },
   // Petty Cash
   // Petty Cash: from Archives, a click plays it again (net 2 credits and the click back), then it is removed from the game
   '35081': { synergy: { gives: { econ: 1 } }, archived: () => PETTY_CASH_REPLAY },
