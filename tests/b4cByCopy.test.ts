@@ -99,6 +99,31 @@ describe('B4c part 1: copies of one title are known by copy (10.2.2b)', () => {
     expect(counts).toEqual([[[SG.hedgeFund, 2]], [[SG.hedgeFund, 2]]]);
   });
 
+  it('a 2-card HQ fully accessed ends knowing exactly the 2 cards seen, whichever copy left unseen (bar 3, NRDB 1651)', () => {
+    // Base kept a stale Hedge Fund beside the new sighting, so its list outgrew HQ and the trim dropped the Palisade it
+    // had just seen (ruling 25: knowing what open information gives is not a leak)
+    const counts = [0, 1].map(gone => {
+      const { s: s0 } = twoCopies();
+      let s = act(s0, n => revealInHand(n, 'corp', [n.corp.hq[2]]));
+      s = act(s, n => revealInHand(n, 'corp', [n.corp.hq[gone]]));
+      s = act(s, n => n.corp.archives.faceDown.push(n.corp.hq.splice(gone, 1)[0]));
+      expect(certainInHand(s, 'corp')).toEqual([]);
+      s = act(s, n => {
+        n.activeRun = { server: 'hq', accessed: [] } as unknown as GameState['activeRun'];
+        for (const c of [n.corp.hq[1], n.corp.hq[0]]) {
+          revealInHand(n, 'corp', [c]);
+          n.activeRun!.accessed.push({ id: c.instanceId, inArchives: false });
+        }
+      });
+      expect(s.corp.knownToRunner?.length).toBe(2);
+      return certainInHand(s, 'corp');
+    });
+    expect(counts).toEqual([
+      [[SG.palisade, 1], [SG.hedgeFund, 1]],
+      [[SG.palisade, 1], [SG.hedgeFund, 1]],
+    ]);
+  });
+
   it('an arrival is always its own entry: a seen card returned to HQ beside a seen copy is two', () => {
     const { s: s0, a } = twoCopies();
     let s = act(s0, n => revealInHand(n, 'corp', [n.corp.hq[1]]));
