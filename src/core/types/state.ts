@@ -56,6 +56,12 @@ export interface RdKnownCard {
    * out; rdSharesKnownToRunner() reads them.
    */
   n0?: number;
+  /**
+   * While `left` is 'hq' the card may already be in HQ, so each HQ card that leaves unseen could be it (rules 1.12.3,
+   * 4.6.6d: a card installed facedown stays hidden). Those departures, counted like KnownHandCard.lost, go with the card
+   * into the cards known in HQ once it has certainly been drawn. See updateHandKnowledge().
+   */
+  lost?: KnownLosses;
 }
 
 /** What the Runner saw happen to R&D during one action, beyond what the change itself shows. */
