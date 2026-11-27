@@ -10,10 +10,20 @@
  *   nokey  this checkout's src with the two iceProtects key strings put back as on beta 701f9ee (the audit kept):
  *          beta's own play with the audit added
  *
+ * MODE=step0 (items 1-5, 7, 10, 12 and the time of item 5 / bar 11, as counts): the branch (this checkout's src) plays
+ * each deal; at every top-level decision a fresh agent of the base tree (BASE, default F117 commit 3 b4c26a9: today's
+ * prompts, the step before the design) and a fresh agent of the branch are asked on copies of the state, in a turn that
+ * rotates, each timed by side and kind (main, prompt, off, rez). Per prompt: its source, the base and branch answers,
+ * the cards each answer names with their zone, whether any answer brings a card into the side's hand (an arrival is
+ * possible), the hand against its limit, and the branch's chain counts made while it answered (prompts.ts chainStats:
+ * widened, capped, aside, used, rootRunner). Main decisions: whether the pick differs.
+ *   ARGS="MODE=step0 POOL=batch DEALS=1001 MAX_STEPS=300" npx vite-node scripts/f117/count.ts
+ *
  *   ARGS="POOL=batch DEALS=1001 MAX_STEPS=200" npx vite-node scripts/f117/count.ts
  *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb MODE=audit
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GameState } from '../../src/core';
@@ -32,7 +42,8 @@ const DEALS = (process.env.DEALS ?? '').split(',').filter(Boolean);
 const MAX_STEPS = Number(process.env.MAX_STEPS ?? 4000);
 const MAX_MS = Number(process.env.MAX_MS ?? Infinity);
 const MODE = process.env.MODE ?? 'audit';
-const TREES = (process.env.TREES ?? 'nokey,key').split(',');
+const TREES = (process.env.TREES ?? (MODE === 'step0' ? 'base,branch' : 'nokey,key')).split(',');
+const BASE = process.env.BASE ?? 'b4c26a9';
 const started = Date.now();
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
 
@@ -42,13 +53,33 @@ const NOKEY: Patch[] = [
   ['ai/iceValues.ts', 'memo(state, `iceProtects:hand:${ice.cardCode}:${unseenKey(state)}`', 'memo(state, `iceProtects:hand:${ice.cardCode}`'],
   ['ai/iceValues.ts', "memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}:${unseenKey(state)}`", "memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`"],
 ];
-const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY };
+const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: [], base: [] };
+
+/** BASE's commit in this clone (a shallow CI checkout fetches it; the shards wait on git's shallow lock in turn). */
+function fetchBase() {
+  for (let tries = 0; ; tries++) {
+    try {
+      execSync(`git cat-file -e ${BASE}^{commit}`, { stdio: 'ignore' });
+      return;
+    } catch {
+      try {
+        execSync(`git fetch --depth 1 origin ${BASE}`, { stdio: 'ignore' });
+      } catch (e) {
+        if (tries >= 8) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 + 700 * (shard % 4));
+      }
+    }
+  }
+}
 
 function makeTree(name: string): string {
   const dir = join(root, name);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  cpSync('src', join(dir, 'src'), { recursive: true });
+  if (name === 'base') {
+    fetchBase();
+    execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
+  } else cpSync('src', join(dir, 'src'), { recursive: true });
   const patches = TREE_PATCHES[name];
   if (!patches) throw new Error(`no tree ${name} (${Object.keys(TREE_PATCHES).join(', ')})`);
   for (const [f, at, to] of patches) {
@@ -69,7 +100,7 @@ function dealState(t: Tree, d: Deal): GameState {
   return t.core.createInitialGameState(t.decks.deckGameSetup(d.seed, c, r));
 }
 
-type Loaded = Tree & { vm: any };
+type Loaded = Tree & { vm: any; prompts: any; po: any };
 
 function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   for (const [name, t] of Object.entries(trees)) {
@@ -105,12 +136,154 @@ function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   }
 }
 
+
+// ------------------------------------------------------------------------------------------------ step 0
+type Side = 'corp' | 'runner';
+function decisionOf(core: any, s: GameState): { side: Side; kind: string } | null {
+  const side = core.actingSide(s);
+  if (!side || s.winner) return null;
+  const w = s.priority;
+  if (s.pendingPrompts.length === 0 && w && w.holder !== s.activePlayer) {
+    const want = core.wantsStop(s, side, w);
+    if (want && side === 'corp' && (w.step === 'approach_ice' || w.step === 'approach_server')) return { side, kind: 'rez' };
+    if (want && side === 'runner' && w.step === 'corp_action') return { side, kind: 'off' };
+    return null;
+  }
+  return { side, kind: core.activePrompt(s) ? 'prompt' : 'main' };
+}
+/** Where card `id` is on `s` (the arrival's origin zone, item 1). */
+function zoneOf(s: GameState, id: string): string {
+  const has = (cs: { instanceId: string; hosted?: any[] }[] | undefined): boolean => !!cs?.some(c => c.instanceId === id || has(c.hosted));
+  if (s.corp.rd.some(c => c.instanceId === id)) return 'rd';
+  if (s.corp.hq.some(c => c.instanceId === id)) return 'hq';
+  if (has(s.corp.archives.faceUp) || has(s.corp.archives.faceDown)) return 'archives';
+  if (s.runner.stack.some(c => c.instanceId === id)) return 'stack';
+  if (s.runner.grip.some(c => c.instanceId === id)) return 'grip';
+  if (s.runner.heap.some(c => c.instanceId === id)) return 'heap';
+  if (has(s.setAside as any)) return 'aside';
+  for (const sv of Object.values(s.corp.servers)) {
+    if (sv.ice.some(c => c.instanceId === id) || sv.root.some(c => c.instanceId === id)) return 'table';
+    if (has(sv.ice as any) || has(sv.root as any)) return 'host';
+  }
+  if (has(s.runner.rig as any)) return 'rig';
+  return 'other';
+}
+const handOf = (s: GameState, side: Side) => (side === 'corp' ? s.corp.hq : s.runner.grip);
+/** The ids an answer names (its choice's card ids and option ids, and an install's card). */
+function named(a: any): string[] {
+  const c = a?.choice ?? {};
+  return [...(c.cardInstanceIds ?? []), ...(typeof c.cardInstanceId === 'string' ? [c.cardInstanceId] : []), ...(typeof a?.cardInstanceId === 'string' ? [a.cardInstanceId] : [])];
+}
+const copyStats = (cs: any) => ({ widened: new Map(cs.widened), capped: new Map(cs.capped), aside: new Map(cs.aside), used: cs.used.length, rootRunner: cs.rootRunner });
+function statsDelta(cs: any, was: ReturnType<typeof copyStats>) {
+  const d = (m: Map<string, number>, w: Map<string, number>) => Object.fromEntries([...m].filter(([k, v]) => v !== (w.get(k) ?? 0)).map(([k, v]) => [k, v - (w.get(k) ?? 0)]));
+  return { widened: d(cs.widened, was.widened), capped: d(cs.capped, was.capped), aside: d(cs.aside, was.aside), used: cs.used.slice(was.used), rootRunner: cs.rootRunner - was.rootRunner };
+}
+
+function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
+  const names = Object.keys(trees);
+  const B = trees.branch;
+  if (!B || !trees.base) throw new Error('MODE=step0 needs TREES=base,branch');
+  for (const t of Object.values(trees)) t.clear();
+  const g = new B.GameRunner(dealState(B, d), { corp: B.createAgent('corp', 'normal'), runner: B.createAgent('runner', 'normal') });
+  const time: Record<string, Record<string, { ms: number; n: number }>> = Object.fromEntries(names.map(n => [n, {}]));
+  const prompts: Record<string, unknown>[] = [];
+  const mains = { corp: { n: 0, differ: 0 }, runner: { n: 0, differ: 0 } };
+  const errors: string[] = [];
+  const chains: Record<string, any> = {};
+  let steps = 0;
+  for (let i = 0; i < MAX_STEPS; i++) {
+    const s: GameState = g.state;
+    const dec = decisionOf(B.core, s);
+    if (dec) {
+      const answers: Record<string, any> = {};
+      let stats: ReturnType<typeof statsDelta> | null = null;
+      const order = names.map((_, k) => names[(k + i) % names.length]);
+      for (const n of order) {
+        const t = trees[n];
+        const copy = structuredClone(s);
+        const agent = t.createAgent(dec.side, 'normal');
+        const was = n === 'branch' ? copyStats(t.prompts.chainStats) : null;
+        const t0 = performance.now();
+        try {
+          answers[n] = dec.kind === 'rez' ? (agent.chooseRez?.(copy, t.po.rezCandidates(copy, copy.priority!.step)) ?? null) : dec.kind === 'off' ? (agent.chooseOffTurn?.(copy) ?? null) : agent.chooseAction(copy);
+        } catch (e) {
+          answers[n] = { error: (e as Error).message.slice(0, 120) };
+          if (errors.length < 5) errors.push(`${n} step ${i}: ${(e as Error).message.slice(0, 160)}`);
+        }
+        const k = (time[n][`${dec.side}:${dec.kind}`] ??= { ms: 0, n: 0 });
+        k.ms += performance.now() - t0;
+        k.n++;
+        if (was) stats = statsDelta(t.prompts.chainStats, was);
+      }
+      const differ = JSON.stringify(answers.base) !== JSON.stringify(answers.branch);
+      if (stats) {
+        const agg = (chains[`${dec.side}:${dec.kind}`] ??= { widened: {}, capped: {}, aside: {}, used: { n: 0, sum: 0, max: 0, over: {} }, rootRunner: 0 });
+        for (const f of ['widened', 'capped', 'aside'] as const) for (const [k, v] of Object.entries(stats[f])) agg[f][k] = (agg[f][k] ?? 0) + (v as number);
+        for (const u of stats.used) {
+          agg.used.n++;
+          agg.used.sum += u;
+          agg.used.max = Math.max(agg.used.max, u);
+          for (const b of [10, 25, 50, 100, 150]) if (u > b) agg.used.over[b] = (agg.used.over[b] ?? 0) + 1;
+        }
+        agg.rootRunner += stats.rootRunner;
+      }
+      if (dec.kind === 'main') {
+        mains[dec.side].n++;
+        if (differ) mains[dec.side].differ++;
+      } else if (dec.kind === 'prompt') {
+        const p: any = B.core.activePrompt(s);
+        const legal = B.core.getLegalActions(s, dec.side).filter((a: any) => a.type === 'RESOLVE_PROMPT');
+        const had = new Set(handOf(s, dec.side).map(c => c.instanceId));
+        const arrivalPossible = legal.some((a: any) => {
+          try {
+            const after = B.core.executeAction(structuredClone(s), a);
+            return handOf(after, dec.side).some((c: { instanceId: string }) => !had.has(c.instanceId));
+          } catch {
+            return false;
+          }
+        });
+        const zones = (a: any) => named(a).map(id => `${B.cards[B.core.findCardAnywhere(s, id)?.cardCode]?.type_code ?? '?'}@${zoneOf(s, id)}`);
+        const st = stats!;
+        const chained = Object.keys(st.widened).length + Object.keys(st.capped).length + Object.keys(st.aside).length + st.used.length + st.rootRunner > 0;
+        if (differ || chained || arrivalPossible)
+          prompts.push({
+            step: i,
+            T: s.turnNumber,
+            side: dec.side,
+            src: p && 'source' in p ? `${p.source.cardCode}:${p.source.step ?? ''}` : p?.kind,
+            title: p && 'source' in p ? B.cards[p.source.cardCode]?.title : undefined,
+            pk: p?.kind,
+            n: legal.length,
+            differ,
+            arrivalPossible,
+            hand: handOf(s, dec.side).length,
+            limit: dec.side === 'corp' ? s.corp.handSizeLimit : s.runner.handSizeLimit,
+            base: { names: named(answers.base), zones: zones(answers.base) },
+            branch: { names: named(answers.branch), zones: zones(answers.branch) },
+            ...(chained ? { chain: st } : {}),
+          });
+        promptsSeen[dec.side]++;
+      }
+    }
+    if (!g.step()) break;
+    steps++;
+  }
+  const ms = Object.fromEntries(names.map(n => [n, Object.fromEntries(Object.entries(time[n]).map(([k, v]) => [k, { ms: Math.round(v.ms), n: v.n }]))]));
+  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, errors });
+  promptsSeen.corp = 0;
+  promptsSeen.runner = 0;
+}
+const promptsSeen = { corp: 0, runner: 0 };
+
 async function main() {
   const trees: Record<string, Loaded> = {};
   for (const name of TREES) {
     const dir = makeTree(name);
     const t = (await loadTree(name, dir)) as Loaded;
     t.vm = await import(/* @vite-ignore */ join(dir, 'src', 'ai/valueModel.ts'));
+    t.prompts = await import(/* @vite-ignore */ join(dir, 'src', 'ai/prompts.ts'));
+    t.po = await import(/* @vite-ignore */ join(dir, 'src', 'ai/playout.ts'));
     trees[name] = t;
   }
   const recs = (file: string) => JSON.parse(readFileSync(file, 'utf8')) as Deal[];
@@ -128,6 +301,7 @@ async function main() {
     if (Date.now() - started > MAX_MS) break;
     try {
       if (MODE === 'audit') auditDeal(src.pool, src.d, trees);
+      else if (MODE === 'step0') step0Deal(src.pool, src.d, trees);
       else throw new Error(`unknown MODE ${MODE}`);
     } catch (e) {
       out({ kind: 'error', pool: src.pool, seed: src.d.seed, error: (e as Error).stack?.slice(0, 400) });
