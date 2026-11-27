@@ -839,16 +839,25 @@ describe('AI code health (audit guards)', () => {
   // 16,813: corp/ 3,982, src/ai 16,872
   // Then + 1 in src/ai (ai-runner-hidden-zones, B4 brief rev 1d: runner/prompt.ts's shownByState freezes the asked
   // board, F3's tripwire, its import): corp/ 3,982, src/ai 16,873
-    // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
-    // B1b's 16,879: corp/ 3,981, src/ai 16,939
+  // Then the merge of beta 3680b7f (B1b) into ai-runner-hidden-zones: B4a's + 60 above, measured on 16,813, on
+  // B1b's 16,879: corp/ 3,981, src/ai 16,939
   // Then + 28 in src/ai (ai-b4a-knowledge-fix, R-109: runnerReply.ts's safety net, a deal whose slot finds no code is
   // dealt again unkept in play, counted and logged; a throw under frameChecks): corp/ 3,981, src/ai 16,967
   // Then + 34 in src/ai (ai-tag-clock-input, F114 + F110 brief rev 2, ruling 3: valueModel.ts creditsLessCost, evaluate.ts
   // tagLoss's trash cost with N1 and the per-view punisher, their comments), on R-109's 16,967: corp/ 3,981, src/ai 17,001
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,001 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input)', () => {
+  // B4b, merged after the tag clock (totals on its 17,001).
+  // Then + 16 in src/ai (ai-runner-hidden-zones, B4b (a): the deal gives a root slot only a kind it can be, with its
+  // comment): corp/ 3,981, src/ai 17,017
+  // Then + 5 in src/ai (ai-runner-hidden-zones, B4b (b): remoteAgendaOdds reads the root kinds, with its comment and
+  // import): corp/ 3,981, src/ai 17,022
+  // Then + 1 in src/ai (ai-runner-hidden-zones, B4b (c): no trap share in an upgrade-only root card, with its comment):
+  // corp/ 3,981, src/ai 17,023
+  // Then + 2 in src/ai (ai-runner-hidden-zones, B4b (d): corpBoardValue's agenda share by root kind, its comment and
+  // import; evaluate.ts open for this hunk only, Corp side rev 1c): corp/ 3,981, src/ai 17,025
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,025 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3981;
-    const AI_CAP = 17001;
+    const AI_CAP = 17025;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

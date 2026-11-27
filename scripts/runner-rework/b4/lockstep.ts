@@ -55,7 +55,8 @@ if (process.env.CHAIN) {
     const run = spawnSync('npx', ['vite-node', 'scripts/runner-rework/b4/lockstep.ts'], { env, encoding: 'utf8', maxBuffer: 1 << 30 });
     for (const line of (run.stdout ?? '').split('\n')) if (line.startsWith('{')) console.log(`{"pair":${JSON.stringify(label)},${line.slice(1)}`);
     if (run.status !== 0) console.log(JSON.stringify({ kind: 'error', pair: label, error: (run.stderr ?? '').slice(-400) }));
-    rmSync(dir, { recursive: true, force: true });
+    // this shard's trees only: the job runs several shards at once under the same chain-<i> folder
+    rmSync(join(dir, (process.env.SHARD ?? '0/1').split('/')[0]), { recursive: true, force: true });
   }
   process.exit(0);
 }

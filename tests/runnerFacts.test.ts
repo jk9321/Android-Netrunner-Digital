@@ -49,6 +49,12 @@ describe('the golden boards (leg 1c)', () => {
   // an unrezzed host recorded none and keeps the -3, now RUNNER_TERMS.facedownTrojanHost) and the list sorts again. The extra
   // itself has no reader left, so it leaves the readers and the live list. Every other recorded number compares as recorded;
   // the file is not edited.
+  // B4b (b), brief b4-hidden-zones ruling 9 case (iv): one golden number moves, on one twin. The unrezzed Manegarm twin has
+  // two facedown cards in remote-1's root (Manegarm and an advanced Offworld Office), and a remote root holds one agenda
+  // or asset (rules 3.2.1, 3.3.1, 4.6.6e): the unadvanced card is an agenda at A / (U + 2 (A + S)) of the unseen pool, not
+  // A / (A + S + U), so the run scores 17.1517 rather than 20.6809. The advanced card's odds, the board and every other
+  // board and twin are unchanged; the file is not edited.
+  const B4B_TWIN: Record<string, Record<string, number>> = { 'Manegarm Skunkworks / rezzed, clicks cover it': { runScore: 17.1517 } };
   const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
   const B3B = (readers: Record<string, any>) => {
     if (!('trojanHostValue' in readers)) return readers;
@@ -68,7 +74,7 @@ describe('the golden boards (leg 1c)', () => {
       got.twin = lessDraws(got.twin);
       expect(got.board).toEqual(want.board);
       expect(got.readers).toEqual({ ...B3B(want.readers), ...F108[`${want.case} / ${want.branch}`] });
-      expect(got.twin).toEqual(B3B(want.twin));
+      expect(got.twin).toEqual({ ...B3B(want.twin), ...B4B_TWIN[`${want.case} / ${want.branch}`] });
       expect(got.live).toEqual(B3BLive(want.live));
     });
   }
