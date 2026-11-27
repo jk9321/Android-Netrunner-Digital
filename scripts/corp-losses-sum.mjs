@@ -24,6 +24,10 @@ if (base.length) {
 }
 printBrokeAfterScoring(games, base.length ? readGames(base) : []);
 printLossSummary(games);
+// R-109's safety net (runnerReply.ts dealFallbacks): always printed, so a batch shows it ran with the count; quiet.mjs
+// flags any but 0. A tree from before the count's record field prints 0
+const fellBack = games.filter(g => g.dealFallbacks);
+console.log(`DEAL FALLBACKS (Runner deals redone without its knowledge): ${fellBack.reduce((n, g) => n + g.dealFallbacks, 0)} in ${fellBack.length} games${fellBack.length ? `: ${fellBack.slice(0, 10).map(g => `deal ${g.seed} ${g.corpDeck} vs ${g.runnerDeck} ${g.dealFallbacks}`).join(', ')}` : ''}`);
 // ORACLE_ICE batches: deals whose R&D held no ice played without the free ice, so the arm is a lower bound
 const iced = games.filter(g => g.oracleIce);
 if (iced.length) console.log(`ORACLE_ICE ${iced[0].oracleIce}: skipped (no ice in R&D): ${iced.filter(g => g.oracleIceSkipped).length} of ${iced.length}`);

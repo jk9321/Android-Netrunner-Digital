@@ -15,6 +15,7 @@ import { NRDB_TEST_DECKS } from './nrdb-test-decks';
 import { createAgent } from '../src/ai';
 import { GameRecord, playLogged } from './lossLog';
 import { valueLoops } from '../src/ai/valueModel';
+import { dealFallbacks } from '../src/ai/runnerReply';
 import { applyPlanOff, tuning } from '../src/ai/synergy';
 import { batchTokens, placeOracleIce } from './oracle-ice';
 import { withOracleMoney } from './oracle-money';
@@ -76,6 +77,10 @@ for (const c of corpDecks) {
       const started = Date.now();
       if (process.env.TRACE) console.error(`start deal ${seed} ${c.name} vs ${r.name}`);
       valueLoops.clear();
+      const fallbacksBefore = dealFallbacks.count;
+      // The Runner's deals redone without its knowledge in this game (R-109's safety net, runnerReply.ts): each one is a
+      // knowledge bug that played on, so the game names its own count beside the value loops
+      const fallbacks = () => (dealFallbacks.count > fallbacksBefore ? { dealFallbacks: dealFallbacks.count - fallbacksBefore } : {});
       try {
         const start = createInitialGameState(deckGameSetup(seed, c, r));
         const iced = iceOracle ? placeOracleIce(start, iceOracle) : undefined;
@@ -87,10 +92,10 @@ for (const c of corpDecks) {
         // ORACLE_ICE: every game names the setup; one whose R&D held no ice played without it (counted in the summary)
         const tagged0 = iceOracle ? { ...record, seed, oracleIce: iceOracle, oracleIceSkipped: iced === false } : { ...record, seed };
         const tagged = measuring ? { ...tagged0, stage0b: stage0bMeasure(seed, c, r) } : tagged0;
-        records.push(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged);
+        records.push({ ...(valueLoops.size ? { ...tagged, loops: Object.fromEntries(valueLoops) } : tagged), ...fallbacks() });
       } catch (err) {
         // A crashed game is listed in the summary, not dropped silently
-        records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name } as unknown as GameRecord);
+        records.push({ crashed: `${err}`.slice(0, 200), seed, corpDeck: c.name, runnerDeck: r.name, ...fallbacks() } as unknown as GameRecord);
         console.error(`deal ${seed} ${c.name} vs ${r.name}: ${err}`);
         if (process.env.STACK) console.error((err as Error).stack?.split('\n').slice(0, 60).join('\n'));
       }
