@@ -10,6 +10,10 @@
  *   nokey  this checkout's src with the two iceProtects key strings put back as on beta 701f9ee (the audit kept):
  *          beta's own play with the audit added
  *
+ * MODE=step0 also counts bar 5 (`second`: the chain's simulated second answer against the real one, every mismatch
+ * listed), item 11 (`paths`: the Runner's honest prompt path by source, chained or not) and item 13 (`keeps`: prompts
+ * whose staying cards' keep moved with the seen arrival, by source, with the largest move), on the branch tree.
+ *
  * MODE=step0 (items 1-5, 7, 10, 12 and the time of item 5 / bar 11, as counts): the branch (this checkout's src) plays
  * each deal; at every top-level decision a fresh agent of the base tree (BASE, default F117 commit 3 b4c26a9: today's
  * prompts, the step before the design) and a fresh agent of the branch are asked on copies of the state, in a turn that
@@ -53,7 +57,49 @@ const NOKEY: Patch[] = [
   ['ai/iceValues.ts', 'memo(state, `iceProtects:hand:${ice.cardCode}:${unseenKey(state)}`', 'memo(state, `iceProtects:hand:${ice.cardCode}`'],
   ['ai/iceValues.ts', "memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}:${unseenKey(state)}`", "memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`"],
 ];
-const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: [], base: [] };
+/**
+ * Bar 5 (the second answer): the branch tree records, for the top decision's own board only (`__f117second.root`), the
+ * answer followChain simulated at the first chained step after each first answer (the decision's own prompt, by its source
+ * and step: the agent decides on its own view, a copy; the first record per answer). The real second prompt's answer is
+ * compared with the one recorded for the answer the game took (step0Deal, `second`).
+ */
+const SECOND: Patch = [
+  'ai/prompts.ts',
+  `    const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));\n`,
+  `    const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));
+    {
+      const h = (globalThis as any).__f117second;
+      if (h && at.depth === 0 && depth === 0 && \`\${prompt.source.instanceId}:\${prompt.source.step ?? ''}\` === h.root && !h.rec.has(JSON.stringify(action))) h.rec.set(JSON.stringify(action), { src: \`\${next.source.instanceId}:\${next.source.step ?? ''}\`, answer: JSON.stringify(answer) });
+    }
+`,
+];
+/**
+ * Item 11 ('again' on chained prompts): the Runner's honest prompt answer's path, pushed in call order (the top
+ * decision's own call returns last). Item 13 (the staying cards' keep moving with A): at every arrivalTerms call with a
+ * seen arrival, 0.5 x (the staying cards' keep on the board after, A in the hand, less on the board without A): what
+ * D2's "after without A" removes.
+ */
+const PATHS: Patch = [
+  'ai/runner/prompt.ts',
+  'export function honestPromptAnswer(state: GameState, ports: PromptViewPorts): { action: GameAction; path: PromptPath } {',
+  `export function honestPromptAnswer(state: GameState, ports: PromptViewPorts): { action: GameAction; path: PromptPath } {
+  const r = __honestPromptAnswer(state, ports);
+  (globalThis as any).__f117path?.push(r.path);
+  return r;
+}
+function __honestPromptAnswer(state: GameState, ports: PromptViewPorts): { action: GameAction; path: PromptPath } {`,
+];
+const KEEP: Patch = [
+  'ai/prompts.ts',
+  '  const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;\n',
+  `  const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
+  if (seen.length && (globalThis as any).__f117keep) {
+    const stay = (b: GameState) => sumKeep(b, hand(b, side).filter(c => had.has(c.instanceId)), synergy);
+    (globalThis as any).__f117keep.push(0.5 * (stay(after) - stay(without(seen))));
+  }
+`,
+];
+const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: MODE === 'step0' ? [SECOND, PATHS, KEEP] : [], base: [] };
 
 /**
  * SPLIT=1 (the time levers' ruling: split Runner main by what it calls): timers on prompts.ts in every tree, outermost
@@ -198,6 +244,7 @@ function zoneOf(s: GameState, id: string): string {
   if (has(Object.values(s.runner.rig).flat() as any)) return 'rig';
   return 'other';
 }
+const promptKey = (p: any) => (p && 'source' in p ? `${p.source.instanceId}:${p.source.step ?? ''}` : '-');
 const handOf = (s: GameState, side: Side) => (side === 'corp' ? s.corp.hq : s.runner.grip);
 /** The ids an answer names (its choice's card ids and option ids, and an install's card). */
 function named(a: any): string[] {
@@ -222,10 +269,19 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   const mains = { corp: { n: 0, differ: 0 }, runner: { n: 0, differ: 0 } };
   const errors: string[] = [];
   const chains: Record<string, any> = {};
+  // Bar 5: the simulated second answer for the answer the game took, and the counts (by source; every mismatch listed)
+  let expect: { side: string; src: string; answer: string } | null = null;
+  // Item 11: the Runner's prompt paths by source:step, chained (the prompt before was the same source's, same side) or not
+  const paths: Record<string, Record<string, number>> = {};
+  let lastPrompt = '';
+  // Item 13: prompts whose staying cards' keep moved with A (any scored answer), by source, with the largest move
+  const keeps: Record<string, { n: number; moved: number; max: number }> = {};
+  const second = { asked: 0, match: 0, mismatch: [] as Record<string, unknown>[], noRecord: 0 };
   let steps = 0;
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.state;
     const dec = decisionOf(B.core, s);
+    let recorded: Map<string, { src: string; answer: string }> | null = null;
     if (dec) {
       const answers: Record<string, any> = {};
       let stats: ReturnType<typeof statsDelta> | null = null;
@@ -237,6 +293,9 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
         const agent = t.createAgent(dec.side, 'normal');
         const was = n === 'branch' ? copyStats(t.prompts.chainStats) : null;
         const split = process.env.SPLIT ? ((globalThis as any).__f117split = { ms: {}, depth: {} }) : null;
+        const pathList = n === 'branch' && dec.kind === 'prompt' && dec.side === 'runner' ? ((globalThis as any).__f117path = [] as string[]) : null;
+        const keepList = n === 'branch' && dec.kind === 'prompt' ? ((globalThis as any).__f117keep = [] as number[]) : null;
+        const rec = n === 'branch' && dec.kind === 'prompt' ? ((globalThis as any).__f117second = { root: promptKey(B.core.activePrompt(copy)), rec: new Map<string, { src: string; answer: string }>() }) : null;
         const t0 = performance.now();
         try {
           answers[n] = dec.kind === 'rez' ? (agent.chooseRez?.(copy, t.po.rezCandidates(copy, copy.priority!.step)) ?? null) : dec.kind === 'off' ? (agent.chooseOffTurn?.(copy) ?? null) : agent.chooseAction(copy);
@@ -254,8 +313,45 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
           for (const [name, ms] of Object.entries(split.ms as Record<string, number>)) sp[name] = (sp[name] ?? 0) + ms;
         }
         if (was) stats = statsDelta(t.prompts.chainStats, was);
+        if (pathList || keepList) {
+          (globalThis as any).__f117path = null;
+          (globalThis as any).__f117keep = null;
+          const q: any = B.core.activePrompt(s);
+          const key = q && 'source' in q ? `${q.source.cardCode}:${q.source.step ?? ''}` : String(q?.kind);
+          if (pathList?.length) {
+            const chained = q && 'source' in q && lastPrompt === `runner:${q.source.instanceId}`;
+            const row = (paths[`${key}${chained ? ' (chained)' : ''}`] ??= {});
+            const path = pathList[pathList.length - 1];
+            row[path] = (row[path] ?? 0) + 1;
+          }
+          if (keepList?.length) {
+            const row = (keeps[`${dec.side}:${key}`] ??= { n: 0, moved: 0, max: 0 });
+            row.n++;
+            const most = Math.max(...keepList.map(Math.abs));
+            if (most > 1e-9) row.moved++;
+            row.max = Math.max(row.max, Math.round(most * 1000) / 1000);
+          }
+        }
+        if (rec) {
+          (globalThis as any).__f117second = null;
+          recorded = rec.rec;
+        }
       }
       const differ = JSON.stringify(answers.base) !== JSON.stringify(answers.branch);
+      if (expect && dec.kind === 'prompt') {
+        const q: any = B.core.activePrompt(s);
+        if (q && q.side === expect.side && 'source' in q && `${q.source.instanceId}:${q.source.step ?? ''}` === expect.src) {
+          second.asked++;
+          if (JSON.stringify(answers.branch) === expect.answer) second.match++;
+          else if (second.mismatch.length < 40) second.mismatch.push({ step: i, T: s.turnNumber, side: dec.side, src: `${q.source.cardCode}:${q.source.step ?? ''}`, simulated: expect.answer.slice(0, 200), real: JSON.stringify(answers.branch).slice(0, 200) });
+          else second.mismatch.push({ step: i });
+        }
+      }
+      expect = null;
+      {
+        const q: any = dec.kind === 'prompt' ? B.core.activePrompt(s) : null;
+        lastPrompt = q && 'source' in q ? `${dec.side}:${q.source.instanceId}` : '';
+      }
       if (stats) {
         const agg = (chains[`${dec.side}:${dec.kind}`] ??= { widened: {}, capped: {}, aside: {}, used: { n: 0, sum: 0, max: 0, over: {} }, rootRunner: 0 });
         for (const f of ['widened', 'capped', 'aside'] as const) for (const [k, v] of Object.entries(stats[f])) agg[f][k] = (agg[f][k] ?? 0) + (v as number);
@@ -336,9 +432,14 @@ function step0Deal(pool: string, d: Deal, trees: Record<string, Loaded>) {
     }
     if (!g.step()) break;
     steps++;
+    if (dec?.kind === 'prompt' && recorded?.size) {
+      const r = recorded.get(JSON.stringify(g.last));
+      if (r) expect = { side: dec.side, src: r.src, answer: r.answer };
+      else second.noRecord++;
+    }
   }
   const ms = Object.fromEntries(names.map(n => [n, Object.fromEntries(Object.entries(time[n]).map(([k, v]) => [k, { ms: Math.round(v.ms), n: v.n }]))]));
-  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, errors, ...(process.env.SPLIT ? { split: splits } : {}) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, T: g.state.turnNumber, winner: g.state.winner ?? null, mains, prompts: promptsSeen, ms, chains, rows: prompts, second, paths, keeps, errors, ...(process.env.SPLIT ? { split: splits } : {}) });
   promptsSeen.corp = 0;
   promptsSeen.runner = 0;
 }
