@@ -1,6 +1,7 @@
 // Sums a b4 lockstep.ts run: node scripts/runner-rework/b4/lockstep-sum.mjs <dir with out/*.txt> [--list]
 // With CHAIN, each pair apart. Deals, first differences (by side and kind, by the reader hook that fired at them), the first knowledge difference
 // (kn), deals whose base tree left its source record, errors, and time by caller kind: branch and control against base.
+// With CHECK=1 (R-105): the upkeep-skip check's compared skips by walk and its failures, per pool.
 // With PICKS=1 (bar 3): every Corp decision that differs (same pick or not) by part: the Hard determinize (H fired), the
 // reply's Runner (a Runner reader fired inside the Corp's decision), neither (what fired, if anything); and for CONT=1 the
 // paired continuations of the changed Corp picks (branch's pick against base's, Corp wins and points, with SE).
@@ -39,6 +40,14 @@ for (const [pair, pool] of pairs.flatMap(p => [...new Set(deals.filter(d => d.pa
   if (pair !== undefined) console.log(`== ${pair}`);
   const diff = ds.filter(d => d.diff);
   console.log(`${pool}: ${ds.length} deals, ${diff.length} with a first difference, ${ds.filter(d => d.kn != null).length} with a knowledge difference, ${ds.filter(d => d.recordSame === false).length} off their record`);
+  // CHECK=1 (R-105 bar 2(b)): the branch tree's upkeep-skip check, summed over the pool's deals
+  const chk = ds.filter(d => d.check);
+  if (chk.length) {
+    const sum = {};
+    for (const d of chk) for (const [k, v] of Object.entries(d.check.checked)) sum[k] = (sum[k] ?? 0) + v;
+    const failed = chk.reduce((a, d) => a + d.check.failures, 0);
+    console.log(`  upkeep check (${chk.length} deals): checked ${Object.entries(sum).map(([k, v]) => `${k} ${v}`).join(', ')}; failures ${failed}${failed ? ` (first: ${JSON.stringify(chk.find(d => d.check.failures).check.detail[0]).slice(0, 300)})` : ''}`);
+  }
   if (diff.length) {
     console.log(`  by side|kind: ${show(by(diff, d => `${d.diff.side}|${d.diff.kind}`))}`);
     console.log(`  fired at the first difference: ${show(by(diff, d => fired(d.diff.firesAt)))}`);
