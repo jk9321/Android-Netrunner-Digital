@@ -2,12 +2,16 @@
  * F117 / R-93 (brief netrunner-ai/f117-deck-arrivals/design-brief.md rev 2; ruling-redteam.md): a card arriving from a
  * search is priced by its owner. Bars 2, 3, 4 (Retribution and Public Trail; the null slot), 6 (Eminent Domain fetching
  * Spin Doctor), 7 (ties), 9 (both frames on the Off the Books board) and 10's budget fallback, on boards built here (the red team's
- * Off the Books board: 12 credits and an iced empty remote, Send a Message's install preferred by 6.30).
+ * Off the Books board: 12 credits and an iced empty remote, Send a Message's install preferred by 6.30), and the departures'
+ * chance case on issue #72's saved board (Karunā's jack-out prompt, tests/fixtures/runner-issues/issue-72.json).
  */
 import { describe, expect, it } from 'vitest';
 import { answer, giveCard, installCorpForTest, installIceForTest, keepGoing, newGame, passTurn, scoreForTest } from './helpers';
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, createCardInstance, executeAction, findCardAnywhere } from '../src/core';
 import { ALL_CARDS } from '../src/core/cards';
+import { readFileSync } from 'node:fs';
+import { createInitialGameState } from '../src/core';
+import { deckGameSetup } from '../src/data/decks';
 import { createAgent } from '../src/ai';
 import { CHAIN_BUDGET, answerPrompt, chainStats, scoreAnswer, scoreOutcome, simulate, withChainWork } from '../src/ai/prompts';
 import { evaluate, handCount, keepValue } from '../src/ai/evaluate';
@@ -150,7 +154,7 @@ describe('F117: a searched card priced by its owner', () => {
     const withIce = { ...end, corp: { ...end.corp, hq: [...end.corp.hq, findCardAnywhere(s, ice)!] } };
     const noIce = { ...s, corp: { ...s.corp, hq: staying } };
     inDecision(s, 'corp', () => {
-      const got = scoreOutcome(s, end, 'corp', undefined, false, end);
+      const got = scoreOutcome(s, end, 'corp', undefined, false, { first: end, named: new Set([ice]) });
       const owner = ownHandValue(s, 'corp') - ownHandValue(noIce, 'corp');
       const count = handCount(withIce, 'corp', 'corp') - handCount(end, 'corp', 'corp');
       const staysKeep = 0.5 * (sum(end, end.corp.hq.filter(c => staying.some(x => x.instanceId === c.instanceId))) - sum(s, staying));
@@ -253,5 +257,45 @@ describe('F117: a searched card priced by its owner', () => {
     }
     expect([...chainStats.capped.values()].reduce((n, v) => n + v, 0)).toBeGreaterThan(capped);
     expect(chainStats.aside.get(`${OFF_THE_BOOKS}:one`) ?? 0).toBeGreaterThan(aside);
+  });
+});
+
+/** Issue #72's saved game before move 124: the Runner at Karunā's "jack out?" prompt, 2 net damage taken, 2 to come. */
+function karunaPrompt(): GameState {
+  const r = JSON.parse(readFileSync(new URL('./fixtures/runner-issues/issue-72.json', import.meta.url), 'utf8'));
+  let s: GameState = createInitialGameState(deckGameSetup(r.config.seed, r.config.corpDeck, r.config.runnerDeck));
+  if (r.startStops) s = { ...s, stops: r.startStops };
+  for (let i = 0; i < 124; i++) s = executeAction(s, r.moves[i]);
+  return s;
+}
+const stay = (s: GameState): GameAction => ({ type: 'RESOLVE_PROMPT', player: 'runner', promptId: activePrompt(s)!.id, choice: { kind: 'effect_choice', optionId: 'stay' } });
+const scoredRunner = (s: GameState, a: GameAction) => withChainWork(s, at => scoreAnswer(s, activePrompt(s)!, a, simulate(s, a)!, 'runner', undefined, false, at));
+
+describe('F117 departures by chance (the Runner rework coordinator\'s conditions 1 and 3)', () => {
+  it('a chance departure is priced by expectation: two boards that differ only in the RNG state score the same', () => {
+    const base = karunaPrompt();
+    expect(activePrompt(base)).toMatchObject({ side: 'runner', source: { cardCode: '30047', step: 'jack_out' } });
+    const lost: string[] = [];
+    const scores: number[] = [];
+    for (const seed of [base.rng.state, 1, 2, 3, 12345]) {
+      const s = structuredClone(base);
+      s.rng.state = seed;
+      const after = simulate(s, stay(s))!;
+      lost.push(s.runner.grip.filter(c => !after.runner.grip.some(d => d.instanceId === c.instanceId)).map(c => c.instanceId).sort().join(','));
+      scores.push(inDecision(s, 'runner', () => scoredRunner(s, stay(s))));
+    }
+    // The RNG takes different grip cards on these boards; the score does not see which
+    expect(new Set(lost).size).toBeGreaterThan(1);
+    expect(new Set(scores.map(x => x.toFixed(9))).size).toBe(1);
+  });
+
+  it('bar 4\'s null slot, the grip: the Runner\'s prompt priced inside a Corp decision keeps today\'s hand term to the digit', () => {
+    const s = karunaPrompt();
+    inDecision(s, 'corp', () => {
+      for (const optionId of ['jack', 'stay']) {
+        const a: GameAction = { ...stay(s), choice: { kind: 'effect_choice', optionId } } as GameAction;
+        expect(scoredRunner(s, a)).toBe(scoreOutcome(s, simulate(s, a)!, 'runner'));
+      }
+    });
   });
 });

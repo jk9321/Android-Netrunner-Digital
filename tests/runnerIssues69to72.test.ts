@@ -196,7 +196,10 @@ describe('issue #72: a run into a known Karunā, the first damage taken, then a 
   });
 
   // Passes when no run this turn takes Karunā's damage and then jacks out at its prompt. Passing since F117's departures
-  // (ai-deck-arrivals, the Mercia ruling): the grip cards a prompt answer loses are priced by their owner, not by count
+  // (ai-deck-arrivals; the chance ones by expectation): the new play is not a fix. At the jack-out prompt the Runner now
+  // stays (-20.23 against jack -23.16), takes the second 2 net, accesses Urtica Cipher, takes its damage and ends the turn
+  // at grip 1: the two cards the damage takes are priced by the owner's expected loss of 2 of the 5 (4.17), where base
+  // charged the count (3.20) and their half keep (4.18) on top. I72 stays open to R-C1 (the run price's tank damage)
   it('#72 T8: the Runner does not take Karunā\'s first damage and then jack out', { timeout: 60_000 }, () => {
     const { state, runner } = boardBefore(72, KARUNA_AT);
     const jacked: string[] = [];

@@ -40,7 +40,7 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * board evaluation it counts which cards are in hand (so the AI discards
  * its least useful cards) and, for the Runner, the run still in progress.
  */
-export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, arrivals: GameState | false = false): number {
+export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, arrivals: AnswerFrame | false = false): number {
   let score = evaluate(after, side);
   if (arrivals) score += arrivalTerms(before, after, side, synergy, arrivals);
   else {
@@ -64,12 +64,17 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
  *  - the seen arrivals A (in the hand after, not before, and known to the frame: the caller's set and every seen arrival
  *    still in the hand): M - C, M the owner's difference (ownHandValue of the board less the same board without A, its
  *    sort and hand limit with it) and C the count's (handCount, on both boards: the reach card can differ);
- *  - the departures D (in the hand before, not after: installed, played, discarded, trashed, paid as a cost), the
- *    mirror: less (M_D - C_D), M_D the owner's difference on the board before (ownHandValue of it less the same board
- *    without D: where the cards were held, so a card now installed is not also priced in the hand of a board that
- *    holds it on a server) and C_D the count's on the board after (handCount with D back in the hand less without:
- *    what evaluate's count took for them).
- * Where the frame prices the hand by card (handByCard), the owner already holds both. The half-keep term is the code's
+ *  - the departures D (in the hand before, not after), the mirror: less (M_D - C_D), C_D the count's on the board
+ *    after (handCount with D back in the hand less without: what evaluate's count took for them). For a chosen one
+ *    (installed, played, or named by an answer of the side: a discard, a cost) M_D is the owner's difference on the
+ *    board before (ownHandValue of it less the same board without them: where the cards were held, so a card now
+ *    installed is not also priced in the hand of a board that holds it on a server). For a chance one (byChance: no
+ *    answer named it and it is in the discard pile or deck: damage, a trash at random) it is the owner's expected loss
+ *    of that many random cards of what was left to take (handChanceLoss), and the staying cards' half keep is taken in
+ *    expectation too, each card of that pool staying with the same chance: the score never reads which cards the
+ *    simulated RNG took (the Runner rework coordinator's condition 1).
+ * Where the frame prices the hand by card (handByCard), the owner already holds both, except for chance departures,
+ * whose by-card loss on the board is swapped for the expected loss. The half-keep term is the code's
  * over the staying cards only (in the hand before and after): no arrival in its list, seen or not, from any zone, and no
  * departure, whose keep is inside the owner's difference (ruling, condition 1); seen arrivals are taken on the board
  * without A: what A does to the staying cards is in M. The cards a chain's later steps brought (in the hand at its end,
@@ -77,9 +82,15 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
  * keep reads the hand and the deck, which would tell it which cards the simulated deck gave (bar 6, Eminent Domain
  * fetching Spin Doctor). With no arrival seen, no departure and no chain it is today's term to the digit. Own hand only:
  * the null slot (the other side's hand, every card known) keeps today's term (scoreAnswer). `first`: the board after
- * the answer itself.
+ * the answer itself, and the cards the side's answers named: a departure none named, now in the discard pile or the deck,
+ * is chance (byChance), priced by the owner's expected loss (handChanceLoss), never by the cards the simulated RNG took.
  */
-function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean, first: GameState): number {
+/** An answer's frame for its hand terms: the board after the answer itself, and the cards the side's own answers named (the first and each followed step's). */
+export interface AnswerFrame {
+  readonly first: GameState;
+  readonly named: ReadonlySet<string>;
+}
+function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean, { first, named }: AnswerFrame): number {
   const had = new Set(hand(before, side).map(c => c.instanceId));
   const now = new Set(hand(after, side).map(c => c.instanceId));
   const known = pricing().known[side];
@@ -95,14 +106,37 @@ function arrivalTerms(before: GameState, after: GameState, side: SideCode, syner
     const mBoard = without(seen);
     term += ownHandValue(after, side) - ownHandValue(mBoard, side) - (handCount(after, side, side) - handCount(mBoard, side, side));
   }
+  const chance = gone.filter(c => byChance(after, side, named, c));
   if (gone.length && known && !handByCard(side)) {
-    const ids = new Set(gone.map(c => c.instanceId));
-    const owner = ownHandValue(before, side) - ownHandValue(withHand(before, side, hand(before, side).filter(c => !ids.has(c.instanceId))), side);
+    // The chosen departures by the owner's difference on the board before; the chance ones by the owner's expected loss
+    // of that many random cards of what stayed to be taken; both in place of what the count took for them
+    const chosen = new Set(gone.filter(c => !chance.includes(c)).map(c => c.instanceId));
+    const left = withHand(before, side, hand(before, side).filter(c => !chosen.has(c.instanceId)));
+    const owner = (chosen.size ? ownHandValue(before, side) - ownHandValue(left, side) : 0) + handChanceLoss(left, side, chance.length);
     const count = handCount(withHand(after, side, [...hand(after, side), ...gone]), side, side) - handCount(after, side, side);
     term -= owner - count;
+  } else if (chance.length && known) {
+    // Priced by card (handByCard): evaluate's own hand price took the very cards the simulated RNG took; the expected loss instead
+    const left = withHand(before, side, hand(before, side).filter(c => now.has(c.instanceId) || chance.includes(c)));
+    term -= handChanceLoss(left, side, chance.length) - (ownHandValue(withHand(after, side, [...hand(after, side), ...chance]), side) - ownHandValue(after, side));
   }
   const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
-  return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(before, hand(before, side).filter(c => now.has(c.instanceId)), synergy));
+  if (chance.length === 0) return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(before, hand(before, side).filter(c => now.has(c.instanceId)), synergy));
+  // Chance departures: which cards stayed is the RNG's too. Every card that could be taken stays with the same chance, its
+  // keep read on the board with the chance cards back in the hand (the same board whichever the RNG took)
+  const pool = hand(before, side).filter(c => now.has(c.instanceId) || chance.includes(c));
+  const ids = new Set(pool.map(c => c.instanceId));
+  const back = backInHand(keepBoard, side, chance);
+  return term + 0.5 * (1 - chance.length / pool.length) * (sumKeep(back, hand(back, side).filter(c => ids.has(c.instanceId)), synergy) - sumKeep(before, pool, synergy));
+}
+
+/** `board` with `cards` (the side's own, from its discard pile or deck) back in its hand (a copy, only priced). */
+function backInHand(board: GameState, side: SideCode, cards: CardInstance[]): GameState {
+  const ids = new Set(cards.map(c => c.instanceId));
+  const out = (cs: CardInstance[]) => cs.filter(c => !ids.has(c.instanceId));
+  return side === 'corp'
+    ? { ...board, corp: { ...board.corp, hq: [...board.corp.hq, ...cards], rd: out(board.corp.rd), archives: { ...board.corp.archives, faceUp: out(board.corp.archives.faceUp), faceDown: out(board.corp.archives.faceDown) } } }
+    : { ...board, runner: { ...board.runner, grip: [...board.runner.grip, ...cards], heap: out(board.runner.heap), stack: out(board.runner.stack) } };
 }
 
 /** `state` with `cards` taken from `side`'s hand and put at the bottom of its deck (a copy, only priced). */
@@ -392,9 +426,24 @@ export function scoreAnswer(
     board = withHand({ ...board, setAside: (board.setAside ?? []).filter(c => !ids.has(c.instanceId)) }, side, [...hand(board, side), ...kept]);
   }
   return withKnownCards(side, kept.length ? [...chain.seen, ...kept.map(c => c.instanceId)] : chain.seen, () => {
-    const score = scoreOutcome(state, board, side, memory, synergy, after);
+    const score = scoreOutcome(state, board, side, memory, synergy, { first: after, named: chain.named });
     return finish ? finish(score, board) : score;
   });
+}
+
+/**
+ * F117 departures, the chance ones (the Runner rework coordinator's condition 1, ruled 2026-11-27 09:15Z): a card that
+ * left the side's own hand on the scored board that no answer of the side named, and that is now in its discard pile or
+ * deck (net, meat, core or brain damage; an "at random" trash), left by chance. The simulated board holds the very cards
+ * the engine's RNG took, so their own price would read the future draw (`RULE-HIDDEN-INFO`): arrivalTerms prices them by
+ * the expected loss of that many random cards of the hand (handChanceLoss: today's Shred term, runPrice, for either
+ * hand). The board itself is kept: its count of cards (the empty grip, the damage clock) is the real one.
+ */
+function byChance(board: GameState, side: SideCode, named: ReadonlySet<string>, card: CardInstance): boolean {
+  if (named.has(card.instanceId)) return false;
+  const id = card.instanceId;
+  const has = (cs: CardInstance[]) => cs.some(c => c.instanceId === id);
+  return side === 'corp' ? has(board.corp.archives.faceUp) || has(board.corp.archives.faceDown) || has(board.corp.rd) : has(board.runner.heap) || has(board.runner.stack);
 }
 
 /** The answer of the per-card blocks and the fallback (answerPrompt before the run term). */
@@ -767,27 +816,31 @@ function followChain(
   synergy: boolean,
   at: ChainAt,
   how: ArrivalHow | null
-): { board: GameState; seen: string[]; stop: 'other' | 'none' | 'depth' | 'one' | 'end' } {
+): { board: GameState; seen: string[]; named: Set<string>; stop: 'other' | 'none' | 'depth' | 'one' | 'end' } {
   let seen = how ? seenArrivals(before, action, after, side, how) : [];
-  if (at.work.oneStep) return { board: after, seen, stop: 'one' };
+  // The cards the side's own answers named, the first and each followed step's (chanceBack: a departure no answer named is chance)
+  const named = answerNames(prompt, action);
+  const out = (board: GameState, stop: 'other' | 'none' | 'depth' | 'one' | 'end') => ({ board, seen, named, stop });
+  if (at.work.oneStep) return out(after, 'one');
   const identity = 'source' in prompt && getCardDefinition(prompt.source.cardCode).type_code === 'identity';
-  if (!('source' in prompt)) return { board: after, seen, stop: 'end' };
+  if (!('source' in prompt)) return out(after, 'end');
   let state = after;
   let last = action;
   for (let depth = 0; depth < 3; depth++) {
     const next = activePrompt(state);
-    if (!next) return { board: state, seen, stop: 'none' };
-    if (next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) return { board: state, seen, stop: 'other' };
+    if (!next) return out(state, 'none');
+    if (next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) return out(state, 'other');
     if (!identity) {
       const id = next.source.data?.cardId;
-      if (typeof id !== 'string' || !answerNames(undefined, last).has(id)) return { board: state, seen, stop: 'end' };
+      if (typeof id !== 'string' || !answerNames(undefined, last).has(id)) return out(state, 'end');
       bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
       if (at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
     }
     const inner: ChainAt = { work: at.work, depth: at.depth + depth + 1 };
     const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));
     const resolved = simulate(state, answer);
-    if (!resolved) return { board: state, seen, stop: 'end' };
+    if (!resolved) return out(state, 'end');
+    for (const id of answerNames(next, answer)) named.add(id);
     if (how) {
       const inHand = new Set(hand(resolved, side).map(c => c.instanceId));
       seen = [...new Set([...seen, ...seenArrivals(state, answer, resolved, side, { real: false, rootRd: how.rootRd })])].filter(id => inHand.has(id));
@@ -795,7 +848,7 @@ function followChain(
     state = resolved;
     last = answer;
   }
-  return { board: state, seen, stop: 'depth' };
+  return out(state, 'depth');
 }
 
 /**
@@ -938,7 +991,7 @@ function runPrice(state: GameState, prompt: Prompt, action: GameAction, after: G
   const ids = new Set(gone.map(c => c.instanceId));
   const archives = { ...after.corp.archives, faceUp: after.corp.archives.faceUp.filter(c => !ids.has(c.instanceId)), faceDown: after.corp.archives.faceDown.filter(c => !ids.has(c.instanceId)) };
   const board: GameState = { ...after, corp: { ...after.corp, hq: state.corp.hq, archives } };
-  return scoreOutcome(state, board, 'corp', memory, synergy) + freeRezSaving(state, after) - hqChanceLoss(state, gone.length);
+  return scoreOutcome(state, board, 'corp', memory, synergy) + freeRezSaving(state, after) - handChanceLoss(state, 'corp', gone.length);
 }
 
 /**
@@ -958,12 +1011,17 @@ function rigMove(state: GameState, board: GameState): number {
   return corpBoardValue(board, 'corp') - corpBoardValue(back, 'corp');
 }
 
-/** The expected loss of `x` cards of HQ at random, by ownHandValue: every set of x alike (up to 70 sets; past that, x times a single card's mean). */
-function hqChanceLoss(state: GameState, x: number): number {
-  const hq = state.corp.hq;
-  if (x <= 0 || hq.length === 0) return 0;
-  const full = ownHandValue(state, 'corp');
-  const without = (ids: Set<string>) => full - ownHandValue({ ...state, corp: { ...state.corp, hq: hq.filter(c => !ids.has(c.instanceId)) } }, 'corp');
+/**
+ * The expected loss of `x` cards of `side`'s hand at random, by the hand's owner (ownHandValue: the registry rows "a card
+ * held in HQ" and "a card held in the grip"): every set of x alike (up to 70 sets; past that, x times a single card's
+ * mean). One function for both hands: Shred's reveal (runPrice) and every chance departure (arrivalTerms, byChance).
+ */
+function handChanceLoss(state: GameState, side: SideCode, n: number): number {
+  const hq = hand(state, side);
+  const x = Math.min(n, hq.length);
+  if (x <= 0) return 0;
+  const full = ownHandValue(state, side);
+  const without = (ids: Set<string>) => full - ownHandValue(withHand(state, side, hq.filter(c => !ids.has(c.instanceId))), side);
   const sets: string[][] = [];
   const pick = (from: number, chosen: string[]) => {
     if (sets.length > 70) return;
