@@ -112,7 +112,8 @@ export class AlarmTracker {
   step(before: GameState, after: GameState, action?: GameAction) {
     // 'valuation not a number': the board the acting side just decided from, in the pricing context of that decision
     const side = actingSide(before);
-    if (action && side && action.player === side && !before.activeRun && !before.pendingPrompts.length) {
+    // NO_EVAL_ALARM=1 (R-79 step 0): leave the evaluate out, to count what it changes in play
+    if (process.env.NO_EVAL_ALARM !== '1' && action && side && action.player === side && !before.activeRun && !before.pendingPrompts.length) {
       const value = asSide(side, () => evaluate(before, side));
       if (!Number.isFinite(value)) this.fire('valuation not a number', before.turnNumber, side, `evaluate ${value} before ${action.type}`);
     }
