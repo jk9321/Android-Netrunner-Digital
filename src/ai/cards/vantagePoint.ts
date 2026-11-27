@@ -5,7 +5,7 @@ import { abilityUsedKey } from '../../core/engine/actions/ability';
 import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, priceIce, pricingIce, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { serverValue, spendCost, tagCost } from '../runs';
-import { keepValue, tagTaken } from '../evaluate';
+import { cardTag, keepValue } from '../evaluate';
 import { bakerWantsFuel } from '../cardPlans';
 import { tuning } from '../synergy';
 import { badPublicityWorth } from '../prompts';
@@ -124,7 +124,7 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     synergy: { wants: { tags: 0.5 } },
     value: { rig: 1 }, // +1 MU for a tag
     // +1 MU for a tag when untagged (inside the tag clock the owner serves the flat rate, so the loop is cut there)
-    runner: state => muWorth(state) - (state.runner.tags > 0 ? 0 : tagTaken(state)),
+    runner: (state, code) => muWorth(state) - (state.runner.tags > 0 ? 0 : cardTag(state, code)),
   },
   // Rotary
   '36014': {

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createCardInstance, GameState } from '../src/core';
 import '../src/ai'; // corpPorts filled (the Vic board's boardNeed reads keep)
 import { CARDS } from '../src/ai/cards';
-import { tagRemoved, tagsWorth, tagTaken } from '../src/ai/evaluate';
-import { muWorth } from '../src/ai/effectValues';
+import { cardTag, tagRemoved, tagsWorth, tagTaken } from '../src/ai/evaluate';
+import { muWorth, perTurn } from '../src/ai/effectValues';
 import { tagCost } from '../src/ai/runs';
 import { asSide, withPricing } from '../src/ai/pricing';
 import { clearHandCaches } from '../src/ai/handValues';
@@ -48,15 +48,46 @@ describe('V-B B5: a tag read from its owner', () => {
     withPricing({ pricingTagLoss: true }, () => expect(tagTaken(s)).toBe(RATES.tagAgainstRunner));
   });
 
-  it("the six Runner formulas read the owner's tag, not the flat", () => {
+  it("on the board the six Runner formulas read the owner's tag, not the flat (arm F)", () => {
+    const on = (tags: number, code: string) => {
+      const s = board(tags);
+      s.runner.rig.resources.push(createCardInstance(s, code));
+      return s;
+    };
+    const bg = on(0, '36013');
+    expect(CARDS['36013'].runner!(bg, '36013')).toBe(muWorth(bg) - tagTaken(bg)); // Borrowed Goods
+    const foaf = CARDS['34074'].runner!;
+    const ft = on(1, '34074');
+    const fu = on(0, '34074');
+    expect(foaf(ft, '34074')).toBe(5 + tagRemoved(ft) - CLICK); // Friend of a Friend
+    expect(foaf(fu, '34074')).toBe(9 - tagTaken(fu) * 0.7 - CLICK);
+    const badge = CARDS['34003'].counters!.power as (s: GameState) => number; // Solidarity Badge: the card's 0.5 kept
+    const bt = on(1, '34003');
+    expect(badge(bt)).toBe(Math.max(cardRate(bt, 'runner', 'later'), tagRemoved(bt) * 0.5));
+  });
+
+  it('off the board (in the hand, drawn) and inside the deck average, they read the flat rate, as beta did (arm F)', () => {
     const untagged = board(0);
     const tagged = board(1);
-    expect(CARDS['36013'].runner!(untagged, '36013')).toBe(muWorth(untagged) - tagTaken(untagged)); // Borrowed Goods
-    const foaf = CARDS['34074'].runner!;
-    expect(foaf(tagged, '34074')).toBe(5 + tagRemoved(tagged) - CLICK); // Friend of a Friend
-    expect(foaf(untagged, '34074')).toBe(9 - tagTaken(untagged) * 0.7 - CLICK);
-    const badge = CARDS['34003'].counters!.power as (s: GameState) => number; // Solidarity Badge: the card's 0.5 kept
-    expect(badge(tagged)).toBe(Math.max(cardRate(tagged, 'runner', 'later'), tagRemoved(tagged) * 0.5));
+    const flat = RATES.tagAgainstRunner;
+    expect(cardTag(untagged, '36013')).toBe(flat);
+    expect(CARDS['36013'].runner!(untagged, '36013')).toBe(muWorth(untagged) - flat);
+    expect(CARDS['34074'].runner!(tagged, '34074')).toBe(5 + flat - CLICK);
+    expect(CARDS['34074'].runner!(untagged, '34074')).toBe(9 - flat * 0.7 - CLICK);
+    const badge = CARDS['34003'].counters!.power as (s: GameState) => number;
+    expect(badge(tagged)).toBe(Math.max(cardRate(tagged, 'runner', 'later'), flat * 0.5));
+    // on the board too, inside the averaging frame (the deck's average card)
+    const s = board(0);
+    s.runner.rig.resources.push(createCardInstance(s, '36013'));
+    expect(cardTag(s, '36013')).toBe(tagTaken(s));
+    withPricing({ averaging: true }, () => expect(cardTag(s, '36013')).toBe(flat));
+  });
+
+  it("Arruaceiras Crew skips the tag when tagged (its term is 0): bit for bit the full-B5 value (lever 4)", () => {
+    const s = board(1);
+    s.runner.rig.resources.push(createCardInstance(s, '34073'));
+    const full = perTurn(s, 0.3 * (2 - 0.3 * tagTaken(s) * (1 - 1)), 'runner') + 1.5;
+    expect(Object.is(CARDS['34073'].runner!(s, '34073'), full)).toBe(true);
   });
 });
 

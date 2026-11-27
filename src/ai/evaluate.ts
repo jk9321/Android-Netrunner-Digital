@@ -375,6 +375,9 @@ export function tagsWorth(state: GameState, viewer: SideCode, count?: number, me
 /** One tag the Runner takes, and one it removes, as the Runner sees it: the owner's own difference (V-B B5; tagCost's). */
 export const tagTaken = (state: GameState, home?: GameState): number => tagsWorth(state, 'runner', state.runner.tags + 1, home) - tagsWorth(state, 'runner', state.runner.tags, home);
 export const tagRemoved = (state: GameState): number => tagsWorth(state, 'runner', state.runner.tags) - tagsWorth(state, 'runner', state.runner.tags - 1);
+/** A card's own tag (B5 arm F): the owner's difference for a card on the board; drawn, in the deck's average or in the hand, the flat rate (as Vic's drawn card). */
+export const cardTag = (state: GameState, code: string, removed = false): number =>
+  pricing().averaging || ![state.runner.rig.programs, state.runner.rig.hardware, state.runner.rig.resources].some(cs => cs.some(c => c.cardCode === code)) ? RATES.tagAgainstRunner : removed ? tagRemoved(state) : tagTaken(state);
 
 /**
  * `memoHome` (ai-value-time step 1): the state `state` was copied from with only the Runner's clicks changed (tagCost's

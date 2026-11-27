@@ -58,7 +58,9 @@ for (const [name, keep] of Object.entries(sets)) {
     const each = (a, v) => (cnt(a, v) ? (clms(a, v) / cnt(a, v)).toFixed(3) : '-');
     const x = v => (cl('base', v) ? (cl('branch', v) / cl('base', v)).toFixed(2) : '-');
     const mv = a => sum(G.map(r => sum(kk.map(x => r.differ?.[`${a} ${x}`] ?? 0))));
-    say(`  ${k}: ${n} | ${['base', 'ctl', 'branch'].map(a => s(a).toFixed(1)).join(' / ')} | ${f3(br.v)} ± ${f3(br.se)} | ${f3(cb.v)} ± ${f3(cb.se)} | ${ok ? 'ok' : 'OVER'} | corp ${cl('base', 'corp').toFixed(2)} -> ${cl('branch', 'corp').toFixed(2)} (x${x('corp')}, ${each('base', 'corp')} -> ${each('branch', 'corp')} ms each); runner ${cl('base', 'runner').toFixed(2)} -> ${cl('branch', 'runner').toFixed(2)} (x${x('runner')}, ${each('base', 'runner')} -> ${each('branch', 'runner')} ms each) | ${mv('ctl')}, ${mv('branch')}`);
+    const hasFull = G.some(r => Object.keys(r.ms).some(m => m.startsWith('full ')));
+    const fr = hasFull ? ratio(g, r => t(r, 'full'), r => t(r, 'base')) : null;
+    say(`  ${k}: ${n} | ${['base', 'ctl', 'branch'].map(a => s(a).toFixed(1)).join(' / ')} | ${f3(br.v)} ± ${f3(br.se)} | ${f3(cb.v)} ± ${f3(cb.se)} | ${ok ? 'ok' : 'OVER'} | corp ${cl('base', 'corp').toFixed(2)} -> ${cl('branch', 'corp').toFixed(2)} (x${x('corp')}, ${each('base', 'corp')} -> ${each('branch', 'corp')} ms each); runner ${cl('base', 'runner').toFixed(2)} -> ${cl('branch', 'runner').toFixed(2)} (x${x('runner')}, ${each('base', 'runner')} -> ${each('branch', 'runner')} ms each) | ${mv('ctl')}, ${mv('branch')}${hasFull ? ` | full/base ${f3(fr.v)} ± ${f3(fr.se)}, clock runner full ${cl('full', 'runner').toFixed(2)}; moved full ${mv('full')}, branch vs full ${mv('branchVsFull')}` : ''}`);
     if (k === 'ALL') Object.keys(tot).forEach(a => (tot[a] = s(a)));
   }
 }

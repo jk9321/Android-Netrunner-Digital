@@ -117,7 +117,9 @@ function copySnap(from: any, to: any) {
 type Tally = Record<string, number>;
 const inc = (t: Tally, k: string, n = 1) => void (t[k] = (t[k] ?? 0) + n);
 type Method = 'chooseAction' | 'chooseRez' | 'chooseOffTurn';
-const ASKS = ['base', 'ctl', 'branch'] as const;
+/** FULL=<sha>: a fourth asking tree, full B5's src at that commit (arm F's count: moves against base and against full B5). */
+const FULL = process.env.FULL ?? '';
+const ASKS: string[] = FULL ? ['base', 'ctl', 'full', 'branch'] : ['base', 'ctl', 'branch'];
 let S: T;
 const TT: Record<string, T> = {};
 function ask(t: T, side: 'corp' | 'runner', method: Method, s: GameState, from: any): string {
@@ -162,6 +164,10 @@ function timeDeal(pool: string, rec: Rec) {
         inc(differ, `${a} ${k}`);
         if (!first[a]) first[a] = { i, T: s.turnNumber, k, tags: s.runner.tags, base: answers.base.slice(0, 160), [a]: answers[a].slice(0, 160) };
       }
+    if (FULL && answers.branch !== answers.full) {
+      inc(differ, `branchVsFull ${k}`);
+      if (!first.branchVsFull) first.branchVsFull = { i, T: s.turnNumber, k, tags: s.runner.tags, full: answers.full.slice(0, 160), branch: answers.branch.slice(0, 160) };
+    }
     i++;
     return own();
   };
@@ -185,6 +191,7 @@ async function main() {
   S = await load('S', makeTree(join(root, 'S'), { ref: BASE }));
   TT.base = await load('base', makeTree(join(root, 'base'), { ref: BASE, patches: PROBE }));
   TT.ctl = await load('ctl', makeTree(join(root, 'ctl'), { ref: BASE, patches: PROBE }));
+  if (FULL) TT.full = await load('full', makeTree(join(root, 'full'), { ref: FULL, patches: PROBE }));
   TT.branch = await load('branch', makeTree(join(root, 'branch'), { patches: PROBE }));
   const sources: { pool: string; rec: Rec }[] = [];
   for (const pool of POOLS) {
