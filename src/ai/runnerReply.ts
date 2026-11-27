@@ -1,5 +1,5 @@
 import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, knownInRd, nextFloat, shuffleInPlace } from '../core';
-import { certainInArchives, certainInHand, isAdvanceable } from '../core/engine/helpers';
+import { certainInArchives, certainInHand, isAdvanceable, runnerRootKinds } from '../core/engine/helpers';
 import { knownToCorpInRd, rdSharesKnownToRunner, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
@@ -163,7 +163,7 @@ export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { i
 /**
  * Re-deals, in place, every Corp card the Runner can't see (runnerUnknownSlots) at random from the cards it could be,
  * by giving the fixed instances other codes, so the board keeps its shape (instance ids, counters, runnerKnows): an
- * unrezzed ice gets an ice, a facedown root card an agenda, asset or upgrade (an advanced one an advanceable card), and
+ * unrezzed ice gets an ice, a facedown root card a kind it can be (an advanced one an advanceable card; B4b), and
  * whatever is left goes back into HQ, R&D and Archives (sizes unchanged). `s` must be a copy whose slot cards may be
  * changed. `canonical` (plan.plannerSeed): the codes are dealt from a fixed order (sorted), so the deal depends only on
  * which cards are unseen, not on where they really are. The one owner of "the Runner's guess of the Corp's hidden cards"
@@ -242,9 +242,25 @@ function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerU
     }
   }
   for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));
-  const advanced = root.filter(c => c.advancementCounters > 0);
-  for (const card of advanced) card.cardCode = dealt(take(code => isRoot(code) && isAdvanceable({ cardCode: code } as CardInstance)) ?? take(isRoot));
-  for (const card of root.filter(c => c.advancementCounters <= 0)) card.cardCode = dealt(take(isRoot));
+  // B4b: a root slot gets a kind it can be (runnerRootKinds, from open information: 3.6.1, 3.2.1, 3.3.1, 4.6.6e): an
+  // upgrade where only an upgrade can be, first (each such slot's own code is an upgrade, so the pool holds enough), and
+  // at most one agenda or asset in a remote root (the rest of its slots then take upgrades); a slot falls back to any
+  // root card only if the pool has no upgrade left
+  const upgradeOnly = new Set(root.filter(c => runnerRootKinds(s, c)?.kinds.length === 1));
+  const serverOf = new Map(Object.values(s.corp.servers).flatMap(sv => sv.root.map(c => [c, sv.id] as const)));
+  const holdsOne = new Set<string | undefined>();
+  const isUpgrade = (code: string) => typeOf(code) === 'upgrade';
+  const isOne = (code: string) => typeOf(code) === 'agenda' || typeOf(code) === 'asset';
+  const deal = (card: CardInstance, fits: (code: string) => boolean) => {
+    const server = serverOf.get(card);
+    const code = dealt((holdsOne.has(server) ? take(code => isUpgrade(code) && fits(code)) ?? take(isUpgrade) : take(fits)) ?? take(isRoot));
+    if (isOne(code)) holdsOne.add(server);
+    card.cardCode = code;
+  };
+  for (const card of upgradeOnly) card.cardCode = dealt(take(isUpgrade) ?? take(isRoot));
+  const advanced = root.filter(c => c.advancementCounters > 0 && !upgradeOnly.has(c));
+  for (const card of advanced) deal(card, code => isRoot(code) && isAdvanceable({ cardCode: code } as CardInstance));
+  for (const card of root.filter(c => c.advancementCounters <= 0 && !upgradeOnly.has(c))) deal(card, isRoot);
   loose.filter(c => !kept.has(c)).forEach((card, i) => (card.cardCode = codes[i]));
 }
 

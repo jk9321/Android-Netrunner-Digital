@@ -647,6 +647,8 @@ function noteOpenArrivals(prev: GameState, state: GameState, skips: boolean, too
  * by the same rule (updateArchivesKnowledge).
  */
 export function updateHandKnowledge(prev: GameState, state: GameState): void {
+  // B4b's root kinds are kept on every action, outside R-105's skips (they read the servers, not the hands)
+  updateRootKinds(prev, state);
   if (handUpkeepCheck.on) checkedUpkeep(prev, state);
   else keepHandKnowledge(prev, state, true);
 }
@@ -695,6 +697,61 @@ function keepHandKnowledge(prev: GameState, state: GameState, skips: boolean, to
     // A hand card set aside by a search (Let Them Dream searching HQ) is still the viewer's to remember
     setKnownList(state, owner, known.slice(Math.max(0, known.length - hand.length - setAsideFrom(state, owner === 'corp' ? 'hq' : 'grip').length)));
   }
+}
+
+// --- What the Runner knows of a facedown root card's kind (B4b, brief b4-hidden-zones ruling 9) ---------------------
+
+export type RootKind = 'agenda' | 'asset' | 'upgrade';
+const ROOT_KINDS: RootKind[] = ['agenda', 'asset', 'upgrade'];
+const hiddenRoot = (c: CardInstance) => !c.isRezzed && !c.faceUp && !c.runnerKnows;
+/** An agenda or asset in this root the Runner knows: rezzed, faceup or accessed (rules 10.2.3a, 7.3.1a). */
+const knownAgendaOrAsset = (root: CardInstance[]) => root.some(c => !hiddenRoot(c) && ['agenda', 'asset'].includes(cardDef(c).type_code));
+
+/**
+ * Keeps `corp.rootUpgradesKnownToRunner` by one diff after each action (ruling 2): a facedown card in a remote root
+ * beside an agenda or asset the Runner knows is an upgrade (rules 3.2.1, 3.3.1, 4.6.6e: a remote root holds one agenda
+ * or asset; installing another trashes the first in the same action, 8.5.6a, so the diff sees only the one left), and the
+ * Runner keeps knowing it while the card stays installed in a root (4.6.6b, 10.2.2b); one that leaves play is a new
+ * object (1.12.3) and its mark goes.
+ */
+function updateRootKinds(prev: GameState, state: GameState): void {
+  const rootIds = (s: GameState) => new Set(Object.values(s.corp.servers).flatMap(sv => sv.root.filter(hiddenRoot).map(c => c.instanceId)));
+  const now = rootIds(state);
+  const was = rootIds(prev);
+  let marks = (state.corp.rootUpgradesKnownToRunner ?? []).filter(id => now.has(id) && was.has(id));
+  const mark = (c: CardInstance) => {
+    if (hiddenRoot(c) && !marks.includes(c.instanceId)) marks = [...marks, c.instanceId];
+  };
+  for (const sv of Object.values(state.corp.servers)) if (sv.isRemote && knownAgendaOrAsset(sv.root)) sv.root.forEach(mark);
+  // A facedown agenda or asset that left its root in the open (scored, stolen, trashed faceup: 4.5.2, 4.4.6c, 10.2.3a)
+  // shows what it was; the cards that sat beside it and are still there are upgrades (#66b)
+  const open = publicCards(state);
+  for (const [id, sv] of Object.entries(prev.corp.servers)) {
+    if (!sv.isRemote || !sv.root.some(c => hiddenRoot(c) && ['agenda', 'asset'].includes(cardDef(c).type_code) && open.has(c.instanceId))) continue;
+    const beside = new Set(sv.root.map(c => c.instanceId));
+    for (const c of state.corp.servers[id]?.root ?? []) if (beside.has(c.instanceId)) mark(c);
+  }
+  if (marks.length) state.corp.rootUpgradesKnownToRunner = marks;
+  else delete state.corp.rootUpgradesKnownToRunner;
+}
+
+/**
+ * The kinds a facedown root card can be, from open information only (where a card is installed and what the Runner saw
+ * beside it: rules 4.6.6e, f, 10.2.3a), for the Runner's guess; undefined for a card the Runner knows. The four cases
+ * (brief b4-hidden-zones ruling 9): (i) a central root holds only upgrades (3.6.1, 4.6.6e); (ii) a card beside an
+ * agenda or asset the Runner knows is an upgrade (3.2.1, 3.3.1); (iii) so is one that sat beside one that has left
+ * (corp.rootUpgradesKnownToRunner); (iv) the facedown cards of one remote root hold at most one agenda or asset
+ * (`joint`: the other cards of the same root that can be an agenda or asset, so a deal gives at most one of them one).
+ */
+export function runnerRootKinds(state: GameState, card: CardInstance): { kinds: RootKind[]; joint: CardInstance[] } | undefined {
+  if (!hiddenRoot(card)) return undefined;
+  const server = Object.values(state.corp.servers).find(sv => sv.root.includes(card));
+  if (!server) return undefined;
+  const upgradeOnly = { kinds: ['upgrade' as RootKind], joint: [] };
+  const marked = new Set(state.corp.rootUpgradesKnownToRunner ?? []);
+  const open = (c: CardInstance) => hiddenRoot(c) && !marked.has(c.instanceId);
+  if (!server.isRemote || knownAgendaOrAsset(server.root) || !open(card)) return upgradeOnly;
+  return { kinds: ROOT_KINDS, joint: server.root.filter(c => c !== card && open(c)) };
 }
 
 /** Cards the other side knows are (or may still be) in `owner`'s hand, oldest first, by name only. */
