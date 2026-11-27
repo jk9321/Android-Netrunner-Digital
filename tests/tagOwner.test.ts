@@ -20,7 +20,10 @@ import { runnerEffect, corpEffect } from '../src/ai/effectValues';
 import { evaluate, handAndClicks, runnerRigValue, sideStrength, tagLossPerTurn, tagsWorth, corpBoardValue } from '../src/ai/evaluate';
 import { sideCreditValue } from '../src/ai/valueModel';
 import { tagCost } from '../src/ai/runs';
-import { CLICK } from '../src/ai/valueModel';
+import { creditsLessCost } from '../src/ai/valueModel';
+import { clickPrice } from '../src/ai/handValues';
+import { withPricing } from '../src/ai/pricing';
+import '../src/ai'; // the keep port (corpPorts.keep) is filled by corpAI: the tag clock's trash cost reads it (F110 part C)
 import { inDecision } from './helpers/pricing';
 import { installCorpForTest, newGame, run } from './helpers';
 
@@ -132,7 +135,8 @@ describe('F108 (c): mid-run, one more tag moves evaluate by tagCost (a unit iden
 
 describe('F108 (d): inside the Runner view’s clock, a resource is priced at its rig term on the untagged board', () => {
   // One resource on the board, the Corp with 2 credits or more and nothing in HQ (no punisher can be held), so the clock's
-  // per-turn loss is that resource's term less the trash action's click and 2 credits
+  // per-turn loss is that resource's term less the trash action's click and 2 credits, at their owners' price in the
+  // Runner's view inside the clock (F110 part C; CLICK + 2 before)
   for (const [code, title] of [
     ['34009', 'Lago Paranoá Shelter'],
     ['35034', 'Side Hustle'],
@@ -145,9 +149,10 @@ describe('F108 (d): inside the Runner view’s clock, a resource is priced at it
       const bare = structuredClone(s);
       install(s, code);
       const full = inDecision(s, 'runner', () => runnerRigValue(s)) - inDecision(bare, 'runner', () => runnerRigValue(bare));
-      expect(full).toBeGreaterThan(CLICK + 2); // the board's condition: the resource is worth the trash action
       const tagged = withTags(s, 1);
-      expect(inDecision(tagged, 'runner', () => tagLossPerTurn(tagged, 'runner'))).toBeCloseTo(full - (CLICK + 2), 6);
+      const cost = inDecision(tagged, 'runner', () => withPricing({ pricingTagLoss: true }, () => clickPrice(tagged, 'corp', 'runner') + creditsLessCost(tagged, 'corp', 'runner', 2)));
+      expect(full).toBeGreaterThan(cost); // the board's condition: the resource is worth the trash action
+      expect(inDecision(tagged, 'runner', () => tagLossPerTurn(tagged, 'runner'))).toBeCloseTo(full - cost, 6);
     });
   }
 });

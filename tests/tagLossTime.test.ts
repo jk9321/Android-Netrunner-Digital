@@ -20,12 +20,17 @@ vi.mock('../src/ai/cardPlans', async importOriginal => {
   return { ...orig, boardPlansWorth: (s: GameState, side: SideCode) => (side === 'runner' && probe.rig++, orig.boardPlansWorth(s, side)) };
 });
 const { hqTrashCardsLoss, runnerRigValue, tagLossPerTurn, tagsWorth, unseenCorpPool } = await import('../src/ai/evaluate');
-const { plan, withPricing } = await import('../src/ai/pricing');
-const { CLICK } = await import('../src/ai/valueModel');
+const { plan, pricing, withPricing } = await import('../src/ai/pricing');
+const { CLICK, creditsLessCost } = await import('../src/ai/valueModel');
+const { clickPrice } = await import('../src/ai/handValues');
 const { cardSynergy } = await import('../src/ai/synergyTags');
 const { trashedCardCost } = await import('../src/ai/runs');
 
-/** tagLoss as on beta 8e28403 (before arm 0): the full rig and every copy priced whatever the answer. */
+/**
+ * tagLoss as on beta 8e28403 (before arm 0): the full rig and every copy priced whatever the answer. Its owners follow
+ * tagLoss's since F114 + F110 (brief tag-clock-input rev 2, ruling 3): the trash's cost is the click's and the credits'
+ * owners' price (part C, with N1's flat CLICK + 2 inside an open hold count), and a punisher is the view's (part P).
+ */
 function tagLossBefore(state: GameState, viewer: SideCode, skip: number): number {
   return withPricing({ pricingTagLoss: true }, () => {
     const corp = state.corp;
@@ -33,8 +38,10 @@ function tagLossBefore(state: GameState, viewer: SideCode, skip: number): number
     const resources = state.runner.rig.resources.map(r => rig - runnerRigValue({ ...state, runner: { ...state.runner, rig: { ...state.runner.rig, resources: state.runner.rig.resources.filter(c => c !== r) } } }));
     const extra = (r: CardInstance) => (plan().hqTrashCost ? hqTrashCardsLoss(state, r) : 0);
     const nets = resources.map((v, i) => v - extra(state.runner.rig.resources[i])).sort((a, b) => b - a);
-    const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? CLICK + 2 : Infinity);
-    const punishes = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+    const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
+    const trash = Math.max(0, nets[skip] ?? 0) - (corp.credits >= 2 ? cost : Infinity);
+    const flagged = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
+    const punishes = (c: CardInstance) => flagged(c) && (viewer === 'runner' || cardDef(c).type_code === 'operation');
     let held: number;
     if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
     else {

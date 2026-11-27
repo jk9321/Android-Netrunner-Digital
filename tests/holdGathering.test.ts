@@ -20,6 +20,7 @@ import { asSide } from '../src/ai/pricing';
 import { inDecision } from '../src/ai/handValues';
 import { oracleGetsIn } from '../scripts/stage-d/hold-oracle';
 import { installIceForTest, installProgramForTest, newGame, startRunnerTurn } from './helpers';
+import '../src/ai'; // the keep port (corpPorts.keep) is filled by corpAI: the tag clock's trash cost reads it (F110 part C)
 
 const C = {
   PALISADE: '30072', MALANDRAGEM: '34081', FLYSWATTER: '35079', PHYSARUM: '34082', PHAROS: '30063', CLEAVER: '30006',
