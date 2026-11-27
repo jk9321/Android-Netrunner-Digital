@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FUZZ_CORPS, FUZZ_DECKS, FUZZ_RUNNERS, checkInvariants, cardsByZone, fuzzEngineGame, pairing, summaryLine } from '../scripts/engine-fuzz-check';
 import { createInitialGameState, executeAction, getLegalActions } from '../src/core';
 import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
+import { handUpkeepCheck } from '../src/core/engine/helpers';
 import { deckGameSetup } from '../src/data/decks';
 import { newGame } from './helpers';
 
@@ -18,6 +19,10 @@ describe('Engine fuzzer (tier 1, fixed seeds)', () => {
     const lines: string[] = [];
     const corps = new Set<string>();
     const runners = new Set<string>();
+    // R-105 (brief rev 1 ruling 1): the upkeep skip's checked walk is on in every game (fuzzEngineGame turns it on); it
+    // must have compared skips of all three walks and found no difference
+    const checked0 = { ...handUpkeepCheck.checked };
+    const failed0 = handUpkeepCheck.failures.length;
     for (let g = 0; g < GAMES; g++) {
       const { corp, runner } = pairing(g);
       corps.add(corp.id);
@@ -26,6 +31,8 @@ describe('Engine fuzzer (tier 1, fixed seeds)', () => {
       if (res.failures.length) lines.push(summaryLine(res));
     }
     expect(lines).toEqual([]);
+    expect(handUpkeepCheck.failures.slice(failed0)).toEqual([]);
+    for (const walk of ['archives', 'arrivals', 'main'] as const) expect(handUpkeepCheck.checked[walk] - checked0[walk], walk).toBeGreaterThan(0);
     expect(corps.size).toBe(FUZZ_CORPS.length);
     expect(runners.size).toBe(FUZZ_RUNNERS.length);
   }, 90_000);
