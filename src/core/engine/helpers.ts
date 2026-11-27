@@ -290,6 +290,12 @@ function setKnownList(state: GameState, owner: SideCode, list: KnownHandCard[]):
  * so the cards stay hidden and the other side only remembers them.
  */
 export function revealInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
+  if (cards.length > 0) ((state.corp.rdNotes ??= {}).handSeen ??= []).push({ owner, ids: cards.map(c => c.instanceId) });
+  addSeen(state, owner, cards);
+}
+
+/** revealInHand's list change, with no record of a sighting (the hand walk's own arrivals, noteOpenArrivals). */
+function addSeen(state: GameState, owner: SideCode, cards: CardInstance[]): void {
   let known = knownList(state, owner);
   // Seen again: certain again (no card has left unseen since). The entry keeps its place in the list.
   if (known.some(e => e.lost && cards.some(c => c.instanceId === e.id))) known = known.map(e => (e.lost && cards.some(c => c.instanceId === e.id) ? { id: e.id, code: e.code } : e));
@@ -298,15 +304,17 @@ export function revealInHand(state: GameState, owner: SideCode, cards: CardInsta
 }
 
 /**
- * Cards the other side knows went into `owner`'s hand without seeing them there (an R&D mark certainly drawn), each with
- * the unseen departures since it may have arrived (RdKnownCard.lost, rules 1.12.3). Unlike revealInHand, an entry
- * already on the list keeps its losses: nothing was seen.
+ * What the R&D walk (updateRdKnowledge) hands the hand walk for one action. `joined`: the Runner's R&D marks certainly
+ * drawn into HQ, each with the unseen HQ departures since it may have arrived (RdKnownCard.lost, rules 1.12.3); a draw
+ * is not a sighting (1.8.5). Passed by argument, not kept on the state; a call without it joins nothing (the safe
+ * default: the Runner forgets the drawn card).
  */
-export function joinHand(state: GameState, owner: SideCode, entries: KnownHandCard[]): void {
-  const known = knownList(state, owner);
-  const add = entries.filter(e => !known.some(k => k.id === e.id));
-  if (add.length > 0) setKnownList(state, owner, [...known, ...add]);
+export interface RdWalk {
+  joined: KnownHandCard[];
+  /** This action's sightings in a hand (RdNotes.handSeen), taken from the notes before the R&D walk drops them. */
+  seen: { owner: SideCode; ids: string[] }[];
 }
+export const NO_RD_WALK: RdWalk = { joined: [], seen: [] };
 
 /** The other side saw these known cards leave the hand for a hidden place (Touch-ups' shuffle). */
 export function forgetInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
@@ -378,6 +386,37 @@ function lossesFor(e: KnownHandCard, type: string): number {
   const root = type === 'agenda' || type === 'asset' || type === 'upgrade';
   return (l.any ?? 0) + (type === 'ice' ? (l.ice ?? 0) : 0) + (root ? (l.root ?? 0) : 0) + (type === 'upgrade' ? (l.upgrade ?? 0) : 0);
 }
+
+/**
+ * The index of the surest entry of `code` (the fewest departures since it was seen that could have been it), ties to
+ * the entry with id `prefer`, then the oldest; -1 if none. Which copy of a title an entry is, the viewer cannot tell
+ * (rules 10.2.2b), so a sighting refreshes and a card that surfaces forgets the surest one: of all the entries of that
+ * code, forgetting it lowers certainCounts the most (every count term past it drops by one), so what is left is the
+ * weakest claim (B4c red team, "what holds").
+ */
+function surestIndex(list: KnownHandCard[], code: string, prefer?: string, skip?: (e: KnownHandCard) => boolean): number {
+  const type = getCardDefinition(code)?.type_code ?? '';
+  let best = -1;
+  let bestL = Infinity;
+  list.forEach((e, i) => {
+    if (e.code !== code || skip?.(e)) return;
+    const l = lossesFor(e, type);
+    if (l < bestL || (l === bestL && e.id === prefer && list[best]?.id !== prefer)) {
+      best = i;
+      bestL = l;
+    }
+  });
+  return best;
+}
+
+/** The list without its surest entry of `code` (surestIndex), when it has one. */
+function forgetSurest(list: KnownHandCard[], code: string, prefer?: string): KnownHandCard[] {
+  const i = surestIndex(list, code, prefer);
+  return i < 0 ? list : list.filter((_, j) => j !== i);
+}
+
+const LOSS_KINDS: (keyof KnownLosses)[] = ['any', 'ice', 'root', 'upgrade'];
+const sameLost = (a: KnownLosses | undefined, b: KnownLosses | undefined): boolean => LOSS_KINDS.every(k => (a?.[k] ?? 0) === (b?.[k] ?? 0));
 
 /**
  * By code, how many of a list's cards are certainly still in their zone: the entries less the most of them the unseen
@@ -532,19 +571,21 @@ function listFits(list: KnownHandCard[] | undefined, hand: CardInstance[]): bool
   return true;
 }
 
-function handWalkIdle(prev: GameState, state: GameState): boolean {
+/** The list as it was before the action: nothing seen (revealInHand) during it, so the walk has no sighting to place. */
+function listUnchanged(was: KnownHandCard[] | undefined, now: KnownHandCard[] | undefined): boolean {
+  if ((was?.length ?? 0) !== (now?.length ?? 0)) return false;
+  for (let i = 0; i < (now?.length ?? 0); i++) if (was![i].id !== now![i].id || !sameLost(was![i].lost, now![i].lost)) return false;
+  return true;
+}
+
+function handWalkIdle(prev: GameState, state: GameState, walk: RdWalk): boolean {
   const hq = state.corp.hq;
   const grip = state.runner.grip;
+  if (walk.joined.length > 0 || walk.seen.length > 0) return false;
   if (!sameIds(prev.corp.hq, hq) || !sameIds(prev.runner.grip, grip)) return false;
   const corp = state.corp.knownToRunner;
   if (!listFits(corp, hq) || !listFits(state.runner.knownToCorp, grip)) return false;
-  const marks = state.corp.rdKnownToRunner;
-  if (corp && marks && marks.length > 0) {
-    for (const e of corp) {
-      if (hq.some(c => c.instanceId === e.id)) continue;
-      if (marks.some(m => m.id === e.id)) return false;
-    }
-  }
+  if (!listUnchanged(prev.corp.knownToRunner, corp) || !listUnchanged(prev.runner.knownToCorp, state.runner.knownToCorp)) return false;
   return sameOpen(prev, state) || noneSurfaced(prev, state);
 }
 
@@ -554,13 +595,13 @@ const holder = (state: GameState, f: UpkeepField): Record<string, unknown> => (f
 const shown = (state: GameState, f: UpkeepField): string => (f in holder(state, f) ? String(JSON.stringify(holder(state, f)[f])) : 'absent');
 
 /** handUpkeepCheck: the upkeep with its skips, then again from the same fields with none; the two must agree. */
-function checkedUpkeep(prev: GameState, state: GameState): void {
+function checkedUpkeep(prev: GameState, state: GameState, walk: RdWalk): void {
   const saved = UPKEEP_FIELDS.map(f => {
     const h = holder(state, f);
     return { has: f in h, value: Array.isArray(h[f]) ? (h[f] as unknown[]).slice() : h[f] };
   });
   const took: UpkeepSkip[] = [];
-  keepHandKnowledge(prev, state, true, took);
+  keepHandKnowledge(prev, state, walk, true, took);
   if (took.length === 0) return;
   const skipped = UPKEEP_FIELDS.map(f => shown(state, f));
   UPKEEP_FIELDS.forEach((f, i) => {
@@ -568,7 +609,7 @@ function checkedUpkeep(prev: GameState, state: GameState): void {
     if (saved[i].has) h[f] = saved[i].value;
     else delete h[f];
   });
-  keepHandKnowledge(prev, state, false);
+  keepHandKnowledge(prev, state, walk, false);
   for (const t of took) handUpkeepCheck.checked[t]++;
   const bad = UPKEEP_FIELDS.flatMap((f, i) => (shown(state, f) === skipped[i] ? [] : [{ skips: took.join('+'), field: f, skipped: skipped[i], walked: shown(state, f) }]));
   if (bad.length === 0) return;
@@ -593,8 +634,10 @@ function updateArchivesKnowledge(prev: GameState, state: GameState): void {
     const departed = was.filter(c => !nowIds.has(c.instanceId));
     if (departed.length > 0) {
       const open = publicCards(state);
+      // A facedown card that turns up in the open may be any known one of its title (10.2.2b): the surest goes (B4c part 1)
+      for (const c of departed) if (open.has(c.instanceId)) known = forgetSurest(known, c.cardCode, c.instanceId);
       known = addLosses(
-        known.filter(e => nowIds.has(e.id) || !open.has(e.id)),
+        known,
         departed.filter(c => !open.has(c.instanceId)).map(c => lossKind(state, c.instanceId))
       );
     }
@@ -630,7 +673,8 @@ function noteOpenArrivals(prev: GameState, state: GameState, skips: boolean, too
     if (arrivals.length === 0) continue;
     open ??= publicCards(prev);
     const seen = arrivals.filter(c => open!.has(c.instanceId));
-    if (seen.length > 0) revealInHand(state, owner, seen);
+    // addSeen, not revealInHand: this runs after the R&D walk has taken this action's notes (an arrival needs none)
+    if (seen.length > 0) addSeen(state, owner, seen);
   }
 }
 
@@ -646,15 +690,99 @@ function noteOpenArrivals(prev: GameState, state: GameState, skips: boolean, too
  * list never holds more cards than the hand does. Facedown Archives is kept
  * by the same rule (updateArchivesKnowledge).
  */
-export function updateHandKnowledge(prev: GameState, state: GameState): void {
+export function updateHandKnowledge(prev: GameState, state: GameState, walk: RdWalk = NO_RD_WALK): void {
   // B4b's root kinds are kept on every action, outside R-105's skips (they read the servers, not the hands)
   updateRootKinds(prev, state);
-  if (handUpkeepCheck.on) checkedUpkeep(prev, state);
-  else keepHandKnowledge(prev, state, true);
+  if (handUpkeepCheck.on) checkedUpkeep(prev, state, walk);
+  else keepHandKnowledge(prev, state, walk, true);
+}
+
+/**
+ * The list after an action, with each card seen during it placed by copy, not by instance id (B4c part 1, brief rev 1
+ * findings 1, 2, 10): the viewer cannot tell two copies of a title apart (rules 10.2.2b). revealInHand added or refreshed
+ * entries by id while the action resolved; this rebuilds them from the list as it was in `prev`:
+ *  - a card seen that was in the hand before the action is an in-place sighting: it refreshes the surest entry of its
+ *    title (surestIndex), which takes the seen card's id, loses its losses and moves to the end (newest). The k cards of
+ *    one sighting refresh up to k distinct entries and only the rest are added (one reveal, 1.21.3, or one breach). A
+ *    breach is many actions: an entry whose id is in the run's accesses before this action was matched this breach
+ *    already (7.4.3, 7.3.4a; a card that left and came back is a new object with a loss, 7.4.5, 7.4.6b);
+ *  - a card seen that was not in the hand is an arrival (Malapert, Tocsin, Pivot, an open card returned): a new card the
+ *    viewer saw go in (1.12.3), always its own entry;
+ *  - an R&D mark drawn into HQ (`joined`) may be the card behind an X entry, so it merges with the surest X entry, keeping
+ *    the fewer losses (red team 4b; brief rev 1 item 4b). A mark that may already have been in HQ before the action
+ *    (left 'hq') may be any X entry seen since. One drawn this action was in R&D until now: it can only be an X entry
+ *    that may have left HQ since its sighting (some loss), shuffled in or put back (1.12.3); an X seen with no departure
+ *    since that could be it is still in HQ, another card, and the mark joins beside it.
+ */
+function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk: RdWalk): KnownHandCard[] {
+  const was = knownList(prev, owner);
+  const now = knownList(state, owner);
+  const wasById = new Map(was.map(e => [e.id, e]));
+  const codeOf = new Map(now.map(e => [e.id, e.code]));
+  const prevHand = new Set((owner === 'corp' ? prev.corp.hq : prev.runner.grip).map(c => c.instanceId));
+  // The action's sightings, one group per reveal or access (RdNotes.handSeen); an entry added or refreshed with no
+  // record (a caller that set the list itself) is a group of its own
+  const groups = walk.seen.filter(g => g.owner === owner).map(g => [...new Set(g.ids)].filter(id => codeOf.has(id)));
+  const inGroup = new Set(groups.flat());
+  let base: KnownHandCard[] = [];
+  for (const e of now) {
+    const old = wasById.get(e.id);
+    if (old && sameLost(old.lost, e.lost) && !inGroup.has(e.id)) base.push(e);
+    else {
+      if (old) base.push(old);
+      if (!inGroup.has(e.id)) groups.push([e.id]);
+    }
+  }
+  if (owner === 'corp') {
+    const pendingBefore = new Set((prev.corp.rdKnownToRunner ?? []).filter(m => m.left === 'hq').map(m => m.id));
+    for (const j of walk.joined) {
+      const type = getCardDefinition(j.code)?.type_code ?? '';
+      // A mark drawn this action was in R&D until now, so it is not a seen X still in HQ with no departure since that
+      // could have been it; an X entry that may have left (lost) may be this very card, shuffled or put back
+      const notIt = pendingBefore.has(j.id) ? undefined : (e: KnownHandCard) => e.id !== j.id && lossesFor(e, type) === 0;
+      const i = surestIndex(base, j.code, j.id, notIt);
+      if (i < 0) {
+        base.push(j);
+        continue;
+      }
+      const merged = lossesFor(j, type) < lossesFor(base[i], type) ? j : { ...base[i], id: j.id };
+      // No two entries share an id: one still under the drawn card's id takes the merged entry's old one
+      const at = base.findIndex((e, k) => k !== i && e.id === j.id);
+      if (at >= 0) base[at] = { ...base[at], id: base[i].id };
+      base[i] = merged;
+    }
+  }
+  if (groups.length === 0) return base;
+  const accessedBefore = new Set(owner === 'corp' ? (prev.activeRun?.accessed ?? []).map(a => a.id) : []);
+  const arrivals: KnownHandCard[] = [];
+  for (const g of groups) {
+    const matched = new Set<KnownHandCard>();
+    const refreshed: KnownHandCard[] = [];
+    for (const id of g) {
+      const code = codeOf.get(id)!;
+      const at = base.findIndex(e => e.id === id);
+      if (!prevHand.has(id)) {
+        // An arrival is its own entry; a stale entry under its id is that card's earlier sighting, and goes with it
+        if (at >= 0) base.splice(at, 1);
+        arrivals.push({ id, code });
+        continue;
+      }
+      const i = surestIndex(base, code, id, e => matched.has(e) || accessedBefore.has(e.id));
+      if (i >= 0) {
+        matched.add(base[i]);
+        // The labels are not the viewer's to know (10.2.2b): a weaker entry still under the seen card's id takes the
+        // refreshed entry's old one, so no two entries share an id
+        if (at >= 0 && at !== i && !matched.has(base[at])) base[at] = { ...base[at], id: base[i].id };
+      } else if (at >= 0) base.splice(at, 1);
+      refreshed.push({ id, code });
+    }
+    base = [...base.filter(e => !matched.has(e)), ...refreshed];
+  }
+  return [...base, ...arrivals];
 }
 
 /** updateHandKnowledge's three walks; with `skips` the walks that would write nothing are skipped (R-105), listed in `took`. */
-function keepHandKnowledge(prev: GameState, state: GameState, skips: boolean, took?: UpkeepSkip[]): void {
+function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skips: boolean, took?: UpkeepSkip[]): void {
   if (skips && archivesIdle(prev, state)) took?.push('archives');
   else updateArchivesKnowledge(prev, state);
   noteOpenArrivals(prev, state, skips, took);
@@ -662,8 +790,8 @@ function keepHandKnowledge(prev: GameState, state: GameState, skips: boolean, to
   const marks = state.corp.rdKnownToRunner ?? [];
   const mayBeInHq = marks.some(e => e.left === 'hq');
   // Today's return stays here, after noteOpenArrivals, which can add the first entry to an empty list (red team 7)
-  if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0 && !mayBeInHq) return;
-  if (skips && handWalkIdle(prev, state)) {
+  if (knownList(state, 'corp').length === 0 && knownList(state, 'runner').length === 0 && !mayBeInHq && walk.joined.length === 0) return;
+  if (skips && handWalkIdle(prev, state, walk)) {
     took?.push('main');
     return;
   }
@@ -673,27 +801,29 @@ function keepHandKnowledge(prev: GameState, state: GameState, skips: boolean, to
   const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId));
   const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
   for (const owner of ['corp', 'runner'] as const) {
-    let known = knownList(state, owner);
+    let known = placeSightings(prev, state, owner, walk);
     const listed = known.length > 0;
     const pending = owner === 'corp' && mayBeInHq;
     if (!listed && !pending) continue;
     const hand = owner === 'corp' ? state.corp.hq : state.runner.grip;
     const inHand = new Set(hand.map(c => c.instanceId));
     // A card the Runner followed from HQ into R&D (an effect showed it there: it is marked in R&D) is no departure it
-    // cannot tell, and it is no longer in HQ (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program). A mark that
-    // may have left R&D (`left`) is not followed: its card may be the one leaving HQ unseen (rules 1.12.3, 4.6.6d).
+    // cannot tell (step 0 gap 1: Pivot, The Holo Man, Cohort Guidance Program); it may be any seen card of its title, so
+    // the surest goes (10.2.2b; B4c red team 4a). A mark that may have left R&D (`left`) is not followed: its card may be
+    // the one leaving HQ unseen (rules 1.12.3, 4.6.6d).
     const followed = owner === 'corp' ? new Set(marks.filter(e => !e.left).map(e => e.id)) : undefined;
-    const departed = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId) && !followed?.has(c.instanceId));
-    if (followed?.size) known = known.filter(e => inHand.has(e.id) || !followed.has(e.id));
+    const out = (owner === 'corp' ? prev.corp.hq : prev.runner.grip).filter(c => !inHand.has(c.instanceId) && !after.has(c.instanceId));
+    const departed = out.filter(c => !followed?.has(c.instanceId));
+    for (const c of out) if (followed?.has(c.instanceId)) known = forgetSurest(known, c.cardCode, c.instanceId);
     const kinds = departed.map(c => lossKind(state, c.instanceId));
     known = addLosses(known, kinds);
     if (pending && kinds.length > 0) state.corp.rdKnownToRunner = marks.map(e => (e.left === 'hq' ? { ...e, lost: withLosses(e.lost, kinds) } : e));
-    if (!listed) continue;
-    for (const [id, code] of surfaced) {
-      const same = known.findIndex(e => e.id === id);
-      const i = same >= 0 ? same : known.findIndex(e => e.code === code);
-      if (i >= 0) known = known.filter((_, j) => j !== i);
+    if (known.length === 0) {
+      if (listed || knownList(state, owner).length > 0) setKnownList(state, owner, known);
+      continue;
     }
+    // A card that turns up in the open may be any seen card of its title: the surest goes (B4c part 1)
+    for (const [id, code] of surfaced) known = forgetSurest(known, code, id);
     // A hand card set aside by a search (Let Them Dream searching HQ) is still the viewer's to remember
     setKnownList(state, owner, known.slice(Math.max(0, known.length - hand.length - setAsideFrom(state, owner === 'corp' ? 'hq' : 'grip').length)));
   }

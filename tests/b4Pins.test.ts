@@ -13,8 +13,7 @@ import '../src/ai';
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 

@@ -21,8 +21,7 @@ const SG = { hedgeFund: '30075', palisade: '30072', funhouse: '30054' };
 function act(s: GameState, change: (next: GameState) => void): GameState {
   const next = structuredClone(s);
   change(next);
-  updateRdKnowledge(s, next);
-  updateHandKnowledge(s, next);
+  updateHandKnowledge(s, next, updateRdKnowledge(s, next));
   return next;
 }
 
