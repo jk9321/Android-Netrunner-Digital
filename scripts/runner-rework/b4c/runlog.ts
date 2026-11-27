@@ -19,7 +19,6 @@ const target = (s: any, id: string) => {
   if (!id.startsWith('remote')) return id;
   const sv = s.corp.servers[id];
   if (!sv || sv.root.length === 0) return `${id} (empty root)`;
-  const open = sv.root.filter((x: any) => x.isRezzed || x.faceUp || x.runnerKnows);
   const hidden = sv.root.filter((x: any) => !(x.isRezzed || x.faceUp || x.runnerKnows));
   const up = hidden.length > 0 && hidden.every((x: any) => { const k = kinds(s, x); return k && k.kinds.length === 1 && k.kinds[0] === 'upgrade'; });
   const truth = sv.root.map((x: any) => core.getCardDefinition(x.cardCode)?.type_code).join('+');
