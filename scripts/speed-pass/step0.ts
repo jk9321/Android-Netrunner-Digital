@@ -298,6 +298,9 @@ const MAKERS = !!process.env.MAKERS;
 type Birth = { from: object; action: string; dupOf?: object };
 const birth = new WeakMap<object, Birth>();
 const execSeen = new WeakMap<object, Map<string, object>>();
+/** PAIRS=1 (with MAKERS, a local read): the first executeAction's stack is kept too, and a repeat's site reads `first => again`. */
+const PAIRS = !!process.env.PAIRS;
+const firstSite = new WeakMap<object, string>();
 let execCount = 0;
 function born(from: object, action: unknown, result: object, ms: number) {
   if (!S.on) return;
@@ -314,12 +317,15 @@ function born(from: object, action: unknown, result: object, ms: number) {
     e.dup++;
     e.dupMs += ms;
     if (execCount++ % VERIFY === 0) {
-      const sig = stackSig();
+      const sig = PAIRS ? `${firstSite.get(prev) ?? '?'} => ${stackSig(8)}` : stackSig();
       const x = (e.sites[sig] ??= [0, 0]);
       x[0]++;
       x[1] += ms;
     }
-  } else m.set(key, result);
+  } else {
+    m.set(key, result);
+    if (PAIRS) firstSite.set(result, stackSig(8));
+  }
   if (!birth.has(result)) birth.set(result, b);
 }
 function maker(name: string, first: object, second: object, ms: number) {
@@ -333,7 +339,7 @@ function maker(name: string, first: object, second: object, ms: number) {
   if (JSON.stringify((first as any).log) === JSON.stringify((second as any).log)) x.logEq++;
 }
 /** The calling stack in the tree's src, innermost first: function names (wrappers and anonymous frames left out), 16 deep. */
-function stackSig(): string {
+function stackSig(deep = 16): string {
   const e: { stack?: string } = {};
   const lim = Error.stackTraceLimit;
   Error.stackTraceLimit = 60;
@@ -346,7 +352,7 @@ function stackSig(): string {
     const fn = (m[1] ?? '').replace(/^Object\./, '').replace(/^__/, '');
     if (!fn || fn === 'timer' || fn === 'w' || names[names.length - 1] === fn) continue;
     names.push(`${fn}(${m[2].split('/tree/src/')[1].replace(/\.ts$/, '')})`);
-    if (names.length >= 16) break;
+    if (names.length >= deep) break;
   }
   return names.join(' < ');
 }
