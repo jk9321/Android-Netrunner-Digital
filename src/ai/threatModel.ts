@@ -1,5 +1,5 @@
 import { CardInstance, GameState, cardDef } from '../core';
-import { unseenInHand } from './handValues';
+import { unseenInHand, unseenKey } from './handValues';
 import { memo, pointGain } from './valueModel';
 
 /**
@@ -24,7 +24,7 @@ export function turnSeed(state: GameState): number {
  */
 export function centralAccess(state: GameState): { hqNow: number; density: number } {
   const unseen = unseenInHand(state, 'corp');
-  return memo(state, `centralAccess:${unseen.map(c => c.instanceId).join(',')}`, () => {
+  return memo(state, `centralAccess:${unseenKey(state)}`, () => {
     const corp = state.corp;
     const gain = (c: CardInstance) => (cardDef(c).type_code === 'agenda' ? pointGain(state.runner.score, cardDef(c).agenda_points ?? 1) : 0);
     const ids = new Set(unseen.map(c => c.instanceId));

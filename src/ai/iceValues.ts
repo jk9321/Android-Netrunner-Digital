@@ -10,6 +10,7 @@ import { turnsLeft } from './cardProfiles';
 import { freeRezTargets } from './freeRez';
 import { actingSide, plan, pricing } from './pricing';
 import { mainRemote } from './board';
+import { unseenKey } from './handValues';
 import { corpPorts } from './corpPorts';
 
 /**
@@ -93,7 +94,7 @@ function protects(state: GameState, ice: CardInstance, viewer: SideCode): number
   // Ice not installed (in HQ, as handValues prices it): what it would protect on the best server it could join, so
   // holding it and installing it compare like with like. A new remote holds nothing, unless the Corp has no scoring
   // remote yet: then this ice would found one, the place the next agenda goes (as serverStake prices one)
-  return memo(state, `iceProtects:hand:${ice.cardCode}`, () => {
+  return memo(state, `iceProtects:hand:${ice.cardCode}:${unseenKey(state)}`, () => {
     const existing = Object.values(state.corp.servers).map(s => protectsIn(state, s, ice));
     const found = mainRemote(state) ? 0 : Math.min(1, plannedStake(state) / Math.max(1e-9, Math.min(iceStop(state), iceCost(state, { ...ice, isRezzed: true }))));
     return Math.max(ICE_UNGUARDED, found, ...existing);
@@ -102,7 +103,7 @@ function protects(state: GameState, ice: CardInstance, viewer: SideCode): number
 
 /** The share for `server`'s ice (with `extra` added to it, for ice not yet installed). */
 function protectsIn(state: GameState, server: ServerState, extra?: CardInstance): number {
-  return memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}`, () => {
+  return memo(state, `iceProtects:${server.id}:${extra?.cardCode ?? ''}:${unseenKey(state)}`, () => {
     const ice = extra ? [...server.ice, extra] : server.ice;
     const breaks = ice.reduce((n, c) => n + Math.min(iceStop(state), iceCost(state, { ...c, isRezzed: true })), 0);
     if (breaks <= 0) return 1;

@@ -11,7 +11,7 @@ import { iceStop } from '../iceValues';
 import { tuning } from '../synergy';
 import { accessWorth, anySuccess, centralSuccess, conduitCounterWorth, counterWorthOf, damageWorth, lock, muWorth, PACE, perTurn, runSuccess, VIRUS_WAIT, virusWait } from '../effectValues';
 import type { RunOptions } from '../runs';
-import { CardAI } from './types';
+import { CardAI, TagUse } from './types';
 import { pricing } from '../pricing';
 import { corpKnowsRd } from '../oracle';
 
@@ -72,6 +72,10 @@ export function taoSwap(state: GameState, memory?: RunnerMemory): string[] {
   }
   return best && best.gain >= 2 ? best.ids : [];
 }
+
+/** Orbital Superiority's tag use (F119): "When you score this agenda, if the Runner is tagged, do 4 meat damage; otherwise,
+ * give the Runner 1 tag." (untagged it gives a tag: not a use) */
+const ORBITAL_USE: TagUse = { from: 'onScore', needs: 1, spends: () => 0, does: () => ({ damage: 4 }) };
 
 export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Loup
@@ -408,7 +412,12 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
     },
   },
   // NBN: Reality Plus
-  '30051': { synergy: { wants: { tags: 2 }, when: ['ifTagged'] } },
+  '30051': {
+    synergy: { wants: { tags: 2 }, when: ['ifTagged'] },
+    // F119: "The first time each turn the Runner takes a tag, gain 2 credits or draw 2 cards." (a tag being given, used by
+    // none; the credits mode stated)
+    tagUse: { from: 'tagGiven', needs: 0, spends: () => 0, does: () => ({ corpCredits: 2 }) },
+  },
   // Tomorrowʼs Headline
   '30052': { synergy: { gives: { tags: 1 }, when: ['onScore'] } },
   // Spin Doctor
@@ -450,7 +459,17 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // "When you rez this ice during a run against this server, give the Runner 1 tag"
   '30055': { synergy: { gives: { ice: 1, tags: 1 } }, rezEffect: true, holdFacts: { rezDuringRun: { tags: 1 } } },
   // Predictive Planogram
-  '30056': { synergy: { gives: { econ: 1, draw: 1 }, wants: { tags: 1 }, when: ['ifTagged'] } },
+  '30056': {
+    synergy: { gives: { econ: 1, draw: 1 }, wants: { tags: 1 }, when: ['ifTagged'] },
+    tagUse: {
+      // F119: "Resolve 1 of the following. If the Runner is tagged, you may resolve both instead. Gain 3 credits. / Draw 3 cards."
+      from: 'hq',
+      needs: 1,
+      spends: () => 0,
+      does: () => ({ corpCredits: 3, corpCards: 3 }),
+      without: () => [{ corpCredits: 3 }, { corpCards: 3 }],
+    },
+  },
   // Public Trail
   '30057': { synergy: { gives: { tags: 1, denial: 0.5 }, when: ['successfulRun'] } },
   // AMAZE Amusements
@@ -489,7 +508,11 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Government Subsidy
   '30064': { synergy: { gives: { econ: 2 } } },
   // Retribution
-  '30065': { synergy: { wants: { tags: 1.5 }, when: ['ifTagged'] } },
+  '30065': {
+    synergy: { wants: { tags: 1.5 }, when: ['ifTagged'] },
+    // F119: "Play only if the Runner is tagged. Trash 1 installed program or piece of hardware." (cardPlans.ts reads it)
+    tagUse: { from: 'hq', needs: 1, spends: () => 0, does: () => ({ trashRig: 1 }) },
+  },
   // Malapert Data Vault
   '30066': {
     synergy: { gives: { draw: 0.5 }, when: ['onScore'] },
@@ -503,7 +526,12 @@ export const SYSTEM_GATEWAY: Record<string, CardAI> = {
   // Offworld Office
   '30067': { synergy: { gives: { econ: 1 }, when: ['onScore'] }, scoreCredits: 7 },
   // Orbital Superiority
-  '30068': { corpTurnDamage: state => (state.runner.tags > 0 ? 4 : 0) /* plan.corpTurnDamageOwn: 4 meat only if the Runner is tagged */, synergy: { gives: { tags: 1, damage: 1 }, wants: { tags: 1 }, when: ['ifTagged', 'onScore'] } },
+  '30068': {
+    // plan.corpTurnDamageOwn: 4 meat only if the Runner is tagged (F119: read from its tag use)
+    corpTurnDamage: state => (state.runner.tags >= ORBITAL_USE.needs ? (ORBITAL_USE.does(state, state.runner.tags).damage ?? 0) : 0),
+    synergy: { gives: { tags: 1, damage: 1 }, wants: { tags: 1 }, when: ['ifTagged', 'onScore'] },
+    tagUse: ORBITAL_USE,
+  },
   // Send a Message
   '30069': { synergy: { gives: { ice: 0.5 }, when: ['onScore'] } },
   // Superconducting Hub

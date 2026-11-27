@@ -22,6 +22,7 @@ When (Jeff 2026-11-22, replaces "alongside tuning"): after the Runner rework, SE
 
 ### RULE-SET-STEP-4
 4. AI data: one entry per card in `src/ai/cards/<set>.ts`; re-tag older cards that interact. Ice that gains subroutines when encountered (Starlit Knight) needs a `gainsOnEncounter` entry, or the Runner AI prices the run against the printed subroutines only.
+   A Corp card that uses, needs or spends the Runner's tags gets a `tagUse` entry (`src/ai/cards/types.ts` TagUse, F119); the tag clock reads only that, never the `ifTagged` flag (`tests/tagUse.test.ts` pins today's set).
 
 ### RULE-SET-STEP-5
 5. Startup/Standard legality and ban lists.

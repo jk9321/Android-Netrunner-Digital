@@ -106,6 +106,8 @@ const STATE_CACHES: Record<string, 'stateEntries' | string> = {
   'synergy:ownCache': "not tripwired: a side's own card profile per board (outside F3)",
   'synergy:oppCache': "not tripwired: the other side's card profile per board (outside F3)",
   'prompts:runAfters': 'not tripwired: the one-step boards the run term simulated, per answer (outside F3)',
+  'prompts:rootRdIds': "not tripwired: the R&D cards the Corp knows the place of, per board (F117 D1 (ii); read from the board's rdKnownToCorp only)",
+  'prompts:facesShown': "not tripwired: the cards a prompt board's active prompt shows by face (F117 D1 (i); core/view.ts's face rule, read once per prompt state)",
   'cards/systemGateway:rootRd': "not tripwired: the decision root's R&D, carried to its look-aheads (not a value)",
   'runner/prompt:shownByState': "freezeAsked: the cards the engine's view shows the Runner in its prompt, per board (B3; tripwired since B4a, brief rev 1d)",
 };
@@ -139,8 +141,6 @@ const CARD_COMPARISONS: Record<string, string> = {
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
-  'runner/prompt.ts: for (const c of mine?.cards ?? []) if (c.cardCode !== undefined && ids.real[c.instanceId]) out.add(ids.real[c.instanceId]);':
-    "promptShownIds: no card fact, the engine's face test (core/view.ts gives a facedown card no code; B3 commit 2)",
   'runner/prompt.ts: if (mine.cardCode === want) {': "honestPromptView: no card fact, the dealt code against the card's real one (already kept; B3 commit 2)",
   'runner/prompt.ts: const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));':
     "honestPromptView: no card fact, the slot the deal gave the shown card's identity (the swap; B3 commit 2)",
@@ -384,12 +384,15 @@ describe('AI code health (audit guards)', () => {
   // the valuation cycle, so nextTurnMoney.ts joins it: cardPlans, cardProfiles, cardValues, cards/{elevation, index,
   // liberation, systemGateway, vantagePoint}, counterValues, effectValues, evaluate, handValues, iceValues, nextTurnMoney,
   // prompts, runs, threatModel. A copy of the money in handValues would keep 16 and break one owner per quantity.
-  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 17 modules (29 before R8)', () => {
+  // 17 to 18 (ai-punisher-field, F119-S addendum-structure.md item 2): freeRez.ts's pendingFreeRezzes reads the free-rez tag
+  // use from the card entries (cards/, in the cycle), in place of Unleash's code, so freeRez.ts joins it. A code list in
+  // freeRez.ts would keep 17 and leave a new set's free-rez card out.
+  it('keeps corp/ and runner/ out of every import cycle, and the largest cycle in src/ai at or under 18 modules (29 before R8)', () => {
     const found = cycles(importGraph());
     expect(found.filter(c => c.some(f => f.startsWith('corp/'))), 'corp/ reads the valuation layer; the layer reads corp/ only through corpPorts.ts').toEqual([]);
     // R-B B1 (and the Corp side's conditions for parking the cycle below, tracker R-28): runner/ holds the order only
     expect(found.filter(c => c.some(f => f.startsWith('runner/'))), 'runner/ reads the agent only through its context (runner/core.ts RunnerContext)').toEqual([]);
-    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(17);
+    expect(Math.max(...found.map(c => c.length))).toBeLessThanOrEqual(18);
   });
 
   // R-B B1, tracker R-28 (parked by both coordinators 2026-11-24): the cycle that holds the Runner agent is these four and
@@ -854,10 +857,40 @@ describe('AI code health (audit guards)', () => {
   // corp/ 3,981, src/ai 17,023
   // Then + 2 in src/ai (ai-runner-hidden-zones, B4b (d): corpBoardValue's agenda share by root kind, its comment and
   // import; evaluate.ts open for this hunk only, Corp side rev 1c): corp/ 3,981, src/ai 17,025
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,025 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input)', () => {
+  // Then, measured on B1b's 16,939 (before the merge of beta b744f03): + 112 in src/ai (ai-deck-arrivals, F117 commit 1:
+  // the iceProtects and centralAccess keys carry the unseen HQ
+  // ids, handValues.ts unseenKey; valueModel.ts memo's test-only on-hit audit, item 14): src/ai 17,051
+  // Then + 6 (F117 commit 2: evaluate.ts handCount, handAndClicks' count line as its own export): src/ai 17,057
+  // Then + 5 (F117 commit 3: runner/prompt.ts promptShownIds on core/view.ts's one face rule): src/ai 17,062
+  // Then + 315 (F117 commit 4, the design: prompts.ts D1 seen arrivals, D2 M - C, D3 chain test and its budget, the
+  // one-answer scorer the Runner's 'again' path reads; turnPlanner.ts the line frame; handValues.ts withKnownCards):
+  // corp/ 3,981, src/ai 17,377
+  // Then + 30 (F117 bars 6 and 7: a chain's later unseen draws go back to the deck on the staying cards' keep board,
+  // toDeck; a tie between search answers goes by card code, deckTie): src/ai 17,407
+  // Then + 14 (F117 departures, the Mercia ruling: a card leaving the own hand priced by its owner, arrivalTerms):
+  // src/ai 17,421
+  // Then + 81 (F117 departures red team, ruled: chance departures keep base's term averaged over every set the damage
+  // could take, chanceBoards; byChance; C at the board before's limit; the before keep sum without the chosen D): src/ai 17,502
+  // Then + 8 (F117 chanceBoards ruling: one chance-set enumerator, chanceSets, shared with hqChanceLoss): src/ai 17,510
+  // Then + 21 (F117 time levers, ruled: ownHandValue(before) once per prompt state, ownHandBefore; chanceBoards' scores
+  // memoised per scored board, knownKey, serial): src/ai 17,531
+  // Then - 9 (F117 lever 2 dropped, ruled: the chanceBoards memo never hit, 0 hits in 331 deals; serial gone): src/ai 17,522
+  // Then the merge of beta b744f03 (R-109, the tag clock) into ai-deck-arrivals: F117's + 583 above (on 16,939 to 17,522)
+  // on beta's 17,001: src/ai 17,584 (F117 measured on the tag clock's 17,001, before B4b)
+  // Then - 46 (F117 chanceBoards removed, ruled 15:45Z: chance departures priced as base, no averaging; hqChanceLoss as on
+  // beta, chanceSets and CHANCE_SETS gone): src/ai 17,538
+  // Then the merge of beta 7724180 (B4b) into ai-deck-arrivals: F117's + 537 on the tag clock's 17,001 (to 17,538), on B4b's
+  // 17,025: src/ai 17,562
+  // Then + 218 in src/ai (ai-punisher-field, F119-S addendum-structure.md: the TagUse type, 17 tagUse entries with their card
+  // text, ipPick, the clock's tagPunisher, freeRez and the two hand plans reading the field), on 17,025: corp/ 3,981, src/ai 17,243
+  // Then the merge of beta 6a7731e (F119-S) into ai-deck-arrivals: F119-S's + 218 and F117's + 537, both on B4b's 17,025:
+  // src/ai 17,780
+  // Then - 1 (F117 review R2: runner/prompt.ts promptShownIds reads prompts.ts shownByPrompt, one copy of the prompt's
+  // faces; R1's CHAIN_BUDGET comment): src/ai 17,779
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,779 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3981;
-    const AI_CAP = 17025;
+    const AI_CAP = 17779;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

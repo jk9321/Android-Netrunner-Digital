@@ -115,12 +115,14 @@ describe('Stage D pins (known-failing until their fix lands)', () => {
   });
 
   // D3, install prompts (Part B): the prompt was declined though a legal install existed. Expected (D3): it installs a
-  // card, and its target is place(card, ...)[0]
+  // card, and its target is place(card, ...)[0]. Passing since F117 (ai-deck-arrivals, D3): the card's answer is now
+  // followed into the same source's install prompt that names it (the narrow chain test), so the install is priced
+  // where it goes, not as a card leaving HQ for nothing (#49: Project Ingatan, #50: Scatter Field)
   for (const [n, m, source] of [
     [49, 219, 'Humanoid Resources'],
     [50, 252, 'Top-Down Solutions'],
   ] as const) {
-    it.fails(`D3 #${n} #${m}: the ${source} install prompt is not declined`, { timeout: T }, () => {
+    it(`D3 #${n} #${m}: the ${source} install prompt is not declined`, { timeout: T }, () => {
       const { s } = at(n, m);
       const p = s.pendingPrompts[0] as unknown as { kind: string; candidateIds: string[]; message: string };
       expect(p.kind).toBe('effect_cards');

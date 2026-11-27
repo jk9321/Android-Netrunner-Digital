@@ -1,5 +1,5 @@
 import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
-import { corpBoardValue, evaluate, keepValue, rigCoverage } from './evaluate';
+import { corpBoardValue, evaluate, handCount, keepValue, rigCoverage } from './evaluate';
 import { CARDS } from './cards';
 import { PACE, placedCounterWorth } from './effectValues';
 import { turnsLeft } from './cardProfiles';
@@ -10,9 +10,12 @@ import { corpPorts } from './corpPorts';
 import { iceWorth } from './iceValues';
 import { rezCost } from '../core/engine/cardEffects';
 import { isPsiStep } from '../core/scripts/effects';
-import { plan } from './pricing';
-import { ownHandValue } from './handValues';
+import { plan, pricing } from './pricing';
+import { handByCard, ownHandValue, withKnownCards } from './handValues';
 import { SHRED_STEP } from '../core/engine/runEnd';
+import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
+import { knownToCorpInRd } from '../core/engine/rdKnowledge';
+import { memo } from './valueModel';
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
@@ -38,11 +41,14 @@ const sumKeep = (state: GameState, cards: CardInstance[], synergy: boolean) => c
  * board evaluation it counts which cards are in hand (so the AI discards
  * its least useful cards) and, for the Runner, the run still in progress.
  */
-export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): number {
+export function scoreOutcome(before: GameState, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, arrivals: AnswerFrame | false = false): number {
   let score = evaluate(after, side);
-  // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
-  const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
-  score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
+  if (arrivals) score += arrivalTerms(before, after, side, synergy, arrivals);
+  else {
+    // Cards that came from the deck are unknown until drawn: only the cards that left the hand count (plan.blindDraws)
+    const drawn = (c: CardInstance) => !hand(before, side).some(b => b.instanceId === c.instanceId) && fromDeck(before, side, c);
+    score += 0.5 * (sumKeep(after, hand(after, side).filter(c => !drawn(c)), synergy) - sumKeep(before, hand(before, side), synergy));
+  }
   if (side === 'runner' && before.activeRun) {
     // While ice is still ahead the rest of the run may not happen (0.8); once the breach has begun (the Success Phase,
     // rules 6.9.5b: the Runner breaches the server, 7.3.1) no ice is left and its accesses are counted in full
@@ -50,6 +56,204 @@ export function scoreOutcome(before: GameState, after: GameState, side: SideCode
     score += (breaching ? 1 : 0.8) * runRestWorth(after, memory, synergy && tuning.wary);
   }
   return score;
+}
+
+/**
+ * F117 / R-93 D2 (brief netrunner-ai/f117-deck-arrivals/design-brief.md rev 2; addendum-departures.md): the hand terms of
+ * an answer's score in its answer frame (scoreAnswer). Where the hand is priced by count (every prompt score today), the
+ * cards that move in or out of the side's own hand are priced by the hand's owner in place of the count:
+ *  - the seen arrivals A (in the hand after, not before, and known to the frame: the caller's set and every seen arrival
+ *    still in the hand): M - C, M the owner's difference (ownHandValue of the board less the same board without A, its
+ *    sort and hand limit with it) and C the count's (handCount, on both boards: the reach card can differ);
+ *  - the chosen departures D (in the hand before, not after: installed, played, or named by an answer of the side: a
+ *    discard, a cost), the mirror: less (M_D - C_D), M_D the owner's difference on the board before (ownHandValue of it
+ *    less the same board without D: where the cards were held, so a card now installed is not also priced in the hand
+ *    of a board that holds it on a server) and C_D the count's on the board after at the board before's hand size limit
+ *    (handCount with D back in the hand less without: what evaluate's count took for them, a moved limit left to its
+ *    own price).
+ * Chance departures (byChance: no answer named it and it is in the discard pile or deck: damage, a trash at random)
+ * keep base's term, the count and the half keep (the departures red team, ruled 09:32Z: the damage's own owner is
+ * damageWorth, tracker F121), on the scored board exactly as base prices them (ruling "Time per kind and the chance
+ * averaging", 15:45Z: the board's read of which cards the simulated RNG took is older than F117, R-C1's R-111).
+ * Where the frame prices the hand by card (handByCard), the owner already holds the arrivals and chosen departures. The
+ * half-keep term is the code's over the staying cards (in the hand before and after) and the chance departures (base's): no arrival in its list, seen or not, from any zone, and no chosen departure, whose keep is inside the
+ * owner's difference (ruling, condition 1); seen arrivals are taken on the board without A (what A does to the staying
+ * cards is in M), and the before sum on the board before without the chosen D (the mirror). The cards a chain's later
+ * steps brought (in the hand at its end, not after its first answer, and not seen: a rez's draws) are put back in the
+ * deck on that board: the staying cards' keep reads the hand and the deck, which would tell it which cards the
+ * simulated deck gave (bar 6, Eminent Domain fetching Spin Doctor). With no arrival seen, no departure and no chain it
+ * is today's term to the digit. Own hand only: the null slot (the other side's hand, every card known) keeps today's
+ * term (scoreAnswer). `first`: the board after the answer itself, and the cards the side's answers named.
+ */
+/** An answer's frame for its hand terms: the board after the answer itself, and the cards the side's own answers named (the first and each followed step's). */
+export interface AnswerFrame {
+  readonly first: GameState;
+  readonly named: ReadonlySet<string>;
+}
+function arrivalTerms(before: GameState, after: GameState, side: SideCode, synergy: boolean, { first, named }: AnswerFrame): number {
+  const had = new Set(hand(before, side).map(c => c.instanceId));
+  const now = new Set(hand(after, side).map(c => c.instanceId));
+  const known = pricing().known[side];
+  const seen = known ? hand(after, side).filter(c => !had.has(c.instanceId) && known.has(c.instanceId)) : [];
+  const gone = hand(before, side).filter(c => !now.has(c.instanceId));
+  const late = after === first ? [] : hand(after, side).filter(c => !had.has(c.instanceId) && !known?.has(c.instanceId) && !hand(first, side).some(f => f.instanceId === c.instanceId));
+  const without = (cs: CardInstance[]) => {
+    const ids = new Set(cs.map(c => c.instanceId));
+    return withHand(after, side, hand(after, side).filter(c => !ids.has(c.instanceId)));
+  };
+  let term = 0;
+  if (seen.length && !handByCard(side)) {
+    const mBoard = without(seen);
+    term += ownHandValue(after, side) - ownHandValue(mBoard, side) - (handCount(after, side, side) - handCount(mBoard, side, side));
+  }
+  const chance = gone.filter(c => byChance(after, side, named, c));
+  const chosen = gone.filter(c => !chance.includes(c));
+  if (chosen.length && known && !handByCard(side)) {
+    // The chosen departures by the owner's difference on the board before, in place of what the count took for them (C
+    // read at the board before's hand size limit: a step that moves the limit is priced where the limit is)
+    const ids = new Set(chosen.map(c => c.instanceId));
+    const owner = ownHandBefore(before, side) - ownHandValue(withHand(before, side, hand(before, side).filter(c => !ids.has(c.instanceId))), side);
+    const at = withLimit(after, side, before);
+    term -= owner - (handCount(withHand(at, side, [...hand(at, side), ...chosen]), side, side) - handCount(at, side, side));
+  }
+  // The staying cards' half keep, its before sum on the board before without the chosen departures (what they did to the
+  // staying cards is in the owner's difference). Chance departures keep base's term, the count and the half keep: they
+  // stay in the before sum, priced on the scored board as base prices them (ruling "Time per kind and the chance
+  // averaging": the simulated RNG's read is older than F117, R-C1's R-111)
+  const was = chosen.length ? withHand(before, side, hand(before, side).filter(c => !chosen.includes(c))) : before;
+  const keepBoard = late.length ? toDeck(without(seen), side, late) : seen.length ? without(seen) : after;
+  return term + 0.5 * (sumKeep(keepBoard, hand(keepBoard, side).filter(c => had.has(c.instanceId)), synergy) - sumKeep(was, hand(was, side).filter(c => now.has(c.instanceId) || chance.includes(c)), synergy));
+}
+
+/** The frame's known hands, for a memo key of a value that reads them (the same sets give the same key). */
+function knownKey(): string {
+  const { corp, runner } = pricing().known;
+  const ids = (k: ReadonlySet<string> | null) => (k ? [...k].sort().join(',') : '-');
+  return `${ids(corp)}|${ids(runner)}`;
+}
+/** The owner's price of the hand on the board before a prompt's answers: the same for every answer, so worked out once per prompt state and frame (the departures red team's finding 10). */
+function ownHandBefore(before: GameState, side: SideCode): number {
+  return memo(before, `ownHandBefore:${side}:${knownKey()}`, () => ownHandValue(before, side));
+}
+
+/** `board` with `side`'s hand size limit read from `from` (a copy, only priced). */
+function withLimit(board: GameState, side: SideCode, from: GameState): GameState {
+  return side === 'corp' ? { ...board, corp: { ...board.corp, handSizeLimit: from.corp.handSizeLimit } } : { ...board, runner: { ...board.runner, handSizeLimit: from.runner.handSizeLimit } };
+}
+
+/** `state` with `cards` taken from `side`'s hand and put at the bottom of its deck (a copy, only priced). */
+function toDeck(state: GameState, side: SideCode, cards: CardInstance[]): GameState {
+  const ids = new Set(cards.map(c => c.instanceId));
+  const board = withHand(state, side, hand(state, side).filter(c => !ids.has(c.instanceId)));
+  return side === 'corp' ? { ...board, corp: { ...board.corp, rd: [...board.corp.rd, ...cards] } } : { ...board, runner: { ...board.runner, stack: [...board.runner.stack, ...cards] } };
+}
+
+/** `state` with `side`'s hand set to `cards` (a copy, only priced). */
+function withHand(state: GameState, side: SideCode, cards: CardInstance[]): GameState {
+  return side === 'corp' ? { ...state, corp: { ...state.corp, hq: cards } } : { ...state, runner: { ...state.runner, grip: cards } };
+}
+
+/**
+ * How a step is read for seenArrivals (F117 D1): `real`, the step answers the prompt the decision itself is answering (its
+ * root, or the Runner's honest view of it: the same moment of the same game), not a simulated one (a chain past its first
+ * answer, a ranking's look-ahead, a planner playout); `rootRd`, the Corp's R&D cards whose place it knows at the
+ * decision's root (the place and the id agree: runnerReply.ts corpKnownRdSlots' test, which prompts.ts cannot import).
+ */
+export interface ArrivalHow {
+  readonly real: boolean;
+  readonly rootRd: ReadonlySet<string>;
+}
+const NONE: ReadonlySet<string> = new Set();
+const rootRdIds = new WeakMap<GameState, ReadonlySet<string>>();
+/** The R&D cards the Corp knows the place of on `state` (rdKnownToCorp, where the place and the id agree: 4.2.3). */
+function knownRdIds(state: GameState): ReadonlySet<string> {
+  let ids = rootRdIds.get(state);
+  if (!ids) rootRdIds.set(state, (ids = new Set(knownToCorpInRd(state).filter(e => state.corp.rd[e.at]?.instanceId === e.id).map(e => e.id))));
+  return ids;
+}
+/** The decision's own prompt: its root, or a copy of it at the same moment (the Runner's honest view), outside a playout. */
+function realPrompt(state: GameState, side: SideCode): boolean {
+  const p = pricing();
+  const root = p.anchor?.root;
+  if (p.frozen || !root || p.anchor?.side !== side) return false;
+  return root === state || (root.id === state.id && root.log.length === state.log.length && activePrompt(root)?.id === activePrompt(state)?.id);
+}
+export function arrivalHow(state: GameState, side: SideCode, real: boolean): ArrivalHow {
+  const root = pricing().anchor?.root;
+  return { real: real && realPrompt(state, side), rootRd: side === 'corp' && root ? knownRdIds(root) : NONE };
+}
+
+const facesShown = new WeakMap<GameState, ReadonlySet<string>>();
+/**
+ * The cards `before`'s active prompt shows `side` by face (core/view.ts's face rule), once per prompt state: the one copy
+ * (D1's seen arrivals here, and runner/prompt.ts promptShownIds, which reads it with its own filter and F3's freeze).
+ */
+export function shownByPrompt(before: GameState, side: SideCode): ReadonlySet<string> {
+  const prompt = activePrompt(before);
+  if (!prompt || prompt.side !== side) return NONE; // the other side's prompt shows it nothing (and is not memoised under its side)
+  let shown = facesShown.get(before);
+  if (shown) return shown;
+  const out = new Set<string>();
+  const { faced, onTable } = viewShownBeforePrompts(before, side);
+  for (const [id, face] of promptCardFaces(prompt, x => faced.has(x), x => onTable.has(x))) if (face) out.add(id);
+  facesShown.set(before, (shown = out));
+  return shown;
+}
+/** The card ids an answer names: its chosen cards, the inst ids in its option, and the prompt's install data. */
+function answerNames(prompt: Prompt | undefined, action: GameAction | undefined): Set<string> {
+  const ids = new Set<string>();
+  if (action?.type === 'RESOLVE_PROMPT') {
+    const c = action.choice;
+    if (c.kind === 'effect_cards') c.cardInstanceIds.forEach(id => ids.add(id));
+    if (c.kind === 'effect_choice') for (const m of c.optionId.match(/inst-\d+/g) ?? []) ids.add(m);
+  }
+  if (prompt && 'source' in prompt && prompt.source.data?.install && typeof prompt.source.data.cardId === 'string') ids.add(prompt.source.data.cardId);
+  return ids;
+}
+
+/** The cards the active prompt shows the Runner in place: its source entry's `promptShows.inPlace` key of the prompt's data (runner/prompt.ts reads it from here). */
+export function promptInPlaceIds(state: GameState): Set<string> {
+  const prompt = activePrompt(state);
+  const out = new Set<string>();
+  if (!prompt || prompt.side !== 'runner' || !('source' in prompt)) return out;
+  const key = CARDS[prompt.source.cardCode]?.promptShows?.inPlace;
+  const id = key ? prompt.source.data?.[key] : undefined;
+  if (typeof id === 'string') out.add(id);
+  return out;
+}
+
+/**
+ * F117 D1: the seen arrivals of one step (`action` on `before` gave `after`), for `side`. An arrival is a card in the
+ * side's hand after the step that was not in it before. It is unseen only if it was in the side's own deck (R&D, the
+ * stack) before the step and none of these holds:
+ *  (i)   the answer names it, or the prompt's install data does, and the prompt shows it by face (the screen's rule,
+ *        core/view.ts promptCardFaces): a card a search names is the same card in any deal;
+ *  (ii)  real prompts, the Corp only: it was drawn from an R&D place the Corp knew before the step (rdKnownToCorp);
+ *  (iii) real prompts, the Runner only: its source's entry shows it in place (`promptShows.inPlace`, promptInPlaceIds);
+ *  on a simulated step, the Corp only: it was drawn from an R&D place known at the decision's root (not the simulated
+ *        state's rdKnownToCorp, which the playout itself writes).
+ * Every other arrival is seen: from its own Archives, the table, the heap, a host, or the set-aside place of its own
+ * search; a side knows its own card. A look inside a playout makes nothing seen (ruling, rev 2 point 3: AU Co.'s
+ * looked-at cards are a named debt, an under-read).
+ */
+export function seenArrivals(before: GameState, action: GameAction | undefined, after: GameState, side: SideCode, how: ArrivalHow): string[] {
+  const had = new Set(hand(before, side).map(c => c.instanceId));
+  const arrivals = hand(after, side).filter(c => !had.has(c.instanceId));
+  if (!arrivals.length) return [];
+  const deck = new Set((side === 'corp' ? before.corp.rd : before.runner.stack).map(c => c.instanceId));
+  let named: Set<string> | undefined;
+  const out: string[] = [];
+  for (const c of arrivals) {
+    const id = c.instanceId;
+    if (!deck.has(id)) {
+      out.push(id);
+      continue;
+    }
+    named ??= answerNames(activePrompt(before), action);
+    if (named.has(id) && shownByPrompt(before, side).has(id)) out.push(id);
+    else if (how.real ? (side === 'corp' ? knownRdIds(before).has(id) : promptInPlaceIds(before).has(id)) : side === 'corp' && how.rootRd.has(id)) out.push(id);
+  }
+  return out;
 }
 
 /**
@@ -113,18 +317,142 @@ export function runEventOptions(cardCode: string, state?: GameState): RunOptions
   return CARDS[cardCode]?.run?.(state) ?? {};
 }
 
-/** Picks an answer to the active prompt, which belongs to `side`. */
-export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
+/**
+ * Picks an answer to the active prompt, which belongs to `side`. `at`: where it is asked inside an answered prompt's chain
+ * (followChain); left out, the prompt is answered on its own, with a new budget of chained work (withChainWork).
+ */
+export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, at?: ChainAt): GameAction {
+  return at ? answerAt(state, side, memory, synergy, at) : withChainWork(state, w => answerAt(state, side, memory, synergy, w));
+}
+
+function answerAt(state: GameState, side: SideCode, memory: RunnerMemory | undefined, synergy: boolean, at: ChainAt): GameAction {
   // The run under way first (follow-up 3): when it separates the answers, it decides, ahead of the per-card blocks; a tie
   // goes to today's answer (a block's or the fallback's)
-  const run = side === 'corp' ? runAnswer(state, memory, synergy) : null;
+  const run = side === 'corp' ? runAnswer(state, memory, synergy, at) : null;
   if (run?.length === 1) return run[0];
-  const today = todayAnswer(state, side, memory, synergy);
+  const today = todayAnswer(state, side, memory, synergy, at);
   return run?.find(a => JSON.stringify(a) === JSON.stringify(today)) ?? run?.[0] ?? today;
 }
 
+/**
+ * F117 D3 (ruling 4): the chained work under one answered prompt is a total, `left` scored answers shared by every chain
+ * nested under it (each answer scored inside a chain counts 1), carried as an argument, never a module counter. Past it,
+ * every answer of that prompt is scored at one step (`oneStep`), and a card one step leaves set aside is priced as held
+ * (scoreAnswer): a bound on work never decides a pick between answers. `used`: what the prompt's chains scored.
+ */
+export interface ChainWork {
+  left: number;
+  used: number;
+  readonly oneStep: boolean;
+}
+/** Where an answer is scored: the prompt's work, and how deep in its chain (0: the prompt itself). */
+export interface ChainAt {
+  readonly work: ChainWork;
+  readonly depth: number;
+}
+/**
+ * The budget of chained work per answered prompt (F117 D3, ruling 4): a bound on work, not a value (as the settle's
+ * SETTLE_DEPTH). Its size is the brief's lead, 150, kept after step 0 item 5 counted it (the scored answers per answered
+ * prompt, 331 deals): every real prompt fits (max 135), and 10 nested chains in rankings and playouts go past it
+ * (Poétrï 8, Off the Books 2), each then scored at one step. An object so a measurement script can lift it; play never
+ * writes it.
+ */
+export const CHAIN_BUDGET = { size: 150 };
+class ChainBudgetOut extends Error {}
+/**
+ * F117 step 0 counts (item 5, bar 10): widened chains by source and depth (`widened`), their prompts answered on the
+ * decision's own root by the Runner (`rootRunner`: the 'today' path's class, must be 0), prompts whose chains ran past
+ * the budget (`capped`, by source), cards left set aside at a chain's end and priced as held (`aside`, by source and why:
+ * another prompt waiting (a cut), no prompt, the depth limit, or one step), and the scored answers per answered prompt
+ * whose chains scored any (`used`).
+ */
+export const chainStats = {
+  widened: new Map<string, number>(),
+  rootRunner: 0,
+  capped: new Map<string, number>(),
+  aside: new Map<string, number>(),
+  used: [] as number[],
+};
+const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+const sourceOf = (state: GameState) => {
+  const p = activePrompt(state);
+  return p && 'source' in p ? `${p.source.cardCode}:${p.source.step ?? ''}` : (p?.kind ?? '-');
+};
+/** Runs `fn` as the scoring of one answered prompt on `state`, with a new budget; past it, again at one step (counted). */
+export function withChainWork<T>(state: GameState, fn: (at: ChainAt) => T): T {
+  const work: ChainWork = { left: CHAIN_BUDGET.size, used: 0, oneStep: false };
+  try {
+    const out = fn({ work, depth: 0 });
+    if (work.used > 0 && chainStats.used.length < 1e6) chainStats.used.push(work.used);
+    return out;
+  } catch (e) {
+    if (!(e instanceof ChainBudgetOut)) throw e;
+    bump(chainStats.capped, sourceOf(state));
+    return fn({ work: { left: Infinity, used: 0, oneStep: true }, depth: 0 });
+  }
+}
+
+/**
+ * F117 D1 and D3: one answer's score, the one-answer scorer every site that scores an answer calls (the fallback below,
+ * greedyCards, the run term's runPrice, the Runner's 'again' path). It follows the answer's chain (followChain), and
+ * makes ONE answer frame: the caller's known set and every seen arrival of the chain still in the hand
+ * (handValues.ts withKnownCards; none where the slot is null), around everything that prices the end board: evaluate,
+ * the hand terms (scoreOutcome's arrivalTerms) and the caller's own terms (`finish`: freeRezSaving, rigMove, the bypass
+ * skip). A card of the side's own search still set aside at the chain's end (a cut, the depth limit, or one step) is
+ * priced as held: the board with it in the hand, as a seen arrival. `finish` gets the score and the end board.
+ */
+export function scoreAnswer(
+  state: GameState,
+  prompt: Prompt,
+  action: GameAction,
+  after: GameState,
+  side: SideCode,
+  memory: RunnerMemory | undefined,
+  synergy: boolean,
+  at: ChainAt,
+  finish?: (score: number, board: GameState) => number
+): number {
+  if (at.depth > 0) {
+    at.work.used++;
+    if (--at.work.left < 0) throw new ChainBudgetOut();
+  }
+  if (!pricing().known[side]) {
+    // The null slot (the modelled other side): no frame, nothing added, today's hand term
+    const board = followChain(prompt, state, action, after, side, memory, synergy, at, null).board;
+    const score = scoreOutcome(state, board, side, memory, synergy);
+    return finish ? finish(score, board) : score;
+  }
+  const chain = followChain(prompt, state, action, after, side, memory, synergy, at, arrivalHow(state, side, at.depth === 0));
+  const kept = (chain.board.setAside ?? []).filter(c => !(state.setAside ?? []).some(b => b.instanceId === c.instanceId) && cardDef(c).side_code === side);
+  let board = chain.board;
+  if (kept.length) {
+    bump(chainStats.aside, `${'source' in prompt ? prompt.source.cardCode : prompt.kind}:${chain.stop}`);
+    const ids = new Set(kept.map(c => c.instanceId));
+    board = withHand({ ...board, setAside: (board.setAside ?? []).filter(c => !ids.has(c.instanceId)) }, side, [...hand(board, side), ...kept]);
+  }
+  const frame = { first: after, named: chain.named };
+  return withKnownCards(side, kept.length ? [...chain.seen, ...kept.map(c => c.instanceId)] : chain.seen, () => {
+    const score = scoreOutcome(state, board, side, memory, synergy, frame);
+    return finish ? finish(score, board) : score;
+  });
+}
+
+/**
+ * F117 departures, the chance ones (the Runner rework coordinator's condition 1, ruled 2026-11-27 09:15Z; the departures
+ * red team, ruled 09:32Z): a card that left the side's own hand on the scored board that no answer of the side named,
+ * and that is now in its discard pile or deck (net, meat, core or brain damage; an "at random" trash), left by chance.
+ * arrivalTerms keeps base's term for them, the count and the half keep (the simulated board holds the very cards the
+ * engine's RNG took, as base reads it: R-C1's R-111, `RULE-HIDDEN-INFO`).
+ */
+function byChance(board: GameState, side: SideCode, named: ReadonlySet<string>, card: CardInstance): boolean {
+  if (named.has(card.instanceId)) return false;
+  const id = card.instanceId;
+  const has = (cs: CardInstance[]) => cs.some(c => c.instanceId === id);
+  return side === 'corp' ? has(board.corp.archives.faceUp) || has(board.corp.archives.faceDown) || has(board.corp.rd) : has(board.runner.heap) || has(board.runner.stack);
+}
+
 /** The answer of the per-card blocks and the fallback (answerPrompt before the run term). */
-function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {
+function todayAnswer(state: GameState, side: SideCode, memory: RunnerMemory | undefined, synergy: boolean, at: ChainAt): GameAction {
   const prompt = activePrompt(state)!;
   const base = { type: 'RESOLVE_PROMPT' as const, player: side, promptId: prompt.id };
 
@@ -341,7 +669,7 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
 
   // Two or more cards beyond the minimum (Spin Doctor's up to 2 tried every subset): build the answer one card at a time
   if (prompt.kind === 'effect_cards' && prompt.max - prompt.min >= 2 && prompt.candidateIds.length > 4) {
-    return greedyCards(state, side, prompt, base, memory, synergy);
+    return greedyCards(state, side, prompt, base, memory, synergy, at);
   }
 
   // Everything else: try each answer and keep the best outcome.
@@ -353,15 +681,32 @@ function todayAnswer(state: GameState, side: SideCode, memory?: RunnerMemory, sy
   for (const action of options) {
     const after = simulated?.get(JSON.stringify(action)) ?? simulate(state, action);
     if (!after) continue;
-    let score = scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy);
-    if (side === 'corp') score += freeRezSaving(state, after);
-    if (skip && after.activeRun?.encounter?.iceId === skip.iceId) score -= skip.cost;
-    if (score > bestScore) {
+    const score = scoreAnswer(state, prompt, action, after, side, memory, synergy, at, s => {
+      if (side === 'corp') s += freeRezSaving(state, after);
+      if (skip && after.activeRun?.encounter?.iceId === skip.iceId) s -= skip.cost;
+      return s;
+    });
+    if (score > bestScore || (score === bestScore && deckTie(state, action, best))) {
       bestScore = score;
       best = action;
     }
   }
   return best;
+}
+
+/**
+ * F117 bar 7: a tie between two answers that each name a card of a deck (a search's candidates, listed in the deck's
+ * order: a guess in a dealt view) goes to the one whose named codes sort first, not to the list's order. Answers naming
+ * the same codes stay in the prompt's order (either is the same play); every other tie keeps the list's order, as today.
+ */
+function deckTie(state: GameState, action: GameAction, best: GameAction): boolean {
+  const deck = new Set([...state.corp.rd, ...state.runner.stack].map(c => c.instanceId));
+  const key = (a: GameAction) => {
+    const ids = [...answerNames(undefined, a)];
+    return ids.some(id => deck.has(id)) ? ids.map(id => findCardAnywhere(state, id)?.cardCode ?? id).sort().join(',') : null;
+  };
+  const [k, b] = [key(action), key(best)];
+  return k !== null && b !== null && k < b;
 }
 
 /**
@@ -457,19 +802,58 @@ export function untaianPick(state: GameState, candidateIds: string[]): string[] 
  * An answer that opens the same card's next choice (AU Co.: which card to trash; Poétrï and
  * Synapse Global: which server) is judged after the AI answers that too, so the first step of a
  * good ability doesn't look like a loss on its own (plan.promptChains).
+ * An identity's prompts follow any next prompt of the same instance, as before (following every card's chain made AI
+ * games about 4x slower). F117 D3, the narrow test: any other card's prompt is followed when the next prompt is for the
+ * same side, of the same source instance, and its source data names a card the answer named (`data.cardId`: Eminent
+ * Domain's and Mutual Favor's install of the card they found, Muse's host step). Up to 3 follow-ups, each answered
+ * inside the chain's work (ChainAt) and in a frame with the seen arrivals so far (`how`; null: the null slot, none
+ * kept). The seen set is cut to the cards still in the hand at each step (the stale rule for the chain's own marks).
+ * `stop`: why the chain ended (for the set-aside count): 'other' a prompt of another source or side waits (a cut),
+ * 'none' no prompt, 'depth' the limit, 'one' one step (past the budget), 'end' the next prompt names no answered card.
  */
-function followChain(prompt: Prompt, after: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameState {
-  // Identities only: following every card's chain made AI games about 4x slower
-  if (!('source' in prompt) || getCardDefinition(prompt.source.cardCode).type_code !== 'identity') return after;
+function followChain(
+  prompt: Prompt,
+  before: GameState,
+  action: GameAction,
+  after: GameState,
+  side: SideCode,
+  memory: RunnerMemory | undefined,
+  synergy: boolean,
+  at: ChainAt,
+  how: ArrivalHow | null
+): { board: GameState; seen: string[]; named: Set<string>; stop: 'other' | 'none' | 'depth' | 'one' | 'end' } {
+  let seen = how ? seenArrivals(before, action, after, side, how) : [];
+  // The cards the side's own answers named, the first and each followed step's (chanceBack: a departure no answer named is chance)
+  const named = answerNames(prompt, action);
+  const out = (board: GameState, stop: 'other' | 'none' | 'depth' | 'one' | 'end') => ({ board, seen, named, stop });
+  if (at.work.oneStep) return out(after, 'one');
+  const identity = 'source' in prompt && getCardDefinition(prompt.source.cardCode).type_code === 'identity';
+  if (!('source' in prompt)) return out(after, 'end');
   let state = after;
+  let last = action;
   for (let depth = 0; depth < 3; depth++) {
     const next = activePrompt(state);
-    if (!next || next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) break;
-    const resolved = simulate(state, answerPrompt(state, side, memory, synergy));
-    if (!resolved) break;
+    if (!next) return out(state, 'none');
+    if (next.side !== side || !('source' in next) || next.source.instanceId !== prompt.source.instanceId) return out(state, 'other');
+    if (!identity) {
+      const id = next.source.data?.cardId;
+      if (typeof id !== 'string' || !answerNames(undefined, last).has(id)) return out(state, 'end');
+      bump(chainStats.widened, `${prompt.source.cardCode}:${next.source.step ?? ''}:${at.depth + depth + 1}`);
+      if (at.depth === 0 && depth === 0 && side === 'runner' && !pricing().frozen && pricing().anchor?.root === before) chainStats.rootRunner++;
+    }
+    const inner: ChainAt = { work: at.work, depth: at.depth + depth + 1 };
+    const answer = withKnownCards(side, seen, () => answerPrompt(state, side, memory, synergy, inner));
+    const resolved = simulate(state, answer);
+    if (!resolved) return out(state, 'end');
+    for (const id of answerNames(next, answer)) named.add(id);
+    if (how) {
+      const inHand = new Set(hand(resolved, side).map(c => c.instanceId));
+      seen = [...new Set([...seen, ...seenArrivals(state, answer, resolved, side, { real: false, rootRd: how.rootRd })])].filter(id => inHand.has(id));
+    }
     state = resolved;
+    last = answer;
   }
-  return state;
+  return out(state, 'depth');
 }
 
 /**
@@ -497,7 +881,7 @@ export const runnerOtherKinds = new Map<string, number>();
 /** The one-step boards the run term simulated, by answer, for the fallback on the same state (the same simulate, not done twice). */
 const runAfters = new WeakMap<GameState, Map<string, GameState>>();
 
-function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): GameAction[] | null {
+function runAnswer(state: GameState, memory: RunnerMemory | undefined, synergy: boolean, at: ChainAt): GameAction[] | null {
   const prompt = activePrompt(state);
   const run = state.activeRun;
   if (!prompt || prompt.side !== 'corp' || prompt.kind === 'mulligan' || !run || state.winner) return null;
@@ -522,7 +906,7 @@ function runAnswer(state: GameState, memory?: RunnerMemory, synergy = false): Ga
   if (new Set(outs.map(o => o.key)).size < 2) return null;
   const verdicts = outs.map(o => o.verdict());
   if (!verdicts.includes('in') || !verdicts.includes('out')) return null;
-  const priced = outs.map((o, k) => runPrice(state, prompt, o.action, o.after, memory, synergy) - (verdicts[k] === 'in' ? loss : 0));
+  const priced = outs.map((o, k) => runPrice(state, prompt, o.action, o.after, memory, synergy, at) - (verdicts[k] === 'in' ? loss : 0));
   const best = Math.max(...priced);
   runTermStats.decided++;
   const picks = outs.filter((_, k) => priced[k] >= best - 1e-9);
@@ -604,12 +988,9 @@ export function settledStand(board: GameState, server: string, synergy = false, 
  * still in HQ, less the expected loss of X random cards of the Corp's own hand by the hand's owner (ownHandValue, the
  * registry row "a card held in HQ"), every set of X cards alike.
  */
-function runPrice(state: GameState, prompt: Prompt, action: GameAction, after: GameState, memory?: RunnerMemory, synergy = false): number {
+function runPrice(state: GameState, prompt: Prompt, action: GameAction, after: GameState, memory: RunnerMemory | undefined, synergy: boolean, at: ChainAt): number {
   const shredTrash = 'source' in prompt && prompt.source.step === SHRED_STEP && action.type === 'RESOLVE_PROMPT' && action.choice.kind === 'effect_choice' && action.choice.optionId === 'trash';
-  if (!shredTrash) {
-    const board = followChain(prompt, after, 'corp', memory, synergy);
-    return scoreOutcome(state, board, 'corp', memory, synergy) + freeRezSaving(state, after) - rigMove(state, board);
-  }
+  if (!shredTrash) return scoreAnswer(state, prompt, action, after, 'corp', memory, synergy, at, (s, board) => s + freeRezSaving(state, after) - rigMove(state, board));
   const kept = new Set(after.corp.hq.map(c => c.instanceId));
   const gone = state.corp.hq.filter(c => !kept.has(c.instanceId));
   const ids = new Set(gone.map(c => c.instanceId));
@@ -667,13 +1048,15 @@ function greedyCards(
   side: SideCode,
   prompt: Extract<Prompt, { kind: 'effect_cards' }>,
   base: { type: 'RESOLVE_PROMPT'; player: SideCode; promptId: string },
-  memory?: RunnerMemory,
-  synergy = false
+  memory: RunnerMemory | undefined,
+  synergy: boolean,
+  at: ChainAt
 ): GameAction {
   const answer = (ids: string[]): GameAction => ({ ...base, choice: { kind: 'effect_cards', cardInstanceIds: ids } });
   const value = (ids: string[]) => {
-    const after = simulate(state, answer(ids));
-    return after ? scoreOutcome(state, followChain(prompt, after, side, memory, synergy), side, memory, synergy) : -Infinity;
+    const a = answer(ids);
+    const after = simulate(state, a);
+    return after ? scoreAnswer(state, prompt, a, after, side, memory, synergy, at) : -Infinity;
   };
   let chosen: string[] = [];
   let current = prompt.min === 0 ? value([]) : -Infinity;
@@ -683,7 +1066,7 @@ function greedyCards(
     for (const id of prompt.candidateIds) {
       if (chosen.includes(id)) continue;
       const score = value([...chosen, id]);
-      if (score > bestScore) {
+      if (score > bestScore || (score === bestScore && bestId !== null && deckTie(state, answer([...chosen, id]), answer([...chosen, bestId])))) {
         bestScore = score;
         bestId = id;
       }

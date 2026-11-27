@@ -9,6 +9,8 @@ import { note, tally } from './diagnostics';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
 import { corpSeenGrip, plannerCandidates, replySamples } from './oracle';
 import { fingerprint } from './valueModel';
+import { arrivalHow, seenArrivals } from './prompts';
+import { withKnownCards } from './handValues';
 
 /**
  * The whole-turn planner for Normal (Jeff, 2026-10-28; plan.turnPlanner).
@@ -146,7 +148,15 @@ function dominated(state: GameState, action: GameAction, ranked: ScoredAction[])
 }
 
 /** Where a playout ended (the reply is sampled from it) and what it added on the way; installedAgenda: its continuation installed an agenda. */
-type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };
+/** What a playout hands on: its end board, bonus, and (F117 D1, the line frame) the seen arrivals the line holds at its end. */
+type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; seen?: string[] };
+/** The line's leaf in the line frame (F117 D1): `seen` joined to the known hand, cut to the cards still in the hand it prices. */
+const lineLeaf = (side: SideCode, seen: readonly string[] | undefined) => (s: GameState) => withKnownCards(side, inHand(s, side, seen ?? []), () => leafValue(s, side));
+const inHand = (s: GameState, side: SideCode, ids: readonly string[]) => {
+  if (!ids.length) return ids;
+  const held = new Set((side === 'corp' ? s.corp.hq : s.runner.grip).map(c => c.instanceId));
+  return ids.filter(id => held.has(id));
+};
 
 /** An agenda from HQ installed (rule 8.5.6: into a remote root). */
 const agendaInstall = (state: GameState, action: GameAction): boolean =>
@@ -222,20 +232,32 @@ export function playout(start: GameState, side: SideCode, first: GameAction, ai:
       return null;
     }
   };
+  // F117 D1, the line frame: the seen arrivals the line holds (named by a search of the side's own deck, known at the
+  // decision's root, or from a public or own-known zone), cut to the cards still in the hand after each step; the line's
+  // prompt answers and its leaf are priced with them known, never its rankings (ruling, rev 2: the line frame stays off
+  // the rankings). A look inside the playout makes nothing seen (the same card in every deal only)
+  let seen: string[] = [];
+  const how = arrivalHow(start, side, false);
+  const advance = (state: GameState, action: GameAction): GameState | null => {
+    const next = step(state, action);
+    if (next) seen = inHand(next, side, [...new Set([...seen, ...seenArrivals(state, action, next, side, how)])]) as string[];
+    return next;
+  };
   corpLine?.first(start, first);
-  let state = step(start, first);
+  let state = advance(start, first);
   if (!state) return -Infinity;
   for (let i = 0; i < PLANNER.maxSteps && !state.winner; i++) {
     if (state.activePlayer !== side || state.activeRun) break;
     if (activePrompt(state)) {
       let answer: GameAction | undefined;
+      const asked = state;
       try {
-        answer = ai.answer(state);
+        answer = withKnownCards(side, seen, () => ai.answer(asked));
       } catch {
         break;
       }
       if (!answer) break;
-      const next = step(state, answer);
+      const next = advance(state, answer);
       if (!next) break;
       state = next;
       continue;
@@ -254,15 +276,20 @@ export function playout(start: GameState, side: SideCode, first: GameAction, ai:
     if (!played) break;
     if (ends && agendaInstall(now, played)) ends.installedAgenda = true;
     if (!ran) line.push({ key: positionKey(state, side), action: played }); // after a run the position can't be foreseen
-    const next = step(state, played);
+    const next = advance(state, played);
     if (!next) break;
     state = next;
   }
-  if (searchPiece('plannerDiscard') && !state.winner) state = discardStep(state, side, ai);
-  const leaf = (s: GameState) => leafValue(s, side);
+  if (searchPiece('plannerDiscard') && !state.winner) {
+    const at = state;
+    state = withKnownCards(side, seen, () => discardStep(at, side, ai));
+    seen = inHand(state, side, seen) as string[];
+  }
+  const leaf = lineLeaf(side, seen);
   if (ends) {
     ends.state = state;
     ends.bonus = bonus;
+    ends.seen = seen;
   }
   if (ai.reply && !state.winner) {
     const t = performance.now();
@@ -527,11 +554,10 @@ export function planTurn(state: GameState, side: SideCode, ranked: ScoredAction[
 function contenders<T extends { action: GameAction; value: number; line: Line; ends: Ends }>(scored: T[], side: SideCode, synergy: boolean): T | null {
   const live = scored.filter(r => Number.isFinite(r.value) && r.ends.state && !r.ends.state.winner).sort((a, b) => b.value - a.value);
   if (live.length < 2 || live[0].value - live[1].value >= REPLY.contendGap) return null;
-  const leaf = (s: GameState) => leafValue(s, side);
   const top = live.slice(0, 2).map(r => {
     const bonus = r.ends.bonus ?? 0;
     const first = replySamples(REPLY.samples); // (plan.oracle.think plays more first samples)
-    const extra = runnerReply(r.ends.state!, synergy, leaf, { from: first, count: REPLY.extra });
+    const extra = runnerReply(r.ends.state!, synergy, lineLeaf(side, r.ends.seen), { from: first, count: REPLY.extra });
     return { ...r, firstValue: r.value, samples: first + REPLY.extra, value: (first * (r.value - bonus) + REPLY.extra * extra) / (first + REPLY.extra) + bonus };
   });
   // A candidate outside the two (a won game, or one the extra samples can't change) keeps its value
@@ -582,8 +608,7 @@ function auditSearch(
     // An alternative line that "beats" the pick no more often than this re-sample does is the max of noise, not a better line.
     let resample: number | null = null;
     if (ai.reply && sampledReply() && Number.isFinite(ruleValue) && ruleEnds.state && !ruleEnds.state.winner) {
-      const leaf = (s: GameState) => leafValue(s, side);
-      resample = num(runnerReply(ruleEnds.state, synergy, leaf, { from: replySamples(REPLY.samples), count: REPLY.samples }) + (ruleEnds.bonus ?? 0));
+      resample = num(runnerReply(ruleEnds.state, synergy, lineLeaf(side, ruleEnds.seen), { from: replySamples(REPLY.samples), count: REPLY.samples }) + (ruleEnds.bonus ?? 0));
     }
     const ruleKey = lineKey(c.action, ruleLine);
     const lines: SearchLine[] = [{ mode: 'rule', value: num(ruleValue), distinct: false }];
