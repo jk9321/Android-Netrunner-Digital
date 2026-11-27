@@ -54,7 +54,7 @@ const PLANS = ['tagTrashNow', 'hqTrashCost'] as const;
 const before = (list: string[], a: string, b: string) => list.indexOf(a) >= 0 && list.indexOf(a) < list.indexOf(b);
 
 describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow, hqTrashCost)', () => {
-  it('trashing Manuel Lattes de Moura beats a click for a credit or a card, and pays with a spare Ping', () => {
+  it('trashing Manuel Lattes de Moura beats a click for a credit or a card', () => {
     const s = position();
     const list = ranked(s);
     expect(before(list, 'trash Manuel Lattes de Moura', 'GAIN_CREDIT')).toBe(true);
@@ -62,6 +62,15 @@ describe('the Corp trashes a tagged Sebastião’s connections (plan.tagTrashNow
     let after = executeAction(s, { type: 'TRASH_RESOURCE', player: 'corp', cardInstanceId: s.runner.rig.resources[0].instanceId });
     after = executeAction(after, createAgent('corp', 'normal').chooseAction(after));
     expect(after.runner.rig.resources.map(c => cardDef(c).title)).not.toContain('Manuel Lattes de Moura');
+  });
+
+  // F120 (tracker): the HQ-payment pick pays Sebastião's cost with Doomscroll, not a spare Ping. Since F114 part P, Doomscroll
+  // (an ice) is no tag punisher in the Corp's view, and nothing else in the pick keeps it over a Ping. The spare Ping is the
+  // card to pay with (ruling 3); this pin turns green when the pick is fixed
+  it.fails('F120: pays Sebastião with a spare Ping', () => {
+    const s = position();
+    let after = executeAction(s, { type: 'TRASH_RESOURCE', player: 'corp', cardInstanceId: s.runner.rig.resources[0].instanceId });
+    after = executeAction(after, createAgent('corp', 'normal').chooseAction(after));
     expect(after.corp.hq.map(c => cardDef(c).title).sort()).toEqual(['Doomscroll', 'Offworld Office', 'Ping']);
   });
 

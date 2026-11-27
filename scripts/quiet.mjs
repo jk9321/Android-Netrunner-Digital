@@ -178,7 +178,8 @@ function parseBatch(text) {
   const crashed = +(t.match(/^CRASHED GAMES: (\d+)/m)?.[1] ?? 0);
   const crashLines = (t.match(/^CRASHED GAMES: \d+\n((?: {2}.*\n?)+)/m)?.[1] ?? '').split('\n').filter(Boolean).slice(0, 3);
   const loops = +(t.match(/^VALUE LOOPS \(games played on with flat values\): (\d+) games/m)?.[1] ?? 0);
-  return { header, units: range ? +range[2] - +(range[1] || 0) : null, n: overall ? +overall[1] : null, corp: overall ? +overall[2] : null, ends, paired: paired && { diff: +paired[1], se: +paired[2], n: +paired[3] }, counted: counted && { n: +counted[1], here: +counted[2], base: +counted[3] }, corpWin: corpWin && { now: +corpWin[1], base: +corpWin[2] }, changed, alarmPairs, perGame, alarms, crashed, crashLines, loops };
+  const fallbacks = t.match(/^DEAL FALLBACKS \([^)]*\): (\d+) in (\d+) games/m);
+  return { header, units: range ? +range[2] - +(range[1] || 0) : null, n: overall ? +overall[1] : null, corp: overall ? +overall[2] : null, ends, paired: paired && { diff: +paired[1], se: +paired[2], n: +paired[3] }, counted: counted && { n: +counted[1], here: +counted[2], base: +counted[3] }, corpWin: corpWin && { now: +corpWin[1], base: +corpWin[2] }, changed, alarmPairs, perGame, alarms, crashed, crashLines, loops, fallbacks: fallbacks && { n: +fallbacks[1], games: +fallbacks[2] } };
 }
 
 function scriptRun(id) {
@@ -276,6 +277,7 @@ function batch(args) {
   }
   if (b.crashed) flag(`${b.crashed} CRASHED games: ${b.crashLines.map(l => l.trim()).join(' | ')}`);
   if (b.loops) flag(`${b.loops} games hit a value loop (see VALUE LOOPS in ${full})`);
+  if (b.fallbacks?.n) flag(`${b.fallbacks.n} Runner deal fallbacks in ${b.fallbacks.games} games: a knowledge bug played on (see DEAL FALLBACKS in ${full})`);
   if (b.alarmPairs.length) {
     say(`  alarms per 100 (this / base): ${b.alarmPairs.map(a => `${a.name} ${a.now}/${a.base}`).join(', ')}`);
     for (const a of b.alarmPairs) if (a.se > 0 && Math.abs(a.diff) >= 2 * a.se) flag(`alarm "${a.name}" ${a.base} -> ${a.now} per 100, ${(a.diff / a.se).toFixed(1)} SE`);

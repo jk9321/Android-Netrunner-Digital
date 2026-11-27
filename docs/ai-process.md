@@ -40,6 +40,7 @@ Rule ids (2026-11-26): every rule has an id heading. Cite the id (`RULE-ONE-OWNE
 | `RULE-PIN-HOLES` | Pin human-usable holes |
 | `RULE-HUMAN-FIXTURES` | Human-game fixtures |
 | `RULE-REVIEW-CUTOFF` | Review depth by what a change can affect |
+| `RULE-URGENT-FIX` | A fix for a stopped live game merges before its red team |
 | `RULE-ADVERSARIAL` | Red team and exploit hunt |
 
 Rules marked "from project memory (2026-11-26)" were Jeff's standing rules kept only in project memory until 2026-11-26; their text is moved here unchanged in meaning.
@@ -156,6 +157,9 @@ Human-games fixtures: `tests/fixtures/human-games/report-N.json` (decode bug rep
   - **Light (CI plus the author's quick self-check; no red team, no `review` skill):** tests only, count and measurement scripts, UI, docs and workflow files. The coordinator that merges it checks only that the diff stays inside these paths and that CI passes on the merged SHA.
   - **None:** a step that was counted and parked with no change (nothing merges, or only its count note and results files are written). Its ruling and Jeff's decision are recorded as before.
 - This cutoff decides per-change review only. It does not remove the stage checkpoint exploit hunt, the override check on a borderline bar, Jeff's yes for a new lever or counted question, the hand-off evidence, or the rule that nothing AI merges to beta without the AI Coordinator's sign-off (for the light tier, that sign-off is the path and CI check above).
+
+### RULE-URGENT-FIX: Urgent fix before its red team
+- A fix for a bug that stops a live game (a person's game cannot go on, such as "Computer stuck") may merge on the AI Coordinator's single review, without the red team first (Jeff 2026-11-27, decision card). Its red team (Opus) runs right after the merge, on the change as merged, and each serious finding is fixed next at the change's full tier. The review file names this rule. All other full-tier work keeps the red team before the build.
 
 ## Adversarial review (AI and Multiplayer)
 

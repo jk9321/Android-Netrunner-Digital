@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FUZZ_CORPS, FUZZ_DECKS, FUZZ_RUNNERS, checkInvariants, cardsByZone, fuzzEngineGame, pairing, summaryLine } from '../scripts/engine-fuzz-check';
 import { createInitialGameState, executeAction, getLegalActions } from '../src/core';
 import { rdShuffleProbe } from '../src/core/engine/rdKnowledge';
+import { handUpkeepCheck } from '../src/core/engine/helpers';
 import { deckGameSetup } from '../src/data/decks';
 import { newGame } from './helpers';
 
@@ -18,6 +19,10 @@ describe('Engine fuzzer (tier 1, fixed seeds)', () => {
     const lines: string[] = [];
     const corps = new Set<string>();
     const runners = new Set<string>();
+    // R-105 (brief rev 1 ruling 1): the upkeep skip's checked walk is on in every game (fuzzEngineGame turns it on); it
+    // must have compared skips of all three walks and found no difference
+    const checked0 = { ...handUpkeepCheck.checked };
+    const failed0 = handUpkeepCheck.failures.length;
     for (let g = 0; g < GAMES; g++) {
       const { corp, runner } = pairing(g);
       corps.add(corp.id);
@@ -26,6 +31,8 @@ describe('Engine fuzzer (tier 1, fixed seeds)', () => {
       if (res.failures.length) lines.push(summaryLine(res));
     }
     expect(lines).toEqual([]);
+    expect(handUpkeepCheck.failures.slice(failed0)).toEqual([]);
+    for (const walk of ['archives', 'arrivals', 'main'] as const) expect(handUpkeepCheck.checked[walk] - checked0[walk], walk).toBeGreaterThan(0);
     expect(corps.size).toBe(FUZZ_CORPS.length);
     expect(runners.size).toBe(FUZZ_RUNNERS.length);
   }, 90_000);
@@ -87,6 +94,24 @@ const DEEP_SEEDS_1120: [number, string, string, number][] = [
 
 describe('Engine fuzzer, seeds the 2026-11-20 deep run failed on', () => {
   it.each(DEEP_SEEDS_1120)('seed %i, %s vs %s', (seed, corp, runner, steps) => {
+    const deck = (id: string) => FUZZ_DECKS.find(d => d.id === id)!;
+    const res = fuzzEngineGame(seed, deck(corp), deck(runner), { maxSteps: steps });
+    expect(res.failures.length ? summaryLine(res) : '').toBe('');
+  }, 30_000);
+});
+
+// R-109 (B4a follow-up): random games that reach an R&D card drawn unseen (its mark left 'hq'), installed facedown from
+// HQ before the mark resolves, then joining HQ as certain (known-hidden-certain; rules 1.12.3, 4.6.6d). Found by a local
+// search of 3,000 seeds of 3,000 steps on beta 609c4c3: 26 games hit it, 3 of them by step 250, so tier 1's 40 games of
+// 250 steps had about a 4% chance to. Unit tests: tests/rdDrawnMark.test.ts.
+const R109_SEEDS: [number, string, string, number][] = [
+  [1348, 'nrdb-big-hands', 'rene-arcemont', 110],
+  [1810, 'core-glyph-of-warding', 'vp-sourdough-starter', 260],
+  [443, 'nbn-reality-plus', 'core-enthusiasm', 300],
+];
+
+describe('Engine fuzzer, seeds that reach a drawn R&D card installed unseen (R-109)', () => {
+  it.each(R109_SEEDS)('seed %i, %s vs %s', (seed, corp, runner, steps) => {
     const deck = (id: string) => FUZZ_DECKS.find(d => d.id === id)!;
     const res = fuzzEngineGame(seed, deck(corp), deck(runner), { maxSteps: steps });
     expect(res.failures.length ? summaryLine(res) : '').toBe('');

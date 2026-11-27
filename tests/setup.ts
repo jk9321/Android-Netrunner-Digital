@@ -1,6 +1,7 @@
 import { afterEach, expect } from 'vitest';
 import { askedFreeze } from '../src/ai/valueModel';
 import { frameChecks } from '../src/ai/pricing';
+import { handUpkeepCheck } from '../src/core/engine/helpers';
 import { appendFileSync } from 'node:fs';
 
 /**
@@ -28,5 +29,8 @@ if (noAssertFile) {
 /** F3 (brief-build rev 1): an asked state is read only; every state with a by-position value entry is frozen in the tests. */
 askedFreeze.on = true;
 
-/** B1b (brief rev 1 item 3): a pricing frame is never written; in the tests a write to a frame, its known record, leaves, anchor or a Set it holds throws. */
+/** B1b (brief rev 1 item 3): a pricing frame is never written; in the tests a write to a frame, its known record, leaves, anchor or a Set it holds throws. R-109: the Runner's deal keeps its tripwire too (a slot with no code throws, no fallback). */
 frameChecks.on = true;
+
+/** R-105 (brief rev 1 rulings 1, 2 and 4): every upkeep skip is checked against the walk in the tests; a difference is recorded and throws. */
+handUpkeepCheck.on = true;
