@@ -865,10 +865,12 @@ describe('AI code health (audit guards)', () => {
   // Then - 9 (F117 lever 2 dropped, ruled: the chanceBoards memo never hit, 0 hits in 331 deals; serial gone): src/ai 17,522
   // Then the merge of beta b744f03 (R-109, the tag clock) into ai-deck-arrivals: F117's + 583 above (on 16,939 to 17,522)
   // on beta's 17,001: src/ai 17,584
-  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,584 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-deck-arrivals)', () => {
+  // Then - 46 (F117 chanceBoards removed, ruled 15:45Z: chance departures priced as base, no averaging; hqChanceLoss as on
+  // beta, chanceSets and CHANCE_SETS gone): src/ai 17,538
+  it('keeps src/ai/corp at or under 3,981 lines and src/ai at or under 17,538 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-deck-arrivals)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3981;
-    const AI_CAP = 17584;
+    const AI_CAP = 17538;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

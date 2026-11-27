@@ -312,21 +312,20 @@ describe('F117 departures by chance and the red team\'s mirrors (Runner coordina
     }
   });
 
-  it('a chance departure keeps base\'s term in expectation: the jack prompt scores the same over rng seeds +0, +1, +2', () => {
+  it('a chance departure is priced exactly as base prices it: the jack prompt\'s framed score is base\'s term, rng seeds +0, +1, +2', () => {
+    // Ruling "Time per kind and the chance averaging" (2026-11-27 15:45Z): no averaging over the sets the damage could
+    // take; base's count and half keep on the scored board (its read of the RNG's cards is R-C1's R-111)
     const base = karunaPrompt();
     expect(activePrompt(base)).toMatchObject({ side: 'runner', source: { cardCode: '30047', step: 'jack_out' } });
     const lost: string[] = [];
-    const scores: number[] = [];
     for (const seed of [0, 1, 2].map(k => (base.rng.state + k) >>> 0)) {
       const s = structuredClone(base);
       s.rng.state = seed;
       const after = simulate(s, stay(s))!;
       lost.push(s.runner.grip.filter(c => !after.runner.grip.some(d => d.instanceId === c.instanceId)).map(c => c.instanceId).sort().join(','));
-      scores.push(inDecision(s, 'runner', () => scoredRunner(s, stay(s))));
+      inDecision(s, 'runner', () => expect(scoredRunner(s, stay(s))).toBe(scoreOutcome(s, after, 'runner')));
     }
-    // The RNG takes different grip cards on these boards; the score does not see which
     expect(new Set(lost).size).toBeGreaterThan(1);
-    expect(new Set(scores.map(x => x.toFixed(9))).size).toBe(1);
   });
 
   it('bar 4\'s null slot, the grip: the Runner\'s prompt priced inside a Corp decision keeps today\'s hand term to the digit', () => {
