@@ -313,8 +313,14 @@ export interface RdWalk {
   joined: KnownHandCard[];
   /** This action's sightings in a hand (RdNotes.handSeen), taken from the notes before the R&D walk drops them. */
   seen: { owner: SideCode; ids: string[] }[];
+  /**
+   * R&D cards the Runner followed out of an exact place this action (the R&D walk's step 2), by instance id. Only these
+   * can join facedown Archives as known (B4c part 2); a card that left from among cards the Corp acted on in secret
+   * (step 3, RdNotes.privateTop: Cultivate, AU Co.) may be any of them (8.3.3b, 1.12.3).
+   */
+  followed: string[];
 }
-export const NO_RD_WALK: RdWalk = { joined: [], seen: [] };
+export const NO_RD_WALK: RdWalk = { joined: [], seen: [], followed: [] };
 
 /** The other side saw these known cards leave the hand for a hidden place (Touch-ups' shuffle). */
 export function forgetInHand(state: GameState, owner: SideCode, cards: CardInstance[]): void {
@@ -482,11 +488,10 @@ export function certainInArchives(state: GameState): [string, number][] {
  *    (10.2.2b, 10.2.3a).
  *  - The main walk (handWalkIdle): both hands the same, so no card left either one (no departure for 1.12.3, and
  *    addLosses with no kinds returns its list); no card newly open (sameOpen, else noneSurfaced), so none surfaced
- *    and nothing is forgotten by name; no Corp entry outside HQ that is marked in R&D, so the `followed` filter removes
- *    nothing (10.2.2a, b); every entry a full entry (no bare id for knownList to drop) and each list no longer than its
- *    hand, so the closing cut keeps it whole.
- * The lists may have changed inside the action (a reveal, an R&D mark): the tests ask what the walk would do with the
- * lists as they are now, not whether they are as they were in `prev`.
+ *    and nothing is forgotten by name; no card left HQ, so none was followed into R&D (10.2.2a, b); every entry a full
+ *    entry (no bare id for knownList to drop) and each list no longer than its hand, so the closing cut keeps it whole.
+ *    Since B4c the walk places sightings and joined marks by copy from the lists in `prev` (placeSightings), so the main
+ *    walk is skipped only when no mark joined, nothing was seen in a hand and both lists are as they were in `prev`.
  */
 type UpkeepSkip = 'archives' | 'arrivals' | 'main';
 type UpkeepField = 'knownToRunner' | 'knownToCorp' | 'archKnownToRunner' | 'rdKnownToRunner';
@@ -622,7 +627,7 @@ function checkedUpkeep(prev: GameState, state: GameState, walk: RdWalk): void {
  * one it knows is there (rules 4.4.6b, 10.2.2b); a card that leaves unseen is a departure it cannot tell (1.12.3); one
  * that turns up in the open is no longer hidden.
  */
-function updateArchivesKnowledge(prev: GameState, state: GameState): void {
+function updateArchivesKnowledge(prev: GameState, state: GameState, walk: RdWalk): void {
   const was = prev.corp.archives.faceDown;
   const now = state.corp.archives.faceDown;
   let known = archivesKnownToRunner(state);
@@ -644,8 +649,10 @@ function updateArchivesKnowledge(prev: GameState, state: GameState): void {
   }
   if (arrivals.length > 0) {
     const openBefore = publicCards(prev);
-    const exactInRd = new Set((prev.corp.rdKnownToRunner ?? []).filter(e => e.lo === e.hi && !e.left).map(e => e.id));
-    for (const c of arrivals) if ((openBefore.has(c.instanceId) || exactInRd.has(c.instanceId)) && !known.some(e => e.id === c.instanceId)) known = [...known, { id: c.instanceId, code: c.cardCode }];
+    // An R&D card counts only if the R&D walk followed it out of an exact place this action (B4c part 2), not every card
+    // exactly placed before it: one picked from among cards the Corp looked at in secret is not followed (8.3.3b)
+    const followed = new Set(walk.followed);
+    for (const c of arrivals) if ((openBefore.has(c.instanceId) || followed.has(c.instanceId)) && !known.some(e => e.id === c.instanceId)) known = [...known, { id: c.instanceId, code: c.cardCode }];
   }
   known = known.slice(Math.max(0, known.length - now.length));
   if (known.length > 0 || state.corp.archKnownToRunner) state.corp.archKnownToRunner = known;
@@ -785,7 +792,7 @@ function placeSightings(prev: GameState, state: GameState, owner: SideCode, walk
 /** updateHandKnowledge's three walks; with `skips` the walks that would write nothing are skipped (R-105), listed in `took`. */
 function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skips: boolean, took?: UpkeepSkip[]): void {
   if (skips && archivesIdle(prev, state)) took?.push('archives');
-  else updateArchivesKnowledge(prev, state);
+  else updateArchivesKnowledge(prev, state, walk);
   noteOpenArrivals(prev, state, skips, took);
   // An R&D mark that may already be in HQ (left 'hq') counts the HQ departures too (RdKnownCard.lost)
   const marks = state.corp.rdKnownToRunner ?? [];

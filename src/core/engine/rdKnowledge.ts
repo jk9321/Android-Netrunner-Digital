@@ -244,7 +244,7 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
   updateCorpRdKnowledge(prev, state, note);
   let known = state.corp.rdKnownToRunner ?? [];
   const seen = note?.seen ?? [];
-  const idle: RdWalk = note?.handSeen ? { joined: [], seen: note.handSeen } : NO_RD_WALK;
+  const idle: RdWalk = note?.handSeen ? { ...NO_RD_WALK, seen: note.handSeen } : NO_RD_WALK;
   if (known.length === 0 && seen.length === 0 && !note?.shuffled) return idle;
   if (unchangedRd(prev, state, note, known)) return idle;
 
@@ -252,6 +252,8 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
   const after = state.corp.rd.map(c => c.instanceId);
   const afterPos = new Map(after.map((id, i) => [id, i]));
   const gone: RdKnownCard[] = [];
+  // Cards the Runner followed out of an exact place (step 2): the only R&D cards whose next zone it can know
+  const followed: string[] = [];
 
   if (!note?.shuffled && known.length > 0) {
     const beforePos = new Map(before.map((id, i) => [id, i]));
@@ -276,7 +278,10 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
       for (const e of known) {
         if (isExact(e) && e.lo === p) {
           if (moved) carried.set(id, e);
-          else gone.push({ ...e, left: destOf(id) });
+          else {
+            gone.push({ ...e, left: destOf(id) });
+            followed.push(id);
+          }
         } else if (e.lo <= p && p <= e.hi) next.push({ ...e, hi: e.hi - 1, left: mergeLeft(e.left, moved ? 'other' : destOf(id)) });
         else if (e.lo > p) next.push({ ...e, lo: e.lo - 1, hi: e.hi - 1 });
         else next.push(e);
@@ -338,5 +343,5 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
   state.corp.rdKnownToRunner = known
     .map(e => ({ ...e, hi: Math.min(e.hi, last) }))
     .sort((a, b) => a.lo - b.lo || a.hi - b.hi);
-  return { joined, seen: note?.handSeen ?? [] };
+  return { joined, seen: note?.handSeen ?? [], followed };
 }
