@@ -6,7 +6,7 @@ import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, de
 import type { RunOptions } from '../runs';
 import { runClick, runScore, windowDerez } from '../runs';
 import { tagCost } from '../runs';
-import { CardAI } from './types';
+import { CardAI, TagUse } from './types';
 import { plan } from '../pricing';
 import { tuning } from '../synergy';
 
@@ -26,6 +26,18 @@ const threat = (state: GameState): number => Math.max(state.corp.score, state.ru
 
 /** A run on all three centrals in one turn: rare (Wizard's Chest, Jeitinho). */
 const allCentrals = (state: GameState): number => Math.min(0.25, 0.4 * runSuccess(state, 'hq') * runSuccess(state, 'rd') * runSuccess(state, 'archives'));
+
+/** Mindscaping's tag use (F119): "Resolve 1 of the following: Gain 4 credits and draw 2 cards. Add 1 card from HQ to the
+ * top of R&D. / Do X net damage. X is equal to the number of tags the Runner has, up to 3." Untagged: 2 drawn, 1 back,
+ * net 1 card. Today's tag clock does not count it (clock: false, the translation). */
+const MINDSCAPING_USE: TagUse = {
+  from: 'hq',
+  needs: 1,
+  spends: () => 0,
+  does: (_state, n) => ({ damage: Math.min(3, n) }),
+  without: () => ({ corpCredits: 4, corpCards: 1 }),
+  clock: false,
+};
 
 export const LIBERATION: Record<string, CardAI> = {
   // Strike Fund
@@ -247,6 +259,8 @@ export const LIBERATION: Record<string, CardAI> = {
   // Jaguarundi
   '34035': {
     synergy: { gives: { ice: 1, tags: 1, damage: 1 }, wants: { tags: 0.5 }, when: ['ifTagged', 'threat'] },
+    // F119: "If the Runner is tagged, do 1 core damage." (a subroutine, during a run)
+    tagUse: { from: 'run', needs: 1, spends: () => 0, does: () => ({ coreDamage: 1 }) },
     // "Threat 4 -> When the Runner encounters this ice, give them 1 tag unless they spend [click]"
     // Corp-only (the walk): the Runner's price reads no encounter toll but Funhouse's (A-log L3, a B5 item)
     holdFacts: { encounter: { threatAtLeast: 4, toll: { tags: 1 }, unless: { clicks: 1 } } },
@@ -254,7 +268,19 @@ export const LIBERATION: Record<string, CardAI> = {
   // M.I.C.
   '34036': { synergy: { gives: { ice: 1, denial: 1 } } },
   // Greasing the Palm
-  '34037': { synergy: { gives: { econ: 1.5, install: 0.5, advance: 0.5 }, wants: { tags: 0.5 } } },
+  '34037': {
+    synergy: { gives: { econ: 1.5, install: 0.5, advance: 0.5 }, wants: { tags: 0.5 } },
+    tagUse: {
+      // F119: "Gain 5 credits. You may install 1 card from HQ. You may remove 1 tag to place 1 advancement counter on that card."
+      // (another card in HQ to install; the install is in both modes and cancels). Today's tag clock does not count it
+      from: 'hq',
+      needs: 1,
+      spends: () => 1,
+      does: state => ({ corpCredits: 5, advance: state.corp.hq.length > 1 ? 1 : 0 }),
+      without: () => ({ corpCredits: 5 }),
+      clock: false,
+    },
+  },
   // Vovô Ozetti
   '34038': {
     synergy: { gives: { econ: 1 }, wants: { ice: 1 }, when: ['threat'] },
@@ -290,8 +316,10 @@ export const LIBERATION: Record<string, CardAI> = {
   // Mindscaping
   '34045': {
     synergy: { gives: { econ: 1, draw: 1, damage: 0.5 }, wants: { tags: 0.5 } },
-    // "Do X net damage. X is equal to the number of tags the Runner has, up to 3." The text's X read as 0 (ai-winnow-reach)
-    corpTurnDamage: state => Math.min(3, state.runner.tags),
+    // "Do X net damage. X is equal to the number of tags the Runner has, up to 3." The text's X read as 0 (ai-winnow-reach);
+    // F119: read from its tag use
+    corpTurnDamage: state => (state.runner.tags >= MINDSCAPING_USE.needs ? (MINDSCAPING_USE.does(state, state.runner.tags).damage ?? 0) : 0),
+    tagUse: MINDSCAPING_USE,
   },
   // Adrian Seis
   '34046': {
@@ -320,7 +348,18 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { power: state => 0.5 * cardRate(state, 'corp', 'later') + 0.5 }, // A click for a look at 3 and a free install
   },
   // Oracle Thinktank
-  '34049': { synergy: { gives: { tags: 1 }, wants: { tags: 0.5 } } },
+  '34049': {
+    synergy: { gives: { tags: 1 }, wants: { tags: 0.5 } },
+    tagUse: {
+      // F119: "[click], remove 1 tag: Shuffle this agenda into R&D. The Corp can use this ability only if this agenda is in the
+      // Runner's score area." (its points leave the Runner's score area). Today's tag clock does not count it
+      from: 'runnerScoreArea',
+      needs: 1,
+      spends: () => 1,
+      does: () => ({ runnerPoints: 1 }),
+      clock: false,
+    },
+  },
   // Balanced Coverage
   '34050': {
     synergy: { gives: { econ: 1 } },
@@ -778,7 +817,12 @@ export const LIBERATION: Record<string, CardAI> = {
     counters: { credit: (_state, card) => paidOneATurn(counters(card, 'credit')) }, // Taken all at once
   },
   // Capacitor
-  '34116': { synergy: { gives: { ice: 1, econ: 0.5 }, wants: { tags: 1 }, when: ['ifTagged'] } },
+  '34116': {
+    synergy: { gives: { ice: 1, econ: 0.5 }, wants: { tags: 1 }, when: ['ifTagged'] },
+    // F119: "While the Runner is tagged, this ice gets +2 strength. Gain 1 credit for each tag the Runner has." (during a run;
+    // the strength is no kind; the credits at most 10 tags, so the effect is finite at n = Infinity)
+    tagUse: { from: 'run', needs: 1, spends: () => 0, does: (_state, n) => ({ corpCredits: Math.min(10, n) }) },
+  },
   // Piranhas
   // "As an additional cost to rez this ice, take 1 bad publicity or remove 1 tag."
   '34117': { synergy: { gives: { ice: 1, damage: 0.5, draw: 0.5 }, wants: { tags: 0.5 } }, holdFacts: { rezBadPublicityOrTag: true } },

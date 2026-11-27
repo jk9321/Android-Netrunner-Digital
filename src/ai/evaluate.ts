@@ -440,15 +440,8 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
     const cost = pricing().countingHold ? CLICK + 2 : clickPrice(state, 'corp', viewer) + creditsLessCost(state, 'corp', viewer, 2);
     trash = Math.max(0, nets[skip] ?? 0) - cost;
   }
-  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner. Which card is one, by view (F114 part P),
-  // the one place the two views differ (Runner rework coordinator, 2026-11-27). The Corp's view: a flagged card the
-  // Corp plays from HQ on its own turn, an operation; an ice, an agenda, an asset or an identity with the flag is no
-  // card to play (Orbital Superiority's damage is the damage clock's, effectValues.ts ownTurnDamage). The Runner's view
-  // keeps the flag alone, as its tagCost has no other reader of Orbital's kill; the split goes when F119 carries that
-  // damage in both views (tracker, F119)
-  const flagged = (c: CardInstance) => cardSynergy(cardDef(c)).when?.includes('ifTagged') ?? false;
-  const punisherByView: Record<SideCode, (c: CardInstance) => boolean> = { corp: c => flagged(c) && cardDef(c).type_code === 'operation', runner: flagged };
-  const punishes = punisherByView[viewer];
+  // A tag punisher in HQ: known to the Corp, the decklist's odds to the Runner (tagPunisher, by view)
+  const punishes = (c: CardInstance) => tagPunisher(c, viewer);
   let held: number;
   if (viewer === 'corp') held = corp.hq.some(punishes) ? 1 : 0;
   else {
@@ -460,6 +453,22 @@ function tagLoss(state: GameState, viewer: SideCode, skip: number): number {
   }
   const punish = held * trashedCardCost(state);
   return Math.max(trash, 0) + punish + (punishes(corp.identity) ? 1 : 0);
+}
+
+/**
+ * A tag punisher for the tag clock, as `viewer` sees it. Which card is one, by view (F114 part P), the one place the two
+ * views differ (Runner rework coordinator, 2026-11-27). A punisher is a card whose entry states a tag use the clock counts
+ * (CardAI tagUse, F119; never the ifTagged synergy flag). F119-S translated today's set into the entries (the flag's set:
+ * tests/tagUse.test.ts pins it), so a new set's punisher is one by its entry. The Corp's view: one the Corp plays from HQ
+ * on its own turn (`from` 'hq', an operation); an ice, an agenda, an asset or an identity is no card to play (Orbital
+ * Superiority's damage is the damage clock's, effectValues.ts ownTurnDamage). The Runner's view counts every entry the
+ * clock counts, as its tagCost has no other reader of Orbital's kill; the split goes when the damage is carried in both
+ * views (tracker, F119). Exported for tests/tagUse.test.ts.
+ */
+export function tagPunisher(card: CardInstance, viewer: SideCode): boolean {
+  const use = CARDS[card.cardCode]?.tagUse;
+  if (use === undefined || use.clock === false) return false;
+  return viewer === 'runner' || use.from === 'hq';
 }
 
 /** A side's clicks left and its hand, each on its own. */

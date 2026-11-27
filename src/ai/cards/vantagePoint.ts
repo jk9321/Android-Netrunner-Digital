@@ -313,6 +313,8 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
     // plan.corpTurnDamageOwn: on access only
     corpTurnDamage: 0,
     synergy: { gives: { denial: 0.5, damage: 0.5 }, when: ['ifTagged'] },
+    // F119: "When the Runner accesses this asset, they lose 1 credit. If they are tagged, do 1 net damage." (on access)
+    tagUse: { from: 'access', needs: 1, spends: () => 0, does: () => ({ damage: 1 }) },
     value: { keep: 1 }, // A credit and a net damage on a tagged Runner, on access
     // On access (about half the time), 1 credit off the Runner and 1 net damage if tagged
     corp: state => ({ keep: 0.5 * (1 + (state.runner.tags > 0 ? damageWorth(state, 1) : 0.2 * damageWorth(state, 1))) }),
@@ -324,11 +326,21 @@ export const VANTAGE_POINT: Record<string, CardAI> = {
   // Lionsmane
   '36041': { synergy: { gives: { ice: 1, damage: 2 } } },
   // Vicsek
-  '36042': { synergy: { gives: { ice: 1, damage: 1, tags: 1 }, wants: { tags: 1 }, when: ['ifTagged'] } },
+  '36042': {
+    synergy: { gives: { ice: 1, damage: 1, tags: 1 }, wants: { tags: 1 }, when: ['ifTagged'] },
+    // F119: "Do X net damage and give the Runner X tags. X is equal to the number of tags the Runner has." (a subroutine,
+    // during a run; damage past the grip and 1 more flatlines alike, rule 10.4.4, so it is finite at n = Infinity)
+    tagUse: { from: 'run', needs: 1, spends: () => 0, does: (state, n) => ({ damage: Math.min(n, state.runner.grip.length + 1) }) },
+  },
   // Cultivate
   '36043': { synergy: { gives: { draw: 1, discard: 0.5 } } },
   // Unleash
-  '36044': { synergy: { wants: { tags: 1.5, ice: 1 }, when: ['ifTagged'] } },
+  '36044': {
+    synergy: { wants: { tags: 1.5, ice: 1 }, when: ['ifTagged'] },
+    // F119: "As an additional cost to play this operation, remove 1 tag. Rez 1 installed piece of ice, ignoring all costs."
+    // (freeRez.ts pendingFreeRezzes reads it; the subroutine it may resolve is not read)
+    tagUse: { from: 'hq', needs: 1, spends: () => 1, does: () => ({ freeRez: 1 }) },
+  },
   // The Red Room
   '36045': {
     synergy: { when: ['onScore'] },
