@@ -1,7 +1,7 @@
 import { CardInstance } from '../types/card';
 import { GameState, RdCorpKnownCard, RdKnownCard, RdNotes } from '../types/state';
 import { shuffleInPlace } from '../rng';
-import { publicCards, revealInHand } from './helpers';
+import { joinHand, publicCards } from './helpers';
 
 /**
  * The Runner's memory of R&D. A card the Runner accesses or looks at in R&D
@@ -321,8 +321,9 @@ export function updateRdKnowledge(prev: GameState, state: GameState): void {
   // 7. Cards that have certainly left: drawn ones join the cards known in HQ
   for (const e of known) if (e.lo > e.hi) gone.push(e);
   known = known.filter(e => e.lo <= e.hi);
-  const drawn = gone.filter(e => e.left === 'hq').map(e => state.corp.hq.find(c => c.instanceId === e.id) ?? ({ instanceId: e.id, cardCode: e.code } as CardInstance));
-  if (drawn.length > 0) revealInHand(state, 'corp', drawn);
+  // A drawn card is not seen in HQ (rules 1.8.5): it joins with the unseen HQ departures since it may have been drawn
+  const drawn = gone.filter(e => e.left === 'hq');
+  if (drawn.length > 0) joinHand(state, 'corp', drawn.map(e => ({ id: e.id, code: e.code, ...(e.lost ? { lost: e.lost } : {}) })));
 
   const last = state.corp.rd.length - 1;
   state.corp.rdKnownToRunner = known

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createCardInstance, GameState, KnownHandCard } from '../src/core';
 import { handUpkeepCheck, revealInHand, updateHandKnowledge } from '../src/core/engine/helpers';
-import { updateRdKnowledge } from '../src/core/engine/rdKnowledge';
+import { runnerSeesRd, shuffleRD, updateRdKnowledge } from '../src/core/engine/rdKnowledge';
 import { newGame } from './helpers';
 
 // R-105 (brief r105-upkeep-skip rev 1a, part 1): updateHandKnowledge skips a walk whose inputs show it would write
@@ -184,6 +184,23 @@ describe('R-105: the upkeep skip leaves every list as the walk would', () => {
     const after = act(s, n => n.runner.stack.unshift(n.runner.heap.pop()!));
     expect(codes(after.corp.knownToRunner)).toEqual([SG.hedgeFund, SG.regolith]);
     expect(taken().main).toBe(1);
+  });
+});
+
+describe('R-105 with R-109: the R&D marks the walk writes are checked too', () => {
+  it("a left 'hq' mark gets an HQ departure's loss once when the other skips are taken and the main walk runs (rules 1.12.3, 4.6.6d)", () => {
+    const s0 = newGame();
+    const fun = createCardInstance(s0, '30054');
+    s0.corp.rd = [createCardInstance(s0, SG.hedgeFund), fun, createCardInstance(s0, SG.palisade)];
+    let s = act(s0, n => runnerSeesRd(n, fun));
+    s = act(s, n => shuffleRD(n));
+    s = act(s, n => n.corp.hq.push(n.corp.rd.splice(n.corp.rd.findIndex(c => c.instanceId === fun.instanceId), 1)[0]));
+    expect(s.corp.rdKnownToRunner?.[0]).toMatchObject({ id: fun.instanceId, left: 'hq' });
+    expect(s.runner.grip.length).toBeGreaterThan(0);
+    // An HQ card installed facedown as ice: HQ changed, so the main walk runs; Archives and the grip are unchanged
+    s = act(s, n => n.corp.servers.hq.ice.push(n.corp.hq.splice(n.corp.hq.findIndex(x => x.instanceId === fun.instanceId), 1)[0]));
+    expect(taken()).toEqual({ archives: 1, arrivals: 1, main: 0 });
+    expect(s.corp.rdKnownToRunner?.[0].lost).toEqual({ ice: 1 });
   });
 });
 

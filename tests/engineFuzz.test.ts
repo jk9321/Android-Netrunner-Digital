@@ -100,6 +100,24 @@ describe('Engine fuzzer, seeds the 2026-11-20 deep run failed on', () => {
   }, 30_000);
 });
 
+// R-109 (B4a follow-up): random games that reach an R&D card drawn unseen (its mark left 'hq'), installed facedown from
+// HQ before the mark resolves, then joining HQ as certain (known-hidden-certain; rules 1.12.3, 4.6.6d). Found by a local
+// search of 3,000 seeds of 3,000 steps on beta 609c4c3: 26 games hit it, 3 of them by step 250, so tier 1's 40 games of
+// 250 steps had about a 4% chance to. Unit tests: tests/rdDrawnMark.test.ts.
+const R109_SEEDS: [number, string, string, number][] = [
+  [1348, 'nrdb-big-hands', 'rene-arcemont', 110],
+  [1810, 'core-glyph-of-warding', 'vp-sourdough-starter', 260],
+  [443, 'nbn-reality-plus', 'core-enthusiasm', 300],
+];
+
+describe('Engine fuzzer, seeds that reach a drawn R&D card installed unseen (R-109)', () => {
+  it.each(R109_SEEDS)('seed %i, %s vs %s', (seed, corp, runner, steps) => {
+    const deck = (id: string) => FUZZ_DECKS.find(d => d.id === id)!;
+    const res = fuzzEngineGame(seed, deck(corp), deck(runner), { maxSteps: steps });
+    expect(res.failures.length ? summaryLine(res) : '').toBe('');
+  }, 30_000);
+});
+
 // The checks must be able to fail: break a copy of a real state and each one fires.
 describe('Engine fuzzer checks catch broken states', () => {
   const base = newGame(3);

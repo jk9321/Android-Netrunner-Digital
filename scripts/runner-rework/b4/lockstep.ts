@@ -388,6 +388,10 @@ async function main() {
     }
   }
   out({ kind: 'time', ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(ms[n]).map(([k, v]) => [k, Math.round(v)]))])) });
+  // R-109: the deals that fell back to an unkept guess in each tree (null where the tree has no safety net)
+  const fallbacks: Record<string, number | null> = {};
+  for (const n of NAMES) fallbacks[n] = (await import(/* @vite-ignore */ join(dirs[n], 'src', 'ai/runnerReply.ts'))).dealFallbacks?.count ?? null;
+  out({ kind: 'fallbacks', fallbacks });
   if (process.env.OUT_DIR) writeFileSync(join(process.env.OUT_DIR, `done-${shard}.txt`), 'ok');
 }
 main();

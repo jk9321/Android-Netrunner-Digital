@@ -9,7 +9,7 @@ import { pointValue, pointsTerm, sampledEndWorth } from './valueModel';
 import { turnSeed } from './threatModel';
 import { inReply, note, tally } from './diagnostics';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
-import { plan } from './pricing';
+import { frameChecks, plan } from './pricing';
 import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
 
 // plan.oracle.safestRemote's play-out: the batch Runner (HeuristicRunnerAI, its planner on) against the rule-based Corp
@@ -170,7 +170,33 @@ export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { i
  * (ai-honest-runner-view; red team 3): guessRunnerView and the Hard AI's determinize both call it.
  */
 export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: RunnerMemory, canonical = false): void {
-  const { ice, root, loose } = runnerUnknownSlots(s, memory);
+  const slots = runnerUnknownSlots(s, memory);
+  const cards = [...slots.ice, ...slots.root, ...slots.loose];
+  const was = cards.map(c => c.cardCode);
+  try {
+    dealSlots(s, slots, random, canonical, true);
+  } catch (e) {
+    if (frameChecks.on || !(e instanceof Error && e.message.startsWith(NO_CODE))) throw e;
+    // R-109 safety net: in play a knowledge bug must not end a person's game. This guess is dealt again without what
+    // the Runner knows of HQ, R&D and Archives (the deal before B4a 7(e)), counted and logged; under the tests and the
+    // fuzzer (frameChecks.on) it stays a throw, so the next such bug is seen.
+    dealFallbacks.count++;
+    console.warn(`[deal-fallback] ${e.message}; this guess is dealt without the Runner's knowledge (${dealFallbacks.count} so far)`);
+    cards.forEach((c, i) => (c.cardCode = was[i]));
+    dealSlots(s, slots, random, canonical, false);
+  }
+}
+
+const NO_CODE = 'dealRunnerUnknowns: a slot found no code';
+
+/**
+ * R-109: the deals that fell back to an unkept guess (dealRunnerUnknowns). In play only: with frameChecks on (the tests,
+ * tests/setup.ts, and the engine fuzzer) a slot that finds no code stays a throw.
+ */
+export const dealFallbacks = { count: 0 };
+
+/** One deal of the slots (dealRunnerUnknowns); `keepKnown` deals what the Runner surely knows to its zone first. */
+function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerUnknownSlots>, random: () => number, canonical: boolean, keepKnown: boolean): void {
   const codes = [...ice, ...root, ...loose].map(c => c.cardCode);
   if (canonical) codes.sort();
   for (let i = codes.length - 1; i > 0; i--) {
@@ -188,7 +214,7 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
   // first and fall back to any root card (a card advanced by an effect need not be advanceable), not to their own code,
   // which an earlier slot may have taken (review R1)
   const dealt = (code: string | undefined): string => {
-    if (code === undefined) throw new Error('dealRunnerUnknowns: a slot found no code (the pool lost a slot card)');
+    if (code === undefined) throw new Error(`${NO_CODE} (the pool lost a slot card)`);
     return code;
   };
   // B4a 7(e): what the Runner surely knows of a hidden zone is dealt there first, by code and count, at least that many
@@ -204,14 +230,16 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
     kept.add(card);
   };
   const looseOf = (zone: CardInstance[]) => loose.filter(c => zone.includes(c));
-  for (const [zone, certain] of [[s.corp.hq, certainInHand(s, 'corp')], [s.corp.archives.faceDown, certainInArchives(s)]] as const) {
-    const slots = looseOf(zone);
-    for (const [code, n] of certain) for (let i = 0; i < n; i++) keep(slots, code);
-  }
-  const rdLoose = looseOf(s.corp.rd);
-  for (const e of [...knownInRd(s), ...rdSharesKnownToRunner(s)]) {
-    if (e.left || (e.lo === e.hi && !e.n0)) continue;
-    keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
+  if (keepKnown) {
+    for (const [zone, certain] of [[s.corp.hq, certainInHand(s, 'corp')], [s.corp.archives.faceDown, certainInArchives(s)]] as const) {
+      const slots = looseOf(zone);
+      for (const [code, n] of certain) for (let i = 0; i < n; i++) keep(slots, code);
+    }
+    const rdLoose = looseOf(s.corp.rd);
+    for (const e of [...knownInRd(s), ...rdSharesKnownToRunner(s)]) {
+      if (e.left || (e.lo === e.hi && !e.n0)) continue;
+      keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
+    }
   }
   for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));
   const advanced = root.filter(c => c.advancementCounters > 0);
