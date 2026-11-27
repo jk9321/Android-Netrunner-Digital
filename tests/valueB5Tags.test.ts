@@ -98,6 +98,17 @@ describe('V-B B5: a tag read from its owner', () => {
     expect(cardTag(s, '34074', false, probe)).toBe(tagTaken(s));
   });
 
+  it("Hannah untagged on the board prices the later tag gone as one taken now, not 0 (Runner rework coordinator's read)", () => {
+    const s = board(0);
+    const card = createCardInstance(s, '34008');
+    s.runner.rig.resources.push(card);
+    const tagged0 = 0.3; // liberation.ts tagged(): untagged, a tag-me deck plans around being tagged
+    const first = 2 * CLICK + 0.5 * tagTaken(s) * tagged0;
+    expect(tagTaken(s)).toBeGreaterThan(0);
+    expect(CARDS['34008'].runner!(s, '34008', card)).toBeGreaterThanOrEqual(first);
+    expect(CARDS['34008'].runner!(s, '34008', card)).toBeGreaterThan(2 * CLICK);
+  });
+
   it('optional terms floor at 0 (rules 9.5.3, 9.6.9): an ability is never worth less than not using it', () => {
     expect(optionalTerm(-1.96)).toBe(0);
     expect(optionalTerm(4.4)).toBe(4.4);

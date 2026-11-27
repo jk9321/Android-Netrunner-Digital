@@ -94,8 +94,9 @@ export const LIBERATION: Record<string, CardAI> = {
   '34008': {
     synergy: { gives: { runs: 1 }, wants: { tags: 0.5 } },
     value: { rig: 1.5 },
-    // A free click-run on a remote once a turn (a tag if it fails), or 2 clicks and a tag gone when trashed
-    runner: (state, code, card) => Math.max(2 * CLICK + 0.5 * cardTag(state, code, true, card) * tagged(state), perTurn(state, optionalTerm(0.3 * (CLICK - (1 - PACE.success) * cardTag(state, code, false, card) * 0.5)), 'runner')),
+    // A free click-run on a remote once a turn (a tag if it fails), or 2 clicks and a tag gone when trashed (untagged, a later
+    // tag gone: priced as one taken on this board, not as removing none)
+    runner: (state, code, card) => Math.max(2 * CLICK + 0.5 * cardTag(state, code, state.runner.tags > 0, card) * tagged(state), perTurn(state, optionalTerm(0.3 * (CLICK - (1 - PACE.success) * cardTag(state, code, false, card) * 0.5)), 'runner')),
     // Hannah: the click comes back
     run: (state?: GameState): RunOptions => {
       return { successBonus: state ? runClick(state) : 1 };
