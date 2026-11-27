@@ -36,6 +36,7 @@ Rule ids (2026-11-26): every rule has an id heading. Cite the id (`RULE-ONE-OWNE
 | `RULE-BATCH-LOG-MARKERS` | Conflict markers in the batch log after a merge |
 | `RULE-ENGINE-CHANGE-NOTICE` | Tell the AI Coordinator before an engine change |
 | `RULE-BAR-BEFORE-BATCH` | Written bar before an experiment batch |
+| `RULE-SPLIT-STRUCTURE` | A change mixing structure and new prices ships in two parts; a failed bar parks only what failed |
 | `RULE-OVERRIDE-CHECK` | Fresh-thread yes/no on a borderline merge |
 | `RULE-PIN-HOLES` | Pin human-usable holes |
 | `RULE-HUMAN-FIXTURES` | Human-game fixtures |
@@ -138,6 +139,9 @@ From project memory (2026-11-26; standing request 2026-11-17). Before pushing an
 
 ### RULE-BAR-BEFORE-BATCH: Bar before the batch
 Bar before the batch (Jeff 2026-11-12): before an experiment batch is launched, the spec (or a file in `/mnt/project-files/netrunner-ai/redesign/bars/`) states the expected behaviour change and what counts as pass, fail, borderline and stop, including the behaviour numbers (not only win rate). Every arm reports its local fire count (decisions changed per game) before it gets a batch; an arm that barely fires gets a note, not a batch.
+
+### RULE-SPLIT-STRUCTURE: Structure and prices in separate parts
+Structure and prices in separate parts (Jeff 2026-11-27 16:42-16:46Z, after F119): a change that both moves structure (a new field, a new owner, readers moved onto one statement) and sets new prices or new behaviour through it is built as two parts. The structure part goes in first and play identical: today's numbers translated into the new shape, shown by a g1 with deals.json identical (`RULE-BASELINES`) or a lockstep with 0 first differences. The pricing part is judged on its own count, with its own bar written before it (`RULE-BAR-BEFORE-BATCH`). This applies only to such mixed changes: a decision fix (a wrong move corrected, a count's input fixed) ships with real play changes and its own count, as before. The intent is judgment, not strictness: when a bar fails, park only the part that failed and keep the rest moving, and a coordinator who sees a rule leading to a silly result (parking whole work for the rule's sake) says so and asks, rather than following it. Example: F119's tag-use field (2026-11-27): its pricing half failed its bar, and the field went ahead as a play-identical translation.
 
 ### RULE-OVERRIDE-CHECK: Override check
 Override check (Jeff 2026-11-12): a merge that goes ahead on a borderline or failed bar first gets a yes/no from a fresh thread that reads only the batch numbers, the bar and the diff. The AI Coordinator asks the project coordinator to start it and writes the reason for the override in the review file.
