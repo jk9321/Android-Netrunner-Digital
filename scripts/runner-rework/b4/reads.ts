@@ -131,4 +131,67 @@ export const READ_HOOKS: Record<string, Patch[]> = {
     ],
     ['core/engine/rdKnowledge.ts', `{ id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];\n  return out;\n`, `{ id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];\n  }\n  return out;\n`],
   ],
+  // B4d step 0 (brief b4d-rb-fixes.md rev 2): one key per fix commit, each on that commit's own tree (lockstep CHAIN pairs)
+  // (f) e4db648: a break with all the credits that saves the Runner from a flatline
+  Df: [
+    [
+      'ai/runner/run.ts',
+      `  const survive = (): GameAction | undefined => (flatlining.length > 0 ? tryBreaking(flatlining, all) : undefined);\n`,
+      `  const survive = (): GameAction | undefined => {\n    const __a = flatlining.length > 0 ? tryBreaking(flatlining, all) : undefined;\n${L}    if (__a) ${fire('f.survive')};\n    return __a;\n  };\n`,
+    ],
+  ],
+  // (d) aabc8b5: a trash the whole pool pays and the credits left at the access do not
+  Dd: [
+    [
+      'ai/runs.ts',
+      `  if (purse < cost || state.runner.grip.length < (getCardScript(card.cardCode)?.trashGripCost ?? 0)) return 0;\n`,
+      `${L}  if (purse < cost && availableCredits(state, 'runner', { kind: 'trash', card }) >= cost) ${fire('d.unpayable')};\n  if (purse < cost || state.runner.grip.length < (getCardScript(card.cardCode)?.trashGripCost ?? 0)) return 0;\n`,
+    ],
+  ],
+  // (a) 87cbdfb: an R&D price with a placed mark that may have left (read unseen now)
+  Da: [
+    ['ai/runs.ts', `  const marks = certainRdMarks(state);\n`, `  const marks = certainRdMarks(state);\n${L}  if ((state.corp.rdKnownToRunner ?? []).some(e => e.left)) ${fire('a.leftMark')};\n`],
+  ],
+  // (a) follow-up 550a1b5: an R&D price with a shuffle's share that may have left (priced again at 1 / n0)
+  Da2: [
+    [
+      'ai/runs.ts',
+      `  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n`,
+      `  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n${L}  if (rdSharesKnownToRunner(state).some(e => e.left)) ${fire('a.leftShare')};\n`,
+    ],
+  ],
+  // (b) c6a8dda: a shuffle's departure followed (open, or seen in HQ), its share taken by code; step 6's share by code
+  Db: [
+    [
+      'core/engine/rdKnowledge.ts',
+      `    const i = out.findIndex(e => e.n0 && e.code === code);\n`,
+      `    const i = out.findIndex(e => e.n0 && e.code === code);\n${L}    ${fire('b.follow')};\n${L}    if (!open.has(card.instanceId)) ${fire('b.followHand')};\n${L}    if (i >= 0 && out[i].id !== card.instanceId) ${fire('b.byCode')};\n`,
+    ],
+    [
+      'core/engine/rdKnowledge.ts',
+      `    const relabel = (e: RdKnownCard) =>`,
+      `${L}    if (share && share.id !== id) ${fire('b.step6')};\n    const relabel = (e: RdKnownCard) =>`,
+    ],
+  ],
+  // (c) 17423d8: a Runner prompt's deal with pinned identities
+  Dc: [
+    [
+      'ai/runnerReply.ts',
+      `  dealRunnerUnknowns(view, () => nextFloat(rng), memory, common, promptPins(state));\n`,
+      `${L}  if (promptPins(state)) ${fire('c.pinned')};\n  dealRunnerUnknowns(view, () => nextFloat(rng), memory, common, promptPins(state));\n`,
+    ],
+  ],
+  // (e) 1e180bc: the save-up target and Chain Reaction's bonus on the view against the real state
+  De: [
+    [
+      'ai/runnerAI.ts',
+      `      this.savingFor = this.synergy ? saveUpTarget(view, this.memory) : null;\n`,
+      `      this.savingFor = this.synergy ? saveUpTarget(view, this.memory) : null;\n${L}      if (this.synergy && this.savingFor !== saveUpTarget(state, this.memory)) ${fire('e.savingFor')};\n`,
+    ],
+    [
+      'ai/runnerAI.ts',
+      `        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(view, action.targetServerId) });\n`,
+      `${L}        if (chainReactionBonus(view, action.targetServerId) !== chainReactionBonus(state, action.targetServerId)) ${fire('e.chainReaction')};\n        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(view, action.targetServerId) });\n`,
+    ],
+  ],
 };

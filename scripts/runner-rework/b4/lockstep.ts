@@ -27,6 +27,8 @@
  *    is compared with the walk, the look-ahead's included); each deal's line has `check` (skips compared, by walk, and
  *    the failures with their detail), read from the branch tree's own module. Not a time leg: the check doubles the upkeep.
  *
+ *  - FRUITLESS=1 (B4d step 0): base's runs on a remote whose root the Runner fully knows, each with what it gained.
+ *
  *   SHARD=0/64 npx vite-node scripts/runner-rework/b4/lockstep.ts -- BASE=<sha> POOL=batch,nrdb [READS=a] [CLEAR=1] [PICKS=1 [FOLLOW=1 [CONT=1]]]
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -77,6 +79,8 @@ const PICKS = process.env.PICKS === '1';
 const FOLLOW = process.env.FOLLOW === '1';
 const CONT = process.env.CONT === '1';
 const CHECK = process.env.CHECK === '1';
+/** FRUITLESS=1 (B4d step 0): base's runs on a fully known remote root, and what each gained (`fruit` on the deal's line). */
+const FRUITLESS = process.env.FRUITLESS === '1';
 /** The branch tree's upkeep-skip seam (CHECK=1). */
 let upkeepCheck: { on: boolean; checked: Record<string, number>; failures: unknown[] } | null = null;
 const out = (x: Record<string, unknown>) => console.log(JSON.stringify(x));
@@ -315,6 +319,8 @@ function deal(pool: string, d: Deal) {
   const played: string[] = [];
   const forced = new Set<number>();
   const clears = new Set<number>();
+  const fruit: { T: number; server: string; gained: boolean; changed: boolean }[] = [];
+  let fruitRun: { T: number; server: string; sc: number; arch: number; changed: boolean } | null = null;
   for (let i = 0; i < MAX_STEPS; i++) {
     const s: GameState = g.base.state;
     if (s.turnNumber !== lastTurn && s.activePlayer === 'corp') {
@@ -401,6 +407,21 @@ function deal(pool: string, d: Deal) {
         z.was = r.differ;
         z.wasMore = r.more;
       }
+    // FRUITLESS=1 (B4d step 0; the R-22 hunt's count): base's runs on a remote whose root the Runner fully knows (each
+    // card rezzed, faceup or known), and whether each gained anything (a point, or a card into Archives: the hunt's test)
+    if (FRUITLESS) {
+      const sb: GameState = g.base.state;
+      if (!prevBase.activeRun && sb.activeRun && sb.activeRun.server.startsWith('remote')) {
+        const root = prevBase.corp.servers[sb.activeRun.server]?.root ?? [];
+        if (root.length > 0 && root.every(c => c.isRezzed || c.faceUp || c.runnerKnows))
+          fruitRun = { T: prevBase.turnNumber, server: sb.activeRun.server, sc: prevBase.runner.score, arch: prevBase.corp.archives.faceUp.length + prevBase.corp.archives.faceDown.length, changed: changedAt.length > 0 && (changedAt[changedAt.length - 1] as any).step === i };
+      }
+      if (fruitRun && !sb.activeRun) {
+        const gained = sb.runner.score > fruitRun.sc || sb.corp.archives.faceUp.length + sb.corp.archives.faceDown.length > fruitRun.arch;
+        fruit.push({ T: fruitRun.T, server: fruitRun.server, gained, changed: fruitRun.changed });
+        fruitRun = null;
+      }
+    }
     played.push(key(g.base.last));
     for (const [k, v] of Object.entries(stepFires)) fires[k] = (fires[k] ?? 0) + v;
     if (!more.base) break;
@@ -416,7 +437,7 @@ function deal(pool: string, d: Deal) {
   for (const n of NAMES) for (const [k, v] of Object.entries(tms[n])) addMs(ms[n], k, v);
   const r1 = (x: number) => Math.round(x);
   const step0 = STEP0 ? { certain: Object.fromEntries(Object.entries(c0).map(([z, v]) => [z, { steps: v.steps, onsets: v.onsets, more: v.more }])), merges: (g0.__b4cMerges ?? 0) - merges0[0], forgot: (g0.__b4cForgot ?? 0) - merges0[1] } : undefined;
-  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(step0 && { step0 }), ...(check && { check }), ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
+  out({ kind: 'deal', pool, seed: d.seed, steps, diff, kn, fires, recordSame, ...(step0 && { step0 }), ...(check && { check }), ...(PICKS ? { same: sameAt } : {}), ...(FOLLOW ? { changed: changedAt } : {}), ...(FRUITLESS && { fruit }), ms: Object.fromEntries(NAMES.map(n => [n, Object.fromEntries(Object.entries(tms[n]).map(([k, v]) => [k, r1(v)]))])) });
 }
 
 async function main() {
