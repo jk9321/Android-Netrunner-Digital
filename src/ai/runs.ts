@@ -15,7 +15,7 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
 import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
-import { certainRdMarks } from '../core/engine/rdKnowledge';
+import { certainRdMarks, rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -1040,8 +1040,10 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  */
 function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
   // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where
-  // an exact mark is. B4d (a): only the marks still certain (certainRdMarks); a mark that may have left prices as unseen
-  const marks = certainRdMarks(state);
+  // an exact mark is. B4d (a): the marks still certain (certainRdMarks); a placed mark that may have left (P4: an agenda
+  // seen on top, then taken into HQ in secret) prices as unseen, as its 1 / its places would read it as surely there. A
+  // shuffle's share that may have left stays: its 1 / n0 a place already prices the chance it left (tests/b4Pins.test.ts)
+  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];
   const exact = new Set(marks.filter(e => !e.n0 && e.lo === e.hi).map(e => e.lo));
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
