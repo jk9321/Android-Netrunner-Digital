@@ -721,20 +721,38 @@ const subroutineTags = (label: string): number => Number(label.match(/give the r
 
 /**
  * The damage letting these subroutines resolve does, one at a time in printed order (rule 9.8.7b) with the tags given on
- * the way, and the first one (by index `i`) at which the total is more than the grip: a flatline (10.4.4). The owner
- * of "can the tank get through": the run's price (plainIcePrice) and the encounter's break choice (runnerAI) both read it.
+ * the way, and the first one (by index `i`) at which the total is more than the grip: the tank can't get through
+ * (10.4.4). The owner of "can the tank get through": the run's price (plainIcePrice) and the encounter's break choice
+ * (runner/run.ts) both read it.
+ *
+ * `flatline` (B4d (f), red team RT13): the first subroutine at which the damage the Runner cannot refuse is more than
+ * the grip, the Runner flatlined (rules 1.7.2b, 10.4.4). Not `lethal` where the damage is the Runner's choice: "end the
+ * run unless the Runner suffers N net damage" (Semak-samun) more than the grip ends the run instead, and no subroutine
+ * after it resolves. Not from a BLOCK either: an end-the-run subroutine is no flatline. Known gap (RT8, none in the pool
+ * today): a damage subroutine printed after an end-the-run one that will fire still counts, as the walk here does not
+ * stop at an end-the-run subroutine.
  */
-export function tankDamage(state: GameState, subs: readonly { label: string; i: number }[]): { damage: number; lethal?: number } {
+export function tankDamage(state: GameState, subs: readonly { label: string; i: number }[]): { damage: number; lethal?: number; flatline?: number } {
+  const grip = state.runner.grip.length;
   let tags = state.runner.tags;
   let damage = 0;
   let lethal: number | undefined;
+  let forced = 0;
+  let flatline: number | undefined;
+  let ended = false;
   for (const p of [...subs].sort((a, b) => a.i - b.i)) {
-    damage += subroutineDamage(p.label, tags);
+    const d = subroutineDamage(p.label, tags);
+    damage += d;
     tags += subroutineTags(p.label);
-    if (lethal === undefined && damage > state.runner.grip.length) lethal = p.i;
+    if (lethal === undefined && damage > grip) lethal = p.i;
+    if (ended || flatline !== undefined) continue;
+    if (CHOSEN_DAMAGE.test(p.label) && forced + d > grip) ended = true;
+    else if ((forced += d) > grip) flatline = p.i;
   }
-  return { damage, lethal };
+  return { damage, lethal, flatline };
 }
+/** A subroutine whose damage the Runner may refuse, ending the run instead (subroutineDamage counts it as taken). */
+const CHOSEN_DAMAGE = /unless the runner suffers (\d+) (?:net|meat) damage/i;
 
 function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken

@@ -50,12 +50,15 @@ function encounterAction(state: GameState, legal: GameAction[]): GameAction | un
   const subs = iceSubroutines(state, ice);
   // Banner: once used, this encounter's subroutines can't end the run
   const unbroken = subs
-    .map((s, i) => ({ i, label: s.label, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label) }))
+    .map((s, i) => ({ i, label: s.label, cost: encounter.cannotEndRun && /^end the run\.?$/i.test(s.label.trim()) ? 0 : subroutineCost(state, s.label), lethal: false }))
     .filter(s => !encounter.broken[s.i]);
   // Each subroutine's own price reads the grip as it stands; together they may be more damage than the grip (rules
   // 9.8.7b, 10.4.4: Empiricist's 1 net then 2 net on 2 cards). The one that would flatline must be broken, as one that ends the run
-  const lethal = tankDamage(state, unbroken).lethal;
+  const { lethal, flatline } = tankDamage(state, unbroken);
   for (const s of unbroken) if (s.i === lethal) s.cost = Infinity;
+  // B4d (f): the one that would flatline the Runner (1.7.2b, 10.4.4) carries that mark beside its cost: both are
+  // Infinity, but only survival is tested against all the credits below (an end-the-run one keeps the reserve, RT8)
+  for (const s of unbroken) if (s.i === flatline) s.lethal = true;
   const mustBreak = unbroken.filter(s => s.cost >= 1);
   if (mustBreak.length === 0) return undefined;
 
@@ -85,19 +88,26 @@ function encounterAction(state: GameState, legal: GameAction[]): GameAction | un
     if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;
   }
 
-  // Runner (run budget): keep what the rezzed ice further in needs
+  // Runner (run budget): keep what the rezzed ice further in needs, for every break taken to go on (B4d (f): a break
+  // that saves the Runner from a flatline may spend it all, as it can jack out after this ice, rules 6.9.4c)
   const ahead = creditsAhead(state);
-  const credits = availableCredits(state, 'runner') - ahead;
+  const all = availableCredits(state, 'runner');
+  const credits = all - ahead;
   const tank = mustBreak.reduce((sum, s) => sum + s.cost, 0);
+  // Breaking only what would flatline, with all the credits (undefined: no breaker can, or not with them)
+  const flatlining = mustBreak.filter(s => s.lethal);
+  const survive = (): GameAction | undefined => (flatlining.length > 0 ? tryBreaking(flatlining, all) : undefined);
   if (mustBreak.some(s => s.cost === Infinity)) {
-    // Can't get through the whole way: paying here is wasted unless what fires before the run ends is worse
-    const first = mustBreak.find(s => s.cost === Infinity)!;
-    const before = mustBreak.filter(s => s.i < first.i).reduce((sum, s) => sum + s.cost, 0);
-    if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;
+    // Can't get through the whole way: paying here is wasted unless what fires before the run ends is worse. B4d (f),
+    // RT1: the run ends at the first that ends it, not at one that would flatline, and a flatline the Runner can break
+    // with all its credits is never left unbroken
+    const first = mustBreak.find(s => s.cost === Infinity && !s.lethal);
+    const before = first ? mustBreak.filter(s => s.i < first.i).reduce((sum, s) => sum + s.cost, 0) : 0;
+    if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2 && !survive()) return undefined;
   }
-  const tryBreaking = (targets: typeof mustBreak): GameAction | undefined => {
-    const breakPlan = bestBreakPlan(state, ice, targets.length);
-    if (!breakPlan || breakPlan.credits > credits) return undefined;
+  function tryBreaking(targets: typeof mustBreak, budget = credits): GameAction | undefined {
+    const breakPlan = bestBreakPlan(state, ice!, targets.length);
+    if (!breakPlan || breakPlan.credits > budget) return undefined;
     const breakerId = breakPlan.breaker.instanceId;
     if (breakPlan.boostsNeeded > 0) {
       if (breakPlan.boostByAbility) return legal.find(a => a.type === 'USE_ABILITY' && a.cardInstanceId === breakerId);
@@ -112,7 +122,7 @@ function encounterAction(state: GameState, legal: GameAction[]): GameAction | un
     const fitting = breaks.filter(a => a.subroutineIndices.every(i => wanted.has(i)));
     const pool = fitting.length > 0 ? fitting : breaks;
     return pool.sort((a, b) => b.subroutineIndices.length - a.subroutineIndices.length)[0];
-  };
+  }
 
   const breakPlan = bestBreakPlan(state, ice, mustBreak.length);
   if (breakPlan && planCost(breakPlan) <= tank + 0.5) {
@@ -122,7 +132,7 @@ function encounterAction(state: GameState, legal: GameAction[]): GameAction | un
   // Can't afford everything: break just the subroutines that would end the run.
   const blocking = mustBreak.filter(s => s.cost === Infinity);
   if (blocking.length > 0) {
-    const action = tryBreaking(blocking);
+    const action = tryBreaking(blocking) ?? survive();
     if (action) return action;
     if (isBioroid(ice) || iceScript(ice)?.runnerBreakCost !== undefined) {
       // Bioroids: spend a click; N-Pot: pay credits
