@@ -314,6 +314,7 @@ describe('O1a a rezzed root card worth less than its trash adds nothing to the r
 // with the fact absent). The boards are #58's saved game (tests/fixtures/runner-facts/issues/issue-58.json) at the
 // Runner's first run of a turn, the Plaza alone in a bare remote, on the Runner's own view.
 const PLAZA = '35062';
+const TOUCHSTONE = '36021';
 interface Saved58 { config: { seed: number; corpDeck: never; runnerDeck: never }; startStops?: GameState['stops']; moves: GameAction[] }
 const saved58: Saved58 = JSON.parse(readFileSync(new URL('./fixtures/runner-facts/issues/issue-58.json', import.meta.url), 'utf8'));
 /** #58's board at the Runner's first run of `turn` (a structuredClone, editable), with `edit` applied before the view. */
@@ -403,6 +404,9 @@ describe('O1b the price of a trash holds the tag the trash gives (tracker R-14f,
   it('at the trash cost plus 1 the tag is priced after the trash is paid (S1): the board left cannot clear it this turn', () => {
     const b = plaza58(6, s => {
       s.runner.credits = 3;
+      // B4d (d): Touchstone's hosted credit pays during runs, the access's trash too (cardEffects.ts runPayers), so it
+      // would pay half the trash and leave the pool 2; emptied, the trash is the pool's alone, as this board means
+      for (const c of s.runner.rig.hardware) if (c.cardCode === TOUCHSTONE) c.tokens.credit = 0;
     });
     plazaBoard(b, 2);
     // The two readings differ on this board: 2 credits for the trash leave 1, short of the 2 that clear a tag
