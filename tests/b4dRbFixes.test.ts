@@ -4,10 +4,15 @@
  * checkpoint audit, the exploit hunt (adversarial/2026-11-27-rb-checkpoint-hunt/states), the Fable audit's probes and
  * the red team's (adversarial/2026-11-27-b4d-rb-fixes/probes).
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, executeAction, getLegalActions } from '../src/core';
+import { GameState, createCardInstance, executeAction, getLegalActions } from '../src/core';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
+import { HeuristicCorpAI } from '../src/ai/corpAI';
+import { GameRunner } from '../src/ai/playout';
 import { asSide } from '../src/ai/pricing';
+import { runScore } from '../src/ai/runs';
+import { inDecision } from './helpers/pricing';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
 
 const BOTO = '34109';
@@ -78,5 +83,81 @@ describe('B4d (f): a subroutine that would flatline is broken with all the credi
     const { winner, acts } = playRun(boto(4));
     expect(winner).toBeNull();
     expect(acts.filter(a => a === 'BREAK_SUBROUTINE').length).toBe(2);
+  });
+});
+
+/** A hunt board (adversarial/2026-11-27-rb-checkpoint-hunt/states, copied to tests/fixtures/b4d). */
+const board = (file: string): GameState => {
+  const raw = JSON.parse(readFileSync(`tests/fixtures/b4d/${file}`, 'utf8'));
+  return raw.state ?? raw;
+};
+/** The rest of the Runner's turn, played by the deciding Runner (planner on) against the rule-based Corp. */
+function playTurn(s0: GameState, max = 400): { runs: string[]; end: GameState } {
+  const g = new GameRunner(structuredClone(s0), { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({ planner: true }) });
+  const runs: string[] = [];
+  for (let i = 0; i < max && !g.state.winner; i++) {
+    if (!g.step()) break;
+    const a = g.last;
+    if (a?.type === 'INITIATE_RUN') runs.push(a.targetServerId);
+    if (g.state.activePlayer !== s0.activePlayer) break;
+  }
+  return { runs, end: g.state };
+}
+const spinDoctorLeft = (s: GameState, server: string) => s.corp.servers[server]?.root.some(c => c.cardCode === '30053') ?? false;
+
+describe('B4d (d): a trash is priced on the credits left at the access, after the ice (hunt finding 1)', () => {
+  const seed110 = (credits: number) => {
+    const s = board('hunt-seed110-T5-2c-2k.json');
+    s.runner.credits = credits;
+    return s;
+  };
+  const seed217 = (credits: number) => {
+    const s = board('hunt-seed217-T16.json');
+    s.runner.credits = credits;
+    return s;
+  };
+  /** The run's price on the board (the root known: the Runner saw both cards) and the turn as played. */
+  const priced = (s: GameState, server: string) => {
+    const memory = new Map(s.corp.servers[server].root.map(c => [c.instanceId, c.cardCode]));
+    return inDecision(s, 'runner', () => runScore(s, server, { memory, wary: true }));
+  };
+  const fruitless = (s: GameState, server: string) => {
+    const { runs, end } = playTurn(s);
+    return runs.includes(server) && spinDoctorLeft(end, server);
+  };
+  it('seed 110 [Flyswatter | Spin Doctor], 2 credits 2 clicks: no run on remote-1 (was a run that cannot trash)', () => {
+    const s = seed110(2);
+    expect(priced(s, 'remote-1') ?? -Infinity).toBeLessThanOrEqual(0);
+    expect(playTurn(s).runs).not.toContain('remote-1');
+  });
+  it('seed 110 counter-pin (RT7): at 3 credits the Runner runs remote-1 and trashes Spin Doctor', () => {
+    const { runs, end } = playTurn(seed110(3));
+    expect(runs).toContain('remote-1');
+    expect(spinDoctorLeft(end, 'remote-1')).toBe(false);
+  });
+  for (const credits of [4, 5])
+    it(`seed 217 [Lamplighter | Spin Doctor], ${credits} credits: no run on remote-6 that cannot trash (Carmen spends 4 on the ice)`, () => {
+      const s = seed217(credits);
+      expect(priced(s, 'remote-6') ?? -Infinity).toBeLessThanOrEqual(0);
+      // A credit event first (5 credits: Sure Gamble to 9) makes the run worth it: what is pinned is the run that cannot trash
+      expect(fruitless(s, 'remote-6')).toBe(false);
+    });
+  it('seed 217 counter-pin (RT7): at 7 credits the Runner runs remote-6 and trashes Spin Doctor', () => {
+    const { runs, end } = playTurn(seed217(7));
+    expect(runs).toContain('remote-6');
+    expect(spinDoctorLeft(end, 'remote-6')).toBe(false);
+  });
+  // R-14l (R-C1, the walk's end board) replaces the stopgap owner: the run's price counts only the ice's run-ending
+  // breaks (icePrice prices Tithe's tank at 0 credits), while encounterAction breaks every subroutine priced 1 or more
+  // (src/ai/runner/run.ts must-break floor), so the trash stays priced at 2 credits and the run leaves 1 (red team RT4, D2)
+  it.fails('R-14l known failure (D2): Tithe in Flyswatter\'s place, Carmen installed: no run on remote-1 at 2 credits', () => {
+    const s = seed110(2);
+    const tithe = createCardInstance(s, '30073');
+    tithe.isRezzed = true;
+    s.corp.servers['remote-1'].ice = [tithe];
+    installProgramForTest(s, CARMEN);
+    const memory = new Map(s.corp.servers['remote-1'].root.map(c => [c.instanceId, c.cardCode]));
+    const score = inDecision(s, 'runner', () => runScore(s, 'remote-1', { memory, wary: true }));
+    expect(score === null || score <= 0).toBe(true);
   });
 });
