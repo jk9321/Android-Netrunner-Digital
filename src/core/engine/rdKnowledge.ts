@@ -143,12 +143,25 @@ export function rdSharesKnownToRunner(state: GameState): RdKnownCard[] {
 /**
  * B4d (a), the audit's AI-RD-MARK-LEFT-READ-CERTAIN: the Runner's R&D marks still certain (knownInRd, then the shares),
  * the R&D side of certainCounts' rule for HQ (B4a, R-100): a mark whose card may already have left R&D (`left`) is not
- * one, so its places count as unseen. The one reader of "what the Runner surely knows is in R&D": the R&D price
- * (rdWorth), the trap pool (unseenTraps), the deal's keeps and its exact places (knownRdSlots) read it, each with its own
- * further test. Rules 10.2.2b, 1.12.3.
+ * one, so its places count as unseen. The one reader of "what the Runner surely knows is in R&D": the trap pool
+ * (unseenTraps), the deal's keeps and its exact places (knownRdSlots) read it, each with its own further test; the R&D
+ * price reads rdOddsMarks, built on it. Rules 10.2.2b, 1.12.3.
  */
 export function certainRdMarks(state: GameState): RdKnownCard[] {
   return [...knownInRd(state), ...rdSharesKnownToRunner(state)].filter(e => !e.left);
+}
+
+/**
+ * B4d (a): the marks that give R&D's odds place by place (rdWorth): the marks still certain (certainRdMarks), then a
+ * shuffle's shares whose card may have left. A share is odds already, not a place: 1 / n0 a place over the n places
+ * left, n / n0 in all, so a card that left since is priced by the places shrinking (exact for draws from the top: each
+ * place of a shuffled deck holds a given card at 1 / n0, 4.2.2). Pricing such a share as unseen would read the deck's
+ * agenda odds into an R&D the Runner saw hold none (tests/b4Pins.test.ts 7(b): five seen non-agendas shuffled, one drawn
+ * unseen). A placed mark that may have left is not odds (1 / its places would read it as surely there: the audit's probe
+ * P4), so it stays out. Rules 10.2.2b, 1.12.3.
+ */
+export function rdOddsMarks(state: GameState): RdKnownCard[] {
+  return [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];
 }
 
 /**
