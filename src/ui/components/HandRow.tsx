@@ -315,6 +315,7 @@ export function DockedHandBar({
   discardedIds,
   position,
   actions,
+  promptHint,
 }: {
   side: SideCode;
   cards: CardInstance[];
@@ -327,9 +328,12 @@ export function DockedHandBar({
   position: 'top' | 'bottom';
   /** Common click actions + Play/Install + End Turn placed on the right side of the dock beside the sidebar. */
   actions?: React.ReactNode;
+  /** Optional guidance shown when an active prompt accepts direct clicks on cards in this hand. */
+  promptHint?: string;
 }) {
   const isCorp = side === 'corp';
   const overLimit = cards.length > handSizeLimit;
+  const lowDanger = !isCorp && cards.length <= 1;
   const handSlotRef = useRef<HTMLDivElement>(null);
   const [handAvail, setHandAvail] = useState<number | undefined>(undefined);
 
@@ -358,9 +362,19 @@ export function DockedHandBar({
       <span>
         <Keyword id={isCorp ? 'hq' : 'grip'}>{isCorp ? 'HQ' : 'Grip'}</Keyword> Hand
       </span>
-      <span className={overLimit ? 'text-amber-300' : 'opacity-90'}>
+      <span
+        data-testid={`hand-count-${side}`}
+        data-low-danger={lowDanger ? 'true' : undefined}
+        title={lowDanger ? 'Low Grip — flatline risk if you take damage' : undefined}
+        className={lowDanger ? 'text-red-400 font-extrabold' : overLimit ? 'text-amber-300' : 'opacity-90'}
+      >
         (<Keyword id="hand-size">{cards.length} / {handSizeLimit}</Keyword>)
       </span>
+      {lowDanger && (
+        <span className="text-[10px] px-1 py-px rounded-[2px] bg-red-950/90 border border-red-600/80 text-red-300 font-bold tracking-wider">
+          FLATLINE RISK
+        </span>
+      )}
     </div>
   );
 
@@ -368,16 +382,18 @@ export function DockedHandBar({
     <div
       data-testid={`hand-dock-${side}`}
       className={`hand-dock shrink-0 w-full flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-1.5 px-2.5 py-1.5 rounded-[2px] border shadow-lg ${
-        isCorp
-          ? 'bg-gradient-to-r from-[#0a131d] to-[#070d14] border-cyan-900/70'
-          : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
+        lowDanger
+          ? 'bg-gradient-to-r from-[#220a0f] to-[#0e0508] border-red-700/80'
+          : isCorp
+            ? 'bg-gradient-to-r from-[#0a131d] to-[#070d14] border-cyan-900/70'
+            : 'bg-gradient-to-r from-[#140a10] to-[#0a0609] border-pink-900/70'
       }`}
     >
       <div ref={handSlotRef} className="w-full md:w-auto md:flex-1 min-w-0 flex flex-col items-start gap-0.5">
         {handLabel}
         <div className="min-w-0 max-w-full flex items-center justify-start">
           {cards.length === 0 ? (
-            <div className="text-[11px] text-slate-500 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
+            <div className="text-[11px] text-slate-400 italic px-2 py-1 font-mono" data-testid={`hand-${side}`}>
               No cards in hand
             </div>
           ) : (
@@ -399,8 +415,8 @@ export function DockedHandBar({
       </div>
       <div className="shrink-0 max-w-full ml-auto flex justify-end">
         {actions ?? (
-          <span className="hidden sm:inline text-[11px] text-slate-500 font-mono text-right">
-            {cards.length === 0 ? 'Hand empty' : isSelectable ? 'Click card to select' : 'Hover card to inspect'}
+          <span className={`hidden sm:inline text-[11px] font-mono text-right ${promptHint ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+            {promptHint ?? (cards.length === 0 ? 'Hand empty' : isSelectable ? 'Click card to select' : 'Hover card to inspect')}
           </span>
         )}
       </div>

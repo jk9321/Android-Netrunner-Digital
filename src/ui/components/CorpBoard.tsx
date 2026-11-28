@@ -2,9 +2,10 @@ import { useMemo, useRef } from 'react';
 import { CardInstance, GameAction, GameState, iceSubtypes, knownInRd } from '../../core';
 import type { Seat } from '../seatLegality';
 import { canSeeRunnerSecrets, Viewer } from '../viewer';
-import { AutoFitArea } from './AutoFitArea';
+import { useAutoFit } from '../useAutoFit';
 import { CardView } from './CardView';
 import { Pile } from './Pile';
+import { ScrollEdgeContainer } from './ScrollEdgeCue';
 import { SectorRimTrace } from './SectorRimTrace';
 import { ServerColumn } from './ServerColumn';
 import { SideStrip } from './SideStrip';
@@ -42,7 +43,28 @@ export function CorpBoard({
 }: CorpBoardProps) {
   const corpTabRef = useRef<HTMLDivElement>(null);
   const corpChassisRef = useRef<HTMLElement>(null);
+  const serversScrollRef = useRef<HTMLDivElement>(null);
+  useAutoFit(serversScrollRef);
   const { corp, runner, activePlayer, activeRun, winner } = gameState;
+
+  const sortedServers = useMemo(
+    () =>
+      // Central servers left to right: Archives, R&D, HQ, then remotes
+      Object.values(corp.servers).sort((a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id)),
+    [corp.servers],
+  );
+
+  // Track server changes so new/updated off-screen servers trigger the pulsing ScrollEdgeContainer alert
+  const serverSignatures = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sortedServers) {
+      const iceSig = s.ice.map(c => `${c.instanceId}:${c.isRezzed ? 1 : 0}:${c.advancementCounters}`).join(',');
+      const rootSig = s.root.map(c => `${c.instanceId}:${c.isRezzed ? 1 : 0}:${c.advancementCounters}`).join(',');
+      const runSig = activeRun?.server === s.id ? `${activeRun.phase}:${activeRun.icePosition ?? 'r'}` : '';
+      map.set(s.id, `${iceSig}|${rootSig}|${runSig}`);
+    }
+    return map;
+  }, [sortedServers, activeRun]);
 
   // Runner cards installed on Corp ice (trojans), for ServerColumn host badges
   const onIce = [...runner.rig.programs, ...runner.rig.hardware, ...runner.rig.resources].filter(c => c.hostedOnId);
@@ -53,77 +75,74 @@ export function CorpBoard({
   // (Their buttons call onAction, which always works on the latest state.)
   const serversView = useMemo(
     () =>
-      // Central servers left to right: Archives, R&D, HQ, then remotes
-      Object.values(corp.servers)
-        .sort((a, b) => CENTRAL_ORDER.indexOf(b.id) - CENTRAL_ORDER.indexOf(a.id))
-        .map(server => (
-          <ServerColumn
-            key={server.id}
-            server={server}
-            activePlayer={activePlayer}
-            perspective={viewer}
-            mirrored={mirrored}
-            run={activeRun?.server === server.id ? activeRun : null}
-            onInitiateRun={
-              runnerCanAct
-                ? (sId) => onAction({ type: 'INITIATE_RUN', player: 'runner', targetServerId: sId })
-                : undefined
-            }
-            onRezCard={(cId) =>
-              onAction({ type: 'REZ_CARD', player: 'corp', cardInstanceId: cId })
-            }
-            onAdvanceCard={(cId, sId) =>
-              onAction({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: cId, serverId: sId })
-            }
-            onScoreCard={(cId) =>
-              onAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
-            }
-            canRez={(card) => corpCanAct && seat.can(rezAction(card))}
-            canAdvance={(card) =>
-              corpCanAct &&
-              seat.can({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
-            }
-            canScore={(card) =>
-              corpCanAct && seat.can({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
-            }
-            onInspectCard={(card) => onInspectCard(card)}
-            hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
-            iceTypes={(ice) => iceSubtypes(ice, gameState)}
-            anchor={
-              server.id === 'hq' ? (
-                <CardView card={corp.identity} size="fit" notInstalled onInspect={onInspectCard} />
-              ) : server.id === 'rd' ? (
-                <Pile
-                  label="R&D"
-                  count={corp.rd.length}
-                  side="corp"
-                  size="fit"
-                  hideLabel
-                  // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1).
-                  // During play it opens the cards the Runner has seen in R&D.
-                  onClick={
-                    gameState.winner || (canSeeRunnerSecrets(viewer) && knownInRd(gameState).length > 0)
-                      ? () => onOpenZone('rd')
-                      : undefined
-                  }
-                  seenCount={canSeeRunnerSecrets(viewer) ? knownInRd(gameState).length : undefined}
-                  testId="pile-rd"
-                />
-              ) : server.id === 'archives' ? (
-                <Pile
-                  label="Archives"
-                  count={corp.archives.faceUp.length + corp.archives.faceDown.length}
-                  side="corp"
-                  topCard={corp.archives.faceUp[corp.archives.faceUp.length - 1]}
-                  size="fit"
-                  hideLabel
-                  onClick={() => onOpenZone('archives')}
-                  testId="pile-archives"
-                />
-              ) : undefined
-            }
-          />
-        )),
+      sortedServers.map(server => (
+        <ServerColumn
+          key={server.id}
+          server={server}
+          activePlayer={activePlayer}
+          perspective={viewer}
+          mirrored={mirrored}
+          run={activeRun?.server === server.id ? activeRun : null}
+          onInitiateRun={
+            runnerCanAct
+              ? (sId) => onAction({ type: 'INITIATE_RUN', player: 'runner', targetServerId: sId })
+              : undefined
+          }
+          onRezCard={(cId) =>
+            onAction({ type: 'REZ_CARD', player: 'corp', cardInstanceId: cId })
+          }
+          onAdvanceCard={(cId, sId) =>
+            onAction({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: cId, serverId: sId })
+          }
+          onScoreCard={(cId) =>
+            onAction({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: cId })
+          }
+          canRez={(card) => corpCanAct && seat.can(rezAction(card))}
+          canAdvance={(card) =>
+            corpCanAct &&
+            seat.can({ type: 'ADVANCE_CARD', player: 'corp', cardInstanceId: card.instanceId, serverId: server.id })
+          }
+          canScore={(card) =>
+            corpCanAct && seat.can({ type: 'SCORE_AGENDA', player: 'corp', cardInstanceId: card.instanceId })
+          }
+          onInspectCard={(card) => onInspectCard(card)}
+          hostedOnIce={(ice) => onIce.filter(c => c.hostedOnId === ice.instanceId)}
+          iceTypes={(ice) => iceSubtypes(ice, gameState)}
+          anchor={
+            server.id === 'hq' ? (
+              <CardView card={corp.identity} size="fit" notInstalled onInspect={onInspectCard} />
+            ) : server.id === 'rd' ? (
+              <Pile
+                label="R&D"
+                count={corp.rd.length}
+                side="corp"
+                size="fit"
+                hideLabel
+                // Nobody may look through the decks during play; once the game is over anyone can (rules 1.7.1).
+                // During play it opens the cards the Runner has seen in R&D.
+                onClick={
+                  gameState.winner || (canSeeRunnerSecrets(viewer) && knownInRd(gameState).length > 0)
+                    ? () => onOpenZone('rd')
+                    : undefined
+                }
+                seenCount={canSeeRunnerSecrets(viewer) ? knownInRd(gameState).length : undefined}
+                testId="pile-rd"
+              />
+            ) : server.id === 'archives' ? (
+              <Pile
+                label="Archives"
+                count={corp.archives.faceUp.length + corp.archives.faceDown.length}
+                side="corp"
+                topCard={corp.archives.faceUp[corp.archives.faceUp.length - 1]}
+                size="fit"
+                hideLabel
+                onClick={() => onOpenZone('archives')}
+                testId="pile-archives"
+              />
+            ) : undefined
+          }
+        />
+      )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [gameState, seat, viewer, corpCanAct, runnerCanAct, mirrored],
   );
@@ -146,9 +165,17 @@ export function CorpBoard({
         {!mirrored && <SideStrip side="corp" edge="top" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
 
         {/* Servers Grid */}
-        <AutoFitArea className="flex items-start gap-2 flex-1 min-w-0 min-h-0 overflow-auto pt-2 pb-1">
+        <ScrollEdgeContainer
+          axis="x"
+          tone="corp"
+          itemSignatures={serverSignatures}
+          scrollRef={serversScrollRef}
+          className="flex-1 min-w-0 min-h-0"
+          scrollClassName="auto-fit-area flex items-start gap-2 overflow-auto pt-2 pb-1"
+          testId="auto-fit-area"
+        >
           {serversView}
-        </AutoFitArea>
+        </ScrollEdgeContainer>
 
         {mirrored && <SideStrip side="corp" edge="bottom" state={gameState} viewer={viewer} onInspect={onInspectCard} onOpenZone={onOpenZone} />}
       </section>

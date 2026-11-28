@@ -355,12 +355,18 @@ const CardOverlays: React.FC<{
             {card.flipped && <div className={`${tagClass} bg-violet-950/90 text-violet-200 border-violet-600`}><span className="truncate">Flipped</span></div>}
             {tag}
           </div>
-          {card.advancementCounters > 0 && (
-            <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200 inline-flex items-center gap-[0.2em]`}>
-              <AdvancementIcon className="w-[1.25em] h-[1.25em]" />
-              <StatTumbler value={card.advancementCounters} />
-            </span>
-          )}
+          {card.advancementCounters > 0 && (() => {
+            const info = !hidden ? cardDef(card) : null;
+            return (
+              <span data-kw="advance" className={`${badge} bg-amber-400 text-black border-amber-200 inline-flex items-center gap-[0.2em]`}>
+                <AdvancementIcon className="w-[1.25em] h-[1.25em]" />
+                <StatTumbler value={card.advancementCounters} />
+                {info?.type_code === 'agenda' && info.advancement_cost ? (
+                  <span className="opacity-80">/{info.advancement_cost}</span>
+                ) : null}
+              </span>
+            );
+          })()}
         </div>
       )}
       <div className={`flex-1 min-h-0 flex justify-end gap-[0.2em] ${sideways ? 'flex-row items-end' : 'flex-col'}`}>{actions}</div>

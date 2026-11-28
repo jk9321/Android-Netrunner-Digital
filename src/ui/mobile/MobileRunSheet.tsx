@@ -3,7 +3,7 @@ import { CardInstance } from '../../core';
 import type { GameController } from '../useGameController';
 import { runOverlayPropsFromController } from '../components/GameOverlays';
 import { RunOverlay } from '../components/RunOverlay';
-import { AbilityBar } from '../components/AbilityBar';
+import { AbilityBar, abilityActionKey } from '../components/AbilityBar';
 import { CreditHoldBar } from '../components/CreditHoldBar';
 import { MobileBottomSheet } from './MobileBottomSheet';
 
@@ -32,7 +32,7 @@ export const MobileRunSheet: React.FC<MobileRunSheetProps> = ({
   hidden = false,
   onInspectCard,
 }) => {
-  const { gameState, handleAction, corpCanAct, runnerCanAct } = ctl;
+  const { gameState, handleAction, corpCanAct, runnerCanAct, rezWindow, rezWindowOpen } = ctl;
   const run = gameState.activeRun;
   const [peeking, setPeeking] = useState(false);
 
@@ -46,6 +46,12 @@ export const MobileRunSheet: React.FC<MobileRunSheetProps> = ({
 
   const serverName = gameState.corp.servers[run.server]?.name ?? run.server;
   const phaseLabel = PHASE_LABEL[run.phase] ?? run.phase.replace(/_/g, ' ');
+  const corpRezAbilityKeys =
+    rezWindowOpen && rezWindow && rezWindow.abilities.length > 0
+      ? new Set(rezWindow.abilities.map(abilityActionKey))
+      : undefined;
+  // During an interactive encounter, EncounterPanel already lists all legal Runner USE_ABILITY buttons
+  const runnerAbilitiesInEncounter = runnerCanAct && !!run.encounter && gameState.priority?.holder !== 'corp';
 
   return (
     <MobileBottomSheet
@@ -73,9 +79,9 @@ export const MobileRunSheet: React.FC<MobileRunSheetProps> = ({
           className="flex-1 min-h-0 border-0 rounded-none shadow-none bg-transparent"
         />
         <div className="shrink-0 max-h-[22dvh] overflow-y-auto px-2.5 py-2 border-t border-slate-800 bg-[#070b12] flex flex-col gap-1.5 empty:hidden">
-          {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+          {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} excludeKeys={corpRezAbilityKeys} />}
           {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
-          {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+          {runnerCanAct && !runnerAbilitiesInEncounter && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
           {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
         </div>
       </div>

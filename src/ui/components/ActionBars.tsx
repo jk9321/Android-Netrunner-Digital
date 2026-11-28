@@ -82,14 +82,16 @@ function PlayButton({ side, state, selectedCard, onAction }: ActionBarProps & { 
   if (!selectedCard || !isPlayable(selectedCard) || cardDef(selectedCard).side_code !== side) return null;
   const action: GameAction = { type: 'PLAY_OPERATION_OR_EVENT', player: side, cardInstanceId: selectedCard.instanceId };
   const implemented = Boolean(getCardScript(selectedCard.cardCode)?.onPlay);
+  const canPlay = seat.can(action);
+  const blockedReason = !implemented ? "This card's effect is not implemented yet" : canPlay ? undefined : (seat.reason(action) ?? undefined);
   const printed = cardDef(selectedCard).cost ?? 0;
   const live = playCost(state, selectedCard);
   return (
     <button
       onClick={() => onAction(action)}
-      disabled={!seat.can(action)}
-      title={implemented ? undefined : 'This card\'s effect is not implemented yet'}
-      className="px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 disabled:animate-none animate-pulse active:translate-y-[1px] active:border-b-[1px]"
+      disabled={!canPlay}
+      title={blockedReason}
+      className="px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black text-xs font-bold rounded-[2px] border border-amber-300 border-b-2 border-b-amber-700 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px]"
     >
       <Zap className="w-3.5 h-3.5 shrink-0" />{' '}
       {implemented ? (
@@ -149,16 +151,39 @@ export function CorpActions(props: ActionBarProps) {
   const { corp } = state;
   const startingTurn = state.turnStep?.kind === 'corp_turn_start';
   const turnAction: GameAction = startingTurn ? { type: 'START_TURN', player: 'corp' } : { type: 'END_TURN', player: 'corp' };
-  const trashActions = legalFor(seat, 'corp').filter(
+  const corpLegal = legalFor(seat, 'corp');
+  const trashActions = corpLegal.filter(
     (a): a is Extract<GameAction, { type: 'TRASH_RESOURCE' }> => a.type === 'TRASH_RESOURCE',
   );
+  const scorableAgenda = !startingTurn && corpLegal.some(a => a.type === 'SCORE_AGENDA');
   const showInstall = !!selectedCard && !isPlayable(selectedCard) && cardDef(selectedCard).side_code === 'corp';
+  const gainCreditAction: GameAction = { type: 'GAIN_CREDIT', player: 'corp' };
+  const drawCardAction: GameAction = { type: 'DRAW_CARD', player: 'corp' };
+  const purgeAction: GameAction = { type: 'PURGE_VIRUS', player: 'corp' };
+  const canTurn = seat.can(turnAction);
+  const turnTitle = startingTurn
+    ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw'
+    : canTurn
+      ? undefined
+      : (seat.reason(turnAction) ?? undefined);
 
   const endTurnButton = (
     <button
-      onClick={() => onAction(turnAction)}
-      disabled={!seat.can(turnAction)}
-      title={startingTurn ? 'Rez assets or upgrades first if you want them working this turn, then take the mandatory draw' : undefined}
+      onClick={async () => {
+        if (
+          scorableAgenda &&
+          !(await showConfirm('You have a fully advanced agenda ready to score. End your turn anyway?', {
+            title: 'Agenda ready to score',
+            confirmLabel: 'End turn anyway',
+            danger: true,
+          }))
+        ) {
+          return;
+        }
+        onAction(turnAction);
+      }}
+      disabled={!canTurn}
+      title={turnTitle}
       data-testid="end-turn"
       className={`px-3 py-1.5 bg-gradient-to-b from-cyan-600 to-cyan-800 hover:from-cyan-500 hover:to-cyan-700 text-white font-mono text-xs font-bold rounded-[2px] border border-cyan-400 border-b-2 border-b-cyan-300 transition-all shadow-lg shadow-cyan-950 flex items-center gap-1.5 whitespace-nowrap disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
         !startingTurn && corp.clicks === 0 ? 'end-turn-pulse end-turn-corp' : ''
@@ -171,15 +196,17 @@ export function CorpActions(props: ActionBarProps) {
   const basicRow = (
     <div className="flex flex-wrap items-stretch gap-1.5 w-full">
       <button
-        onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'corp' })}
-        disabled={!seat.can({ type: 'GAIN_CREDIT', player: 'corp' })}
+        onClick={() => onAction(gainCreditAction)}
+        disabled={!seat.can(gainCreditAction)}
+        title={seat.can(gainCreditAction) ? undefined : (seat.reason(gainCreditAction) ?? undefined)}
         className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" /> +1 Credit
       </button>
       <button
-        onClick={() => onAction({ type: 'DRAW_CARD', player: 'corp' })}
-        disabled={!seat.can({ type: 'DRAW_CARD', player: 'corp' })}
+        onClick={() => onAction(drawCardAction)}
+        disabled={!seat.can(drawCardAction)}
+        title={seat.can(drawCardAction) ? undefined : (seat.reason(drawCardAction) ?? undefined)}
         className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <Layers className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> Draw Card
@@ -196,11 +223,11 @@ export function CorpActions(props: ActionBarProps) {
             }))
           )
             return;
-          onAction({ type: 'PURGE_VIRUS', player: 'corp' });
+          onAction(purgeAction);
         }}
-        disabled={!seat.can({ type: 'PURGE_VIRUS', player: 'corp' })}
+        disabled={!seat.can(purgeAction)}
         className="flex-1 min-w-fit px-2 py-1.5 bg-gradient-to-b from-cyan-950/90 to-cyan-950/40 hover:from-cyan-900/90 hover:to-cyan-900/40 border border-cyan-700/80 border-b-2 border-b-cyan-500 text-cyan-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1 disabled:opacity-40 shadow whitespace-nowrap active:translate-y-[1px] active:border-b-[1px]"
-        title="Spend 3 clicks to remove every virus counter"
+        title={seat.can(purgeAction) ? 'Spend 3 clicks to remove every virus counter' : (seat.reason(purgeAction) ?? 'Spend 3 clicks to remove every virus counter')}
       >
         <VirusIcon className="w-[17px] h-[17px] text-lime-400 shrink-0" />
         <span>Purge (3<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" />)</span>
@@ -404,28 +431,36 @@ export function RunnerActions(props: ActionBarProps) {
   const autoFreeMu = !!installable && !canNormalInstall && canMakeRoom;
   const splitTrash = !!installable && canNormalInstall && canMakeRoom;
 
+  const gainCreditAction: GameAction = { type: 'GAIN_CREDIT', player: 'runner' };
+  const drawCardAction: GameAction = { type: 'DRAW_CARD', player: 'runner' };
+  const removeTagAction: GameAction = { type: 'REMOVE_TAG', player: 'runner' };
+  const endRunnerTurnAction: GameAction = { type: 'END_TURN', player: 'runner' };
+  const canEndRunnerTurn = seat.can(endRunnerTurnAction);
+
   const basicRow = (
     <div className="flex flex-wrap items-stretch gap-1.5 w-full">
       <button
-        onClick={() => onAction({ type: 'GAIN_CREDIT', player: 'runner' })}
-        disabled={runner.clicks < 1}
+        onClick={() => onAction(gainCreditAction)}
+        disabled={!seat.can(gainCreditAction)}
+        title={seat.can(gainCreditAction) ? undefined : (seat.reason(gainCreditAction) ?? undefined)}
         className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <CreditIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" /> +1 Credit
       </button>
       <button
-        onClick={() => onAction({ type: 'DRAW_CARD', player: 'runner' })}
-        disabled={runner.clicks < 1}
+        onClick={() => onAction(drawCardAction)}
+        disabled={!seat.can(drawCardAction)}
+        title={seat.can(drawCardAction) ? undefined : (seat.reason(drawCardAction) ?? undefined)}
         className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
       >
         <Layers className="w-3.5 h-3.5 text-pink-400 shrink-0" /> Draw Card
       </button>
       {runner.tags > 0 && (
         <button
-          onClick={() => onAction({ type: 'REMOVE_TAG', player: 'runner' })}
-          disabled={!seat.can({ type: 'REMOVE_TAG', player: 'runner' })}
+          onClick={() => onAction(removeTagAction)}
+          disabled={!seat.can(removeTagAction)}
           className="flex-1 min-w-fit px-2.5 py-1.5 bg-gradient-to-b from-pink-950/90 to-pink-950/40 hover:from-pink-900/90 hover:to-pink-900/40 border border-pink-700/80 border-b-2 border-b-pink-500 text-pink-200 text-xs font-bold rounded-[2px] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 shadow active:translate-y-[1px] active:border-b-[1px]"
-          title="Spend 1 click and 2 credits to remove 1 tag"
+          title={seat.can(removeTagAction) ? 'Spend 1 click and 2 credits to remove 1 tag' : (seat.reason(removeTagAction) ?? 'Spend 1 click and 2 credits to remove 1 tag')}
         >
           <TagIcon className="w-[16px] h-[16px] text-red-400 shrink-0" />
           <span>Remove Tag (1<ClickIcon className="w-3 h-3 text-red-400 inline-block align-middle mx-0.5" /> + <Credits amount={2} />)</span>
@@ -450,7 +485,7 @@ export function RunnerActions(props: ActionBarProps) {
         }}
         disabled={!canNormalInstall && !autoFreeMu}
         title={autoFreeMu ? 'Not enough memory — click to choose installed programs to trash first' : (installBlocked ?? (onIce ? 'Choose the ice to install it on' : undefined))}
-        className={`px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg animate-pulse disabled:opacity-40 disabled:animate-none active:translate-y-[1px] active:border-b-[1px] ${
+        className={`px-2 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white text-xs font-bold border border-pink-400 border-b-2 border-b-pink-300 transition-all flex items-center gap-1.5 shadow-lg disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
           splitTrash ? 'rounded-l-[2px]' : 'rounded-[2px]'
         }`}
       >
@@ -476,8 +511,9 @@ export function RunnerActions(props: ActionBarProps) {
 
   const endTurnButton = (
     <button
-      onClick={() => onAction({ type: 'END_TURN', player: 'runner' })}
-      disabled={!seat.can({ type: 'END_TURN', player: 'runner' })}
+      onClick={() => onAction(endRunnerTurnAction)}
+      disabled={!canEndRunnerTurn}
+      title={canEndRunnerTurn ? undefined : (seat.reason(endRunnerTurnAction) ?? undefined)}
       data-testid="end-turn"
       className={`px-3 py-1.5 bg-gradient-to-b from-pink-600 to-pink-800 hover:from-pink-500 hover:to-pink-700 text-white font-mono text-xs font-bold rounded-[2px] border border-pink-400 border-b-2 border-b-pink-300 transition-all shadow-lg shadow-pink-950 flex items-center gap-1.5 whitespace-nowrap disabled:opacity-40 active:translate-y-[1px] active:border-b-[1px] ${
         runner.clicks === 0 ? 'end-turn-pulse end-turn-runner' : ''
@@ -486,6 +522,8 @@ export function RunnerActions(props: ActionBarProps) {
       End Runner Turn <ArrowRight className="w-3.5 h-3.5" />
     </button>
   );
+
+  const showBlocked = !!installable && installBlocked !== null && !autoFreeMu;
 
   if (section === 'dock') {
     return (
@@ -498,18 +536,17 @@ export function RunnerActions(props: ActionBarProps) {
           <InspectSelectedButton side="runner" selectedCard={selectedCard} onInspect={onInspect} />
           {endTurnButton}
         </div>
+        {showBlocked && (
+          <span className="w-full text-right text-[11px] text-amber-300 font-mono leading-snug" data-testid="install-blocked-reason">
+            Can't install: {installBlocked}
+          </span>
+        )}
       </div>
     );
   }
 
-  const showBlocked = !!installable && installBlocked !== null && !autoFreeMu;
-  const sidebarItems = (
+  const hostedItems = (
     <>
-      {showBlocked && (
-        <span className="w-full text-xs text-amber-300 font-mono" data-testid="install-blocked-reason">
-          Can't install: {installBlocked}
-        </span>
-      )}
       {hostedActions.map(a => {
         if (a.type !== 'INSTALL_CARD' && a.type !== 'PLAY_OPERATION_OR_EVENT') return null;
         const onIceHosted = a.type === 'INSTALL_CARD' && !!a.hostInstanceId;
@@ -567,10 +604,10 @@ export function RunnerActions(props: ActionBarProps) {
   );
 
   if (section === 'sidebar') {
-    if (!showBlocked && hostedActions.length === 0 && hostedNeedingRoom.length === 0) return null;
+    if (hostedActions.length === 0 && hostedNeedingRoom.length === 0) return null;
     return (
       <div className="flex flex-col gap-1.5 p-2 bg-gradient-to-b from-[#180a10] to-[#0d0407] border border-pink-900/60 rounded-[2px] shadow-inner">
-        <div className="flex items-center gap-1.5 flex-wrap">{sidebarItems}</div>
+        <div className="flex items-center gap-1.5 flex-wrap">{hostedItems}</div>
       </div>
     );
   }
@@ -583,7 +620,12 @@ export function RunnerActions(props: ActionBarProps) {
         <PlayButton {...props} side="runner" />
         {installButton}
         <InspectSelectedButton side="runner" selectedCard={selectedCard} onInspect={onInspect} />
-        {sidebarItems}
+        {showBlocked && (
+          <span className="w-full text-xs text-amber-300 font-mono" data-testid="install-blocked-reason">
+            Can't install: {installBlocked}
+          </span>
+        )}
+        {hostedItems}
       </div>
 
       {/* End Turn Button - Prominently Anchored */}
