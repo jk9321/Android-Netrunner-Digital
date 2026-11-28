@@ -47,8 +47,6 @@ export function plannedSubroutines(state: GameState, ice: CardInstance): Subrout
   const gains = CARDS[ice.cardCode]?.gainsOnEncounter?.(state, ice) ?? [];
   return gains.length ? [...subs, ...gains] : subs;
 }
-// Botulus: read by prompts.ts only (its prompt block, R-B's prompt work); the run model reads its entry's holdFacts
-export const BOTULUS = '30004';
 // R-A A-move: the run model reads a card's facts from its entry (cards/types.ts RunFacts), never by its number; these
 // read the vocabulary's conditions, and every price stays where its reader is
 const runFactsOf = (code: string | null | undefined) => (code ? CARDS[code]?.runFacts : undefined);
@@ -569,7 +567,9 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
     if (byCounter && byCounter.creditsPerSubroutine === undefined) {
       // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
       const uses = Math.ceil(subCount / script.breakMax);
-      const boosts = Math.max(0, Math.ceil((iceStr - strength) / facts!.boostPerGripCard!.strength));
+      // R-17: an entry with no per-card boost cannot raise its strength (no assertion: the plan is left out)
+      const perCard = facts?.boostPerGripCard?.strength;
+      const boosts = iceStr <= strength ? 0 : perCard ? Math.ceil((iceStr - strength) / perCard) : Infinity;
       if (uses > counters(breaker, byCounter.kind) || boosts > (view.gripCards ?? state.runner.grip.length)) continue;
       // Counters and discards, no credits
       const value = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
@@ -1256,7 +1256,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // A faceup agenda: a sure steal, public to both sides. Under BANGUN it costs 2 meat damage and a tag;
       // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
       const bangun = runFactsOf(state.corp.identity.cardCode)?.faceupAgendaAccess;
-      if (bangun && state.runner.grip.length < bangun.meatDamage) return 0;
+      if (bangun && grip < bangun.meatDamage) return 0; // the grip after the ice's damage, as below (rule 10.4.4)
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
       value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, bangun.meatDamage, false, grip) + bangun.tags * tagCost(state) : 0);

@@ -17,6 +17,7 @@ import { GameRunner } from '../src/ai/playout';
 import { asSide } from '../src/ai/pricing';
 import { runScore, serverValue } from '../src/ai/runs';
 import { inDecision } from './helpers/pricing';
+import { nudge, tuning } from '../src/ai/synergy';
 import { knownByCopy, relabelledRdCopy } from '../scripts/engine-fuzz-check';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
 
@@ -376,5 +377,67 @@ describe('B4d (c): the cards a prompt shows are pinned identities of the deal, s
     const a = asSide('runner', () => codes(guessRunnerView(s, 3)));
     const t = structuredClone(s);
     expect(asSide('runner', () => codes(guessRunnerView(t, 3)))).toBe(a);
+  });
+});
+
+describe('B4d (e): the main-phase ranking reads the Runner\'s view, not the Corp\'s hidden cards (rule 10.2.2a; tracker R-16)', () => {
+  const CHAIN_REACTION = '36001';
+  const SPIN_DOCTOR = '30053';
+  type Server = GameState['corp']['servers'][string];
+  /** A Runner turn with Chain Reaction in the grip and a rezzed asset in a remote; `swap`: an HQ agenda traded with an R&D card. */
+  function board(swap: boolean): GameState {
+    const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/runner-sure-gamble.json', import.meta.url), 'utf8'));
+    s.runner.credits = 6;
+    s.runner.grip.push(createCardInstance(s, CHAIN_REACTION));
+    // Gemini's board: a rezzed Spin Doctor (its worth reads the Corp's later draws) and three faceup Archives cards
+    const spin = createCardInstance(s, SPIN_DOCTOR);
+    spin.isRezzed = true;
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Remote 9', isRemote: true, ice: [], root: [spin] } as Server;
+    const corp = (t: string) => getCardDefinition(t);
+    const agenda = [...s.corp.rd, ...s.corp.hq].find(c => corp(c.cardCode).type_code === 'agenda')!;
+    const other = [...s.corp.rd, ...s.corp.hq].find(c => corp(c.cardCode).type_code === 'operation')!;
+    // Both cards unseen: the same in each board, with which zone holds the agenda the only change
+    for (const z of [s.corp.rd, s.corp.hq]) for (const c of [agenda, other]) { const i = z.indexOf(c); if (i >= 0) z.splice(i, 1); }
+    const [hq, rd] = swap ? [other, agenda] : [agenda, other];
+    s.corp.hq.push(hq);
+    s.corp.rd.push(rd);
+    const ops = s.corp.rd.filter(c => c !== rd && corp(c.cardCode).type_code === 'operation').slice(0, 3);
+    s.corp.rd = s.corp.rd.filter(c => !ops.includes(c));
+    s.corp.archives.faceUp.push(...ops);
+    s.corp.rdKnownToRunner = (s.corp.rdKnownToRunner ?? []).filter(e => e.id !== agenda.instanceId && e.id !== other.instanceId);
+    s.corp.knownToRunner = (s.corp.knownToRunner ?? []).filter(e => e.id !== agenda.instanceId && e.id !== other.instanceId);
+    return s;
+  }
+  const hqRun = (s: GameState) =>
+    inDecision(s, 'runner', () => new HeuristicRunnerAI({ synergy: true }).rankMainActions(s)).find(r => r.action.type === 'INITIATE_RUN' && r.action.targetServerId === 'hq')!.score;
+  it('Gemini S1: two boards the Runner cannot tell apart (an agenda in HQ or in R&D) give the same HQ run score', () => {
+    expect(hqRun(board(true))).toBe(hqRun(board(false)));
+  });
+  it('Gemini S1 (latent): the nudge for a run on a facedown card reads no type, so an agenda and an asset nudge alike at synergy 1', () => {
+    const nudgeFor = (code: string) => {
+      const s = newGame();
+      s.runner.identity = { ...s.runner.identity, cardCode: '30001' }; // René "Loup" Arcemont: wants trash
+      const c = createCardInstance(s, code);
+      s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Remote 9', isRemote: true, ice: [], root: [c] } as Server;
+      const was = tuning.synergy.runner;
+      tuning.synergy.runner = 1;
+      try {
+        return nudge(s, 'runner', { type: 'INITIATE_RUN', player: 'runner', targetServerId: 'remote-9' }).bonus;
+      } finally {
+        tuning.synergy.runner = was;
+      }
+    };
+    expect(nudgeFor('30070')).toBe(nudgeFor('30071')); // Superconducting Hub (agenda), Regolith Mining License (asset)
+  });
+  it('BANGUN: a faceup agenda is worth nothing to access when the grip left after the ice cannot take the 2 meat damage (rule 10.4.4)', () => {
+    const s = newGame();
+    s.corp.identity = { ...s.corp.identity, cardCode: '35068' }; // BANGUN
+    const a = createCardInstance(s, '30070');
+    a.faceUp = true;
+    s.corp.servers['remote-9'] = { id: 'remote-9', name: 'Remote 9', isRemote: true, ice: [], root: [a] } as Server;
+    expect(s.runner.grip.length).toBeGreaterThan(2);
+    const worth = (grip: number) => inDecision(s, 'runner', () => serverValue(s, 'remote-9', 0, undefined, false, undefined, grip));
+    expect(worth(s.runner.grip.length)).not.toBe(0);
+    expect(worth(1)).toBe(0);
   });
 });
