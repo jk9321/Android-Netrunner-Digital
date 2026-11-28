@@ -12,7 +12,7 @@ import { ConnectingScreen, OnlineNotice, WaitingRoom } from './ui/components/Onl
 import { DeckPicker } from './ui/components/DeckPicker';
 import { LogFeed } from './ui/components/LogFeed';
 import { WindowBar } from './ui/components/WindowBar';
-import { AbilityBar } from './ui/components/AbilityBar';
+import { AbilityBar, abilityActionKey } from './ui/components/AbilityBar';
 import { CreditHoldBar } from './ui/components/CreditHoldBar';
 import { ZoneId, zoneContents } from './ui/components/ZoneViewer';
 import { ZoomContext, createZoomStore } from './ui/components/ZoomPanel';
@@ -376,6 +376,31 @@ function GameScreen({
     [gameState],
   );
 
+  const corpPromptTargetsHand =
+    !!pendingPrompt &&
+    canAnswerActivePrompt(ctl) &&
+    pendingPrompt.side === 'corp' &&
+    (pendingPrompt.kind === 'discard' ||
+      (pendingPrompt.kind === 'effect_cards' &&
+        pendingPrompt.candidateIds.some(id => corp.hq.some(c => c.instanceId === id))) ||
+      (pendingPrompt.kind === 'effect_choice' &&
+        pendingPrompt.options.some(o => corp.hq.some(c => c.instanceId === o.id))));
+  const runnerPromptTargetsHand =
+    !!pendingPrompt &&
+    canAnswerActivePrompt(ctl) &&
+    pendingPrompt.side === 'runner' &&
+    (pendingPrompt.kind === 'discard' ||
+      (pendingPrompt.kind === 'effect_cards' &&
+        pendingPrompt.candidateIds.some(id => runner.grip.some(c => c.instanceId === id))) ||
+      (pendingPrompt.kind === 'effect_choice' &&
+        pendingPrompt.options.some(o => runner.grip.some(c => c.instanceId === o.id))));
+  const corpRezAbilityKeys =
+    ctl.rezWindowOpen && ctl.rezWindow && ctl.rezWindow.abilities.length > 0
+      ? new Set(ctl.rezWindow.abilities.map(abilityActionKey))
+      : undefined;
+  const runnerAbilitiesInEncounter =
+    runnerCanAct && !!gameState.activeRun?.encounter && gameState.priority?.holder !== 'corp';
+
   const corpHandBar = (position: 'top' | 'bottom') => (
     <DockedHandBar
       side="corp"
@@ -387,6 +412,7 @@ function GameScreen({
       onSelect={setSelectedCardId}
       onInspect={setInspectedCard}
       discardedIds={discardedIds}
+      promptHint={corpPromptTargetsHand ? 'Click highlighted card to choose' : undefined}
       actions={
         corpDockActions ? (
           <CorpActions
@@ -546,6 +572,7 @@ function GameScreen({
                     onSelect={setSelectedCardId}
                     onInspect={setInspectedCard}
                     discardedIds={discardedIds}
+                    promptHint={runnerPromptTargetsHand ? 'Click highlighted card to choose' : undefined}
                     actions={
                       runnerDockActions ? (
                         <RunnerActions
@@ -589,9 +616,9 @@ function GameScreen({
                     onToggleDock={() => setRunPoppedOut(true)}
                   />
                   <div className="lg:order-4 shrink-0 max-h-[20vh] overflow-y-auto bg-[#080d15] border border-slate-800 rounded-[2px] p-2 shadow-inner flex flex-col gap-1.5 empty:hidden">
-                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} />}
+                    {corpCanAct && <AbilityBar state={gameState} side="corp" onAction={handleAction} excludeKeys={corpRezAbilityKeys} />}
                     {corpCanAct && <CreditHoldBar state={gameState} side="corp" onAction={handleAction} />}
-                    {runnerCanAct && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
+                    {runnerCanAct && !runnerAbilitiesInEncounter && <AbilityBar state={gameState} side="runner" onAction={handleAction} />}
                     {runnerCanAct && <CreditHoldBar state={gameState} side="runner" onAction={handleAction} />}
                   </div>
                 </>

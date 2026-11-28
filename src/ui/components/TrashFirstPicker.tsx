@@ -69,7 +69,14 @@ export function TrashFirstPicker({
   const status = statusText?.(trash);
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="trash-first">
-      <span className="text-xs text-amber-300 font-bold">{heading}</span>
+      <div className="w-full flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+        <span className="text-xs text-amber-300 font-bold">{heading}</span>
+        {cards.length > 0 && (
+          <span className="text-[11px] text-slate-400 font-mono" data-testid="board-target-hint">
+            Click highlighted cards on the board, or toggle below
+          </span>
+        )}
+      </div>
       {cards.map((card, index) => {
         const picked = trash.includes(card.instanceId);
         const def = cardDef(card);

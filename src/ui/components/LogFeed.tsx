@@ -165,7 +165,7 @@ export const LogFeed: React.FC<LogFeedProps> = React.memo(({ logs, viewer, class
             if (e.key === 'Escape') setSearchQuery('');
           }}
           placeholder="search log... (Esc to clear)"
-          className="bg-transparent flex-1 outline-none text-slate-200 placeholder:text-slate-600 text-[11px] font-mono"
+          className="bg-transparent flex-1 outline-none text-slate-200 placeholder:text-slate-400 text-[11px] font-mono"
         />
         {isFiltering && (
           <div className="flex items-center gap-2">

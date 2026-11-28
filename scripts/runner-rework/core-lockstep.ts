@@ -23,6 +23,9 @@
  *   drank   R-B B2: the deciding Runner's own rank list at every top-level main-phase decision, actions and scores bit for
  *           bit (runner/core.ts's `ranked`, top scope only: no planner rollout, reply, Hard or oracle playout)
  *   offrank R-B B2: the deciding Runner's off-turn score list at every top-level off-turn question (top scope only)
+ *   crank   speed pass (CORP=1, core-hooks.ts CORP_HOOKS): the deciding Corp's own rank list at every top-level main-phase
+ *           decision, actions and scores bit for bit (top scope only)
+ *   cprank  speed pass (CORP=1): every rank list a Corp planner playout makes, actions and scores bit for bit
  *   legacy  facts-lockstep.ts's stream (every Runner chooseAction answer made inside the step, nested ones first): the
  *           continuity column, the old script's `inner`
  *   value   R-B B1b bar 1 (the value stream): every value handed to the diagnostics sink's onValue (valueModel logValue:
@@ -48,7 +51,7 @@ import type { GameState } from '../../src/core';
 import { ALL_DECKS } from '../nsg-sample-decks';
 import { NRDB_TEST_DECKS } from '../nrdb-test-decks';
 import { Tree, loadTree } from './facts-trees';
-import { HOOKS, Patch, applyPatches } from './core-hooks';
+import { CORP_HOOKS, HOOKS, Patch, applyPatches } from './core-hooks';
 import { FAULTS } from './core-faults';
 
 for (const kv of `${process.env.ARGS ?? ''} ${process.argv.slice(2).join(' ')}`.split(/\s+/).filter(x => x.includes('='))) {
@@ -77,6 +80,8 @@ const VALUES = process.env.VALUES !== '0';
 // cardPlans.ts handPlanWorth: planning), outermost call only, and each decision's ms by side and kind; same patch in
 // every tree, so it costs them alike
 const TIMES = process.env.TIMES === '1';
+/** CORP=1: the Corp's own scores as columns crank and cprank (core-hooks.ts CORP_HOOKS; the speed pass's bar 1). */
+const CORP = process.env.CORP === '1';
 const TIME_PATCHES: Patch[] = [
   [
     'ai/corp/hold.ts',
@@ -95,7 +100,7 @@ const key = (a: unknown) => (a === undefined ? 'undefined' : JSON.stringify(a));
 const G = globalThis as any;
 const NAMES = ['base', 'branch', 'control'] as const;
 type Name = (typeof NAMES)[number];
-const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'drank', 'offrank', 'legacy', 'value'] as const;
+const COLUMNS = ['pick', 'reply', 'rank', 'off', 'run', 'prompt', 'hard', 'oracle', 'rez', 'drank', 'offrank', 'crank', 'cprank', 'legacy', 'value'] as const;
 type Column = (typeof COLUMNS)[number];
 
 // ------------------------------------------------------------------------------------------------ trees
@@ -126,6 +131,7 @@ function makeTrees(): Record<Name, string> {
     if (name === 'branch') cpSync('src', join(dir, 'src'), { recursive: true });
     else execSync(`git archive ${BASE} src | tar -x -C ${dir}`);
     applyPatches(dir, HOOKS, `tree ${name}`, read, write);
+    if (CORP) applyPatches(dir, CORP_HOOKS, `corp ${name}`, read, write);
     if (TIMES) applyPatches(dir, TIME_PATCHES, `times ${name}`, read, write);
     if (name === 'branch' && FAULT) {
       const fault: Patch[] | undefined = FAULTS[FAULT];
@@ -204,6 +210,11 @@ function listen(t: Tree, rec: Rec, named: Named = {}): () => void {
   G.__lkOffRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => {
     if (path() === 'top') fnv(rec.offrank, scoreList(ranked));
   };
+  // Speed pass (CORP=1): the deciding Corp's own rank list (top scope only) and every Corp planner playout's rank list
+  G.__lkCorpRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => {
+    if (path() === 'top') fnv(rec.crank, scoreList(ranked));
+  };
+  G.__lkCorpPlanRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => fnv(rec.cprank, `${path()}|${scoreList(ranked)}`);
   G.__lkRank = (_s: GameState, ranked: { action: unknown; score: number }[]) => fnv(rec.rank, `${path()}|${JSON.stringify(ranked.map(r => [r.action, String(r.score)]))}`);
   // R-B B1b bar 1 (the value stream): every value an owner or copy hands the diagnostics sink, in order, in every scope
   G.__lkVal = (quantity: string, site: string, value: number) => fnv(rec.value, `${path()}|${quantity}|${site}|${Object.is(value, -0) ? '-0' : String(value)}`);
@@ -212,7 +223,7 @@ function listen(t: Tree, rec: Rec, named: Named = {}): () => void {
     fnv(rec.legacy, String(JSON.stringify(action)));
   };
   return () => {
-    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__lkVal = G.__lkTime = undefined;
+    G.__lkIn = G.__lk = G.__lkRank = G.__lkAns = G.__lkDecRank = G.__lkOffRank = G.__lkCorpRank = G.__lkCorpPlanRank = G.__lkVal = G.__lkTime = undefined;
   };
 }
 
