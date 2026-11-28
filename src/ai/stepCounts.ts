@@ -1,3 +1,5 @@
+import { IllegalActionError } from '../core/engine/errors';
+
 /**
  * F117 step 0 counts (item 5, bar 10): widened chains by source and depth, Runner prompts answered on the root
  * (`rootRunner`, must be 0), chains past the budget (`capped`), cards set aside at a chain's end (`aside`, by why), scored
@@ -21,3 +23,13 @@ export const chainStats = {
 export const runTermStats = { on: false, asked: 0, decided: 0, capped: 0, runnerOther: 0, inPick: 0 };
 /** `runnerOther` by the prompt (its card and step, or its kind) and the run's phase, for the fire run's report (ruling 11.2). */
 export const runnerOtherKinds = new Map<string, number>();
+
+/**
+ * Lever G red team ruling 1: a throw other than the engine's IllegalActionError that an AI catch turns into "no board"
+ * (simulate, the planner's steps, the reply samples, the oracle, incomeLine, winNow), so a freeze tripwire's TypeError
+ * or an AI bug is never hidden. Recorded only with `on` (tests/setup.ts, which asserts it empty).
+ */
+export const swallowed = { on: false, failures: [] as string[] };
+export function noteSwallowed(e: unknown, where: string): void {
+  if (swallowed.on && !(e instanceof IllegalActionError)) swallowed.failures.push(`${where}: ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`);
+}

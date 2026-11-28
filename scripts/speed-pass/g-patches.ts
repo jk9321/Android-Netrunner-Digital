@@ -66,6 +66,8 @@ export function gPatches(off = false): Patch[] {
     m.set(key, next);
     __gMade.set(next, caller);
     __gReg.register(next, 1);
+    // g0-heap.ts's exact leak check: a WeakRef per stored board, read after the next move and a gc
+    (globalThis as any).__gRefs?.push(new WeakRef(next));
     g.alive = (g.alive ?? 0) + 1;
     g.held++;
     return next;

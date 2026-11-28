@@ -26,6 +26,8 @@
  *   ARGS="POOL=batch DEALS=1001 MAX_STEPS=200" npx vite-node scripts/f117/count.ts
  *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb MODE=audit
  *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb,human MODE=audit TREES=key (speed pass bar 2)
+ *   SHARD=0/64 npx vite-node scripts/f117/count.ts -- POOL=batch,nrdb,human MODE=audit TREES=key,noG ALL_AUDITS=1 BOARD_AUDIT=1
+ *     (speed pass lever G's bar 2: every named audit with G on and off, every served board built again and compared)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { execSync } from 'node:child_process';
@@ -100,7 +102,50 @@ const KEEP: Patch = [
   }
 `,
 ];
-const TREE_PATCHES: Record<string, Patch[]> = { key: [], nokey: NOKEY, branch: MODE === 'step0' ? [SECOND, PATHS, KEEP] : [], base: [] };
+/**
+ * Speed pass lever G, bar 2 (ruling-rev0.md "Lever G red team, ruled" 3 and step 0b's bar 2): `noG` is this src with G's
+ * boards never served (built every time, as before G); in `key`, BOARD_AUDIT=1 builds every served board again and
+ * compares the two as JSON (the whole-state audit on every hit, full rate).
+ */
+const NO_G: Patch = ['ai/boards.ts', '  if (hit) return hit;\n', ''];
+const BOARD_AUDIT: Patch = [
+  'ai/boards.ts',
+  '  if (hit) return hit;\n',
+  `  if (hit) {
+    const a = ((globalThis as any).__boardAudit ??= { checked: 0, bad: 0, first: null });
+    a.checked++;
+    if (JSON.stringify(executeAction(state, structuredClone(action))) !== JSON.stringify(hit)) {
+      a.bad++;
+      a.first ??= key.slice(0, 200);
+    }
+    return hit;
+  }
+`,
+];
+const TREE_PATCHES: Record<string, Patch[]> = { key: process.env.BOARD_AUDIT ? [BOARD_AUDIT] : [], noG: [NO_G], nokey: NOKEY, branch: MODE === 'step0' ? [SECOND, PATHS, KEEP] : [], base: [] };
+
+/** ALL_AUDITS=1 (G's bar 2): the named audits beside memoAudit (threats, draw with deckAverage, click, rezMoney), on and reported with it. */
+const NAMED = ['threatsAudit', 'drawAudit', 'clickAudit', 'rezMoneyAudit'] as const;
+function namedOf(t: Loaded): Record<string, any> {
+  return { threatsAudit: t.effectValues.threatsAudit, drawAudit: t.handValues.drawAudit, clickAudit: t.handValues.clickAudit, rezMoneyAudit: t.rezMoney.rezMoneyAudit };
+}
+function auditsOn(t: Loaded, on: boolean) {
+  t.vm.memoAudit.on = on;
+  if (process.env.ALL_AUDITS) for (const n of NAMED) namedOf(t)[n].on = on;
+}
+function auditsReset(t: Loaded) {
+  t.vm.memoAudit.reset();
+  (globalThis as any).__boardAudit = { checked: 0, bad: 0, first: null };
+  if (process.env.ALL_AUDITS)
+    for (const a of Object.values(namedOf(t))) {
+      a.checked = a.mismatches = 0;
+      if (a.errors) a.errors.length = 0;
+    }
+}
+function auditsRead(t: Loaded) {
+  const named = process.env.ALL_AUDITS ? Object.fromEntries(NAMED.map(n => [n, { checked: namedOf(t)[n].checked, mismatches: namedOf(t)[n].mismatches }])) : undefined;
+  return { named, boards: (globalThis as any).__boardAudit };
+}
 
 /**
  * SPLIT=1 (the time levers' ruling: split Runner main by what it calls): timers on prompts.ts in every tree, outermost
@@ -177,13 +222,13 @@ function dealState(t: Tree, d: Deal): GameState {
   return t.core.createInitialGameState(t.decks.deckGameSetup(d.seed, c, r));
 }
 
-type Loaded = Tree & { vm: any; prompts: any; po: any };
+type Loaded = Tree & { vm: any; prompts: any; po: any; rezMoney: any };
 
 function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
   for (const [name, t] of Object.entries(trees)) {
     t.clear();
-    t.vm.memoAudit.reset();
-    t.vm.memoAudit.on = true;
+    auditsReset(t);
+    auditsOn(t, true);
     const g = new t.GameRunner(dealState(t, d), { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') });
     const t0 = performance.now();
     let steps = 0;
@@ -193,10 +238,11 @@ function auditDeal(pool: string, d: Deal, trees: Record<string, Loaded>) {
     } catch (e) {
       error = (e as Error).message.slice(0, 200);
     } finally {
-      t.vm.memoAudit.on = false;
+      auditsOn(t, false);
     }
     const a = t.vm.memoAudit;
     out({
+      ...auditsRead(t),
       kind: 'deal',
       pool,
       seed: d.seed,
@@ -222,7 +268,7 @@ function auditHuman(file: string, trees: Record<string, Loaded>) {
   if (!r.moves?.length) return;
   for (const [name, t] of Object.entries(trees)) {
     t.clear();
-    t.vm.memoAudit.reset();
+    auditsReset(t);
     const agents = { corp: t.createAgent('corp', 'normal'), runner: t.createAgent('runner', 'normal') };
     let s: GameState;
     if (r.startsAt === 'state') s = structuredClone(r.state);
@@ -238,13 +284,13 @@ function auditHuman(file: string, trees: Record<string, Loaded>) {
       const ai = { ...s, stops: { corp: 'ai', runner: 'ai' } } as GameState;
       if (decisionOf(t.core, ai)) {
         decisions++;
-        t.vm.memoAudit.on = true;
+        auditsOn(t, true);
         try {
           new t.GameRunner(structuredClone(ai), agents).step();
         } catch (e) {
           if (errors.length < 5) errors.push(`moves[${j}]: ${(e as Error).message.slice(0, 120)}`);
         } finally {
-          t.vm.memoAudit.on = false;
+          auditsOn(t, false);
         }
       }
       try {
@@ -256,6 +302,7 @@ function auditHuman(file: string, trees: Record<string, Loaded>) {
     }
     const a = t.vm.memoAudit;
     out({
+      ...auditsRead(t),
       kind: 'deal',
       pool: 'human',
       seed: file.split('/').pop(),
@@ -520,6 +567,7 @@ async function main() {
     // The chain counts are counted only with `on` (speed pass lever A; a tree from before it has no flag and counts anyway)
     if (t.prompts.chainStats) t.prompts.chainStats.on = true;
     t.po = await import(/* @vite-ignore */ join(dir, 'src', 'ai/playout.ts'));
+    t.rezMoney = await import(/* @vite-ignore */ join(dir, 'src', 'ai/corp/rezMoney.ts'));
     trees[name] = t;
   }
   const recs = (file: string) => JSON.parse(readFileSync(file, 'utf8')) as Deal[];
