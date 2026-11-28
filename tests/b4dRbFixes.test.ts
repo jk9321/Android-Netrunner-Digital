@@ -6,12 +6,13 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GameState, createCardInstance, executeAction, getLegalActions } from '../src/core';
+import { GameState, createCardInstance, executeAction, getCardDefinition, getLegalActions } from '../src/core';
+import { noteRdPrivate, runnerSeesRd, updateKnowledge } from '../src/core/engine/rdKnowledge';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { GameRunner } from '../src/ai/playout';
 import { asSide } from '../src/ai/pricing';
-import { runScore } from '../src/ai/runs';
+import { runScore, serverValue } from '../src/ai/runs';
 import { inDecision } from './helpers/pricing';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
 
@@ -159,5 +160,34 @@ describe('B4d (d): a trash is priced on the credits left at the access, after th
     const memory = new Map(s.corp.servers['remote-1'].root.map(c => [c.instanceId, c.cardCode]));
     const score = inDecision(s, 'runner', () => runScore(s, 'remote-1', { memory, wary: true }));
     expect(score === null || score <= 0).toBe(true);
+  });
+});
+
+describe('B4d (a): the R&D price reads only the marks still certain (certainRdMarks; rules 10.2.2b, 1.12.3)', () => {
+  const take = <T extends { instanceId: string }>(zone: T[], id: string): T => zone.splice(zone.findIndex(c => c.instanceId === id), 1)[0];
+  function act(s: GameState, change: (next: GameState) => void): GameState {
+    const next = structuredClone(s);
+    change(next);
+    updateKnowledge(s, next);
+    return next;
+  }
+  it('P4: an agenda seen on top of R&D, then taken into HQ in secret (left: hq): the access prices as unseen (was 3x)', () => {
+    const s0 = newGame();
+    const agenda = s0.corp.rd.find(c => getCardDefinition(c.cardCode).type_code === 'agenda')!;
+    const s1 = structuredClone(s0);
+    s1.corp.rd.unshift(take(s1.corp.rd, agenda.instanceId));
+    const plain = s1.corp.rd.filter(c => getCardDefinition(c.cardCode).type_code !== 'agenda').slice(0, 2);
+    for (const c of plain) take(s1.corp.rd, c.instanceId);
+    s1.corp.rd.splice(1, 0, ...plain);
+    const value = (s: GameState) => asSide('runner', () => serverValue(s, 'rd', 0, undefined, true));
+    const unseen = value(s1);
+    const s2 = act(s1, n => runnerSeesRd(n, n.corp.rd[0]));
+    expect(value(s2)).toBeGreaterThan(unseen * 2); // control: seen on top, the agenda is priced as there
+    const s3 = act(s2, n => {
+      noteRdPrivate(n, 3);
+      n.corp.hq.push(take(n.corp.rd, agenda.instanceId));
+    });
+    expect(s3.corp.rdKnownToRunner?.[0]?.left).toBe('hq');
+    expect(value(s3)).toBeCloseTo(unseen, 6);
   });
 });

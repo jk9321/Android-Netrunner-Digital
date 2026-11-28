@@ -1,6 +1,6 @@
-import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, knownInRd, nextFloat, shuffleInPlace } from '../core';
+import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, nextFloat, shuffleInPlace } from '../core';
 import { certainInArchives, certainInHand, dealTripwire, isAdvanceable, runnerRootKinds } from '../core/engine/helpers';
-import { knownToCorpInRd, rdSharesKnownToRunner, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
+import { certainRdMarks, knownToCorpInRd, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
@@ -57,8 +57,8 @@ export function sampledReply(): boolean {
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
-  // B4a 7(e): an exact mark not open to doubt (no `left`) is where its card is (the engine's invariant); no id is read
-  for (const e of knownInRd(state)) if (e.lo === e.hi && !e.left) slots.add(e.lo);
+  // B4a 7(e): an exact mark not open to doubt (certainRdMarks: no `left`) is where its card is (the engine's invariant); no id is read
+  for (const e of certainRdMarks(state)) if (!e.n0 && e.lo === e.hi) slots.add(e.lo);
   return slots;
 }
 
@@ -236,8 +236,8 @@ function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerU
       for (const [code, n] of certain) for (let i = 0; i < n; i++) keep(slots, code);
     }
     const rdLoose = looseOf(s.corp.rd);
-    for (const e of [...knownInRd(s), ...rdSharesKnownToRunner(s)]) {
-      if (e.left || (e.lo === e.hi && !e.n0)) continue;
+    for (const e of certainRdMarks(s)) {
+      if (e.lo === e.hi && !e.n0) continue;
       keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
     }
   }

@@ -1,4 +1,4 @@
-import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -15,7 +15,7 @@ import {
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
 import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
-import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
+import { certainRdMarks } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -963,7 +963,7 @@ function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]
   };
   // B4a 7(d): HQ, R&D and facedown Archives by the marks still certain (code and count; 10.2.2b, 1.12.3), not the map
   for (const [code, n] of [...certainInHand(state, 'corp'), ...certainInArchives(state)]) for (let i = 0; i < n; i++) out(code);
-  for (const e of [...knownInRd(state), ...rdSharesKnownToRunner(state)]) if (!e.left) out(e.code);
+  for (const e of certainRdMarks(state)) out(e.code);
   // An installed card by the code it saw, not whichever code its instance holds now: a planner deal re-deals the hidden
   // cards among their instances (the threat's on-hit audit read the re-dealt code)
   for (const card of installed) {
@@ -1039,10 +1039,10 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * here, so a second run on the same top cards is not worth making.
  */
 function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
-  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where an exact mark is
-  const known = knownInRd(state);
-  const exact = new Set(known.filter(e => e.lo === e.hi && !e.left).map(e => e.lo));
-  const marks = [...known, ...rdSharesKnownToRunner(state)];
+  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where
+  // an exact mark is. B4d (a): only the marks still certain (certainRdMarks); a mark that may have left prices as unseen
+  const marks = certainRdMarks(state);
+  const exact = new Set(marks.filter(e => !e.n0 && e.lo === e.hi).map(e => e.lo));
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
     let seen = 0;

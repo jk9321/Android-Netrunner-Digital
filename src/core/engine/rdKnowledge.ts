@@ -141,6 +141,17 @@ export function rdSharesKnownToRunner(state: GameState): RdKnownCard[] {
 }
 
 /**
+ * B4d (a), the audit's AI-RD-MARK-LEFT-READ-CERTAIN: the Runner's R&D marks still certain (knownInRd, then the shares),
+ * the R&D side of certainCounts' rule for HQ (B4a, R-100): a mark whose card may already have left R&D (`left`) is not
+ * one, so its places count as unseen. The one reader of "what the Runner surely knows is in R&D": the R&D price
+ * (rdWorth), the trap pool (unseenTraps), the deal's keeps and its exact places (knownRdSlots) read it, each with its own
+ * further test. Rules 10.2.2b, 1.12.3.
+ */
+export function certainRdMarks(state: GameState): RdKnownCard[] {
+  return [...knownInRd(state), ...rdSharesKnownToRunner(state)].filter(e => !e.left);
+}
+
+/**
  * The Runner's R&D marks (knownInRd, then the shares) as the Corp can place them: `corpAt` is the place of the mark's
  * card where the Corp knows that card is there (rdKnownToCorp; 4.2.3), else undefined. Ids stay in the engine (brief
  * b4-hidden-zones ruling 5): the Corp's deal names a card for every other mark by code and place only.
