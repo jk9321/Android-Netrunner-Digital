@@ -17,6 +17,7 @@ Rule ids (2026-11-26): every rule has an id heading. Cite the id (`RULE-ONE-OWNE
 | `RULE-GOAL-WIN-RATE` | Goal is playing strength; Corp 50 ± 5% |
 | `RULE-COUNTED-DECISIONS` | Fix a count's input first; a bonus only inside the owner |
 | `RULE-ONE-OWNER` | One owner per quantity |
+| `RULE-SEAM-READERS` | A brief that adds or changes an invariant or fact lists every existing reader of the old form |
 | `RULE-REPLACE-DONT-STACK` | Replace, don't stack; win rate reported only |
 | `RULE-TUNING-LADDER` | Tuning ladder: trace top down, fix bottom up |
 | `RULE-NUMBERS-SWITCHES` | No hand-picked numbers; switches are temporary |
@@ -80,6 +81,9 @@ Counted decisions (Jeff 2026-11-10; reworded by Jeff 2026-11-24): a decision mad
 
 ### RULE-ONE-OWNER: One owner per quantity
 One owner per quantity (Jeff 2026-11-13, after the audit found rez money priced about seven ways): every quantity the AI prices or counts (rez money, what holds a server, agenda odds, a game end, a card in hand, ...) has ONE owning function, listed in `docs/ai-priced-quantities.md` with its known duplicates. A branch may not add a second computation of a listed quantity: read the owner, or change the owner. A new rule names in its spec which listed quantities it reads; a new quantity gets a row in the same branch. The duplicate counts in that file may only go down; the review checks the file against the diff, and every audit recounts it.
+
+### RULE-SEAM-READERS: List every reader of a changed fact
+Seam readers (Jeff 2026-11-28, after a Gemini review of the R-B checkpoint found most of its bugs were seam drift: a branch added a new invariant or fact, but older readers of the old form outside its allowed file list were never updated, e.g. B4's knowledge change against `honestPromptView`, `remoteAgendaOdds` and the `runnerDecisionView` cache key, and view against raw state in `runnerAI.ts`). Every brief or spec (AI or Multiplayer) that adds or changes an invariant, a fact, a field's meaning or a cache key lists ALL existing readers of the old form across `src/` (and tests that pin it), found by search (`grep -rn`), including readers outside the branch's allowed files. For each reader the brief says one of: update (the file joins the allowed list), leave (with the reason it stays right), or a tracker row (`RULE-ONE-TRACKER`) that owns it later. The red team on the brief (`RULE-ADVERSARIAL`) checks the list by its own search and reports a missed reader as serious; the builder's hand-off names any reader it found that the list missed; the coordinator's review (`review` skill) re-checks the list against the diff.
 
 ### RULE-REPLACE-DONT-STACK: Replace, don't stack
 Replace, don't stack (same date): a branch that adds a counted rule names the value term or rule it replaces and deletes it in the same branch, or the hand-off says why it cannot yet and the review file records the debt. The Step 4 cleanup has landed (Stage C 2026-11-16, V-B 2026-11-17). Stage D (Jeff's go 2026-11-17) fixes known wrong behaviour, in the order on the plan page; it is not tuning. Win rate is reported only, with no gate or stop line on it (Jeff 2026-11-14, 11-16); crashes and rules errors are fixed at any time; his games stay pinned, as known-failing where the fix waits. No new Runner rules until a Runner audit has filled the Runner rows of the registry.
