@@ -227,9 +227,14 @@ function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[], n
     if (i >= 0) out = out.filter((_, j) => j !== i);
   }
   out = out.map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  // A card put into R&D after the shuffle in the same action (a search's find put back on top: takeFromRD, then the card's
+  // own move) pushes the shuffled cards down past the places shuffleRD gave them (rd-fuzz-fixes class 3), and the Runner
+  // cannot tell the order of the two from the diff: the shares cover the whole deck as it is now, and step 6 takes the
+  // places of the cards seen there out. The odds stay 1 / n0 a place (rdWorth skips exact places). Rules 4.2.2, 8.7.3.
+  const n0 = state.corp.rd.length;
+  out = out.map(e => (e.n0 && e.hi < n0 - 1 ? { ...e, lo: 0, hi: n0 - 1 } : e));
   const wasInRd = new Set(prev.corp.rd.map(c => c.instanceId));
   const openBefore = publicCards(prev);
-  const n0 = state.corp.rd.length;
   for (const c of state.corp.rd)
     if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out = [...out, { id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];
   return out;
