@@ -411,12 +411,27 @@ function surestIndex(list: KnownHandCard[], code: string, prefer?: string, skip?
   list.forEach((e, i) => {
     if (e.code !== code || skip?.(e)) return;
     const l = lossesFor(e, type);
-    if (l < bestL || (l === bestL && e.id === prefer && list[best]?.id !== prefer)) {
+    const tie = l === bestL ? lossOrder(e.lost, list[best].lost) : 1;
+    if (l < bestL || tie < 0 || (tie === 0 && e.id === prefer && list[best]?.id !== prefer)) {
       best = i;
       bestL = l;
     }
   });
   return best;
+}
+
+/**
+ * Orders two entries' losses kind by kind (any, ice, root, upgrade), fewer first; 0 when they are the same. surestIndex
+ * breaks a tie in the departures that count for the code with this before it looks at `prefer` (rd-fuzz-fixes class 4):
+ * the id preferred is the seen card's, a label (10.2.2b), so two entries alike for the code but apart in the other kinds
+ * (an operation's ice losses) must not be told apart by which copy the list names.
+ */
+function lossOrder(a: KnownLosses | undefined, b: KnownLosses | undefined): number {
+  for (const k of LOSS_KINDS) {
+    const d = (a?.[k] ?? 0) - (b?.[k] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 /** The list without its surest entry of `code` (surestIndex), when it has one. */
