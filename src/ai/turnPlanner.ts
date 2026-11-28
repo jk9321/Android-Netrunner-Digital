@@ -6,6 +6,7 @@ import { RunnerMemory, runClick } from './runs';
 import { turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
+import { noteSwallowed } from './stepCounts';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
 import { corpSeenGrip, plannerCandidates, replySamples } from './oracle';
 import { fingerprint } from './valueModel';
@@ -228,7 +229,8 @@ export function playout(start: GameState, side: SideCode, first: GameAction, ai:
       const after = executeAction(state, action);
       if (side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
       return after;
-    } catch {
+    } catch (e) {
+      noteSwallowed(e, 'planner step');
       return null;
     }
   };
@@ -253,7 +255,8 @@ export function playout(start: GameState, side: SideCode, first: GameAction, ai:
       const asked = state;
       try {
         answer = withKnownCards(side, seen, () => ai.answer(asked));
-      } catch {
+      } catch (e) {
+        noteSwallowed(e, 'planner answer');
         break;
       }
       if (!answer) break;
@@ -324,7 +327,8 @@ export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): Ga
     return side === 'corp'
       ? { ...state, corp: { ...state.corp, hq: next.corp.hq, archives: next.corp.archives } }
       : { ...state, runner: { ...state.runner, grip: next.runner.grip, heap: next.runner.heap } };
-  } catch {
+  } catch (e) {
+    noteSwallowed(e, 'planner discard');
     return state;
   }
 }

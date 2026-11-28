@@ -4,6 +4,7 @@ import { cardSynergy } from './synergyTags';
 import { knownIncome } from './nextTurnMoney';
 import { scoreNowPlan } from './winNow';
 import { tally } from './diagnostics';
+import { noteSwallowed } from './stepCounts';
 
 /**
  * Money step 5a, M1 (spec-money-generation.md; M0: econ operations sat playable in HQ 5.34 op-turns a game). The
@@ -24,7 +25,8 @@ function played(s: GameState, a: GameAction): GameState | null {
     let n = executeAction(s, a);
     for (let i = 0; i < 20 && activePrompt(n); i++) n = executeAction(n, answerPrompt(n, activePrompt(n)!.side, undefined, true));
     return activePrompt(n) || n.activePlayer !== 'corp' || n.turnNumber !== s.turnNumber || n.activeRun ? null : n;
-  } catch {
+  } catch (e) {
+    noteSwallowed(e, 'incomeLine');
     return null;
   }
 }

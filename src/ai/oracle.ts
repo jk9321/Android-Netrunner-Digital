@@ -2,6 +2,7 @@ import { GameState, cardDef } from '../core';
 import { certainHandCards } from '../core/engine/helpers';
 import { actingSide, plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
+import { noteSwallowed } from './stepCounts';
 import { fingerprint } from './valueModel';
 
 /**
@@ -95,7 +96,8 @@ function runnerNextTurn(state: GameState): RunnerTurn | null {
         if (s.activePlayer === 'runner') runnerTurn = true;
         else if (runnerTurn && !s.activeRun) break;
       }
-    } catch {
+    } catch (e) {
+      noteSwallowed(e, 'oracle');
       return null;
     }
     const stolen = new Set(game.state.runner.scoreArea.map(a => a.instanceId).filter(id => !before.has(id)));

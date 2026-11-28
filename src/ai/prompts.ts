@@ -16,14 +16,15 @@ import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
 import { knownToCorpInRd } from '../core/engine/rdKnowledge';
 import { memo } from './valueModel';
-import { chainStats, runTermStats, runnerOtherKinds } from './stepCounts';
+import { chainStats, noteSwallowed, runTermStats, runnerOtherKinds } from './stepCounts';
 export { chainStats, runTermStats, runnerOtherKinds };
 
 /** Applies an action, or returns null if the engine rejects it. */
 export function simulate(state: GameState, action: GameAction): GameState | null {
   try {
     return executeAction(state, action);
-  } catch {
+  } catch (e) {
+    noteSwallowed(e, 'simulate');
     return null;
   }
 }
