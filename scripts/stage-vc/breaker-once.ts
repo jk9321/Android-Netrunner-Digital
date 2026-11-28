@@ -128,6 +128,8 @@ function ask(t: Tree, s: GameState, snaps: { corp?: Snap; runner?: Snap } | unde
   const ag = agents(t, snaps);
   const g = new t.GameRunner(structuredClone(s), ag);
   resetG();
+  // The run term's counts are counted only with `on` (speed pass lever A; a tree from before it has no flag and counts anyway)
+  t.prompts.runTermStats.on = true;
   const d0 = t.prompts.runTermStats.decided;
   const at = performance.now();
   try {
