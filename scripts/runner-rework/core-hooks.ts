@@ -19,7 +19,9 @@
  *                  (`const best = ctx.offTurnRank(state)[0];`), both lines B2 does not edit, so the same text applies to
  *                  base and branch; the lockstep keeps the top-scope records only (the deciding Runner's own lists).
  */
-export type Patch = [file: string, at: string, to: string];
+/** A call-site patch. `at` and `to` may be lists of alternatives (the same record on another tree's line, e.g. lever G's
+ * builtBoard and GameRunner share flag): exactly one alternative must match, once. */
+export type Patch = [file: string, at: string | string[], to: string | string[]];
 
 export const HOOKS: Patch[] = [
   // GameRunner.step: the scope is pushed for the whole step (a throw inside it pops it too: the reply catches engine errors)
@@ -55,24 +57,39 @@ export const HOOKS: Patch[] = [
   ['ai/turnPlanner.ts', `      if (!answer) break;`, `      if (!answer) break;\n      if (side === 'runner') (globalThis as any).__lkAns?.('rollout', state, answer);`],
   [
     'ai/turnPlanner.ts',
-    `      next = executeAction(next, ai.answer(next));`,
-    `      const __ans = ai.answer(next);\n      if (side === 'runner') (globalThis as any).__lkAns?.('discard', next, __ans);\n      next = executeAction(next, __ans);`,
+    // lever G (speed pass) builds the board with builtBoard
+    [`      next = executeAction(next, ai.answer(next));`, `      next = builtBoard(next, ai.answer(next));`],
+    ['executeAction', 'builtBoard'].map(
+      f => `      const __ans = ai.answer(next);\n      if (side === 'runner') (globalThis as any).__lkAns?.('discard', next, __ans);\n      next = ${f}(next, __ans);`,
+    ),
   ],
   // GameRunner scopes, at their construction sites
   [
     'ai/runnerReply.ts',
-    `        runner: new HeuristicRunnerAI({ synergy, planner: false }),\n      });`,
-    `        runner: new HeuristicRunnerAI({ synergy, planner: false }),\n      });\n      (gr as any).__lkScope = 'reply';`,
+    // lever G: the rollouts' GameRunners pass `true` (share boards)
+    [
+      `        runner: new HeuristicRunnerAI({ synergy, planner: false }),\n      });`,
+      `        { corp: new HeuristicCorpAI({ synergy, planner: false }), runner: new HeuristicRunnerAI({ synergy, planner: false }) },\n        true,\n      );`,
+    ],
+    [
+      `        runner: new HeuristicRunnerAI({ synergy, planner: false }),\n      });\n      (gr as any).__lkScope = 'reply';`,
+      `        { corp: new HeuristicCorpAI({ synergy, planner: false }), runner: new HeuristicRunnerAI({ synergy, planner: false }) },\n        true,\n      );\n      (gr as any).__lkScope = 'reply';`,
+    ],
   ],
   [
     'ai/runnerReply.ts',
-    `setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }));`,
-    `setOraclePlayout(start => Object.assign(new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }), { __lkScope: 'oracle' }));`,
+    ['', ', true'].map(t => `setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }${t}));`),
+    ['', ', true'].map(
+      t => `setOraclePlayout(start => Object.assign(new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }${t}), { __lkScope: 'oracle' }));`,
+    ),
   ],
   [
     'ai/search.ts',
-    `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });`,
-    `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });\n  (runner as any).__lkScope = side === 'runner' ? 'hardR' : 'hardC';`,
+    ['', ', true'].map(t => `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) }${t});`),
+    ['', ', true'].map(
+      t =>
+        `  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) }${t});\n  (runner as any).__lkScope = side === 'runner' ? 'hardR' : 'hardC';`,
+    ),
   ],
   // R-B B2: the deciding Runner's own rank list and its off-turn score list (runner/core.ts, lines B2 does not edit)
   ['ai/runner/core.ts', `  const ranked = ctx.rank(state, legal);`, `  const ranked = ctx.rank(state, legal);\n  (globalThis as any).__lkDecRank?.(state, ranked);`],
@@ -100,10 +117,13 @@ export const CORP_HOOKS: Patch[] = [
 
 /** Applies `patches` to the src tree under `dir` (each must match exactly once: a stop otherwise). */
 export function applyPatches(dir: string, patches: Patch[], what: string, read: (p: string) => string, write: (p: string, t: string) => void) {
-  for (const [f, at, to] of patches) {
+  for (const [f, ats, tos] of patches) {
     const path = `${dir}/src/${f}`;
     const text = read(path);
-    if (text.split(at).length !== 2) throw new Error(`${what}: a patch does not match once in ${f}: ${at.slice(0, 90)}`);
+    const alts = [ats].flat();
+    const hits = alts.flatMap((at, i) => (text.split(at).length === 2 ? [i] : []));
+    if (hits.length !== 1) throw new Error(`${what}: a patch does not match once in ${f}: ${alts[0].slice(0, 90)}`);
+    const [at, to] = [alts[hits[0]], [tos].flat()[hits[0]]];
     write(
       path,
       text.replace(at, () => to)
