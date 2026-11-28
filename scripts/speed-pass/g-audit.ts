@@ -34,7 +34,24 @@ async function main() {
   // Each listed mismatch with the context it was made in and the asker's (pricing.ts buildKeys: frozen|known corp|known
   // runner|anchor id:credits:side:root|decision seed|rezzing), so the part of the context the key leaves out is named
   const at = '    if (memoAudit.errors.length < 200) memoAudit.errors.push({ name, otherFrame: other, otherKnown });';
-  applyPatches(dir, [['ai/valueModel.ts', at, at.replace('otherKnown });', 'otherKnown, made, now } as any);')]], 'audit', read, write);
+  const hit = '    if (memoAudit.on) auditHit(entry, key, name, cached, work);';
+  applyPatches(
+    dir,
+    [
+      ['ai/valueModel.ts', at, at.replace('otherKnown });', 'otherKnown, made, now } as any);') + '\n    (globalThis as any).__auDump?.(name, made, now);'],
+      // DUMP=<memo name prefix>: the board of the first such mismatch is written to DUMP_TO, with both frames (a test's board)
+      ['ai/valueModel.ts', hit, `    if (!memoAudit.auditing) (globalThis as any).__auState = state;\n${hit}`],
+    ],
+    'audit',
+    read,
+    write,
+  );
+  let dumped = false;
+  (globalThis as any).__auDump = (name: string, made: string, now: string) => {
+    if (dumped || !process.env.DUMP || !name.startsWith(process.env.DUMP)) return;
+    dumped = true;
+    writeFileSync(process.env.DUMP_TO ?? 'audit-board.json', JSON.stringify({ name, made, now, state: (globalThis as any).__auState }));
+  };
   const t = (await loadTree(ARM, dir)) as any;
   const vm = await import(/* @vite-ignore */ join(dir, 'src', 'ai/valueModel.ts'));
   const pools: Record<string, string> = { batch: 'scripts/f117/recs/deals-45940481387.json', nrdb: 'scripts/runner-rework/facts-deals-45458221138.json' };
