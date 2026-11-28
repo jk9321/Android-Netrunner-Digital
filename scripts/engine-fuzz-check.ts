@@ -305,11 +305,29 @@ export function checkInvariants(state: GameState, prev: GameState | null, ids: S
     const ids = (list ?? []).map(e => e.id);
     check(new Set(ids).size === ids.length, 'known-ids-once', '1.12.1', () => `${zone}: an entry id is listed twice (${ids.join(', ')})`);
   }
-  // The Runner's R&D marks, placed or shared after a shuffle: a card that cannot have left is in R&D within its places (4.2.3, 10.2.2b)
-  for (const e of state.corp.rdKnownToRunner ?? []) {
-    if (e.left) continue;
+  // The Runner's R&D marks: a placed mark that cannot have left is its card, in R&D within its places (4.2.3, 10.2.2b)
+  const rdMarks = state.corp.rdKnownToRunner ?? [];
+  for (const e of rdMarks) {
+    if (e.left || e.n0) continue;
     const at = state.corp.rd.findIndex(c => c.instanceId === e.id);
-    check(at >= e.lo && at <= e.hi, 'runner-rd-memory-in-place', '4.2.3, 10.2.2b', () => `the Runner places ${e.id} (${e.code}) at R&D ${e.lo}-${e.hi}${e.n0 ? ` (shared, n0 ${e.n0})` : ''}, it is at ${at}`);
+    check(at >= e.lo && at <= e.hi, 'runner-rd-memory-in-place', '4.2.3, 10.2.2b', () => `the Runner places ${e.id} (${e.code}) at R&D ${e.lo}-${e.hi}, it is at ${at}`);
+  }
+  // A shuffle's share names no copy (B4d (b); rd-fuzz-fixes class 1): it says only that a card of its title is in R&D
+  // (rules 4.2.2, 10.2.2b), so the shares still certain are read by code and count. Each needs its own copy of its code in
+  // R&D within its places, one no placed mark names (a placed mark is its own card): a matching, earliest `hi` first.
+  const placed = new Set(rdMarks.filter(e => !e.n0).map(e => e.id));
+  const sharesByCode = new Map<string, { lo: number; hi: number }[]>();
+  for (const e of rdMarks) if (e.n0 && !e.left) sharesByCode.set(e.code, [...(sharesByCode.get(e.code) ?? []), e]);
+  for (const [code, shares] of sharesByCode) {
+    const free = state.corp.rd.flatMap((c, at) => (c.cardCode === code && !placed.has(c.instanceId) ? [at] : []));
+    const used = new Set<number>();
+    const unmatched = [...shares].sort((a, b) => a.hi - b.hi).filter(e => {
+      const at = free.find(q => q >= e.lo && q <= e.hi && !used.has(q));
+      if (at === undefined) return true;
+      used.add(at);
+      return false;
+    });
+    check(unmatched.length === 0, 'runner-rd-memory-in-place', '4.2.2, 4.2.3, 10.2.2b', () => `the Runner's shares of ${code} (${shares.map(e => `${e.lo}-${e.hi}`).join(', ')}): ${unmatched.length} with no copy of that code in R&D within its places (copies at ${free.join(', ') || 'none'})`);
   }
 
   // The root cards the Runner knows are upgrades (B4b): each is one, facedown, in a root (3.2.1, 3.3.1, 4.6.6e, 1.12.3)
