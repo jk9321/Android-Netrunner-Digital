@@ -14,7 +14,7 @@ import {
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
-import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
+import { certainInArchives, certainInHand, iceAtPosition, runnerRootKinds } from '../core/engine/helpers';
 import { certainRdMarks, rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
@@ -1118,7 +1118,7 @@ function accessCredits(state: GameState, serverId: string, trash?: CardInstance)
   const run = state.activeRun;
   let spend = 0;
   if (run && run.server === serverId && run.phase !== 'initiation') {
-    const at = run.icePosition !== null ? server?.ice[run.icePosition] : undefined;
+    const at = iceAtPosition(state);
     const now = encounteredIce(state);
     const current = run.encounter && now ? iceCreditNeed(state, now, run.encounter.broken) : run.phase === 'approach_ice' && at?.isRezzed ? iceCreditNeed(state, at) : 0;
     spend = creditsAhead(state) + current;

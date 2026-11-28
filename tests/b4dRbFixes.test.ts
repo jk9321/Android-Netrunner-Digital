@@ -8,7 +8,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance, executeAction, getCardDefinition, getLegalActions } from '../src/core';
 import { noteRdPrivate, runnerSeesRd, shuffleRD, updateKnowledge } from '../src/core/engine/rdKnowledge';
-import { revealInHand } from '../src/core/engine/helpers';
+import { certainInArchives, certainInHand, revealInHand, runnerRootKinds } from '../src/core/engine/helpers';
+import { guessRunnerView, runnerUnknownSlots } from '../src/ai/runnerReply';
+import { honestPromptView } from '../src/ai/runner/prompt';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { GameRunner } from '../src/ai/playout';
@@ -275,5 +277,104 @@ describe('B4d (b), bar 2: the fuzzer\'s R&D known-by-copy check sees the share r
       return knownByCopy(next);
     };
     expect(tutor(relabelled)).toBe(tutor(shuffled));
+  });
+});
+
+describe('B4d (c): the cards a prompt shows are pinned identities of the deal, so the honest view keeps the deal\'s rules', () => {
+  const type = (code: string) => getCardDefinition(code).type_code;
+  const UPGRADE = '30042'; // Manegarm Skunkworks
+  const ASSET = '30053'; // Spin Doctor
+  const AGENDA = '30070'; // Superconducting Hub
+  const HEDGE = '30075'; // Hedge Fund
+  type Server = GameState['corp']['servers'][string];
+  const access = (s: GameState, id: string, trashCost: number | null = 0) => {
+    s.pendingPrompts = [{ id: 'p1', side: 'runner', kind: 'access_trash', cardInstanceId: id, trashCost } as GameState['pendingPrompts'][number]];
+  };
+  /** The honest view on 24 deals of the Runner's guess (guessRunnerView, as runnerDecisionView makes it), each checked. */
+  function honestViews(s: GameState): GameState[] {
+    return asSide('runner', () =>
+      Array.from({ length: 24 }, (_, k) => {
+        const view = guessRunnerView(s, k);
+        return honestPromptView(s, { view, slots: (v: GameState) => runnerUnknownSlots(v), synergy: true, answer: () => { throw new Error('not asked'); } }).view;
+      }),
+    );
+  }
+  /** The deal's rules on a view: one agenda or asset per remote root, the root kinds, each zone's certain counts, the shown card's identity. */
+  function broken(s: GameState, v: GameState, shownId: string): string[] {
+    const out: string[] = [];
+    for (const sv of Object.values(v.corp.servers)) {
+      if (sv.isRemote && sv.root.filter(c => ['agenda', 'asset'].includes(type(c.cardCode))).length > 1) out.push(`${sv.id}: two agendas or assets`);
+      for (const c of sv.root) {
+        const kinds = runnerRootKinds(s, s.corp.servers[sv.id].root.find(x => x.instanceId === c.instanceId)!)?.kinds;
+        if (kinds && !kinds.includes(type(c.cardCode) as never)) out.push(`${c.instanceId}: a ${type(c.cardCode)} where only ${kinds} can be`);
+      }
+    }
+    for (const [zone, cards, certain] of [['HQ', v.corp.hq, certainInHand(s, 'corp')], ['Archives', v.corp.archives.faceDown, certainInArchives(s)]] as const)
+      for (const [code, n] of certain) if (cards.filter(c => c.cardCode === code).length < n) out.push(`${zone}: fewer than ${n} of ${code}`);
+    const real = [...s.corp.hq, ...s.corp.rd, ...Object.values(s.corp.servers).flatMap(x => x.root)].find(c => c.instanceId === shownId)!;
+    const dealt = [...v.corp.hq, ...v.corp.rd, ...Object.values(v.corp.servers).flatMap(x => x.root)].find(c => c.instanceId === shownId)!;
+    if (dealt.cardCode !== real.cardCode) out.push(`the shown card ${shownId} is dealt ${dealt.cardCode}, not ${real.cardCode}`);
+    return out;
+  }
+  const check = (s: GameState, shownId: string) => expect(honestViews(s).flatMap(v => broken(s, v, shownId))).toEqual([]);
+
+  it('RT2 C1: a root-mate of an upgrade is accessed (an asset): its root never holds an agenda beside it (3.3.1)', () => {
+    const s = newGame();
+    const x = createCardInstance(s, UPGRADE);
+    const y = createCardInstance(s, ASSET);
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote 1', isRemote: true, ice: [], root: [x, y] } as Server;
+    s.corp.hq = [createCardInstance(s, AGENDA)];
+    access(s, y.instanceId);
+    check(s, y.instanceId);
+  });
+  it('RT2 C2: an HQ card is accessed beside a Hedge Fund the Runner saw: HQ keeps its Hedge Fund (10.2.2b)', () => {
+    const s = newGame();
+    const a = createCardInstance(s, ASSET);
+    const b = createCardInstance(s, HEDGE);
+    s.corp.hq = [a, b];
+    s.corp.rd = [createCardInstance(s, AGENDA), ...s.corp.rd.filter(c => c.cardCode !== HEDGE && c.cardCode !== ASSET)];
+    s.corp.knownToRunner = [{ id: b.instanceId, code: HEDGE }];
+    access(s, a.instanceId, 1);
+    check(s, a.instanceId);
+  });
+  it('Gemini 1: a Manegarm accessed in R&D, a facedown Manegarm in HQ\'s root: no agenda in a central root (3.6.1)', () => {
+    const s = newGame();
+    const root = createCardInstance(s, UPGRADE);
+    s.corp.servers.hq.root = [root];
+    const top = createCardInstance(s, UPGRADE);
+    s.corp.rd = [top, ...s.corp.rd];
+    access(s, top.instanceId, 1);
+    check(s, top.instanceId);
+  });
+  it('Gemini 2: a Hedge Fund accessed in R&D, another seen in HQ: HQ keeps one', () => {
+    const s = newGame();
+    const seen = createCardInstance(s, HEDGE);
+    s.corp.hq = [seen, ...s.corp.hq.filter(c => c.cardCode !== HEDGE)];
+    s.corp.knownToRunner = [{ id: seen.instanceId, code: HEDGE }];
+    const top = createCardInstance(s, HEDGE);
+    s.corp.rd = [top, ...s.corp.rd];
+    access(s, top.instanceId, null);
+    check(s, top.instanceId);
+  });
+  it('P5: a Manegarm accessed in HQ, a facedown card beside a rezzed asset: that card stays an upgrade', () => {
+    const s = newGame();
+    const corp = [...s.corp.rd, ...s.corp.hq];
+    const asset = { ...createCardInstance(s, corp.find(c => type(c.cardCode) === 'asset')!.cardCode), isRezzed: true };
+    const u = createCardInstance(s, UPGRADE);
+    const h = createCardInstance(s, UPGRADE);
+    const g = createCardInstance(s, corp.find(c => type(c.cardCode) === 'agenda')!.cardCode);
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote 1', isRemote: true, ice: [], root: [asset, u] } as Server;
+    s.corp.hq = [h, g];
+    access(s, h.instanceId, null);
+    check(s, h.instanceId);
+  });
+  it('no prompt: the deal is the same as before the pins (guessRunnerView with no shown card)', () => {
+    const s = newGame();
+    const x = createCardInstance(s, UPGRADE);
+    s.corp.servers['remote-1'] = { id: 'remote-1', name: 'Remote 1', isRemote: true, ice: [], root: [x] } as Server;
+    const codes = (v: GameState) => [...v.corp.hq, ...v.corp.rd, ...v.corp.servers['remote-1'].root].map(c => c.cardCode).join(',');
+    const a = asSide('runner', () => codes(guessRunnerView(s, 3)));
+    const t = structuredClone(s);
+    expect(asSide('runner', () => codes(guessRunnerView(t, 3)))).toBe(a);
   });
 });

@@ -141,9 +141,6 @@ const CARD_COMPARISONS: Record<string, string> = {
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
-  'runner/prompt.ts: if (mine.cardCode === want) {': "honestPromptView: no card fact, the dealt code against the card's real one (already kept; B3 commit 2)",
-  'runner/prompt.ts: const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));':
-    "honestPromptView: no card fact, the slot the deal gave the shown card's identity (the swap; B3 commit 2)",
 };
 
 describe('AI code health (audit guards)', () => {
