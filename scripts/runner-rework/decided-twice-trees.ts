@@ -16,14 +16,18 @@ import { join } from 'node:path';
 
 export type Patch = [file: string, at: string, to: string];
 const G = `(globalThis as any).__dt`;
-
-// R-83 (B4d): the in-run hooks sit in src/ai/runner/run.ts since B2 (free functions: the agent they report is the one
-// whose decision is under way, `__dtAgent`, set around runnerDecide by the last patch), the run-event price reads B1's
-// RUNNER_TERMS.runCard, and Alarm Clock's run is its card entry's (cards/liberation.ts); O1b's wrapper
-// (trash-owner-decided.ts) that moved them at load is folded in here
+// The in-run decision is a free function since B1 (runner/run.ts runAction, called from runner/core.ts): the deciding
+// agent is passed to its hooks through a global set around chooseAction (R-C1 Part 0, R-26: ported to beta 0b9d44a)
 const A = `(globalThis as any).__dtAgent`;
 
+// R-83 (B4d): the cannot-get-through hook reads B4d (f)'s `!survive()`; O1b's wrapper (trash-owner-decided.ts) is gone
 export const HOOKED: Patch[] = [
+  // The deciding agent for the in-run hooks below (saved and restored: a look-ahead's or a reply's agent decides inside)
+  [
+    'ai/runnerAI.ts',
+    `  chooseAction(state: GameState): GameAction {\n    return asSide('runner', () => this.decide(state));\n  }`,
+    `  chooseAction(state: GameState): GameAction {\n    const __prev = ${A};\n    ${A} = this;\n    try {\n      return asSide('runner', () => this.decide(state));\n    } finally {\n      ${A} = __prev;\n    }\n  }`,
+  ],
   // S0: the ranking's price of each run it scores (the view it priced on, the options it used, the score)
   [
     'ai/runnerAI.ts',
@@ -77,18 +81,11 @@ export const HOOKED: Patch[] = [
     `      if (bioroid) return bioroid;\n    }\n  }\n  return undefined;\n}`,
     `      if (bioroid) return bioroid;\n    }\n  }\n  ${G}?.enc(${A}, state, blocking.length > 0 ? 'cannotBreakBlocking' : 'tankRest', { credits, ahead, blocking: blocking.length, clicks: state.runner.clicks });\n  return undefined;\n}`,
   ],
-  // A run a prompt answer decides: Alarm Clock's turn-start HQ run (its card entry), called in the same order as before
+  // A run a prompt answer decides: Alarm Clock's turn-start HQ run (its card entry since B3, cards/liberation.ts), called in the same order as before
   [
     'ai/cards/liberation.ts',
     `      const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;`,
     `      const __o = { alarmClock: true, memory, wary: synergy && tuning.wary };\n      const __s = runScore(state, 'hq', __o);\n      ${G}?.pprice(memory, state, 'hq', __o, __s);\n      const go = __s + runClick(state) > 0;`,
-  ],
-  // The agent whose decision is under way, for the in-run hooks (a look-ahead's or a reply's agent reports itself); runAction
-  // is reached only through runnerDecide (runner/core.ts); the Hard Runner (search.ts) is not in these games
-  [
-    'ai/runnerAI.ts',
-    `    return runnerDecide(state, this.runnerContext());`,
-    `    const __p = ${A};\n    ${A} = this;\n    try {\n      return runnerDecide(state, this.runnerContext());\n    } finally {\n      ${A} = __p;\n    }`,
   ],
 ];
 

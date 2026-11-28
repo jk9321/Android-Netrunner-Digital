@@ -10,12 +10,13 @@
  * H2H=corp: new Corp vs old Runner. runner: old Corp vs new Runner. old: old vs old.
  * Same seeds as corp-losses.ts, so new vs new is the ordinary self-play batch.
  */
-import { resolve } from 'node:path';
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { createInitialGameState } from '../src/core';
 import { deckGameSetup } from '../src/data/decks';
 import { ALL_DECKS as DECKS } from './nsg-sample-decks';
 import { createAgent } from '../src/ai';
-import { GameRecord, playLogged } from './lossLog';
+import type { GameRecord } from './lossLog';
 import { applyPlanOff } from '../src/ai/synergy';
 import { installDiagnostics } from '../src/ai/diagnostics';
 const diag = installDiagnostics();
@@ -26,6 +27,27 @@ const level = (levelArg ?? 'normal') as 'normal' | 'hard';
 const [shard, shards] = (process.env.SHARD ?? '0/1').split('/').map(Number);
 const mode = process.env.H2H ?? 'corp';
 const old = (await import(resolve(process.env.OLD_AI ?? 'old', 'src/ai/index.ts'))) as { createAgent: typeof createAgent };
+// R-37 (R-C1 Part 0; B0 Part T, deal 2211): the loss log's own readings (lossLog.ts and its trackers call src/ai's
+// pricing, which fills that graph's caches) ran in the new tree's module graph, so they shared value caches with the new
+// side only: with the Corp under H2H=corp, with the Runner under H2H=runner (found row 90's class plus this asymmetry).
+// The log now loads from a third copy of this tree (src and the five logger scripts), shared with neither agent, so both
+// modes log alike. H2H_LOG=shared keeps the old harness (to compare with pairs played before this fix).
+async function logModule(): Promise<typeof import('./lossLog')> {
+  // SEARCH_AUDIT=1 reads the Corp planner's search through the logger's diagnostics, which only the shared graph sees
+  if (process.env.H2H_LOG === 'shared' || process.env.SEARCH_AUDIT === '1') {
+    if (process.env.H2H_LOG !== 'shared') console.error('SEARCH_AUDIT=1: the loss log shares the new tree\'s module graph (H2H_LOG=shared)');
+    return import('./lossLog');
+  }
+  const dir = resolve('node_modules/.cache/h2h-log', `${process.pid}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(join(dir, 'scripts'), { recursive: true });
+  cpSync('src', join(dir, 'src'), { recursive: true });
+  for (const f of ['lossLog.ts', 'alarms.ts', 'spend-audit.ts', 'opening-audit.ts', 'search-audit.ts']) cpSync(join('scripts', f), join(dir, 'scripts', f));
+  // The graph's entry first, as the scratch trees load it (a circular graph entered from lossLog's imports fails to settle)
+  await import(/* @vite-ignore */ join(dir, 'src', 'ai', 'index.ts'));
+  return (await import(/* @vite-ignore */ join(dir, 'scripts', 'lossLog.ts'))) as typeof import('./lossLog');
+}
+const { playLogged } = await logModule();
 // PLAN_OFF switches reach only the new AI: the old one has its own copy of tuning
 applyPlanOff(process.env.PLAN_OFF ?? '');
 // REPLY_SAMPLES: Runner turns the Corp's planner plays out per candidate (plan.runnerReply)
