@@ -64,6 +64,11 @@ Each flagged line: fixed, or one line of why it is right (e.g. "card code in scr
 Everything you did differently from the spec, or decided where the spec was silent: renamed/added switches,
 changed defaults, extra refactors, skipped steps, tests you could not write. "None" means none.
 
+## Seam readers
+For a change to an invariant, fact, field meaning or cache key (`RULE-SEAM-READERS`): each reader on the spec's
+list and what was done (updated / left, why / tracker row), plus any reader you found that the list missed.
+"n/a" otherwise.
+
 ## Tests added
 Test name -> what it pins (one line each). For rules changes, the rule number it cites (`RULE-CITE-RULES-PDF`). For AI changes, the scenario test that pins the hole.
 

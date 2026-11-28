@@ -57,6 +57,10 @@ write down what you checked even if it was clean.
   Runner slide income four ways. A second copy is a finding even if both are correct today; name both
   locations and say which should win. For AI work, check `docs/ai-priced-quantities.md` against the diff
   (`RULE-ONE-OWNER`): no second computation of a listed quantity, a new quantity has its row.
+- **Seam readers** (`RULE-SEAM-READERS`). If the change adds or changes an invariant, fact, field meaning or cache
+  key: the spec lists every existing reader of the old form across `src/`. Re-run the search yourself; a reader
+  the list missed, or one marked "update" that the diff does not touch, is a Must fix unless it is marked "leave"
+  with a reason that holds or has a tracker row.
 - **Fix in the right layer.** A symptom fixed in a caller, an override, or a special case (`if (code ===
   '3xxxx')` outside `src/core/scripts/` or the card's own `src/ai/cards/<set>.ts` entry) when a general rule or
   the card's own entry is the right place. AI: is it fixed once, in the layer that owns it (rule ranking,
