@@ -333,7 +333,7 @@ export function forgetInHand(state: GameState, owner: SideCode, cards: CardInsta
 }
 
 /** An installed card anyone can see: rezzed, faceup, or one the Runner knows (rules 1.12.1, 10.2.3a). */
-const openInstalled = (c: CardInstance): boolean => !!(c.isRezzed || c.faceUp || c.runnerKnows);
+export const openInstalled = (c: CardInstance): boolean => !!(c.isRezzed || c.faceUp || c.runnerKnows);
 
 /**
  * The open zones other than the servers, in publicCards' order: faceup Archives, both score areas, the heap, the rig
