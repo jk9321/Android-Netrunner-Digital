@@ -411,12 +411,27 @@ function surestIndex(list: KnownHandCard[], code: string, prefer?: string, skip?
   list.forEach((e, i) => {
     if (e.code !== code || skip?.(e)) return;
     const l = lossesFor(e, type);
-    if (l < bestL || (l === bestL && e.id === prefer && list[best]?.id !== prefer)) {
+    const tie = l === bestL ? lossOrder(e.lost, list[best].lost) : 1;
+    if (l < bestL || tie < 0 || (tie === 0 && e.id === prefer && list[best]?.id !== prefer)) {
       best = i;
       bestL = l;
     }
   });
   return best;
+}
+
+/**
+ * Orders two entries' losses kind by kind (any, ice, root, upgrade), fewer first; 0 when they are the same. surestIndex
+ * breaks a tie in the departures that count for the code with this before it looks at `prefer` (rd-fuzz-fixes class 4):
+ * the id preferred is the seen card's, a label (10.2.2b), so two entries alike for the code but apart in the other kinds
+ * (an operation's ice losses) must not be told apart by which copy the list names.
+ */
+function lossOrder(a: KnownLosses | undefined, b: KnownLosses | undefined): number {
+  for (const k of LOSS_KINDS) {
+    const d = (a?.[k] ?? 0) - (b?.[k] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 /** The list without its surest entry of `code` (surestIndex), when it has one. */
@@ -837,6 +852,17 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
   const viaHand = new Set(passed.map(d => d.id));
   const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId).filter(id => !viaHand.has(id)));
   const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
+  // A card seen in the hand this action that was open before and is open again, and not in the hand either side of it
+  // (rd-fuzz-fixes class 5: The Basalt Spire adds an agenda from Archives to HQ, the breach steals it): placeSightings
+  // lists it as an arrival, and the Runner saw it go into the open again, so it surfaces from the hand like any other
+  // (one entry of its title goes, the surest; rules 1.12.3, 10.2.2b). surfaced leaves it out (it was open before).
+  const handIds = (s: GameState, o: SideCode) => new Set((o === 'corp' ? s.corp.hq : s.runner.grip).map(c => c.instanceId));
+  const throughHand = (o: SideCode): [string, string][] => {
+    const was = handIds(prev, o);
+    const now = handIds(state, o);
+    const ids = new Set(walk.seen.filter(g => g.owner === o).flatMap(g => g.ids));
+    return [...ids].filter(id => before.has(id) && after.has(id) && !was.has(id) && !now.has(id)).map(id => [id, after.get(id)!]);
+  };
   for (const owner of ['corp', 'runner'] as const) {
     let known = placeSightings(prev, state, owner, walk);
     const listed = known.length > 0;
@@ -863,7 +889,7 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
       continue;
     }
     // A card that turns up in the open may be any seen card of its title: the surest goes (B4c part 1)
-    for (const [id, code] of surfaced) known = forgetSurest(known, code, id);
+    for (const [id, code] of [...surfaced, ...throughHand(owner)]) known = forgetSurest(known, code, id);
     // A hand card set aside by a search (Let Them Dream searching HQ) is still the viewer's to remember
     setKnownList(state, owner, known.slice(Math.max(0, known.length - hand.length - setAsideFrom(state, owner === 'corp' ? 'hq' : 'grip').length)));
   }

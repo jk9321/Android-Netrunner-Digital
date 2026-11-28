@@ -227,9 +227,14 @@ function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[], n
     if (i >= 0) out = out.filter((_, j) => j !== i);
   }
   out = out.map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  // A card put into R&D after the shuffle in the same action (a search's find put back on top: takeFromRD, then the card's
+  // own move) pushes the shuffled cards down past the places shuffleRD gave them (rd-fuzz-fixes class 3), and the Runner
+  // cannot tell the order of the two from the diff: the shares cover the whole deck as it is now, and step 6 takes the
+  // places of the cards seen there out. The odds stay 1 / n0 a place (rdWorth skips exact places). Rules 4.2.2, 8.7.3.
+  const n0 = state.corp.rd.length;
+  out = out.map(e => (e.n0 && e.hi < n0 - 1 ? { ...e, lo: 0, hi: n0 - 1 } : e));
   const wasInRd = new Set(prev.corp.rd.map(c => c.instanceId));
   const openBefore = publicCards(prev);
-  const n0 = state.corp.rd.length;
   for (const c of state.corp.rd)
     if (!wasInRd.has(c.instanceId) && openBefore.has(c.instanceId) && !out.some(e => e.id === c.instanceId)) out = [...out, { id: c.instanceId, code: c.cardCode, lo: 0, hi: Math.max(0, n0 - 1), n0 }];
   return out;
@@ -299,7 +304,12 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
     const kept = keptInOrder(before, after);
     const inHq = new Set(state.corp.hq.map(c => c.instanceId));
     const destOf = (id: string): 'hq' | 'other' => (inHq.has(id) ? 'hq' : 'other');
-    let top = note?.privateTop ?? 0;
+    // The secret top as the action found it. Step 3 shrinks `secret` as cards leave from among it, for the marks it moves;
+    // which cards were among it (steps 2 to 4, movedWithinTop) is read against `top` alone (rd-fuzz-fixes class 2: a draw
+    // after AU Co. or an arrange read against the shrunk top lost its shift, or counted a card moved in secret as added,
+    // and left a mark past its card; rules 4.2.3, 8.3.3b)
+    const top = note?.privateTop ?? 0;
+    let secret = top;
     const hiddenRemovals = before.map((id, p) => ({ id, p })).filter(x => x.p < top && !kept.has(x.id) && !afterPos.has(x.id)).length;
     // A card the Corp moved within the cards it acted on in secret is just part of that secret
     const movedWithinTop = (id: string) => beforePos.get(id)! < top && afterPos.has(id) && afterPos.get(id)! < top - hiddenRemovals;
@@ -336,8 +346,8 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
     for (const { id, p } of leftFrom) {
       if (p >= top) continue;
       const dest = afterPos.has(id) ? 'other' : destOf(id);
-      known = known.map(e => (e.lo < top ? { ...e, hi: e.hi - 1, left: mergeLeft(e.left, dest) } : { ...e, lo: e.lo - 1, hi: e.hi - 1 }));
-      top -= 1;
+      known = known.map(e => (e.lo < secret ? { ...e, hi: e.hi - 1, left: mergeLeft(e.left, dest) } : { ...e, lo: e.lo - 1, hi: e.hi - 1 }));
+      secret -= 1;
     }
 
     // 4. Cards added (or moved) to a place the Runner can see, top first
