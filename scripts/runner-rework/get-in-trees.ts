@@ -68,19 +68,19 @@ function record(): Patch[] {
     ],
     [
       'ai/turnPlanner.ts',
-      `type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean };`,
-      `type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; acts?: GameAction[]; runs?: number };`,
+      `type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; seen?: string[] };`,
+      `type Ends = { state?: GameState; bonus?: number; installedAgenda?: boolean; seen?: string[]; acts?: GameAction[]; runs?: number };`,
     ],
     // every main-phase action of the playout, kept on ends
     [
       'ai/turnPlanner.ts',
       `  corpLine?.first(start, first);
-  let state = step(start, first);`,
+  let state = advance(start, first);`,
       `  corpLine?.first(start, first);
   const __acts: GameAction[] = [first];
   let __runs = first.type === 'INITIATE_RUN' ? 1 : 0;
   if (ends) { ends.acts = __acts; ends.runs = 0; }
-  let state = step(start, first);
+  let state = advance(start, first);
   if (state && side === 'runner' && first.type !== 'INITIATE_RUN' && state.runsThisTurn.length > start.runsThisTurn.length) __runs++;`,
     ],
     [
@@ -95,10 +95,12 @@ function record(): Patch[] {
       `  if (ends) {
     ends.state = state;
     ends.bonus = bonus;
+    ends.seen = seen;
   }`,
       `  if (ends) {
     ends.state = state;
     ends.bonus = bonus;
+    ends.seen = seen;
     ends.runs = __runs;
   }`,
     ],
@@ -141,14 +143,17 @@ function record(): Patch[] {
     [
       'ai/runnerAI.ts',
       `  chooseOffTurn(state: GameState): GameAction | null {
-    return asSide('runner', () => {`,
+    return asSide('runner', () => runnerOffTurn(state, this.runnerContext()));
+  }`,
       `  chooseOffTurn(state: GameState): GameAction | null {
     const __was = ${G}.__giDeciding;
     if (this.planner) ${G}.__giDeciding = true;
-    try { return this.__offTurn(state); } finally { ${G}.__giDeciding = __was; }
-  }
-  private __offTurn(state: GameState): GameAction | null {
-    return asSide('runner', () => {`,
+    try {
+      return asSide('runner', () => runnerOffTurn(state, this.runnerContext()));
+    } finally {
+      ${G}.__giDeciding = __was;
+    }
+  }`,
     ],
   ];
 }
@@ -250,9 +255,10 @@ import { activePrompt as __activePrompt } from '../core';`,
     ],
     [
       'ai/runnerAI.ts',
-      `/**
- * Worth of a trojan on this rezzed ice:`,
-      `/** count 3 arm (c)/(c2): plays the run under way on the playout's board; the Corp by a planner-off Normal Corp. */
+      `const READ_WRITE_SHARE = '36022';`,
+      `const READ_WRITE_SHARE = '36022';
+
+/** count 3 arm (c)/(c2): plays the run under way on the playout's board; the Corp by a planner-off Normal Corp. */
 function playRunIn(start: GameState, rollout: HeuristicRunnerAI, options: { memory: RunnerMemory; wary: boolean }, mode: 'full' | 'ice'): { state: GameState; value: number } | null {
   const make = (HeuristicRunnerAI as any).__makeCorp as (() => any) | undefined;
   if (!make || !start.activeRun) return null;
@@ -279,10 +285,7 @@ function playRunIn(start: GameState, rollout: HeuristicRunnerAI, options: { memo
   const end = g.state;
   // back to the playout's own settings (GameRunner set both stops to 'ai')
   return { state: { ...end, stops: start.stops }, value: 0 };
-}
-
-/**
- * Worth of a trojan on this rezzed ice:`,
+}`,
     ],
     ['ai/index.ts', `export function createAgent(`, `(HeuristicRunnerAI as any).__makeCorp = () => new HeuristicCorpAI({ planner: false });\n\nexport function createAgent(`],
   ];
@@ -309,7 +312,7 @@ function playRunIn(start: GameState, rollout: HeuristicRunnerAI, options: { memo
   return p;
 }
 
-function patches(arm: Arm): Patch[] {
+export function patches(arm: Arm): Patch[] {
   const base = record();
   switch (arm) {
     case 'beta':

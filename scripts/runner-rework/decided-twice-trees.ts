@@ -16,8 +16,17 @@ import { join } from 'node:path';
 
 export type Patch = [file: string, at: string, to: string];
 const G = `(globalThis as any).__dt`;
+// The in-run decision is a free function since B1 (runner/run.ts runAction, called from runner/core.ts): the deciding
+// agent is passed to its hooks through a global set around chooseAction (R-C1 Part 0, R-26: ported to beta 0b9d44a)
+const A = `(globalThis as any).__dtAgent`;
 
 export const HOOKED: Patch[] = [
+  // The deciding agent for the in-run hooks below (saved and restored: a look-ahead's or a reply's agent decides inside)
+  [
+    'ai/runnerAI.ts',
+    `  chooseAction(state: GameState): GameAction {\n    return asSide('runner', () => this.decide(state));\n  }`,
+    `  chooseAction(state: GameState): GameAction {\n    const __prev = ${A};\n    ${A} = this;\n    try {\n      return asSide('runner', () => this.decide(state));\n    } finally {\n      ${A} = __prev;\n    }\n  }`,
+  ],
   // S0: the ranking's price of each run it scores (the view it priced on, the options it used, the score)
   [
     'ai/runnerAI.ts',
@@ -36,46 +45,46 @@ export const HOOKED: Patch[] = [
   ],
   [
     'ai/runnerAI.ts',
-    `      return runScore(view, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + 0.3;`,
-    `      const __o = { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary };\n      const __s = runScore(view, after.activeRun.server, __o);\n      ${G}?.price(this, state, action, after.activeRun.server, view, __o, __s);\n      return __s - spendCost(state, paid) + 0.3;`,
+    `      return runScore(view, after.activeRun.server, { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary }) - spendCost(state, paid) + RUNNER_TERMS.runCard;`,
+    `      const __o = { ...runEventOptions(cardCode ?? '', state), memory: this.memory, wary: this.synergy && tuning.wary };\n      const __s = runScore(view, after.activeRun.server, __o);\n      ${G}?.price(this, state, action, after.activeRun.server, view, __o, __s);\n      return __s - spendCost(state, paid) + RUNNER_TERMS.runCard;`,
   ],
   // During the run: the jack-out test in movement (creditsAhead against the credits)
   [
-    'ai/runnerAI.ts',
-    `      if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');`,
-    `      const __ahead = creditsAhead(state);\n      ${G}?.move(this, state, __ahead, credits);\n      if (__ahead > credits && find('JACK_OUT')) return find('JACK_OUT');`,
+    'ai/runner/run.ts',
+    `    if (creditsAhead(state) > credits && find('JACK_OUT')) return find('JACK_OUT');`,
+    `    const __ahead = creditsAhead(state);\n    ${G}?.move(${A}, state, __ahead, credits);\n    if (__ahead > credits && find('JACK_OUT')) return find('JACK_OUT');`,
   ],
   // During the run: each place encounterAction gives no break, and which test said so
   [
-    'ai/runnerAI.ts',
-    `    const mustBreak = unbroken.filter(s => s.cost >= 1);\n    if (mustBreak.length === 0) return undefined;`,
-    `    const mustBreak = unbroken.filter(s => s.cost >= 1);\n    if (mustBreak.length === 0) {\n      ${G}?.enc(this, state, 'nothingWorth', { unbroken: unbroken.map(s => [s.i, s.cost]) });\n      return undefined;\n    }`,
+    'ai/runner/run.ts',
+    `  const mustBreak = unbroken.filter(s => s.cost >= 1);\n  if (mustBreak.length === 0) return undefined;`,
+    `  const mustBreak = unbroken.filter(s => s.cost >= 1);\n  if (mustBreak.length === 0) {\n    ${G}?.enc(${A}, state, 'nothingWorth', { unbroken: unbroken.map(s => [s.i, s.cost]) });\n    return undefined;\n  }`,
   ],
   [
-    'ai/runnerAI.ts',
-    `      if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;`,
-    `      if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;\n      ${G}?.enc(this, state, click ? 'clickReserve' : 'noClickBreak', { clicks: state.runner.clicks });`,
+    'ai/runner/run.ts',
+    `    if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;`,
+    `    if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;\n    ${G}?.enc(${A}, state, click ? 'clickReserve' : 'noClickBreak', { clicks: state.runner.clicks });`,
   ],
   [
-    'ai/runnerAI.ts',
-    `      if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;`,
-    `      const __need = iceCreditNeed(state, ice, encounter.broken);\n      if (credits < __need && before < 2) {\n        ${G}?.enc(this, state, 'cannotGetThrough', { credits, need: __need, ahead, before });\n        return undefined;\n      }`,
+    'ai/runner/run.ts',
+    `    if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;`,
+    `    const __need = iceCreditNeed(state, ice, encounter.broken);\n    if (credits < __need && before < 2) {\n      ${G}?.enc(${A}, state, 'cannotGetThrough', { credits, need: __need, ahead, before });\n      return undefined;\n    }`,
   ],
   [
-    'ai/runnerAI.ts',
-    `    if (breakPlan && planCost(breakPlan) <= tank + 0.5) {\n      const action = tryBreaking(mustBreak);\n      if (action) return action;\n    }`,
-    `    if (breakPlan && planCost(breakPlan) <= tank + 0.5) {\n      const action = tryBreaking(mustBreak);\n      if (action) return action;\n    }\n    ${G}?.enc(this, state, !breakPlan ? 'noPlanAll' : planCost(breakPlan) <= tank + 0.5 ? 'cannotPayAll' : 'dearerThanTank', { credits, ahead, tank, plan: breakPlan ? [breakPlan.credits, breakPlan.value] : null });`,
+    'ai/runner/run.ts',
+    `  if (breakPlan && planCost(breakPlan) <= tank + 0.5) {\n    const action = tryBreaking(mustBreak);\n    if (action) return action;\n  }`,
+    `  if (breakPlan && planCost(breakPlan) <= tank + 0.5) {\n    const action = tryBreaking(mustBreak);\n    if (action) return action;\n  }\n  ${G}?.enc(${A}, state, !breakPlan ? 'noPlanAll' : planCost(breakPlan) <= tank + 0.5 ? 'cannotPayAll' : 'dearerThanTank', { credits, ahead, tank, plan: breakPlan ? [breakPlan.credits, breakPlan.value] : null });`,
   ],
   [
-    'ai/runnerAI.ts',
-    `        if (bioroid) return bioroid;\n      }\n    }\n    return undefined;\n  }`,
-    `        if (bioroid) return bioroid;\n      }\n    }\n    ${G}?.enc(this, state, blocking.length > 0 ? 'cannotBreakBlocking' : 'tankRest', { credits, ahead, blocking: blocking.length, clicks: state.runner.clicks });\n    return undefined;\n  }`,
+    'ai/runner/run.ts',
+    `      if (bioroid) return bioroid;\n    }\n  }\n  return undefined;\n}`,
+    `      if (bioroid) return bioroid;\n    }\n  }\n  ${G}?.enc(${A}, state, blocking.length > 0 ? 'cannotBreakBlocking' : 'tankRest', { credits, ahead, blocking: blocking.length, clicks: state.runner.clicks });\n  return undefined;\n}`,
   ],
-  // A run a prompt answer decides: Alarm Clock's turn-start HQ run (prompts.ts), called in the same order as before
+  // A run a prompt answer decides: Alarm Clock's turn-start HQ run (its card entry since B3, cards/liberation.ts), called in the same order as before
   [
-    'ai/prompts.ts',
-    `    const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;`,
-    `    const __o = { alarmClock: true, memory, wary: synergy && tuning.wary };\n    const __s = runScore(state, 'hq', __o);\n    ${G}?.pprice(memory, state, 'hq', __o, __s);\n    const go = __s + runClick(state) > 0;`,
+    'ai/cards/liberation.ts',
+    `      const go = runScore(state, 'hq', { alarmClock: true, memory, wary: synergy && tuning.wary }) + runClick(state) > 0;`,
+    `      const __o = { alarmClock: true, memory, wary: synergy && tuning.wary };\n      const __s = runScore(state, 'hq', __o);\n      ${G}?.pprice(memory, state, 'hq', __o, __s);\n      const go = __s + runClick(state) > 0;`,
   ],
 ];
 

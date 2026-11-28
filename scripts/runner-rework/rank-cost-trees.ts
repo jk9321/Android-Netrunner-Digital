@@ -13,6 +13,10 @@
  *    time outside a reply (the deciding Runner and its own playouts) apart.
  * RECORD also exports handValues' drawWorth and adds imports to runnerAI.ts (unused on beta and control).
  *
+ * Ported to beta 0b9d44a by R-C1 Part 0 (tracker R-26): the anchors moved with B1 to B4c (handValues drawWorth's `when`,
+ * runnerAI's imports, the terms named in runner/terms.ts RUNNER_TERMS, answerPrompt's chain position, the helpers inserted
+ * before READ_WRITE_SHARE); check with scripts/runner-rework/rc1-part0/patch-check.ts.
+ *
  * Arms (a set of features; each feature is the whole rule, no number added):
  *  OPEN    `promptOpen`: the ranking does not follow a candidate's prompts (runnerAI.ts scoreMain, the 3-step loop): the
  *          candidate is scored on the board with its prompt open. The prompt is answered when the move is played, as today.
@@ -104,33 +108,33 @@ function __plainScore(ai: any, state: GameState, action: GameAction, view: GameS
     score = __playedWorth(view, card) - __heldWorth(view, card, 'runner') + (clicked ? __CLICK : 0) - click();
     gained = -__runnerInstallCost(view, card);
   } else if (action.type === 'DRAW_CARD') {
-    score = __drawWorth(view, 'runner') - click();
+    score = __drawWorth(view, 'runner', 'now') - click();
   } else if (action.type === 'GAIN_CREDIT') {
     const plus = { ...view, runner: { ...view.runner, credits: view.runner.credits + 1 } } as GameState;
     score = __sideCreditValue(plus, 'runner', 'runner') - __sideCreditValue(view, 'runner', 'runner') - click();
     gained = 1;
   } else return undefined;
   const room = state.runner.grip.length < state.runner.handSizeLimit;
-  if (action.type === 'DRAW_CARD' && needsBiggerHand(state, ai.memory) && (room || state.runner.clicks >= 2)) score += 1.5;
-  if (action.type === 'DRAW_CARD' && ai.digForBreakers && state.runner.stack.length > 5 && room) score += 1.2;
+  if (action.type === 'DRAW_CARD' && needsBiggerHand(state, ai.memory) && (room || state.runner.clicks >= RUNNER_TERMS.bigHandClicks)) score += RUNNER_TERMS.bigHandDraw;
+  if (action.type === 'DRAW_CARD' && ai.digForBreakers && state.runner.stack.length > RUNNER_TERMS.digStackFloor && room) score += RUNNER_TERMS.digDraw;
   if (action.type === 'DRAW_CARD' && ai.synergy && state.runner.grip.length < state.runner.handSizeLimit) score += digValue(state, 'runner');
   if (ai.savingFor) {
-    if (gained > 0) score += 0.8;
-    else if (gained < -1) score -= 0.4;
+    if (gained > 0) score += RUNNER_TERMS.savingGain;
+    else if (gained < RUNNER_TERMS.savingSpendFloor) score += RUNNER_TERMS.savingSpend;
   }
   return score;
 }
 `;
 
-function patches(arm: string): Patch[] {
+export function patches(arm: string): Patch[] {
   if (arm === 'source') return [];
   const f = new Set(features(arm));
   const P: Patch[] = [];
   const R = 'ai/runnerAI.ts';
   // ------------------------------------------------------------------------------------------ RECORD
   P.push(
-    ['ai/handValues.ts', 'function drawWorth(state: GameState, side: SideCode): number {', 'export function drawWorth(state: GameState, side: SideCode): number {'],
-    [R, "import { decisionContext } from './handValues';", "import { decisionContext, playedWorth as __playedWorth, heldWorth as __heldWorth, clickPrice as __clickPrice, drawWorth as __drawWorth } from './handValues';"],
+    ['ai/handValues.ts', 'function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {', 'export function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {'],
+    [R, "import { inDecision } from './handValues';", "import { inDecision, playedWorth as __playedWorth, heldWorth as __heldWorth, clickPrice as __clickPrice, drawWorth as __drawWorth } from './handValues';"],
     [R, "import { RATES } from './valueModel';", "import { RATES, CLICK as __CLICK, sideCreditValue as __sideCreditValue } from './valueModel';"],
     [R, "import { runnerInstallBlocker } from '../core/engine/actions/install';", "import { runnerInstallBlocker, runnerInstallCost as __runnerInstallCost } from '../core/engine/actions/install';"],
     [
@@ -153,7 +157,7 @@ function patches(arm: string): Patch[] {
     ['ai/runnerReply.ts', '          if (!gr.step()) break;\n', '          if (!gr.step()) break;\n          if (__seq) __seq.push(JSON.stringify(gr.last));\n'],
   );
   // The arm helpers only where an arm calls them: __plainScore copies scoreMain's bonus lines, which the D patches must find once
-  if (f.has('OWNER') || f.has('PLAIN')) P.push([R, '/**\n * Worth of a trojan on this rezzed ice:', `${HELPERS}\n/**\n * Worth of a trojan on this rezzed ice:`]);
+  if (f.has('OWNER') || f.has('PLAIN')) P.push([R, "const READ_WRITE_SHARE = '36022';", `${HELPERS}\nconst READ_WRITE_SHARE = '36022';`]);
   // ------------------------------------------------------------------------------------------ arms
   if (f.has('OPEN')) P.push([R, '    for (let i = 0; i < 3; i++) {\n      const side = activePrompt(resolved)?.side;', '    for (let i = 0; i < 0; i++) {\n      const side = activePrompt(resolved)?.side;']);
   if (f.has('OWNER')) P.push([R, "    let score = evaluate(resolved, 'runner') - before;", "    let score = __ownerScore(view, action, after, this.synergy) ?? evaluate(resolved, 'runner') - before;"]);
@@ -179,32 +183,34 @@ function patches(arm: string): Patch[] {
     ]);
   // D terms
   const off = (at: string, to: string) => P.push([R, at, to]);
-  if (f.has('dBigHand')) off("(room || state.runner.clicks >= 2)) score += 1.5;", '(room || state.runner.clicks >= 2)) void 0;');
-  if (f.has('dDigBreakers')) off('state.runner.stack.length > 5 && room) score += 1.2;', 'state.runner.stack.length > 5 && room) void 0;');
+  if (f.has('dBigHand')) off('(room || state.runner.clicks >= RUNNER_TERMS.bigHandClicks)) score += RUNNER_TERMS.bigHandDraw;', '(room || state.runner.clicks >= RUNNER_TERMS.bigHandClicks)) void 0;');
+  if (f.has('dDigBreakers')) off('state.runner.stack.length > RUNNER_TERMS.digStackFloor && room) score += RUNNER_TERMS.digDraw;', 'state.runner.stack.length > RUNNER_TERMS.digStackFloor && room) void 0;');
   if (f.has('dDigValue')) off("state.runner.handSizeLimit) score += digValue(state, 'runner');", 'state.runner.handSizeLimit) void 0;');
-  if (f.has('dTrojan')) off("      score += host?.isRezzed ? trojanHostValue(state, cardCode, host) : -3;", '      void host;');
+  // Since B3b a rezzed host's worth is the board's own term (counterValues.ts trojanHostWorth, read through evaluate): only
+  // the facedown host's flat is left in scoreMain, so dTrojan now takes off that flat alone
+  if (f.has('dTrojan')) off('      if (!host?.isRezzed) score += RUNNER_TERMS.facedownTrojanHost;', '      void host;');
   if (f.has('dSaving')) off('    if (this.savingFor) {\n      const gained', '    if (false as boolean) {\n      const gained');
-  if (f.has('dFreeCut')) off('    if (!spendsClick && score <= 0.3) return -Infinity;', '    void spendsClick;');
+  if (f.has('dFreeCut')) off('    if (!spendsClick && score <= RUNNER_TERMS.freeActionCut) return -Infinity;', '    void spendsClick;');
   if (f.has('dNudge')) off("action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;", "action.type !== 'END_TURN') void nudge;");
   if (f.has('dChain')) off(', successBonus: chainReactionBonus(state, action.targetServerId) });', ' });');
-  if (f.has('dTagFlat')) off("      case 'REMOVE_TAG':\n        return state.runner.rig.resources.length > 0 ? 1.2 : 0.3;\n", '');
-  if (f.has('dEndFlat')) off("      case 'END_TURN':\n        return -0.5;\n", '');
+  if (f.has('dTagFlat')) off("      case 'REMOVE_TAG':\n        return state.runner.rig.resources.length > 0 ? RUNNER_TERMS.tagRemovalResource : RUNNER_TERMS.tagRemovalNoResource;\n", '');
+  if (f.has('dEndFlat')) off("      case 'END_TURN':\n        return RUNNER_TERMS.endTurn;\n", '');
   // ------------------------------------------------------------------------------------------ INSTR
   if (f.has('INSTR')) {
     P.push(
       [R, '        let score = this.scoreMain(state, action, before, view);', '        let score = (globalThis as any).__ri ? (globalThis as any).__ri.cand(state, action, () => this.scoreMain(state, action, before, view)) : this.scoreMain(state, action, before, view);'],
       [R, '    return [...legal, ...makeRoomInstalls(state)]', "    return [...legal, ...__RIT('makeRoomList', () => makeRoomInstalls(state))]"],
       [R, "action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;", "action.type !== 'END_TURN') score += __RIT('nudge', () => nudge(state, 'runner', action).bonus);"],
-      [R, '/**\n * Worth of a trojan on this rezzed ice:', `${RIT}\n/**\n * Worth of a trojan on this rezzed ice:`],
+      [R, "const READ_WRITE_SHARE = '36022';", `${RIT}\nconst READ_WRITE_SHARE = '36022';`],
       wrapFn('ai/prompts.ts', 'export function simulate(state: GameState, action: GameAction): GameState | null {', 'simulate'),
-      wrapFn('ai/prompts.ts', 'export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false): GameAction {', 'answerPrompt'),
+      wrapFn('ai/prompts.ts', 'export function answerPrompt(state: GameState, side: SideCode, memory?: RunnerMemory, synergy = false, at?: ChainAt): GameAction {', 'answerPrompt'),
       ['ai/prompts.ts', '  for (const action of options) {\n    const after = simulated?.get(JSON.stringify(action)) ?? simulate(state, action);', "  for (const action of options) {\n    (globalThis as any).__ri?.c('options');\n    const after = simulated?.get(JSON.stringify(action)) ?? simulate(state, action);"],
       ['ai/prompts.ts', '/** Applies an action, or returns null if the engine rejects it. */', `${RIT}\n/** Applies an action, or returns null if the engine rejects it. */`],
       wrapFn('ai/evaluate.ts', 'export function evaluate(state: GameState, side: SideCode): number {', 'evaluate'),
       ['ai/evaluate.ts', "import { CARDS } from './cards';", `import { CARDS } from './cards';\n${RIT}`],
       wrapFn('ai/runs.ts', 'export function runScore(state: GameState, serverId: string, options: RunOptions = {}): number {', 'runScore'),
       ['ai/runs.ts', '/**\n * Credits the Runner is short of getting past', `${RIT}\n/**\n * Credits the Runner is short of getting past`],
-      wrapFn('ai/handValues.ts', 'export function drawWorth(state: GameState, side: SideCode): number {', 'drawWorth'),
+      wrapFn('ai/handValues.ts', 'export function drawWorth(state: GameState, side: SideCode, when: DrawWhen): number {', 'drawWorth'),
       ['ai/handValues.ts', '/** Worth of a card once played, less its cost and click (credits), before the wait. */', `${RIT}\n/** Worth of a card once played, less its cost and click (credits), before the wait. */`],
     );
   }
