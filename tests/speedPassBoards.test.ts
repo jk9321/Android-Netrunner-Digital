@@ -6,7 +6,7 @@
  * 0 at each top-level decision (boardsTop, handValues.ts inDecision with no anchor).
  */
 import { describe, expect, it } from 'vitest';
-import { GameAction, executeAction } from '../src/core';
+import { GameAction, GameState, executeAction } from '../src/core';
 import '../src/ai';
 import { BOARDS_CAP, boardCounts, builtBoard } from '../src/ai/boards';
 import { withPricing } from '../src/ai/pricing';
@@ -42,11 +42,16 @@ describe('lever G: one board per (board, action)', () => {
   });
 
   it("builds on its own copy of the action: no served board holds the caller's action object", () => {
-    const s = newGame(1);
+    // A person's stops ('full'): the engine keeps the action itself as the window's intent (core priority.ts
+    // declareIntent; red team finding 2, the 41-of-200 case), so the engine's own board does hold the caller's object
+    const s = { ...newGame(1), stops: { corp: 'full', runner: 'full' } } as GameState;
+    const theirs = credit();
+    expect(executeAction(s, theirs).priority?.intent).toBe(theirs);
     inDecision(s, 'corp', () => {
       const mine = credit();
       const board = builtBoard(s, mine);
       const holds = (x: unknown): boolean => x === mine || (!!x && typeof x === 'object' && Object.values(x).some(holds));
+      expect(board.priority?.intent).toEqual(mine);
       expect(holds(board)).toBe(false);
     });
   });
