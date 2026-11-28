@@ -14,7 +14,7 @@ import { frameChecks, plan } from './pricing';
 import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
 
 // plan.oracle.safestRemote's play-out: the batch Runner (HeuristicRunnerAI, its planner on) against the rule-based Corp
-setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }));
+setOraclePlayout(start => new GameRunner(start, { corp: new HeuristicCorpAI({ planner: false }), runner: new HeuristicRunnerAI({}) }, true));
 
 /**
  * The Runner's reply (Jeff, 2026-10-28; plan.runnerReply): the Corp's
@@ -325,10 +325,11 @@ export function runnerReply(end: GameState, synergy: boolean, leaf: (state: Game
   const undoReply = inReply();
   try {
     for (let k = range.from; k < range.from + range.count; k++) {
-      const gr = new GameRunner(guessHidden(end, k), {
-        corp: new HeuristicCorpAI({ synergy, planner: false }),
-        runner: new HeuristicRunnerAI({ synergy, planner: false }),
-      });
+      const gr = new GameRunner(
+        guessHidden(end, k),
+        { corp: new HeuristicCorpAI({ synergy, planner: false }), runner: new HeuristicRunnerAI({ synergy, planner: false }) },
+        true,
+      );
       let runnerTurn = false;
       const naked = nakedAgendaRemotes(gr.state);
       const nakedAgendas = naked.flatMap(id => gr.state.corp.servers[id].root.filter(c => cardDef(c).type_code === 'agenda').map(c => c.instanceId));

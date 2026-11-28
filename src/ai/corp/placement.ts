@@ -1,4 +1,5 @@
-import { CardInstance, GameAction, GameState, cardDef, executeAction, isLegalAction, rezCostOf } from '../../core';
+import { CardInstance, GameAction, GameState, cardDef, isLegalAction, rezCostOf } from '../../core';
+import { builtBoard } from '../boards';
 import { HeldLine, TwoTurnLine, finishTurnStep, installedAgendas, isCorpMain, legalShape, lineHolds, sameAction, scoreInTwo, scoringRemote, uniqueByCode } from './lines';
 import { knownIncome, nextTurnCredits } from '../nextTurnMoney';
 import { ScoreLine, keepsScore } from '../winNow';
@@ -184,7 +185,7 @@ function iceFallback(state: GameState, card: CardInstance, from: Install, free?:
     const root = state.corp.hq.some(c => c.instanceId !== card.instanceId && (typeOf(c) === 'agenda' || typeOf(c) === 'asset'));
     if (root && (free || state.corp.clicks >= 2)) return null;
   } else {
-    const after = free ? free(from) : executeAction(state, from);
+    const after = free ? free(from) : builtBoard(state, from);
     const count = after ? iceCount(state, from, card, after) : null;
     if (count?.staked) return null;
   }
@@ -334,7 +335,7 @@ function twoTurn(state: GameState, pick: GameAction | null, held: HeldLine | nul
 /** The state after the Corp's pick, for the hold check; a pick the engine refuses leaves the state as it is. */
 function spareAfter(state: GameState, pick: GameAction): GameState {
   if (!isLegalAction(state, pick)) return state;
-  return executeAction(state, pick);
+  return builtBoard(state, pick);
 }
 
 /**

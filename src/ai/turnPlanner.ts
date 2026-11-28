@@ -1,4 +1,4 @@
-import { GameAction, GameState, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, maxHandSize } from '../core';
+import { GameAction, GameState, SideCode, activePrompt, cardDef, findCardAnywhere, maxHandSize } from '../core';
 import { profileOf } from './cardProfiles';
 import { ScoredAction } from './agent';
 import { evaluate } from './evaluate';
@@ -7,6 +7,7 @@ import { turnSeed } from './threatModel';
 import { plan, pricing, withPricing } from './pricing';
 import { note, tally } from './diagnostics';
 import { noteSwallowed } from './stepCounts';
+import { builtBoard } from './boards';
 import { REPLY, guessHidden, guessRunnerView, runnerReply, sampledReply } from './runnerReply';
 import { corpSeenGrip, plannerCandidates, replySamples } from './oracle';
 import { fingerprint } from './valueModel';
@@ -226,7 +227,7 @@ export function playout(start: GameState, side: SideCode, first: GameAction, ai:
       mainCard = cardOf(state, action);
     }
     try {
-      const after = executeAction(state, action);
+      const after = builtBoard(state, action);
       if (side === 'runner' && !state.activeRun && after.activeRun) return runStarted(after);
       return after;
     } catch (e) {
@@ -317,11 +318,11 @@ export function discardStep(state: GameState, side: SideCode, ai: PlannerAI): Ga
   const hand = side === 'corp' ? state.corp.hq.length : state.runner.grip.length;
   if (hand <= Math.max(0, maxHandSize(state, side))) return state;
   try {
-    let next = executeAction(state, { type: 'END_TURN', player: side } as GameAction);
+    let next = builtBoard(state, { type: 'END_TURN', player: side } as GameAction);
     for (let i = 0; i < 8 && !next.winner; i++) {
       const prompt = activePrompt(next);
       if (!prompt || prompt.kind !== 'discard' || prompt.side !== side) break;
-      next = executeAction(next, ai.answer(next));
+      next = builtBoard(next, ai.answer(next));
     }
     if (next.winner) return next;
     return side === 'corp'
