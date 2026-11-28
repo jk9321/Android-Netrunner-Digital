@@ -2,6 +2,7 @@
 // Per shard (one out/*.txt file), each kind's time in the branch and the control tree against the base; then the
 // per-shard mean ± SE of (tree / base - 1) over the shards, and the pooled ratio over all deals.
 //   node scripts/speed-pass/time-sum.mjs <dir with out/*.txt>
+// FAULT=<name>: only the deals of that arm (core-lockstep FAULT=a,b,...: one arm per shard)
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -20,6 +21,7 @@ for (const f of readdirSync(dir).filter(f => f.endsWith('.txt'))) {
       continue;
     }
     if (o.kind !== 'deal' || !o.kinds) continue;
+    if (process.env.FAULT && o.fault !== process.env.FAULT) continue;
     deals++;
     for (const [tree, ks] of Object.entries(o.kinds))
       for (const [k, v] of Object.entries(ks)) {
