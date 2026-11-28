@@ -888,16 +888,20 @@ describe('AI code health (audit guards)', () => {
   // src/ai 17,780
   // Then - 1 (F117 review R2: runner/prompt.ts promptShownIds reads prompts.ts shownByPrompt, one copy of the prompt's
   // faces; R1's CHAIN_BUDGET comment): src/ai 17,779
+  // Then the merge of beta ecf29d1 (F117) into ai-value-b5-retime: V-B B5 and arm F's + 12 on the tag clock's 17,001 (evaluate.ts
+  // tagTaken, tagRemoved, onBoard, cardTag and their doc lines; effectValues.ts optionalTerm and its doc line; liberation.ts' import),
+  // on 17,779: src/ai 17,791
+  // Then + 1 (B5 arm F, the Runner rework coordinator's read: Hannah's comment on its untagged later tag; beta 669e50e merged): src/ai 17,792
   // Then + 29 (ai-speed-pass, the swallowed-throw sink: speed-pass ruling-rev0.md "Lever G red team, ruled" 1, cap raise
   // ruled 2026-11-28 00:26Z; stepCounts.ts swallowed and its note at the twelve catches of simulate, the planner's steps,
-  // the reply samples, the oracle, incomeLine and winNow): src/ai 17,808
+  // the reply samples, the oracle, incomeLine and winNow): src/ai 17,821
   // Then + 61, corp/ + 1 (ai-speed-pass, lever G: addendum-g.md rev 2, ruling-rev0.md "G0, ruled", caps ruled 2026-11-28
   // 00:44Z; src/ai/boards.ts about 50, one line at each sharing call site, the boardsTop reset in handValues.ts inDecision,
-  // imports; corp/ + 1 is placement.ts's import): corp/ 3,982, src/ai 17,869
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 17,869 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals, ai-speed-pass)', () => {
+  // imports; corp/ + 1 is placement.ts's import): corp/ 3,982, src/ai 17,882 (both counted on beta 2bac843's 17,792)
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 17,882 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals, ai-value-b5-retime, ai-speed-pass)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3982;
-    const AI_CAP = 17869;
+    const AI_CAP = 17882;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

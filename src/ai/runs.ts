@@ -15,7 +15,7 @@ import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trash
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
 import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
 import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
-import { corpCardValue, hiddenCardOdds, tagsWorth } from './evaluate';
+import { corpCardValue, hiddenCardOdds, tagTaken } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
 import { clickRate, creditNeed, creditSlide, flatlineWorth, memo, payoutSlide, pointValue } from './valueModel';
@@ -427,7 +427,7 @@ export function tagCost(state: GameState): number {
   const s = !state.activeRun ? { ...state, runner: { ...state.runner, clicks: state.runner.clicks - 1 } } : state;
   // The clock's loss is kept on the original board (keyed with the copy's clicks), so a copy per call costs no re-pricing
   const home = s === state ? undefined : state;
-  return tagsWorth(s, 'runner', s.runner.tags + 1, home) - tagsWorth(s, 'runner', s.runner.tags, home); // both priced as given (plan.tagTrashNow)
+  return tagTaken(s, home); // both priced as given (plan.tagTrashNow)
 }
 
 /** An installed card the Corp gets to trash: about the Runner's best, a breaker at its install cost and the time to replace it. */

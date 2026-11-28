@@ -2,11 +2,12 @@ import { cardDef, GameState, getCardScript } from '../../core';
 import { counters, threatLevel } from '../../core/engine/cardEffects';
 import { PAID_OUT, paidOneATurn } from '../counterValues';
 import { cardRate, CLICK, RATES } from '../valueModel';
-import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, PACE, perTurn, runSuccess } from '../effectValues';
+import { accessWorth, centralSuccess, counterWorthOf, damageWorth, deckCount, deckShare, lock, muWorth, optionalTerm, PACE, perTurn, runSuccess } from '../effectValues';
 import type { RunOptions } from '../runs';
 import { runClick, runScore, windowDerez } from '../runs';
 import { tagCost } from '../runs';
 import { CardAI, TagUse } from './types';
+import { cardTag } from '../evaluate';
 import { plan } from '../pricing';
 import { tuning } from '../synergy';
 
@@ -54,7 +55,7 @@ export const LIBERATION: Record<string, CardAI> = {
     value: { rig: 1.5, draws: 0.5 },
     // A counter on turns it trashes a Corp card, each a card or a tag gone
     runner: (state, code) => perTurn(state, PACE.paidTrashes * counterWorthOf(state, code, 'power'), 'runner'),
-    counters: { power: state => (state.runner.tags > 0 ? Math.max(cardRate(state, 'runner', 'later'), RATES.tagAgainstRunner * 0.5) : cardRate(state, 'runner', 'later')) }, // A card or a tag removed
+    counters: { power: (state, card) => optionalTerm(state.runner.tags > 0 ? Math.max(cardRate(state, 'runner', 'later'), cardTag(state, card.cardCode, true, card) * 0.5) : cardRate(state, 'runner', 'later')) }, // A card or a tag removed
   },
   // Audrey v2 (icebreaker)
   '34004': {
@@ -80,9 +81,9 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { runs: 1, rd: 1.5, archives: 0.5 }, wants: { tags: 0.5 }, when: ['threat'] },
     value: { rig: 2 },
     // Once a turn, a tag for an R&D breach past Archives' ice (and 1 more card at threat 3)
-    runner: state => {
+    runner: (state, code, card) => {
       const extra = threat(state) >= 3 ? accessWorth(state) : 0;
-      return perTurn(state, 0.4 * runSuccess(state, 'archives') * (accessWorth(state) + extra - 0.5 * RATES.tagAgainstRunner), 'runner');
+      return perTurn(state, optionalTerm(0.4 * runSuccess(state, 'archives') * (accessWorth(state) + extra - 0.5 * cardTag(state, code, false, card))), 'runner');
     },
     // A tag, then Archives breaches R&D instead (1 more card at threat 3)
     run: (state?: GameState): RunOptions => {
@@ -93,8 +94,9 @@ export const LIBERATION: Record<string, CardAI> = {
   '34008': {
     synergy: { gives: { runs: 1 }, wants: { tags: 0.5 } },
     value: { rig: 1.5 },
-    // A free click-run on a remote once a turn (a tag if it fails), or 2 clicks and a tag gone when trashed
-    runner: state => Math.max(2 * CLICK + 0.5 * RATES.tagAgainstRunner * tagged(state), perTurn(state, 0.3 * (CLICK - (1 - PACE.success) * RATES.tagAgainstRunner * 0.5), 'runner')),
+    // A free click-run on a remote once a turn (a tag if it fails), or 2 clicks and a tag gone when trashed (untagged, a later
+    // tag gone: priced as one taken on this board, not as removing none)
+    runner: (state, code, card) => Math.max(2 * CLICK + 0.5 * cardTag(state, code, state.runner.tags > 0, card) * tagged(state), perTurn(state, optionalTerm(0.3 * (CLICK - (1 - PACE.success) * cardTag(state, code, false, card) * 0.5)), 'runner')),
     // Hannah: the click comes back
     run: (state?: GameState): RunOptions => {
       return { successBonus: state ? runClick(state) : 1 };
@@ -508,8 +510,8 @@ export const LIBERATION: Record<string, CardAI> = {
   '34073': {
     synergy: { gives: { trash: 1 }, wants: { tags: 0.5 } },
     value: { rig: 2 },
-    // A tag for -2 strength once a turn; later, a weak ice trashed outright
-    runner: state => perTurn(state, 0.3 * (2 - 0.3 * RATES.tagAgainstRunner * (1 - tagged(state))), 'runner') + 1.5,
+    // A tag for -2 strength once a turn; later, a weak ice trashed outright (tagged, the tag's term is 0: not read)
+    runner: (state, code, card) => perTurn(state, optionalTerm(0.3 * (2 - (tagged(state) === 1 ? 0 : 0.3 * cardTag(state, code, false, card) * (1 - tagged(state))))), 'runner') + 1.5,
   },
   // Friend of a Friend
   '34074': {
@@ -523,7 +525,7 @@ export const LIBERATION: Record<string, CardAI> = {
     synergy: { gives: { econ: 2 } },
     value: { rig: 2 },
     // A click for 5 credits and a tag gone, or 9 credits for a tag
-    runner: state => (state.runner.tags > 0 ? 5 + RATES.tagAgainstRunner : 9 - RATES.tagAgainstRunner * 0.7) - CLICK,
+    runner: (state, code, card) => (state.runner.tags > 0 ? 5 + cardTag(state, code, true, card) - CLICK : optionalTerm(9 - cardTag(state, code, false, card) * 0.7 - CLICK)),
   },
   // Manuel Lattes de Moura
   '34075': {
