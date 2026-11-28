@@ -187,20 +187,33 @@ function keptInOrder(before: string[], after: string[]): Set<string> {
 /**
  * The marks after an action that shuffled R&D (step 0 gaps 2 and 4). shuffleRD turned the marks of the last action's end
  * into shares; the rest of the action is applied here, from how R&D changed and what is open:
- * - a marked card that left R&D in the open (or into the cards known in HQ) is followed there, so its share goes;
+ * - a card that left R&D in the open, or was seen in HQ in this action (B4d (b): RdNotes.handSeen, revealInHand's
+ *   sightings; not the list of cards known in HQ, whose ids are labels since B4c and outlive a card's stay), is followed:
+ *   one share of its code goes, by code and count, never by id (RT3: the Runner cannot tell which copy left; rules
+ *   10.2.2b, 1.12.3). The shares of one code are alike: shuffleRD makes every share at once with this shuffle's `n0`,
+ *   and so does the last loop below (RT15; a change to either keeps that true). A sighting in HQ is taken as the
+ *   departed card's own: right where the reveal is of the card that moved (a tutor: Pivot, Editorial Division); no
+ *   card in the pool moves an unseen card from R&D to HQ and reveals another HQ card in a shuffling action (RT9);
  * - any other card that left R&D this action could have been a marked one (1.12.3), so every share may have left;
  * - a card that was in the open and went into R&D (Spin Doctor, Longevity Serum, Sleipnir shuffle Archives in) is one
  *   the Runner saw go in (10.2.2b): it gets a share of the deck too (4.2.2, 8.7.3).
  * Cards the Runner sees after the shuffle are placed by step 6 as usual.
  */
-function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[]): RdKnownCard[] {
+function afterShuffle(prev: GameState, state: GameState, known: RdKnownCard[], note: RdNotes | undefined): RdKnownCard[] {
   const inRd = new Set(state.corp.rd.map(c => c.instanceId));
-  const departed = prev.corp.rd.filter(c => !inRd.has(c.instanceId)).map(c => c.instanceId);
+  const departed = prev.corp.rd.filter(c => !inRd.has(c.instanceId));
   const open = publicCards(state);
-  const inHq = new Set((state.corp.knownToRunner ?? []).map(e => e.id));
-  const followed = new Set(departed.filter(id => open.has(id) || inHq.has(id)));
-  const unseen = departed.some(id => !followed.has(id));
-  let out = known.filter(e => !(e.n0 && followed.has(e.id))).map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
+  const inHq = new Set(state.corp.hq.map(c => c.instanceId));
+  const seenInHq = new Set((note?.handSeen ?? []).filter(g => g.owner === 'corp').flatMap(g => g.ids).filter(id => inHq.has(id)));
+  const followed = departed.filter(c => open.has(c.instanceId) || seenInHq.has(c.instanceId));
+  const unseen = departed.length > followed.length;
+  let out = known;
+  for (const card of followed) {
+    const code = open.get(card.instanceId) ?? card.cardCode;
+    const i = out.findIndex(e => e.n0 && e.code === code);
+    if (i >= 0) out = out.filter((_, j) => j !== i);
+  }
+  out = out.map(e => (unseen && e.n0 && !e.left ? { ...e, left: 'other' as const } : e));
   const wasInRd = new Set(prev.corp.rd.map(c => c.instanceId));
   const openBefore = publicCards(prev);
   const n0 = state.corp.rd.length;
@@ -339,14 +352,22 @@ export function updateRdKnowledge(prev: GameState, state: GameState): RdWalk {
   }
 
   // After a shuffle: the action's other moves, and the cards the Runner saw go in
-  if (note?.shuffled) known = afterShuffle(prev, state, known);
+  if (note?.shuffled) known = afterShuffle(prev, state, known, note);
 
-  // 6. Cards seen during this action are exactly where they are now
+  // 6. Cards seen during this action are exactly where they are now. B4d (b): a shuffle's share is matched by code, not
+  // by id (as afterShuffle's departures, RT3): the card seen may be any share's card of its title (10.2.2b, 1.12.3), so
+  // one share of that code goes, the one that claims the most first (a share still certain before one that may have left)
   for (const id of seen) {
     const q = afterPos.get(id);
     if (q === undefined) continue;
     const code = state.corp.rd[q].cardCode;
-    known = known.filter(e => e.id !== id).map(e => (isExact(e) ? e : { ...e, lo: e.lo === q ? e.lo + 1 : e.lo, hi: e.hi === q ? e.hi - 1 : e.hi }));
+    const sameCode = known.filter(e => e.n0 && e.code === code);
+    const share = sameCode.find(e => !e.left && e.id === id) ?? sameCode.find(e => !e.left) ?? sameCode.find(e => e.id === id) ?? sameCode[0];
+    // A share kept under the seen card's id takes the dropped share's label (a share's id names no copy), so no two marks share an id
+    const relabel = (e: RdKnownCard) => (share && e.n0 && e.id === id ? { ...e, id: share.id } : e);
+    known = known
+      .filter(e => e !== share && (e.n0 || e.id !== id))
+      .map(e => relabel(isExact(e) ? e : { ...e, lo: e.lo === q ? e.lo + 1 : e.lo, hi: e.hi === q ? e.hi - 1 : e.hi }));
     known.push({ id, code, lo: q, hi: q });
   }
 

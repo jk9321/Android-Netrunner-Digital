@@ -7,13 +7,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance, executeAction, getCardDefinition, getLegalActions } from '../src/core';
-import { noteRdPrivate, runnerSeesRd, updateKnowledge } from '../src/core/engine/rdKnowledge';
+import { noteRdPrivate, runnerSeesRd, shuffleRD, updateKnowledge } from '../src/core/engine/rdKnowledge';
+import { revealInHand } from '../src/core/engine/helpers';
 import { HeuristicRunnerAI } from '../src/ai/runnerAI';
 import { HeuristicCorpAI } from '../src/ai/corpAI';
 import { GameRunner } from '../src/ai/playout';
 import { asSide } from '../src/ai/pricing';
 import { runScore, serverValue } from '../src/ai/runs';
 import { inDecision } from './helpers/pricing';
+import { knownByCopy, relabelledRdCopy } from '../scripts/engine-fuzz-check';
 import { installIceForTest, installProgramForTest, newGame, runIntoFirstIce } from './helpers';
 
 const BOTO = '34109';
@@ -189,5 +191,89 @@ describe('B4d (a): the R&D price reads only the marks still certain (certainRdMa
     });
     expect(s3.corp.rdKnownToRunner?.[0]?.left).toBe('hq');
     expect(value(s3)).toBeCloseTo(unseen, 6);
+  });
+});
+
+describe('B4d (b): after a shuffle, which copy moved does not change the R&D marks (rules 10.2.2b, 1.12.3)', () => {
+  const take = <T extends { instanceId: string }>(zone: T[], id: string): T => zone.splice(zone.findIndex(c => c.instanceId === id), 1)[0];
+  function act(s: GameState, change: (next: GameState) => void): GameState {
+    const next = structuredClone(s);
+    change(next);
+    updateKnowledge(s, next);
+    return next;
+  }
+  /** The marks as the Runner holds them, ids left out (which copy a mark names is not the Runner's to know). */
+  const marks = (s: GameState) => JSON.stringify((s.corp.rdKnownToRunner ?? []).map(e => ({ code: e.code, lo: e.lo, hi: e.hi, n0: e.n0, left: e.left })));
+  for (const dest of ['ice', 'hq'] as const)
+    it(`P1: a Palisade seen in HQ goes into R&D unseen; one R&D card leaves unseen (${dest}) in a shuffle: the same marks whichever card it was`, () => {
+      const run = (which: 'labelled' | 'other') => {
+        const s0 = newGame();
+        const x = createCardInstance(s0, '30072');
+        s0.corp.hq = [x, createCardInstance(s0, '30075'), createCardInstance(s0, '30075')];
+        let s = act(s0, n => revealInHand(n, 'corp', [n.corp.hq[0]]));
+        s = act(s, n => {
+          n.corp.rd.push(take(n.corp.hq, x.instanceId));
+          shuffleRD(n);
+        });
+        const y = createCardInstance(s, '30054');
+        s = act(s, n => n.corp.rd.splice(3, 0, y));
+        s = act(s, n => runnerSeesRd(n, n.corp.rd.find(c => c.instanceId === y.instanceId)!));
+        const z = s.corp.rd.find(c => c.instanceId !== x.instanceId && c.instanceId !== y.instanceId && getCardDefinition(c.cardCode).type_code === 'ice')!;
+        const moved = which === 'labelled' ? x.instanceId : z.instanceId;
+        s = act(s, n => {
+          const c = take(n.corp.rd, moved);
+          if (dest === 'ice') n.corp.servers.hq.ice.push(c);
+          else n.corp.hq.push(c);
+          shuffleRD(n);
+        });
+        return marks(s);
+      };
+      expect(run('labelled')).toBe(run('other'));
+    });
+  it('RT3 B1: a tutor (taken from R&D, revealed, into HQ, R&D shuffled) of either of two copies leaves the same marks', () => {
+    const base = newGame();
+    const code = '30075';
+    const a = createCardInstance(base, code);
+    const b = createCardInstance(base, code);
+    base.corp.rd.splice(3, 0, a);
+    base.corp.rd.splice(9, 0, b);
+    base.corp.rdKnownToRunner = [{ id: a.instanceId, code, lo: 3, hi: 3 }];
+    const tutor = (id: string) =>
+      act(base, n => {
+        const card = take(n.corp.rd, id);
+        n.corp.hq.push(card);
+        revealInHand(n, 'corp', [card]);
+        shuffleRD(n);
+      });
+    expect(marks(tutor(a.instanceId))).toBe(marks(tutor(b.instanceId)));
+  });
+});
+
+describe('B4d (b), bar 2: the fuzzer\'s R&D known-by-copy check sees the share removal by id (rdKnowledge.ts afterShuffle)', () => {
+  it('the B1 tutor with the share relabelled to the other copy (relabelledRdCopy) ends with the same R&D shares', () => {
+    const base = newGame();
+    const a = createCardInstance(base, '30075');
+    const b = createCardInstance(base, '30075');
+    base.corp.rd.splice(3, 0, a);
+    base.corp.rd.splice(9, 0, b);
+    base.corp.rdKnownToRunner = [{ id: a.instanceId, code: '30075', lo: 3, hi: 3 }];
+    // A shuffle first, so the mark is a share (the check relabels shares only)
+    const shuffled = structuredClone(base);
+    shuffleRD(shuffled);
+    updateKnowledge(base, shuffled);
+    expect(shuffled.corp.rdKnownToRunner?.[0]?.n0).toBeGreaterThan(0);
+    const relabelled = relabelledRdCopy(shuffled)!;
+    expect(relabelled.corp.rdKnownToRunner![0].id).not.toBe(shuffled.corp.rdKnownToRunner![0].id);
+    const tutor = (s: GameState) => {
+      const next = structuredClone(s);
+      const at = next.corp.rd.findIndex(c => c.instanceId === a.instanceId);
+      const card = next.corp.rd.splice(at, 1)[0];
+      next.corp.hq.push(card);
+      revealInHand(next, 'corp', [card]);
+      shuffleRD(next);
+      updateKnowledge(s, next);
+      return knownByCopy(next);
+    };
+    expect(tutor(relabelled)).toBe(tutor(shuffled));
   });
 });

@@ -429,14 +429,22 @@ export function fuzzEngineGame(seed: number, corp: DeckList, runner: DeckList, o
   }
 }
 
-/** The three lists of what one side knows of the other's hidden cards, as a multiset of code and losses (ids stripped). */
+/**
+ * The three lists of what one side knows of the other's hidden cards, as a multiset of code and losses (ids stripped),
+ * and (B4d (b)) the Runner's R&D shares, as a multiset of code, places, n0 and `left` (ids stripped).
+ */
 export function knownByCopy(s: GameState): string {
   const strip = (l: KnownHandCard[] | undefined) =>
     (l ?? [])
       .map(e => `${e.code}:${['any', 'ice', 'root', 'upgrade'].map(k => e.lost?.[k as keyof typeof e.lost] ?? 0).join('/')}`)
       .sort()
       .join(',');
-  return `HQ ${strip(s.corp.knownToRunner)} | grip ${strip(s.runner.knownToCorp)} | Archives ${strip(s.corp.archKnownToRunner)}`;
+  const shares = (s.corp.rdKnownToRunner ?? [])
+    .filter(e => e.n0)
+    .map(e => `${e.code}:${e.lo}-${e.hi}/${e.n0}${e.left ? `/${e.left}` : ''}`)
+    .sort()
+    .join(',');
+  return `HQ ${strip(s.corp.knownToRunner)} | grip ${strip(s.runner.knownToCorp)} | Archives ${strip(s.corp.archKnownToRunner)} | R&D shares ${shares}`;
 }
 
 /**
@@ -445,6 +453,26 @@ export function knownByCopy(s: GameState): string {
  * made before any legality call on it (RULE-NO-MUTATE-AFTER-LEGALITY). A card accessed this run is left as it is (its
  * id marks the breach's sightings, 7.4.3). R&D marks are not relabelled: a known gap (brief rev 1 item 4).
  */
+/**
+ * known-by-copy for R&D (B4d (b), the audit's LEAK-RD-SHARE-FOLLOWS-LABEL): `state` with one R&D share (a mark a shuffle
+ * left, n0) moved to another copy of its title in R&D that no mark names and that is inside the share's places, or null
+ * if there is none. A share says only that a card of that title is in R&D (rules 4.2.2, 10.2.2b), so which copy its id
+ * names must change nothing. Exact and interval marks are not relabelled: their places say which card it is.
+ */
+export function relabelledRdCopy(state: GameState): GameState | null {
+  const marks = state.corp.rdKnownToRunner ?? [];
+  const named = new Set(marks.map(e => e.id));
+  for (const [i, e] of marks.entries()) {
+    if (!e.n0) continue;
+    const other = state.corp.rd.find((c, at) => c.cardCode === e.code && !named.has(c.instanceId) && at >= e.lo && at <= e.hi);
+    if (!other) continue;
+    const copy = structuredClone(state);
+    copy.corp.rdKnownToRunner![i] = { ...copy.corp.rdKnownToRunner![i], id: other.instanceId };
+    return copy;
+  }
+  return null;
+}
+
 export function relabelledCopy(state: GameState): GameState | null {
   const accessed = new Set((state.activeRun?.accessed ?? []).map(a => a.id));
   const zones: [KnownHandCard[] | undefined, CardInstance[], (s: GameState) => KnownHandCard[]][] = [
@@ -546,8 +574,8 @@ function fuzzOneGame(seed: number, corp: DeckList, runner: DeckList, opts: FuzzO
     record(step, action, res.failures);
     // known-by-copy: the same move from the same state with the list naming the other copy must leave the same lists,
     // ids aside (10.2.2b). The shuffle probe is put back after the extra run, as for the AI's look-ahead
-    const relabelled = relabelledCopy(state);
-    if (relabelled) {
+    for (const relabelled of [relabelledCopy(state), relabelledRdCopy(state)]) {
+      if (!relabelled) continue;
       const probe = { shuffles: rdShuffleProbe.shuffles, seen: new Set(rdShuffleProbe.corpSeenSince) };
       let other: GameState | null = null;
       try {
