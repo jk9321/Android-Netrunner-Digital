@@ -156,8 +156,12 @@ export const READ_HOOKS: Record<string, Patch[]> = {
   Da2: [
     [
       'ai/runs.ts',
-      `  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n`,
-      `  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n${L}  if (rdSharesKnownToRunner(state).some(e => e.left)) ${fire('a.leftShare')};\n`,
+      // 550a1b5's line, or 59fa119's engine owner (rdOddsMarks: the same list); a left share is a mark with n0 and `left`
+      [`  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n`, `  const marks = rdOddsMarks(state);\n`],
+      [
+        `  const marks = [...certainRdMarks(state), ...rdSharesKnownToRunner(state).filter(e => e.left)];\n${L}  if (rdSharesKnownToRunner(state).some(e => e.left)) ${fire('a.leftShare')};\n`,
+        `  const marks = rdOddsMarks(state);\n${L}  if (marks.some(e => e.n0 && e.left)) ${fire('a.leftShare')};\n`,
+      ],
     ],
   ],
   // (b) c6a8dda: a shuffle's departure followed (open, or seen in HQ), its share taken by code; step 6's share by code
