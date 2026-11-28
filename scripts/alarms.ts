@@ -28,6 +28,15 @@ export type AlarmKind =
   | 'open target skipped'
   /** Runner: a successful run on an empty Archives */
   | 'empty Archives run'
+  /**
+   * Runner (R-C1 Part 0; tracker R-119, the B4b g3 fruitless trace: the 'fruitless runs' alarm counts only HQ and
+   * Archives turns, so runs moved onto remotes went uncounted): a successful run on a remote whose root the Runner fully
+   * knew when the run began (every root card rezzed, faceup or marked known to the Runner, or no card at all; rules
+   * 10.2.2a) that gained nothing: no points, no Corp card trashed or stolen, and no more credits at its end than at its
+   * start. The detail says which: 'empty root' or 'known root'. One alarm per run; it reads the engine state only, never
+   * the AI (`RULE-SCRIPT-RULES`, R-79).
+   */
+  | 'known remote run for nothing'
   /** Corp: starts a turn (3 or later) with under 3 credits after starting the last one with 3 or more; detail is where most of its credits went since */
   | 'Corp went broke'
   /**
@@ -96,6 +105,8 @@ export class AlarmTracker {
   private corpTurnUsedTags = false;
   private runnerStart: GameState | null = null;
   private fruitless = new Map<string, number>();
+  /** The remote run under way, as it began: whether its root was fully known, and what a gain is measured from */
+  private remoteRun: { server: string; turn: number; root: 'empty root' | 'known root' | null; score: number; gone: number; credits: number } | null = null;
 
   private corpTurnIdleClicks = 0;
   /** Corp credits spent and gained since the last Corp turn began, by moneyKind */
@@ -145,6 +156,27 @@ export class AlarmTracker {
     // (any rig card trashed, Retribution included; damage; or the tag count dropped)
     const rig = (st: GameState) => Object.values(st.runner.rig).flat().length;
     if (after.activePlayer === 'corp' && !after.activeRun && (rig(after) < rig(before) || after.runner.grip.length < before.runner.grip.length || after.runner.tags < before.runner.tags)) this.corpTurnUsedTags = true;
+
+    // A run on a remote whose root the Runner fully knew, that gained nothing ('known remote run for nothing')
+    if (!before.activeRun && after.activeRun && after.corp.servers[after.activeRun.server]?.isRemote) {
+      const root = before.corp.servers[after.activeRun.server]?.root ?? [];
+      const known = root.every(c => c.isRezzed || c.faceUp || c.runnerKnows);
+      this.remoteRun = {
+        server: after.activeRun.server,
+        turn: after.turnNumber,
+        root: root.length === 0 ? 'empty root' : known ? 'known root' : null,
+        score: before.runner.score,
+        gone: corpCardsGone(before),
+        credits: before.runner.credits,
+      };
+    }
+    if (before.activeRun && !after.activeRun && this.remoteRun) {
+      const r = this.remoteRun;
+      this.remoteRun = null;
+      const last = after.runsThisTurn[after.runsThisTurn.length - 1];
+      const gained = after.runner.score > r.score || corpCardsGone(after) > r.gone || after.runner.credits > r.credits;
+      if (r.root && last?.server === r.server && last.successful && !gained) this.fire('known remote run for nothing', r.turn, 'runner', `${r.server}: ${r.root}, nothing gained`, r.root);
+    }
 
     // A successful run on an empty Archives
     if (after.runsThisTurn.length > before.runsThisTurn.length) {

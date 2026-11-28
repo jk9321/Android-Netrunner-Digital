@@ -37,20 +37,21 @@ export const PRICE_BOUND: Patch[] = [
 
 /** (b) in-run only: keep the clicks the prices plan for the rezzed ice further in before clicking a subroutine that does not end the run. */
 export const RUN_RESERVE: Patch[] = [
-  ['ai/runnerAI.ts', `import { RunnerMemory, chainReactionBonus,`, `import { icePrice as __icePrice, RunnerMemory, chainReactionBonus,`],
+  // R-C1 Part 0, R-26: the in-run decision is runner/run.ts since B1 (ported to beta 0b9d44a)
+  ['ai/runner/run.ts', `import { MANEGARM, bestBreakPlan,`, `import { icePrice as __icePrice, MANEGARM, bestBreakPlan,`],
   [
-    'ai/runnerAI.ts',
-    `      if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;`,
-    `      if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state) + __aheadClicks(state))) return click;`,
+    'ai/runner/run.ts',
+    `    if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state))) return click;`,
+    `    if (click && (worst.cost === Infinity || state.runner.clicks - (own?.clicks ?? 1) >= approachClickReserve(state) + __aheadClicks(state))) return click;`,
   ],
   [
-    'ai/runnerAI.ts',
-    `const READ_WRITE_SHARE = '36022';`,
-    `/** The clicks the prices of the rezzed ice further in plan (their click self-breaks). */\nfunction __aheadClicks(state: GameState): number {\n  const run = state.activeRun;\n  const server = run ? state.corp.servers[run.server] : undefined;\n  if (!run || !server || run.icePosition === null) return 0;\n  return server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + ((__icePrice(state, c) as { __clicks?: number }).__clicks ?? 0), 0);\n}\n\nconst READ_WRITE_SHARE = '36022';`,
+    'ai/runner/run.ts',
+    `export function approachClickReserve(state: GameState): number {`,
+    `/** The clicks the prices of the rezzed ice further in plan (their click self-breaks). */\nfunction __aheadClicks(state: GameState): number {\n  const run = state.activeRun;\n  const server = run ? state.corp.servers[run.server] : undefined;\n  if (!run || !server || run.icePosition === null) return 0;\n  return server.ice.slice(0, run.icePosition).filter(c => c.isRezzed).reduce((n, c) => n + ((__icePrice(state, c) as { __clicks?: number }).__clicks ?? 0), 0);\n}\n\nexport function approachClickReserve(state: GameState): number {`,
   ],
 ];
 
-const TREES: Record<string, Patch[]> = { control: [CLICK_FIELD], a: [CLICK_FIELD, ...PRICE_BOUND], b: [CLICK_FIELD, ...RUN_RESERVE], c: [CLICK_FIELD, ...PRICE_BOUND, ...RUN_RESERVE] };
+export const TREES: Record<string, Patch[]> = { control: [CLICK_FIELD], a: [CLICK_FIELD, ...PRICE_BOUND], b: [CLICK_FIELD, ...RUN_RESERVE], c: [CLICK_FIELD, ...PRICE_BOUND, ...RUN_RESERVE] };
 
 function makeTree(root: string, name: string, patches: Patch[]): string {
   const dir = join(root, name);
@@ -138,7 +139,9 @@ async function main() {
     }
 }
 
-main().catch(e => {
-  console.error(e);
-  process.exit(1);
-});
+// patch-check.ts imports TREES only
+if (!process.env.PATCH_CHECK)
+  main().catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
