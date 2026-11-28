@@ -74,10 +74,8 @@ const safe = <X>(f: () => X, dflt: X): X => {
   }
 };
 const asRunner = <X>(s: GameState, f: () => X): X =>
-  E.pricing.asSide('runner', () => {
-    E.handValues.decisionContext(s, 'runner');
-    return f();
-  });
+  // R-83: the decision's pricing frame is opened by inDecision since B4 (decisionContext left)
+  E.pricing.asSide('runner', () => E.handValues.inDecision(s, 'runner', f));
 const def = (c: CardInstance | string) => E.core.getCardDefinition(typeof c === 'string' ? c : c.cardCode);
 const title = (code: string | undefined) => (code ? safe(() => def(code).title as string, code) : null);
 
@@ -108,12 +106,9 @@ function s0Read(p: Price, s1: GameState) {
   const opts = { ...p.options, memory: p.options.memory ? new Map(p.options.memory) : undefined };
   E.clear();
   G.__dtRs = null;
-  // The ranking's decision context is the real board (rankMainActions: decisionContext(state)), its prices the view
+  // The ranking's decision context is the real board (rankMainActions: inDecision(state)), its prices the view
   const ctx = structuredClone(p.state);
-  const score = E.pricing.asSide('runner', () => {
-    E.handValues.decisionContext(ctx, 'runner');
-    return E.runs.runScore(v, p.server, opts);
-  }) as number;
+  const score = E.pricing.asSide('runner', () => E.handValues.inDecision(ctx, 'runner', () => E.runs.runScore(v, p.server, opts))) as number;
   const evalRs = G.__dtRs ?? {};
   // The parts the ranking read: the hooked tree's record of the very call (the eval re-ask is the check beside it)
   const rs = p.rs ?? evalRs;

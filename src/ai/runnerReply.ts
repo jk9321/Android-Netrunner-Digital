@@ -1,6 +1,6 @@
-import { CardInstance, GameState, RdKnownCard, cardDef, createRng, getCardDefinition, knownInRd, nextFloat, shuffleInPlace } from '../core';
+import { CardInstance, GameState, RdKnownCard, activePrompt, cardDef, createRng, getCardDefinition, nextFloat, shuffleInPlace } from '../core';
 import { certainInArchives, certainInHand, dealTripwire, isAdvanceable, runnerRootKinds } from '../core/engine/helpers';
-import { knownToCorpInRd, rdSharesKnownToRunner, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
+import { certainRdMarks, knownToCorpInRd, runnerRdMarksForCorp } from '../core/engine/rdKnowledge';
 import type { RunnerMemory } from './runs';
 import { HeuristicCorpAI } from './corpAI';
 import { GameRunner } from './playout';
@@ -11,6 +11,7 @@ import { inReply, note, tally } from './diagnostics';
 import { noteSwallowed } from './stepCounts';
 import { currentDecisionSeed, searchPiece } from './turnPlanner';
 import { frameChecks, plan } from './pricing';
+import { promptInPlaceIds, promptShownIds } from './runner/prompt';
 import { corpKnowsRd, corpSeenGrip, replySamples, setOraclePlayout } from './oracle';
 
 // plan.oracle.safestRemote's play-out: the batch Runner (HeuristicRunnerAI, its planner on) against the rule-based Corp
@@ -58,8 +59,8 @@ export function sampledReply(): boolean {
  */
 export function knownRdSlots(state: GameState): Set<number> {
   const slots = new Set<number>();
-  // B4a 7(e): an exact mark not open to doubt (no `left`) is where its card is (the engine's invariant); no id is read
-  for (const e of knownInRd(state)) if (e.lo === e.hi && !e.left) slots.add(e.lo);
+  // B4a 7(e): an exact mark not open to doubt (certainRdMarks: no `left`) is where its card is (the engine's invariant); no id is read
+  for (const e of certainRdMarks(state)) if (!e.n0 && e.lo === e.hi) slots.add(e.lo);
   return slots;
 }
 
@@ -170,12 +171,17 @@ export function runnerUnknownSlots(state: GameState, memory?: RunnerMemory): { i
  * which cards are unseen, not on where they really are. The one owner of "the Runner's guess of the Corp's hidden cards"
  * (ai-honest-runner-view; red team 3): guessRunnerView and the Hard AI's determinize both call it.
  */
-export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: RunnerMemory, canonical = false): void {
-  const slots = runnerUnknownSlots(s, memory);
+export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: RunnerMemory, canonical = false, pins?: ReadonlySet<string>): void {
+  const all = runnerUnknownSlots(s, memory);
+  // B4d (c): a pinned card (one the Runner's prompt shows) keeps its identity and leaves the slots; the rest are dealt
+  // around it (dealSlots counts it toward what the Runner surely knows). No pins: the slots, so the deal, as before
+  const free = (cards: CardInstance[]) => (pins?.size ? cards.filter(c => !pins.has(c.instanceId)) : cards);
+  const slots = { ice: free(all.ice), root: free(all.root), loose: free(all.loose) };
+  const pinned = pins?.size ? [...all.ice, ...all.root, ...all.loose].filter(c => pins.has(c.instanceId)) : [];
   const cards = [...slots.ice, ...slots.root, ...slots.loose];
   const was = cards.map(c => c.cardCode);
   try {
-    dealSlots(s, slots, random, canonical, true);
+    dealSlots(s, slots, random, canonical, true, pinned);
   } catch (e) {
     if (!(e instanceof Error && e.message.startsWith(NO_CODE))) throw e;
     // Recorded first, so a catch in a play-out can't hide it (B4c part 4); a throw under the tests and fuzzer (frameChecks)
@@ -184,7 +190,7 @@ export function dealRunnerUnknowns(s: GameState, random: () => number, memory?: 
     dealFallbacks.count++;
     console.warn(`[deal-fallback] ${e.message}; this guess is dealt without the Runner's knowledge (${dealFallbacks.count} so far)`);
     cards.forEach((c, i) => (c.cardCode = was[i]));
-    dealSlots(s, slots, random, canonical, false);
+    dealSlots(s, slots, random, canonical, false, pinned);
   }
 }
 
@@ -196,8 +202,13 @@ const NO_CODE = 'dealRunnerUnknowns: a slot found no code';
  */
 export const dealFallbacks = { count: 0 };
 
-/** One deal of the slots (dealRunnerUnknowns); `keepKnown` deals what the Runner surely knows to its zone first. */
-function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerUnknownSlots>, random: () => number, canonical: boolean, keepKnown: boolean): void {
+/**
+ * One deal of the slots (dealRunnerUnknowns); `keepKnown` deals what the Runner surely knows to its zone first.
+ * `pinned` (B4d (c)): the Corp cards the prompt shows, which keep their codes outside the slots; they count toward the
+ * certain counts and the R&D marks they meet (else the zone would get a phantom extra copy, red team RT12), and a pinned
+ * agenda or asset holds its remote root's one (3.3.1).
+ */
+function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerUnknownSlots>, random: () => number, canonical: boolean, keepKnown: boolean, pinned: CardInstance[] = []): void {
   const codes = [...ice, ...root, ...loose].map(c => c.cardCode);
   if (canonical) codes.sort();
   for (let i = codes.length - 1; i > 0; i--) {
@@ -234,13 +245,18 @@ function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerU
   if (keepKnown) {
     for (const [zone, certain] of [[s.corp.hq, certainInHand(s, 'corp')], [s.corp.archives.faceDown, certainInArchives(s)]] as const) {
       const slots = looseOf(zone);
-      for (const [code, n] of certain) for (let i = 0; i < n; i++) keep(slots, code);
+      const pins = pinned.filter(c => zone.includes(c));
+      for (const [code, n] of certain) for (let i = pins.filter(c => c.cardCode === code).length; i < n; i++) keep(slots, code);
     }
     const rdLoose = looseOf(s.corp.rd);
-    for (const e of [...knownInRd(s), ...rdSharesKnownToRunner(s)]) {
-      if (e.left || (e.lo === e.hi && !e.n0)) continue;
-      keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
+    const marks = certainRdMarks(s).filter(e => !(e.lo === e.hi && !e.n0));
+    // A pinned R&D card is the card of one mark of its code that can hold its place (a share anywhere, an interval inside it)
+    for (const card of pinned) {
+      const at = s.corp.rd.indexOf(card);
+      const met = at < 0 ? -1 : marks.findIndex(e => e.code === card.cardCode && (e.n0 !== undefined || (at >= e.lo && at <= e.hi)));
+      if (met >= 0) marks.splice(met, 1);
     }
+    for (const e of marks) keep(e.n0 ? rdLoose : rdLoose.filter(c => { const at = s.corp.rd.indexOf(c); return at >= e.lo && at <= e.hi; }), e.code);
   }
   for (const card of ice) card.cardCode = dealt(take(code => typeOf(code) === 'ice'));
   // B4b: a root slot gets a kind it can be (runnerRootKinds, from open information: 3.6.1, 3.2.1, 3.3.1, 4.6.6e): an
@@ -252,6 +268,7 @@ function dealSlots(s: GameState, { ice, root, loose }: ReturnType<typeof runnerU
   const holdsOne = new Set<string | undefined>();
   const isUpgrade = (code: string) => typeOf(code) === 'upgrade';
   const isOne = (code: string) => typeOf(code) === 'agenda' || typeOf(code) === 'asset';
+  for (const card of pinned) if (serverOf.has(card) && isOne(card.cardCode)) holdsOne.add(serverOf.get(card));
   const deal = (card: CardInstance, fits: (code: string) => boolean) => {
     const server = serverOf.get(card);
     const code = dealt((holdsOne.has(server) ? take(code => isUpgrade(code) && fits(code)) ?? take(isUpgrade) : take(fits)) ?? take(isRoot));
@@ -289,9 +306,21 @@ export function guessRunnerView(state: GameState, k: number, memory?: RunnerMemo
   const { rng, order, common } = dealFor(state, k);
   const stack = shuffleInPlace(rng, order([...state.runner.stack]));
   const view = withCorpCardCopies(state);
-  dealRunnerUnknowns(view, () => nextFloat(rng), memory, common);
+  dealRunnerUnknowns(view, () => nextFloat(rng), memory, common, promptPins(state));
   // The Corp's memory of R&D is not the Runner's to read (red team 2026-11-16 corp-rd-memory, finding 7; 4.2.2)
   return { ...view, rng: createRng(rng.state), runner: { ...state.runner, stack }, corp: { ...view.corp, rdKnownToCorp: undefined } };
+}
+
+/**
+ * B4d (c), red team RT2: the Corp cards the Runner's active prompt shows by identity or in place (runner/prompt.ts
+ * promptShownIds, promptInPlaceIds), which the deal keeps as pinned identities, so the honest prompt view needs no swap
+ * and the deal's rules hold on it (3.3.1, 10.2.2b). Read from the state itself: runnerDecisionView keeps one view per
+ * state, and promptShownIds freezes the state it reads (the tests' tripwire). Undefined outside a Runner prompt.
+ */
+function promptPins(state: GameState): ReadonlySet<string> | undefined {
+  if (activePrompt(state)?.side !== 'runner') return undefined;
+  const ids = new Set([...promptShownIds(state), ...promptInPlaceIds(state)]);
+  return ids.size ? ids : undefined;
 }
 
 /** Remotes with an agenda and no ice (the open-steal loss; the diagnostics count the reply turns that began with one, and how many ran it). */

@@ -141,19 +141,20 @@ export class HeuristicRunnerAI implements Agent {
       this.freeActions.start(state, state.runner.clicks);
       // ai-honest-runner-view (red team 1; rule 10.2.2a): the baseline, the runs and the actions are all scored on the
       // Runner's own view, so the guess of the Corp's hidden cards is not a constant offset against END_TURN, REMOVE_TAG,
-      // runScore and the free-action cut
+      // runScore and the free-action cut. B4d (e), tracker R-16: the save-up target, the nudge and Chain Reaction's bonus
+      // read the view too; the raw state left here and in scoreMain reads only the Runner's own cards and open counters
       const view = this.ownView(state);
       const before = evaluate(view, 'runner');
       // Nowhere worth running and breakers missing: dig for them
       this.digForBreakers =
         rigCoverage(state.runner.rig.programs).covered.size < 3 &&
         !legal.some(a => a.type === 'INITIATE_RUN' && runScore(view, a.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary }) > 0);
-      this.savingFor = this.synergy ? saveUpTarget(state, this.memory) : null;
+      this.savingFor = this.synergy ? saveUpTarget(view, this.memory) : null;
       return [...legal, ...makeRoomInstalls(state)]
         .map(action => {
           let score = this.scoreMain(state, action, before, view);
           // Deck-aware nudge: small, and only for moves the AI would consider anyway
-          if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(state, 'runner', action).bonus;
+          if (this.synergy && Number.isFinite(score) && action.type !== 'END_TURN') score += nudge(view, 'runner', action).bonus;
           return { action, score };
         })
         .sort((a, b) => b.score - a.score);
@@ -199,7 +200,7 @@ export class HeuristicRunnerAI implements Agent {
         return RUNNER_TERMS.endTurn;
       case 'INITIATE_RUN':
         // Chain Reaction: a run on a central it still needs is worth a share of the play, if it succeeds
-        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });
+        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(view, action.targetServerId) });
       case 'REMOVE_TAG':
         return state.runner.rig.resources.length > 0 ? RUNNER_TERMS.tagRemovalResource : RUNNER_TERMS.tagRemovalNoResource;
     }

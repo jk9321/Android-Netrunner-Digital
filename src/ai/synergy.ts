@@ -1,4 +1,5 @@
 import { CardInstance, GameAction, GameState, SideCode, cardDef, findCardAnywhere } from '../core';
+import { openInstalled } from '../core/engine/helpers';
 import { THEMES, Theme, ThemeWeights, cardSynergy } from './synergyTags';
 
 /**
@@ -654,7 +655,9 @@ function moveFeatures(state: GameState, side: SideCode, action: GameAction): { f
       if (id === 'hq' || id === 'rd' || id === 'archives') bump(id, BASIC);
       const root = state.corp.servers[id]?.root ?? [];
       if (root.some(c => c.isRezzed && cardDef(c).type_code === 'asset' && ECON_RESOURCE(c))) bump('trashEcon');
-      if (root.some(c => cardDef(c).type_code !== 'agenda' && (c.isRezzed || c.advancementCounters === 0))) bump('trash', 0.5);
+      // B4d (e): a root card's type is read only when it is open or known to the Runner (the engine's openInstalled; rule
+      // 10.2.2a); an unknown one may be trashable
+      if (root.some(c => (c.isRezzed || c.advancementCounters === 0) && (!openInstalled(c) || cardDef(c).type_code !== 'agenda'))) bump('trash', 0.5);
       break;
     }
   }

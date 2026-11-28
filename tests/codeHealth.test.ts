@@ -142,9 +142,6 @@ const CARD_COMPARISONS: Record<string, string> = {
     "Manegarm (class P): approachClickReserve's 5 credits a copy or 2 clicks; R-B: one approach toll owner",
   'runnerAI.ts: const full = state.runner.rig.programs.find(p => p.cardCode === READ_WRITE_SHARE && (p.hostedCards?.length ?? 0) >= 4);':
     "Read-Write Share (class P): the full-share rule, R-B decision 1's counted-question slot",
-  'runner/prompt.ts: if (mine.cardCode === want) {': "honestPromptView: no card fact, the dealt code against the card's real one (already kept; B3 commit 2)",
-  'runner/prompt.ts: const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));':
-    "honestPromptView: no card fact, the slot the deal gave the shown card's identity (the swap; B3 commit 2)",
 };
 
 describe('AI code health (audit guards)', () => {
@@ -898,10 +895,14 @@ describe('AI code health (audit guards)', () => {
   // Then + 61, corp/ + 1 (ai-speed-pass, lever G: addendum-g.md rev 2, ruling-rev0.md "G0, ruled", caps ruled 2026-11-28
   // 00:44Z; src/ai/boards.ts about 50, one line at each sharing call site, the boardsTop reset in handValues.ts inDecision,
   // imports; corp/ + 1 is placement.ts's import): corp/ 3,982, src/ai 17,882 (both counted on beta 2bac843's 17,792)
-  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 17,882 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals, ai-value-b5-retime, ai-speed-pass)', () => {
+  // Then + 74 (ai-runner-rb-fixes, B4d brief rev 2: accessClicks and accessCredits, the one reader of the credits left at
+  // the access (d); the flatline break with all the credits (f); the deal's prompt pins (c), less honestPromptView's swap;
+  // the view args and the honest moveFeatures (e), less BOTULUS; 59fa119's rdOddsMarks moved two comment lines to src/core): on
+  // the speed pass's 17,882: src/ai 17,956
+  it('keeps src/ai/corp at or under 3,982 lines and src/ai at or under 17,956 (Stage C hand-off, ai-corp-honest-order, ai-value-time, ai-playout-lines, ai-honest-runner-view, ai-honest-corp-decision, ai-value-owners, ai-corp-rd-memory, ai-value-b1, ai-value-b2, ai-hold-reentry, ai-value-b3, ai-tag-loss-time, ai-value-b6, ai-threat-delete, ai-breaker-guard-key, ai-tag-loss-bp, ai-hold-facts, ai-hold-walk, ai-flood-bound, ai-hold-retry, ai-winnow-reach, ai-hold-stealth, ai-rez-keep, ai-runner-money, ai-run-answers, ai-hold-audit-fixes, ai-rez-set, ai-hold-inputs, ai-rez-fixes, ai-placement-wiring, ai-foaf-click-money, ai-runner-facts, ai-runner-core, ai-runner-run, ai-runner-trash-owner, ai-runner-last-credits-fix, ai-runner-prompt-view, ai-cache-keys, ai-pricing-frames, ai-runner-hidden-zones, ai-b4a-knowledge-fix, ai-tag-clock-input, ai-punisher-field, ai-deck-arrivals, ai-value-b5-retime, ai-speed-pass, ai-runner-rb-fixes)', () => {
     // One constant per cap, read by both checks (audit 2026-11-27 item 3: the slack check had kept an older number)
     const CORP_CAP = 3982;
-    const AI_CAP = 17882;
+    const AI_CAP = 17956;
     const corp = aiFiles().filter(f => f.replace(/\\/g, '/').startsWith('corp/')).reduce((n, f) => n + lines(f), 0);
     expect(corp).toBeLessThanOrEqual(CORP_CAP);
     const all = aiFiles().reduce((n, f) => n + lines(f), 0);

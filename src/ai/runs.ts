@@ -1,4 +1,4 @@
-import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript, knownInRd } from '../core';
+import { CardInstance, GameState, activePrompt, cardDef, getCardDefinition, getCardScript } from '../core';
 import {
   boostCostOf,
   breakerScript,
@@ -10,11 +10,12 @@ import {
   iceSubtypes,
   installedIcebreakers,
   isBioroid,
+  encounteredIce,
 } from '../core/engine/ice';
 import { availableCredits, counters, rezCost, stealthCredits, threatLevel, trashCost, turnFlag } from '../core/engine/cardEffects';
 import { cannotStealOrTrash, stealCost } from '../core/engine/actions/run';
-import { certainInArchives, certainInHand, runnerRootKinds } from '../core/engine/helpers';
-import { rdSharesKnownToRunner } from '../core/engine/rdKnowledge';
+import { certainInArchives, certainInHand, iceAtPosition, runnerRootKinds } from '../core/engine/helpers';
+import { certainRdMarks, rdOddsMarks } from '../core/engine/rdKnowledge';
 import { corpCardValue, hiddenCardOdds, tagTaken } from './evaluate';
 import { accessDamage, agendaOdds, coreDamageWorth, counterWorthOf, damageWorth, flatlineOdds, runnerEffect, stealDamage } from './effectValues';
 import { clickPrice } from './handValues';
@@ -46,8 +47,6 @@ export function plannedSubroutines(state: GameState, ice: CardInstance): Subrout
   const gains = CARDS[ice.cardCode]?.gainsOnEncounter?.(state, ice) ?? [];
   return gains.length ? [...subs, ...gains] : subs;
 }
-// Botulus: read by prompts.ts only (its prompt block, R-B's prompt work); the run model reads its entry's holdFacts
-export const BOTULUS = '30004';
 // R-A A-move: the run model reads a card's facts from its entry (cards/types.ts RunFacts), never by its number; these
 // read the vocabulary's conditions, and every price stays where its reader is
 const runFactsOf = (code: string | null | undefined) => (code ? CARDS[code]?.runFacts : undefined);
@@ -568,7 +567,9 @@ export function breakPlans(state: GameState, ice: CardInstance, subCount: number
     if (byCounter && byCounter.creditsPerSubroutine === undefined) {
       // Audrey v2: a virus counter breaks up to 2; a card from the grip is +3 strength
       const uses = Math.ceil(subCount / script.breakMax);
-      const boosts = Math.max(0, Math.ceil((iceStr - strength) / facts!.boostPerGripCard!.strength));
+      // R-17: an entry with no per-card boost cannot raise its strength (no assertion: the plan is left out)
+      const perCard = facts?.boostPerGripCard?.strength;
+      const boosts = iceStr <= strength ? 0 : perCard ? Math.ceil((iceStr - strength) / perCard) : Infinity;
       if (uses > counters(breaker, byCounter.kind) || boosts > (view.gripCards ?? state.runner.grip.length)) continue;
       // Counters and discards, no credits
       const value = uses * AUDREY_COUNTER + boosts * AUDREY_DISCARD;
@@ -721,20 +722,38 @@ const subroutineTags = (label: string): number => Number(label.match(/give the r
 
 /**
  * The damage letting these subroutines resolve does, one at a time in printed order (rule 9.8.7b) with the tags given on
- * the way, and the first one (by index `i`) at which the total is more than the grip: a flatline (10.4.4). The owner
- * of "can the tank get through": the run's price (plainIcePrice) and the encounter's break choice (runnerAI) both read it.
+ * the way, and the first one (by index `i`) at which the total is more than the grip: the tank can't get through
+ * (10.4.4). The owner of "can the tank get through": the run's price (plainIcePrice) and the encounter's break choice
+ * (runner/run.ts) both read it.
+ *
+ * `flatline` (B4d (f), red team RT13): the first subroutine at which the damage the Runner cannot refuse is more than
+ * the grip, the Runner flatlined (rules 1.7.2b, 10.4.4). Not `lethal` where the damage is the Runner's choice: "end the
+ * run unless the Runner suffers N net damage" (Semak-samun) more than the grip ends the run instead, and no subroutine
+ * after it resolves. Not from a BLOCK either: an end-the-run subroutine is no flatline. Known gap (RT8, none in the pool
+ * today): a damage subroutine printed after an end-the-run one that will fire still counts, as the walk here does not
+ * stop at an end-the-run subroutine.
  */
-export function tankDamage(state: GameState, subs: readonly { label: string; i: number }[]): { damage: number; lethal?: number } {
+export function tankDamage(state: GameState, subs: readonly { label: string; i: number }[]): { damage: number; lethal?: number; flatline?: number } {
+  const grip = state.runner.grip.length;
   let tags = state.runner.tags;
   let damage = 0;
   let lethal: number | undefined;
+  let forced = 0;
+  let flatline: number | undefined;
+  let ended = false;
   for (const p of [...subs].sort((a, b) => a.i - b.i)) {
-    damage += subroutineDamage(p.label, tags);
+    const d = subroutineDamage(p.label, tags);
+    damage += d;
     tags += subroutineTags(p.label);
-    if (lethal === undefined && damage > state.runner.grip.length) lethal = p.i;
+    if (lethal === undefined && damage > grip) lethal = p.i;
+    if (ended || flatline !== undefined) continue;
+    if (CHOSEN_DAMAGE.test(p.label) && forced + d > grip) ended = true;
+    else if ((forced += d) > grip) flatline = p.i;
   }
-  return { damage, lethal };
+  return { damage, lethal, flatline };
 }
+/** A subroutine whose damage the Runner may refuse, ending the run instead (subroutineDamage counts it as taken). */
+const CHOSEN_DAMAGE = /unless the runner suffers (\d+) (?:net|meat) damage/i;
 
 function plainIcePrice(state: GameState, ice: CardInstance): IcePrice {
   // Botulus breaks the worst subroutines for free; the rest are tanked or broken
@@ -944,7 +963,7 @@ function unseenTraps(state: GameState, memory?: RunnerMemory): { traps: string[]
   };
   // B4a 7(d): HQ, R&D and facedown Archives by the marks still certain (code and count; 10.2.2b, 1.12.3), not the map
   for (const [code, n] of [...certainInHand(state, 'corp'), ...certainInArchives(state)]) for (let i = 0; i < n; i++) out(code);
-  for (const e of [...knownInRd(state), ...rdSharesKnownToRunner(state)]) if (!e.left) out(e.code);
+  for (const e of certainRdMarks(state)) out(e.code);
   // An installed card by the code it saw, not whichever code its instance holds now: a planner deal re-deals the hidden
   // cards among their instances (the threat's on-hit audit read the re-dealt code)
   for (const card of installed) {
@@ -1020,10 +1039,10 @@ const iceBump = (base: number, server: { ice: CardInstance[] }) => Math.min(0.9,
  * here, so a second run on the same top cards is not worth making.
  */
 function rdWorth(state: GameState, accesses: number, odds: number, central: number, from = 0, grip = state.runner.grip.length): number {
-  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place (a draw since is a loss the share prices), not where an exact mark is
-  const known = knownInRd(state);
-  const exact = new Set(known.filter(e => e.lo === e.hi && !e.left).map(e => e.lo));
-  const marks = [...known, ...rdSharesKnownToRunner(state)];
+  // B4a 7(b): a card seen before a shuffle is in R&D at 1 / n0 a place, not where an exact mark is. B4d (a): the engine's
+  // marks for R&D's odds (rdOddsMarks: a placed mark that may have left prices as unseen, a share keeps its odds)
+  const marks = rdOddsMarks(state);
+  const exact = new Set(marks.filter(e => !e.n0 && e.lo === e.hi).map(e => e.lo));
   let value = 0;
   for (let i = from; i < Math.min(from + accesses, state.corp.rd.length); i++) {
     let seen = 0;
@@ -1067,12 +1086,48 @@ const UNSEEN_AGENDA = { instanceId: '', cardCode: '' } as CardInstance;
 export function stealTax(state: GameState, serverId: string, agenda: CardInstance = UNSEEN_AGENDA): number | null {
   const cost = stealCost(state, agenda);
   if (!cost.clicks && !cost.credits) return 0;
-  const server = state.corp.servers[serverId];
-  const clicks = state.activeRun ? state.runner.clicks : state.runner.clicks - 1 - bioroidClicks(state, server?.ice ?? []);
-  const ice = state.activeRun || !server ? 0 : server.ice.reduce((n, c) => n + (c.isRezzed ? icePrice(state, c).credits : 0), 0);
-  const credits = (state.activeRun ? availableCredits(state, 'runner') : runBudget(state)) - ice;
-  if (clicks < cost.clicks || credits < cost.credits) return null;
+  const clicks = accessClicks(state, serverId);
+  if (clicks < cost.clicks || accessCredits(state, serverId).left < cost.credits) return null;
   return cost.clicks * clickRate() + creditCost(state, cost.credits);
+}
+
+/** The Runner's clicks at the access of a run on this server: now during a run, else after the run's own click and the bioroids' clicks. */
+function accessClicks(state: GameState, serverId: string): number {
+  return state.activeRun ? state.runner.clicks : state.runner.clicks - 1 - bioroidClicks(state, state.corp.servers[serverId]?.ice ?? []);
+}
+
+/**
+ * B4d (d), the exploit hunt's finding 1 (the trash lock): the credits the Runner has left at the access of a run on this
+ * server, for a trash of `trash` (else for a steal's additional costs), and the credit pool's part of them. The one owner
+ * of "the credits left at the access": stealTax and trashNet read it. A stopgap: R-14l (R-C1, the walk's end board)
+ * replaces it.
+ *  - The spend. Before the run (or at its initiation): icePrice's credits over the server's rezzed ice, plus the approach
+ *    toll (approachCost) at the clicks then. The tank is priced 0 credits there though the encounter may break
+ *    (encounterAction breaks every subroutine priced 1 or more; red team RT4, the Tithe board pinned under R-14l).
+ *    During the run on this server (RT6): creditsAhead (the rezzed ice further in, the toll), plus what the ice being
+ *    approached or encountered still needs (iceCreditNeed, its broken subroutines left out).
+ *  - The purse (RT5): runBudget (the credits that pay only during runs count before one: Methuselah, Touchstone, Trick
+ *    Shot), plus, for a trash, the credits that pay only a trash (Azimat's paysFor; Bahia Bands' during a run): the
+ *    engine's spendCredits pays the ice from the run-only and hosted credits first, then the pool, and the trash from
+ *    its own sources first.
+ */
+function accessCredits(state: GameState, serverId: string, trash?: CardInstance): { left: number; pool: number } {
+  const server = state.corp.servers[serverId];
+  const run = state.activeRun;
+  let spend = 0;
+  if (run && run.server === serverId && run.phase !== 'initiation') {
+    const at = iceAtPosition(state);
+    const now = encounteredIce(state);
+    const current = run.encounter && now ? iceCreditNeed(state, now, run.encounter.broken) : run.phase === 'approach_ice' && at?.isRezzed ? iceCreditNeed(state, at) : 0;
+    spend = creditsAhead(state) + current;
+  } else if (server) {
+    const ice = server.ice.reduce((n, c) => n + (c.isRezzed ? icePrice(state, c).credits : 0), 0);
+    spend = ice + (approachCost(state, serverId, accessClicks(state, serverId), runBudget(state) - ice)?.credits ?? 0);
+  }
+  const budget = runBudget(state);
+  const only = trash ? availableCredits(state, 'runner', { kind: 'trash', card: trash }) - availableCredits(state, 'runner') : 0;
+  const pool = state.runner.credits - Math.max(0, spend - Math.max(0, budget - state.runner.credits));
+  return { left: Math.max(0, budget - spend) + only, pool: Math.max(0, pool) };
 }
 
 /**
@@ -1148,16 +1203,17 @@ const stealNet = (worth: number, tax: number | null, hit: number) => (tax === nu
  * tagCost after the trash is paid); never below 0, and 0 where the engine offers no trash (offerMidAccess: the cost, the
  * credits that can pay it, cannotStealOrTrash, the grip cost): a trash is the Runner's choice (rules 1.19.2, 7.1.5).
  */
-function trashNet(state: GameState, card: CardInstance): number {
+function trashNet(state: GameState, card: CardInstance, serverId: string): number {
   const cost = trashCost(state, card);
   if (cost == null || cannotStealOrTrash(state, card)) return 0;
-  const purse = availableCredits(state, 'runner', { kind: 'trash', card });
+  // B4d (d): the credits left at the access, after the run's ice (accessCredits), not the purse before the run
+  const { left: purse, pool } = accessCredits(state, serverId, card);
   if (purse < cost || state.runner.grip.length < (getCardScript(card.cardCode)?.trashGripCost ?? 0)) return 0;
   const net = corpCardValue(card, state, 'runner', true) - creditCost(state, cost);
   const hit = runFactsOf(card.cardCode)?.trashedByRunner;
   if (!hit || (hit.rezzed && !card.isRezzed) || !meets(state, hit.when)) return Math.max(0, net);
-  // The pool pays what the other credits that can pay a trash do not (spendCredits pays those first)
-  const left = state.runner.credits - Math.max(0, cost - Math.max(0, purse - state.runner.credits));
+  // The pool pays what the other credits that can pay a trash do not (spendCredits pays those first); the ice took its part first
+  const left = pool - Math.max(0, cost - Math.max(0, purse - pool));
   const tag = memo(state, `tagAfterTrash:${left}`, () => tagCost({ ...state, runner: { ...state.runner, credits: left } }));
   return Math.max(0, net - hit.tags * tag);
 }
@@ -1198,7 +1254,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // A faceup agenda: a sure steal, public to both sides. Under BANGUN it costs 2 meat damage and a tag;
       // installed faceup by its own text (Sacrifice Zone Expansion, rules 3.2.3a) it costs nothing extra
       const bangun = runFactsOf(state.corp.identity.cardCode)?.faceupAgendaAccess;
-      if (bangun && state.runner.grip.length < bangun.meatDamage) return 0;
+      if (bangun && grip < bangun.meatDamage) return 0; // the grip after the ice's damage, as below (rule 10.4.4)
       const tax = stealTax(state, serverId, card);
       if (tax === null) continue;
       value += stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote) - tax - knownStealHit(state, card.cardCode, grip) - (bangun ? damageWorth(state, bangun.meatDamage, false, grip) + bangun.tags * tagCost(state) : 0);
@@ -1212,7 +1268,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
         value += stealNet(stealWorth(state, cardDef(card).agenda_points ?? 1, DENY.remote), stealTax(state, serverId, card), knownStealHit(state, card.cardCode, grip));
         continue;
       }
-      value += trashNet(state, card);
+      value += trashNet(state, card, serverId);
     } else if (!card.isRezzed) {
       const agenda = remoteAgendaOdds(state, server, card, trap);
       // Not an agenda: a trap (Urtica: 2 net damage plus its counters) or an asset to trash; B4b (c): none where the root
@@ -1221,7 +1277,7 @@ function serverWorth(state: GameState, serverId: string, extraAccesses: number, 
       // plan.oneAgendaGuess: the points of the agendas still unseen, as the board counts them (not the whole decklist's)
       const hiddenPoints = plan().oneAgendaGuess ? hiddenCardOdds(state).agendaPoints : points;
       value += agenda * stealNet(stealWorth(state, hiddenPoints, card.advancementCounters > 0 ? DENY.remote : DENY.central), unseenTax, hit) - trapShare * trapHit(state, card.advancementCounters, grip, memory) + (1 - agenda - trapShare) * 1;
-    } else value += trashNet(state, card);
+    } else value += trashNet(state, card, serverId);
   }
   return value;
 }

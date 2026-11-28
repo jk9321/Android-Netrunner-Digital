@@ -20,6 +20,7 @@ const G = `(globalThis as any).__dt`;
 // agent is passed to its hooks through a global set around chooseAction (R-C1 Part 0, R-26: ported to beta 0b9d44a)
 const A = `(globalThis as any).__dtAgent`;
 
+// R-83 (B4d): the cannot-get-through hook reads B4d (f)'s `!survive()`; O1b's wrapper (trash-owner-decided.ts) is gone
 export const HOOKED: Patch[] = [
   // The deciding agent for the in-run hooks below (saved and restored: a look-ahead's or a reply's agent decides inside)
   [
@@ -30,8 +31,8 @@ export const HOOKED: Patch[] = [
   // S0: the ranking's price of each run it scores (the view it priced on, the options it used, the score)
   [
     'ai/runnerAI.ts',
-    `        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) });`,
-    `        {\n          const __o = { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(state, action.targetServerId) };\n          const __s = runScore(view, action.targetServerId, __o);\n          ${G}?.price(this, state, action, action.targetServerId, view, __o, __s);\n          return __s;\n        }`,
+    `        return runScore(view, action.targetServerId, { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(view, action.targetServerId) });`,
+    `        {\n          const __o = { memory: this.memory, wary: this.synergy && tuning.wary, successBonus: chainReactionBonus(view, action.targetServerId) };\n          const __s = runScore(view, action.targetServerId, __o);\n          ${G}?.price(this, state, action, action.targetServerId, view, __o, __s);\n          return __s;\n        }`,
   ],
   [
     'ai/runnerAI.ts',
@@ -67,8 +68,8 @@ export const HOOKED: Patch[] = [
   ],
   [
     'ai/runner/run.ts',
-    `    if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2) return undefined;`,
-    `    const __need = iceCreditNeed(state, ice, encounter.broken);\n    if (credits < __need && before < 2) {\n      ${G}?.enc(${A}, state, 'cannotGetThrough', { credits, need: __need, ahead, before });\n      return undefined;\n    }`,
+    `    if (credits < iceCreditNeed(state, ice, encounter.broken) && before < 2 && !survive()) return undefined;`,
+    `    const __need = iceCreditNeed(state, ice, encounter.broken);\n    if (credits < __need && before < 2 && !survive()) {\n      ${G}?.enc(${A}, state, 'cannotGetThrough', { credits, need: __need, ahead, before });\n      return undefined;\n    }`,
   ],
   [
     'ai/runner/run.ts',

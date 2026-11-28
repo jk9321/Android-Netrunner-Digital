@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, activePrompt, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction } from '../../core';
+import { CardInstance, GameAction, GameState, activePrompt, findCardAnywhere, getLegalActions, isLegalAction } from '../../core';
 import type { RunnerMemory } from '../runs';
 import { promptAnswers, promptInPlaceIds, scoreAnswer, shownByPrompt, simulate, withChainWork } from '../prompts';
 import { freezeAsked } from '../valueModel';
@@ -8,11 +8,12 @@ import { freezeAsked } from '../valueModel';
  * on its own view (rule 10.2.2a), with what the prompt shows it. The cards a prompt names fall in three classes, read
  * from the engine's rule for the Runner's screen (core/view.ts viewFor: the prompt's cards, each with its face or not):
  *  - shown by identity: a card the screen shows face up (a search's candidates, a card being installed from a hidden
- *    zone, the card being accessed). A Corp card the deal recoded gets its identity back by a swap with the card the deal
- *    gave that identity, so the deal's pool stays right; a stack card keeps its identity in any deal (the deal shuffles
- *    the stack's cards, not their codes).
+ *    zone, the card being accessed). A Corp card is a pinned identity of the deal itself (B4d (c): runnerReply.ts
+ *    guessRunnerView deals the rest around it, so the deal's pool and rules hold); a stack card keeps its identity in
+ *    any deal (the deal shuffles the stack's cards, not their codes).
  *  - shown in place: a card the prompt shows by its text whose place the Runner knows (its entry's `promptShows.inPlace`,
- *    MuslihaT's top card): put back where it really is, by a swap with the card the deal put there.
+ *    MuslihaT's top card): a Corp card pinned as above; a stack card put back where it really is, by a swap with the
+ *    card the deal put there.
  *  - named: a card only an option names, facedown on the screen: read as unknown (the deal's, which the readers treat as
  *    an unseen card), never put back.
  * An unlisted prompt reads its cards by these rules; nothing is answered on the real state. The views are copies: the
@@ -94,56 +95,30 @@ const shownByState = new WeakMap<GameState, ReadonlySet<string>>();
 /** The cards the active prompt shows in place (prompts.ts owns it since F117: D1 (iii) reads it there, and prompts.ts cannot import this file). */
 export { promptInPlaceIds };
 
-/** A copy of `state` with the Corp card `id` (installed, HQ, R&D or facedown Archives) given `code`, in its place. */
-function recoded(state: GameState, id: string, code: string): GameState {
-  const fix = (cards: CardInstance[]) => (cards.some(c => c.instanceId === id) ? cards.map(c => (c.instanceId === id ? { ...c, cardCode: code } : c)) : cards);
-  const corp = state.corp;
-  const servers = Object.fromEntries(Object.entries(corp.servers).map(([k, sv]) => [k, { ...sv, ice: fix(sv.ice), root: fix(sv.root) }]));
-  return { ...state, corp: { ...corp, hq: fix(corp.hq), rd: fix(corp.rd), archives: { ...corp.archives, faceDown: fix(corp.archives.faceDown) }, servers } };
-}
-
 /**
  * The honest view: `ports.view` with every card the prompt shows by identity or in place kept as it really is (the
- * classes above). `kept`: the ids put back or already right in the view; `unkept`: a shown Corp card no swap could give
- * back (its identity was dealt only to slots its dealt code cannot fill), left as dealt and read as unknown.
+ * classes above). B4d (c), red team RT2: a shown Corp card is a pinned identity of the deal itself (runnerReply.ts
+ * guessRunnerView: the deal keeps it and deals the rest around it, with its root kinds, holdsOne and the certain counts),
+ * so no swap is made here; the swap and its copy of the deal's fit test are gone (one owner of a legal deal). `kept`: the
+ * ids already right in the view; `unkept`: a shown Corp card the view handed in does not hold as it is (a view not dealt
+ * with the pins), left as dealt and read as unknown.
  */
 export function honestPromptView(state: GameState, ports: PromptViewPorts): { view: GameState; kept: Set<string>; unkept: string[] } {
   const shown = promptShownIds(state);
   const inPlace = promptInPlaceIds(state);
   const slots = ports.slots(state);
-  const hidden = new Set([...slots.ice, ...slots.root, ...slots.loose].map(c => c.instanceId));
+  const real = new Map([...slots.ice, ...slots.root, ...slots.loose].map(c => [c.instanceId, c.cardCode]));
   const kept = new Set<string>();
   const unkept: string[] = [];
   let view = ports.view;
-  // Shown by identity: a Corp card the deal recoded, swapped back
-  const real = new Map([...slots.ice, ...slots.root, ...slots.loose].map(c => [c.instanceId, c.cardCode]));
+  // Shown by identity: a Corp card the deal pinned
+  const vs = ports.slots(view);
+  const dealt = new Map([...vs.ice, ...vs.root, ...vs.loose].map(c => [c.instanceId, c.cardCode]));
   for (const id of [...shown, ...inPlace]) {
-    if (!hidden.has(id)) continue;
-    const vs = ports.slots(view);
-    const kind = (cid: string) => (vs.ice.some(c => c.instanceId === cid) ? 'ice' : vs.root.some(c => c.instanceId === cid) ? 'root' : 'loose');
-    const all = [...vs.ice, ...vs.root, ...vs.loose];
-    const mine = all.find(c => c.instanceId === id);
-    const want = real.get(id)!;
-    if (!mine) continue;
-    if (mine.cardCode === want) {
-      kept.add(id);
-      continue;
-    }
-    // The other slot dealt the identity, whose own slot takes the code this card was dealt (an ice slot an ice, a root
-    // slot a root card; a loose card anything): the same test the deal applies
-    const fits = (slot: CardInstance, code: string) => {
-      const k = kind(slot.instanceId);
-      if (k === 'loose') return true;
-      const type = getCardDefinition(code).type_code;
-      return k === 'ice' ? type === 'ice' : ['agenda', 'asset', 'upgrade'].includes(type);
-    };
-    const other = all.find(c => c.instanceId !== id && c.cardCode === want && !kept.has(c.instanceId) && !shown.has(c.instanceId) && fits(c, mine.cardCode));
-    if (!other) {
-      unkept.push(id);
-      continue;
-    }
-    view = recoded(recoded(view, other.instanceId, mine.cardCode), id, want);
-    kept.add(id);
+    const want = real.get(id);
+    if (want === undefined || !dealt.has(id)) continue;
+    if (dealt.get(id) === want) kept.add(id);
+    else unkept.push(id);
   }
   // Shown in place: a stack card put back at its real place (a swap with the card the deal put there)
   for (const id of inPlace) {
