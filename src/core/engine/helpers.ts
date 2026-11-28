@@ -852,6 +852,17 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
   const viaHand = new Set(passed.map(d => d.id));
   const fromDeck = new Set([...prev.corp.rd, ...prev.runner.stack, ...setAsideFrom(prev, 'rd', 'stack')].map(c => c.instanceId).filter(id => !viaHand.has(id)));
   const surfaced = [...after].filter(([id]) => !before.has(id) && !fromDeck.has(id));
+  // A card seen in the hand this action that was open before and is open again, and not in the hand either side of it
+  // (rd-fuzz-fixes class 5: The Basalt Spire adds an agenda from Archives to HQ, the breach steals it): placeSightings
+  // lists it as an arrival, and the Runner saw it go into the open again, so it surfaces from the hand like any other
+  // (one entry of its title goes, the surest; rules 1.12.3, 10.2.2b). surfaced leaves it out (it was open before).
+  const handIds = (s: GameState, o: SideCode) => new Set((o === 'corp' ? s.corp.hq : s.runner.grip).map(c => c.instanceId));
+  const throughHand = (o: SideCode): [string, string][] => {
+    const was = handIds(prev, o);
+    const now = handIds(state, o);
+    const ids = new Set(walk.seen.filter(g => g.owner === o).flatMap(g => g.ids));
+    return [...ids].filter(id => before.has(id) && after.has(id) && !was.has(id) && !now.has(id)).map(id => [id, after.get(id)!]);
+  };
   for (const owner of ['corp', 'runner'] as const) {
     let known = placeSightings(prev, state, owner, walk);
     const listed = known.length > 0;
@@ -878,7 +889,7 @@ function keepHandKnowledge(prev: GameState, state: GameState, walk: RdWalk, skip
       continue;
     }
     // A card that turns up in the open may be any seen card of its title: the surest goes (B4c part 1)
-    for (const [id, code] of surfaced) known = forgetSurest(known, code, id);
+    for (const [id, code] of [...surfaced, ...throughHand(owner)]) known = forgetSurest(known, code, id);
     // A hand card set aside by a search (Let Them Dream searching HQ) is still the viewer's to remember
     setKnownList(state, owner, known.slice(Math.max(0, known.length - hand.length - setAsideFrom(state, owner === 'corp' ? 'hq' : 'grip').length)));
   }
