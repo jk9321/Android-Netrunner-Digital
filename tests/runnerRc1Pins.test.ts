@@ -12,7 +12,8 @@ import { giveCard, installCorpForTest, installIceForTest, installProgramForTest,
 
 /**
  * R-C1 Part 0 pins (plan netrunner-ai/runner-rework/r-c1/plan-draft-1.md section 5 Part 0 item 1; tracker R-14j, R-14k,
- * R-14m, R-73, R-119). Written on beta 0b9d44a, before B4d merges; re-checked on the tree B4d leaves (plan section 8b).
+ * R-14m, R-73, R-119). Written on beta 0b9d44a, before B4d merges; every status below is unchanged on beta 5d88e3f (the
+ * speed pass's lever A and F128, play-identical); to be re-checked on the tree B4d leaves (plan section 8b).
  *
  * Each pin states the right behaviour, not a score. A fault that happens today is a known failure (`it.fails`) beside a
  * setup test that checks the board apart from the pin (an `it.fails` also passes on a thrown error) and a twin that

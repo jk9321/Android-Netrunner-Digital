@@ -16,7 +16,7 @@
  * cards in the grip), 6.9.2b (rez on approach), 7.2.1 (access).
  *
  *   npx vite-node scripts/runner-rework/rc1-part0/flatline-sight.ts -- <deals.json> <out.jsonl> [shard i/n]
- *   (NRDB pool: NRDB=1, the deck names from scripts/nrdb-test-decks.ts)
+ *   (NRDB pool: NRDB=1 adds scripts/nrdb-test-decks.ts, as corp-losses.ts does)
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -33,7 +33,7 @@ const [dealsFile, out, shardArg] = process.argv.slice(2).filter(a => a !== '--')
 const [shard, shards] = (shardArg ?? '0/1').split('/').map(Number);
 const raw = JSON.parse(readFileSync(dealsFile, 'utf8'));
 const deals: any[] = (Array.isArray(raw) ? raw : raw.deals).filter((d: any) => d.flatCause);
-const POOL: any[] = process.env.NRDB ? (NRDB_TEST_DECKS as any[]) : (ALL_DECKS as any[]);
+const POOL: any[] = [...ALL_DECKS, ...(process.env.NRDB ? NRDB_TEST_DECKS : [])]; // as corp-losses.ts DECKS
 const rows: string[] = [];
 
 /** Every Corp card the Runner can see on this board: installed and rezzed, faceup, or marked known to the Runner. */
@@ -68,26 +68,41 @@ deals.forEach((d, i) => {
       run = { server: after.activeRun.server, turn: after.turnNumber, seen: seenIds(before), grip: before.runner.grip.length, lost: { seenIce: 0, unseenIce: 0, seenCard: 0, unseenCard: 0, other: 0 }, sources: [] };
     let klass: Klass | null = null;
     let source = '';
-    if (run && before.activeRun && after.runner.grip.length < before.runner.grip.length) {
+    const flatlined = after.winner === 'corp' && /flatline/i.test(after.winReason ?? '');
+    // A step that took cards, or the step that flatlined (on an empty grip it takes none: 10.4.4)
+    if (run && before.activeRun && (after.runner.grip.length < before.runner.grip.length || flatlined)) {
       const enc = before.activeRun.encounter;
       const ice = enc ? findCardAnywhere(before, enc.iceId) : undefined;
+      // The card accessed in this step, from the step's own log (the damage of an access resolves in the step that
+      // accesses it, before the run's accessed list is read), else the last card the run accessed in an earlier step
+      const newLog = after.log.slice(before.log.length);
+      const accessLine = [...newLog].reverse().find(l => l.event === 'access' && l.cardCode);
       const last = before.activeRun.accessed[before.activeRun.accessed.length - 1];
-      const accessed = !enc && last ? findCardAnywhere(before, last.id) : undefined;
+      const lastCard = !enc && last ? findCardAnywhere(before, last.id) : undefined;
       if (ice) {
         klass = run.seen.has(ice.instanceId) ? 'seenIce' : 'unseenIce';
         source = cardDef(ice).title;
-      } else if (accessed && (before.activeRun.phase === 'access' || before.activeRun.breached)) {
-        klass = run.seen.has(accessed.instanceId) ? 'seenCard' : 'unseenCard';
-        source = cardDef(accessed).title;
+      } else if (accessLine) {
+        // The log names the card, not the instance: the instance is the card of that code in the run's server root, else
+        // in HQ or R&D (the access of a card in the hand or the deck); seen as above (seenIds at the run's start)
+        const sv = before.corp.servers[run.server];
+        const pool = [...(sv?.root ?? []), ...(run.server === 'hq' ? before.corp.hq : run.server === 'rd' ? before.corp.rd : [])];
+        const hit = pool.find(card => card.cardCode === accessLine.cardCode);
+        const seenCode = !!hit && run.seen.has(hit.instanceId);
+        klass = seenCode ? 'seenCard' : 'unseenCard';
+        source = accessLine.message.replace(/^Runner accessed /, '').replace(/\.$/, '');
+      } else if (lastCard && (before.activeRun.phase === 'access' || before.activeRun.breached)) {
+        klass = run.seen.has(lastCard.instanceId) ? 'seenCard' : 'unseenCard';
+        source = cardDef(lastCard).title;
       } else {
         klass = 'other';
-        source = after.log.slice(-2).map(l => l.message).join(' / ');
+        source = newLog.map(l => l.message).join(' / ') || after.log.slice(-2).map(l => l.message).join(' / ');
       }
       const n = before.runner.grip.length - after.runner.grip.length;
       run.lost[klass] += n;
       run.sources.push(`${klass}:${source}:${n}`);
     }
-    if (after.winner === 'corp' && /flatline/i.test(after.winReason ?? '')) {
+    if (flatlined) {
       const ownRun = !!before.activeRun && before.activePlayer === 'runner';
       flat = {
         ownRun,
