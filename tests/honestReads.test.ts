@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GameState, createCardInstance } from '../src/core';
 import { revealInHand } from '../src/core/engine/helpers';
+// The whole AI, so incomeLine's played() finds corpPorts filled (the swallowed-throw sink found it unloaded: lever G ruling 1)
+import '../src/ai';
 import { moneyPick } from '../src/ai/incomeLine';
 import { muWorth } from '../src/ai/effectValues';
 import { asSide } from '../src/ai/pricing';

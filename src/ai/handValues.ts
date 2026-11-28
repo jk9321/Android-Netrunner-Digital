@@ -10,6 +10,7 @@ import { CLICK, DrawWhen, RATES, cardRate, handFilter, logValue, payoutSlide, pr
 import { Anchor, actingSide, frameKeys, leafHandByCard, plan, pricing, valueSet, withPricing } from './pricing';
 import { corpDrawPool, corpKnowsRd } from './oracle';
 import { nextTurn, runnerEarnings } from './nextTurnMoney';
+import { boardsTop } from './boards';
 
 /**
  * Cards in hand by what they do (Jeff, 2026-10-28; plan.handByCard). A card
@@ -119,6 +120,8 @@ export function inDecision<T>(state: GameState, side: SideCode, fn: () => T): T 
   // Already this decision's frame (corpAI's ranking inside corp/core.ts decideOn, the Runner's inside runnerDecide): no
   // second frame. Outside one (a caller that asks the ranking on its own: tests, scripts), the ranking is the entry
   const at = pricing().anchor;
+  // A top-level decision (no anchor yet) begins: lever G's held boards are counted from 0 (boards.ts BOARDS_CAP)
+  if (!at) boardsTop();
   if (at?.root === state && at.side === side && pricing().known[side]) return fn();
   const hand = side === 'corp' ? state.corp.hq : state.runner.grip;
   // The deck's card prices at this decision's root (rootDeckAverage), kept while a decision inside notes the same board again

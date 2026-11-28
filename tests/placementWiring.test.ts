@@ -27,7 +27,7 @@ import { isEconAsset } from '../src/ai/cardValues';
 import { PW, pairBoards, pwBoard } from './fixtures/placement-wiring/boards';
 import { scoringRemote } from '../src/ai/corp/lines';
 import { nextTurnCredits } from '../src/ai/nextTurnMoney';
-import { asSide, withPricing } from '../src/ai/pricing';
+import { asSide, frameKeys, withPricing } from '../src/ai/pricing';
 import { inDecision } from '../src/ai/handValues';
 import { installCorpForTest, installIceForTest } from './helpers';
 
@@ -251,8 +251,8 @@ describe('fix 3: the free install order, once per position and pricing context (
     const s: GameState = JSON.parse(readFileSync(new URL('./fixtures/bug-report-13-synapse.json', import.meta.url), 'utf8'));
     const doom = s.corp.hq.find(c => cardDef(c).title === 'Doomscroll')!;
     const options = ['new', ...Object.keys(s.corp.servers)];
-    const key = 'freeOrder:' + options.join();
-    const cached = () => memo(s, key, () => 'not cached' as unknown);
+    // F129: the key holds the frame's whole context, read where the order is asked
+    const cached = () => memo(s, `freeOrder:${options.join()}:${frameKeys().context}`, () => 'not cached' as unknown);
     const a = inCorp(s, () => [freeInstallTarget(s, doom, options), cached()] as const);
     const b = inCorp(s, () => withPricing({ planning: true }, () => [freeInstallTarget(s, doom, options), cached()] as const));
     expect(Array.isArray(a[1]) && Array.isArray(b[1])).toBe(true);

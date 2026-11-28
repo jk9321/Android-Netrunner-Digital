@@ -1,7 +1,7 @@
 import { CardInstance, GameAction, GameState, activePrompt, cardDef, getLegalActions, isLegalAction } from '../../core';
 import { evaluate, handValue, hqTrashCardsLoss } from '../evaluate';
 import { resourceTrashHqCost } from '../../core/engine/actions/basic';
-import { plan } from '../pricing';
+import { frameKeys, plan } from '../pricing';
 import { ScoredAction } from '../agent';
 import { answerPrompt, simulate } from '../prompts';
 import { serverHold } from './hold';
@@ -406,8 +406,8 @@ function drawFirst(state: GameState, out: Candidate[]): boolean {
  */
 export function freeInstallTarget(state: GameState, card: CardInstance, options: string[]): { server: string; score: number } | undefined {
   if (typeOf(card) === 'agenda') return undefined;
-  // Once per position and pricing context (valueModel memo; bundle P fix 3: the hand-made cache had no pricing key)
-  const order = memo(state, 'freeOrder:' + options.join(), () => freeInstallOrder(state, options));
+  // Once per position, pricing context and frame (bundle P fix 3; F129: the order reads the frame, frozen and the seed)
+  const order = memo(state, `freeOrder:${options.join()}:${frameKeys().context}`, () => freeInstallOrder(state, options));
   const i = order.findIndex(c => c.card === card.instanceId);
   if (i < 0) return undefined;
   const a = order[i].action as Install;

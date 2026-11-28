@@ -1,4 +1,4 @@
-import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, executeAction, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
+import { CardInstance, GameAction, GameState, Prompt, SideCode, activePrompt, cardDef, findCardAnywhere, getCardDefinition, getLegalActions, isLegalAction, knownInHand } from '../core';
 import { corpBoardValue, evaluate, handCount, keepValue, rigCoverage } from './evaluate';
 import { CARDS } from './cards';
 import { PACE, placedCounterWorth } from './effectValues';
@@ -16,14 +16,16 @@ import { SHRED_STEP } from '../core/engine/runEnd';
 import { promptCardFaces, viewShownBeforePrompts } from '../core/view';
 import { knownToCorpInRd } from '../core/engine/rdKnowledge';
 import { memo } from './valueModel';
-import { chainStats, runTermStats, runnerOtherKinds } from './stepCounts';
+import { builtBoard } from './boards';
+import { chainStats, noteSwallowed, runTermStats, runnerOtherKinds } from './stepCounts';
 export { chainStats, runTermStats, runnerOtherKinds };
 
-/** Applies an action, or returns null if the engine rejects it. */
+/** Applies an action, or returns null if the engine rejects it (the board is lever G's, boards.ts). */
 export function simulate(state: GameState, action: GameAction): GameState | null {
   try {
-    return executeAction(state, action);
-  } catch {
+    return builtBoard(state, action);
+  } catch (e) {
+    noteSwallowed(e, 'simulate');
     return null;
   }
 }

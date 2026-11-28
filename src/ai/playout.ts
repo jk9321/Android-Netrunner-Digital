@@ -1,5 +1,6 @@
 import { CardInstance, GameAction, GameState, SideCode, actingSide, executeAction, isLegalAction, wantsStop } from '../core';
 import { Agent } from './agent';
+import { builtBoard } from './boards';
 
 /**
  * Steps a game forward with an agent on each side. The computer players
@@ -15,9 +16,11 @@ export class GameRunner {
   /** The last action applied (for the batch logs). */
   last: GameAction | null = null;
 
+  /** `share`: a rollout inside a decision (the reply samples, the oracle, the search AI), whose boards are lever G's (boards.ts). */
   constructor(
     state: GameState,
-    private agents: Record<SideCode, Agent>
+    private agents: Record<SideCode, Agent>,
+    readonly share = false
   ) {
     // Both computer players stop where the computer always has, whatever a person chose in the game this came from
     this.state = state.stops?.corp === 'ai' && state.stops?.runner === 'ai' ? state : { ...state, stops: { corp: 'ai', runner: 'ai' } };
@@ -53,7 +56,7 @@ export class GameRunner {
 
   apply(action: GameAction) {
     this.last = action;
-    this.state = executeAction(this.state, action);
+    this.state = this.share ? builtBoard(this.state, action) : executeAction(this.state, action);
   }
 }
 

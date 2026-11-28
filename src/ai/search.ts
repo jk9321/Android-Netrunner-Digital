@@ -124,7 +124,7 @@ function heuristicFor(side: SideCode, synergy: boolean, memory?: RunnerMemory): 
  * for `side`.
  */
 function playout(state: GameState, side: SideCode, first: GameAction | 'pass-rez', synergy: boolean, memory?: RunnerMemory): number {
-  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) });
+  const runner = new GameRunner(state, { corp: heuristicFor('corp', synergy), runner: heuristicFor('runner', synergy, memory) }, true);
   if (first === 'pass-rez') runner.passRezWindow();
   else runner.apply(first);
 

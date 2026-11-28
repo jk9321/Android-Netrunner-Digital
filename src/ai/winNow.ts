@@ -3,6 +3,7 @@ import { TurnFlag, turnFlag } from '../core/engine/cardEffects';
 import { certainHandCards } from '../core/engine/helpers';
 import { plan } from './pricing';
 import { tally } from './diagnostics';
+import { noteSwallowed } from './stepCounts';
 import { clicksGivenOf, dividendsOf, placesCountersOf } from './cards';
 import { ownTurnDamage } from './effectValues';
 
@@ -310,7 +311,8 @@ export function winNowAction(state: GameState): GameAction | null {
       let next: GameState;
       try {
         next = executeAction(s, action);
-      } catch {
+      } catch (e) {
+        noteSwallowed(e, 'winNow');
         continue;
       }
       // Nothing hidden is read: R&D as it was (no draw, shuffle or mill)
@@ -325,7 +327,8 @@ export function winNowAction(state: GameState): GameAction | null {
     let next: GameState;
     try {
       next = executeAction(state, action);
-    } catch {
+    } catch (e) {
+      noteSwallowed(e, 'winNow');
       continue;
     }
     if (next.corp.rd.map(c => c.instanceId).join() !== rd) continue;
@@ -385,7 +388,8 @@ export function keepsScore(state: GameState, pick: GameAction, line: ScoreLine):
   let next: GameState;
   try {
     next = executeAction(state, pick);
-  } catch {
+  } catch (e) {
+    noteSwallowed(e, 'winNow');
     return false;
   }
   if (next.corp.rd.map(c => c.instanceId).join() !== state.corp.rd.map(c => c.instanceId).join()) return false;
@@ -444,7 +448,8 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
       let next: GameState;
       try {
         next = executeAction(s, action);
-      } catch {
+      } catch (e) {
+        noteSwallowed(e, 'winNow');
         continue;
       }
       // Nothing hidden is read: R&D as it was (no draw, shuffle or mill)
@@ -465,7 +470,8 @@ function bestScoreLine(state: GameState, count: boolean): ScoreLine | null {
     let next: GameState;
     try {
       next = executeAction(state, action);
-    } catch {
+    } catch (e) {
+      noteSwallowed(e, 'winNow');
       continue;
     }
     if (next.corp.rd.map(c => c.instanceId).join() !== rd) continue;

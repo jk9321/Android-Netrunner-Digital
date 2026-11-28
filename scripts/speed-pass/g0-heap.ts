@@ -9,6 +9,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { writeHeapSnapshot } from 'node:v8';
 import type { GameState } from '../../src/core';
 import { ALL_DECKS } from '../nsg-sample-decks';
 import { NRDB_TEST_DECKS } from '../nrdb-test-decks';
@@ -82,8 +83,12 @@ async function main() {
   let base = await settle();
   let worst = { held: 0, peakMb: 0, at: -1 };
   let leakMax = 0;
+  let liveMax = 0;
+  let snaps = 0;
   for (let i = 0; i < TO; i++) {
     const s0 = G.__g0 ? { ...G.__g0 } : null;
+    // The boards G stores in this step, by WeakRef: the FinalizationRegistry count can lag a gc, a WeakRef cannot
+    const refs: WeakRef<object>[] = (G.__gRefs = []);
     peak = 0;
     const startHeap = await settle();
     const t0 = performance.now();
@@ -94,15 +99,31 @@ async function main() {
     // The next decision's start: the move is made, the old root is gone from the runner; what G still holds is a leak
     const after = await settle();
     const alive = G.__g0?.alive ?? 0;
+    let live = refs.filter(r => r.deref()).length;
+    // A board still alive gets three more gc rounds: one that dies then was gc timing, not a holder (liveFirst counts both)
+    const liveFirst = live;
+    if (live) {
+      await settle();
+      live = refs.filter(r => r.deref()).length;
+    }
+    G.__gRefs = null;
+    // SNAP=<n>: up to n heap snapshots when a board of this step outlives the move (who holds it: its retainers in DevTools)
+    if (live && snaps++ < Number(process.env.SNAP ?? 0)) {
+      // The boards still alive, under one global name, so the snapshot's reader finds them and their other retainers
+      G.__leaked = refs.map(r => r.deref()).filter(Boolean);
+      out({ kind: 'snap', i, file: writeHeapSnapshot() });
+      G.__leaked = null;
+    }
     if (i >= FROM) {
       if (held > worst.held) worst = { held, peakMb: mb(peak - startHeap), at: i };
       leakMax = Math.max(leakMax, alive);
-      if (process.env.EVERY || process.env.BOARD || held > 500) out({ kind: 'step', arm: ARM, i, T: g.state.turnNumber, ms: Math.round(ms), held, peakAboveStartMb: mb(peak - startHeap), peakMb: mb(peak), afterGcMb: mb(after), aliveG: alive });
+      liveMax = Math.max(liveMax, live);
+      if (process.env.EVERY || process.env.BOARD || held > 500 || alive || liveFirst) out({ kind: 'step', arm: ARM, i, T: g.state.turnNumber, ms: Math.round(ms), held, peakAboveStartMb: mb(peak - startHeap), peakMb: mb(peak), afterGcMb: mb(after), aliveG: alive, liveFirst, liveG: live });
     }
     base = after;
     if (!more || g.state.winner) break;
   }
-  out({ kind: 'done', arm: ARM, worst, leakMax, finalHeapMb: mb(base), g0: G.__g0 ? { hits: G.__g0.hits, miss: G.__g0.miss, heldPeak: G.__g0.heldPeak, noAnchor: G.__g0.noAnchor } : null });
+  out({ kind: 'done', arm: ARM, worst, leakMax, liveMax, finalHeapMb: mb(base), g0: G.__g0 ? { hits: G.__g0.hits, miss: G.__g0.miss, heldPeak: G.__g0.heldPeak, noAnchor: G.__g0.noAnchor } : null });
 }
 
 main().catch(e => {

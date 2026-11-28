@@ -1,7 +1,7 @@
 import { afterEach, expect } from 'vitest';
 import { askedFreeze } from '../src/ai/valueModel';
 import { frameChecks } from '../src/ai/pricing';
-import { chainStats, runTermStats } from '../src/ai/stepCounts';
+import { chainStats, runTermStats, swallowed } from '../src/ai/stepCounts';
 import { dealTripwire, handUpkeepCheck } from '../src/core/engine/helpers';
 import { appendFileSync } from 'node:fs';
 
@@ -36,6 +36,8 @@ frameChecks.on = true;
 /** Speed pass lever A: the chain and run term counts are diagnostics, off in play; the tests read them, so they count here. */
 chainStats.on = true;
 runTermStats.on = true;
+/** Lever G red team ruling 1: no AI catch may swallow a throw other than the engine's IllegalActionError (asserted below). */
+swallowed.on = true;
 
 /** R-105 (brief rev 1 rulings 1, 2 and 4): every upkeep skip is checked against the walk in the tests; a difference is recorded and throws. */
 handUpkeepCheck.on = true;
@@ -47,4 +49,5 @@ handUpkeepCheck.on = true;
 afterEach(() => {
   const failures = dealTripwire.failures.splice(0);
   expect(failures).toEqual([]);
+  expect(swallowed.failures.splice(0), 'a throw an AI catch swallowed (src/ai/stepCounts.ts swallowed)').toEqual([]);
 });
