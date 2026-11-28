@@ -208,7 +208,7 @@ export function GameHeader({
             <AgendaDiamondIcon className="w-3.5 h-3.5 mr-1 sm:mr-1.5 text-cyan-400" /> <StatTumbler value={corp.score} /> / 7
           </button>
         </div>
-        <div className="text-slate-600 font-bold text-[10px] uppercase font-mono px-0.5">vs</div>
+        <div className="text-slate-400 font-bold text-[10px] uppercase font-mono px-0.5">vs</div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"

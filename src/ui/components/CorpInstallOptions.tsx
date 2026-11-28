@@ -132,9 +132,21 @@ export function CorpInstallOptions({
   }
 
   if (options.length === 0 && replaceable.length === 0) {
-    return <span className="text-xs text-slate-400">{def.title} cannot be installed right now.</span>;
+    const probeTarget = def.type_code === 'ice' ? 'hq' : undefined;
+    const reason = seat.reason({
+      type: 'INSTALL_CARD',
+      player: 'corp',
+      cardInstanceId: card.instanceId,
+      targetServerId: probeTarget,
+    });
+    return (
+      <span className="text-xs text-amber-300 font-mono" data-testid="corp-install-blocked-reason">
+        {reason ? `Can't install ${def.title}: ${reason}` : `${def.title} cannot be installed right now.`}
+      </span>
+    );
   }
 
+  const hasBoardServers = options.some(a => !!a.targetServerId) || trashOnlyServers.length > 0;
   const trashTitle = (serverName: string) =>
     def.type_code === 'ice'
       ? `Trash ice protecting ${serverName} first; trashed ice doesn't count toward the install cost`
@@ -142,7 +154,14 @@ export function CorpInstallOptions({
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap" data-testid="install-options">
-      <span className="text-xs text-amber-300 font-bold">Install {def.title}:</span>
+      <div className="w-full flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+        <span className="text-xs text-amber-300 font-bold">Install {def.title}:</span>
+        {hasBoardServers && (
+          <span className="text-[11px] text-slate-400 font-mono" data-testid="board-target-hint">
+            Click a highlighted server on the board, or pick below
+          </span>
+        )}
+      </div>
       {options.map(a => {
         const server = a.targetServerId ? state.corp.servers[a.targetServerId] : null;
         const iceCost = def.type_code === 'ice' && server ? server.ice.length : 0;

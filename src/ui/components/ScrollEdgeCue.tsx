@@ -12,6 +12,12 @@ interface ScrollEdgeContainerProps {
   className?: string;
   /** Classes for the inner scrollable element. */
   scrollClassName?: string;
+  /** Optional style applied to the inner scrollable element (e.g. minHeight tracks). */
+  scrollStyle?: React.CSSProperties;
+  /** Optional external ref attached to the inner scrollable element (e.g. for useAutoFit). */
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
+  /** Mark the inner scroll element as a `data-auto-fit-track` for useAutoFit overflow checks. */
+  autoFitTrack?: boolean;
   /** Optional testid prefix (renders `${testId}`, `${testId}-edge-start`, `${testId}-edge-end`). */
   testId?: string;
   children: React.ReactNode;
@@ -50,10 +56,14 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
   tone,
   className = '',
   scrollClassName = '',
+  scrollStyle,
+  scrollRef: externalScrollRef,
+  autoFitTrack = false,
   testId,
   children,
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const internalScrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = externalScrollRef ?? internalScrollRef;
   const prevSigsRef = useRef<Map<string, string> | null>(null);
   const pendingOffscreenRef = useRef<Map<string, 'start' | 'end'>>(new Map());
   const highlightRef = useRef<ReadonlySet<string> | undefined>(highlightOffscreenIds);
@@ -138,7 +148,7 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
         ? prev
         : { canStart, canEnd, alertStart, alertEnd },
     );
-  }, [axis]);
+  }, [axis, scrollRef]);
 
   // Track newly added / updated items and flag whichever edge they fell past
   useEffect(() => {
@@ -207,7 +217,7 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
       ro.observe(child);
     }
     return () => ro.disconnect();
-  }, [measure, sigKey, highlightKey]);
+  }, [measure, sigKey, highlightKey, scrollRef]);
 
   const passiveBar = tone === 'corp' ? 'bg-cyan-400/50' : 'bg-pink-400/50';
   const passiveFade = tone === 'corp' ? 'from-[#060c14]/90' : 'from-[#0d070c]/90';
@@ -217,7 +227,9 @@ export const ScrollEdgeContainer: React.FC<ScrollEdgeContainerProps> = ({
       <div
         ref={scrollRef}
         data-testid={testId}
+        data-auto-fit-track={autoFitTrack ? '' : undefined}
         onScroll={measure}
+        style={scrollStyle}
         className={`h-full w-full min-h-0 min-w-0 ${scrollClassName}`}
       >
         {children}

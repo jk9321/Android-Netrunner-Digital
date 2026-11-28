@@ -202,7 +202,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
           anchor
         ))}
       {server.root.length === 0 && !anchor ? (
-        <div className="card-fit rounded-[2px] border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-600 italic">
+        <div className="card-fit rounded-[2px] border border-dashed border-slate-800 flex items-center justify-center text-[11px] text-slate-400 italic">
           Empty
         </div>
       ) : (
@@ -331,6 +331,7 @@ export const ServerColumn: React.FC<ServerColumnProps> = ({
         }
       }}
       data-testid={`server-${server.id}`}
+      data-scroll-item-id={server.id}
       data-run-target={isRunTarget || undefined}
       data-server-highlighted={isHighlighted || undefined}
       data-server-target={serverTarget ? 'true' : undefined}

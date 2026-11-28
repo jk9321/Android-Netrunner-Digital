@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { RunnerRig } from '../../core/types/state';
 import { CardInstance } from '../../core/types/card';
 import { CardView } from './CardView';
@@ -6,6 +6,7 @@ import { getCardScript } from '../../core';
 import { Cpu, HardDrive, Link2, Users } from 'lucide-react';
 import { clearHostLink, lightHostLink, useHostLinkLit } from '../hostLinks';
 import type { IceSubtype } from '../../core/scripts/types';
+import { ScrollEdgeContainer } from './ScrollEdgeCue';
 
 interface RigViewProps {
   rig: RunnerRig;
@@ -87,6 +88,15 @@ const Row: React.FC<{
   canSeeSecrets?: boolean;
 }> = ({ icon, label, color, cards, onInspect, hostLabel, breaks, className = '', style, compactEmpty = false, canSeeSecrets }) => {
   const empty = cards.length === 0;
+  const itemSignatures = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of cards) {
+      const tok = Object.entries(c.tokens ?? {}).map(([k, v]) => `${k}:${v}`).join(',');
+      map.set(c.instanceId, `${c.cardCode}:${c.hostedCards?.length ?? 0}:${tok}`);
+    }
+    return map;
+  }, [cards]);
+
   if (empty && compactEmpty) {
     return (
       <div className={`shrink-0 flex flex-col gap-0.5 ${className}`} style={style}>
@@ -96,7 +106,7 @@ const Row: React.FC<{
             {label} (0)
           </span>
         </div>
-        <div className="flex-1 flex items-center justify-center px-3 py-1.5 bg-black/30 rounded-[2px] border border-dashed border-slate-800/80 text-[11px] text-slate-600 italic whitespace-nowrap">
+        <div className="flex-1 flex items-center justify-center px-3 py-1.5 bg-black/30 rounded-[2px] border border-dashed border-slate-800/80 text-[11px] text-slate-400 italic whitespace-nowrap">
           None
         </div>
       </div>
@@ -110,19 +120,27 @@ const Row: React.FC<{
           {label} ({cards.length})
         </span>
       </div>
-      <div
-        data-auto-fit-track={empty ? undefined : ''}
-        className={`flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 overflow-x-auto items-center ${
-          empty ? 'min-h-[2rem]' : ''
-        }`}
-        style={empty ? undefined : { minHeight: 'calc(var(--card-h) + 0.5rem)' }}
-      >
-        {empty ? (
-          <span className="text-[11px] text-slate-600 italic m-auto">None</span>
-        ) : (
-          cards.map(card => <RigCard key={card.instanceId} card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} canSeeSecrets={canSeeSecrets} />)
-        )}
-      </div>
+      {empty ? (
+        <div className="flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 items-center min-h-[2rem]">
+          <span className="text-[11px] text-slate-400 italic m-auto">None</span>
+        </div>
+      ) : (
+        <ScrollEdgeContainer
+          axis="x"
+          tone="runner"
+          itemSignatures={itemSignatures}
+          autoFitTrack
+          testId={`rig-scroll-${label.toLowerCase()}`}
+          scrollClassName="flex gap-1.5 p-1 bg-black/40 rounded-[2px] border border-slate-800/80 overflow-x-auto items-center"
+          scrollStyle={{ minHeight: 'calc(var(--card-h) + 0.5rem)' }}
+        >
+          {cards.map(card => (
+            <div key={card.instanceId} data-scroll-item-id={card.instanceId} className="shrink-0">
+              <RigCard card={card} onInspect={onInspect} hostLabel={hostLabel?.(card)} breaks={breaks?.(card)} canSeeSecrets={canSeeSecrets} />
+            </div>
+          ))}
+        </ScrollEdgeContainer>
+      )}
     </div>
   );
 };

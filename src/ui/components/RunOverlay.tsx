@@ -33,6 +33,16 @@ const PHASE_KEYWORD: Record<string, string> = {
   approach_ice: 'approach', encounter_ice: 'encounter', movement: 'jack-out', approach_server: 'approach', access: 'breach',
 };
 
+/** Clean human-readable labels for run phases, matching PhaseTracker. */
+const PHASE_LABEL: Record<string, string> = {
+  initiation: 'Initiation',
+  approach_ice: 'Approach Ice',
+  encounter_ice: 'Encounter Ice',
+  movement: 'Movement',
+  approach_server: 'Approach Server',
+  access: 'Breaching Server',
+};
+
 export interface RunOverlayProps {
   state: GameState;
   onContinueRun: () => void;
@@ -137,14 +147,20 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
     activeRun.icePosition !== null && !activeRun.positionEmpty && server ? server.ice[activeRun.icePosition] : null;
   const canJackOut = seat.can({ type: 'JACK_OUT', player: 'runner' });
   const step = state.priority?.step;
+  const unbrokenCount =
+    activeRun.phase === 'encounter_ice' && activeRun.encounter
+      ? activeRun.encounter.broken.filter(b => !b).length
+      : 0;
+  const lettingSubsFire = activeRun.phase === 'encounter_ice' && unbrokenCount > 0;
+  const phaseLabel = PHASE_LABEL[activeRun.phase] ?? activeRun.phase.replace(/_/g, ' ');
   const continueLabel =
     step === 'run_initiation'
       ? 'Approach'
       : step === 'move_inward'
         ? 'Move Inward'
         : activeRun.phase === 'encounter_ice'
-      ? activeRun.encounter?.broken.some(b => !b)
-        ? 'Let Subroutines Fire'
+      ? unbrokenCount > 0
+        ? `Let ${unbrokenCount} ${unbrokenCount === 1 ? 'Subroutine' : 'Subroutines'} Fire`
         : 'Pass Ice'
       : activeRun.phase === 'approach_ice' && currentIce && !currentIce.isRezzed
         ? 'Pass Unrezzed Ice'
@@ -205,7 +221,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           docked ? '' : 'sm:px-2.5 sm:py-1'
         }`}
       >
-        PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{activeRun.phase.toUpperCase()}</Keyword>
+        PHASE: <Keyword id={PHASE_KEYWORD[activeRun.phase] ?? 'run'}>{phaseLabel}</Keyword>
       </span>
     </div>
   );
@@ -278,7 +294,13 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
         <>
           <button
             onClick={onContinueRun}
-            className={`${docked ? 'flex-1 px-3 py-2' : 'flex-1 sm:flex-initial px-4 sm:px-5 py-2 sm:py-2.5'} bg-gradient-to-b from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 text-white font-mono text-xs font-bold rounded-[2px] border-b-2 border-b-pink-400 active:translate-y-[1px] active:border-b-[1px] shadow-lg flex items-center justify-center gap-1.5 transition-all`}
+            data-testid="run-continue"
+            data-warning={lettingSubsFire ? 'true' : undefined}
+            className={`${docked ? 'flex-1 px-3 py-2' : 'flex-1 sm:flex-initial px-4 sm:px-5 py-2 sm:py-2.5'} ${
+              lettingSubsFire
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black border border-amber-300 border-b-2 border-b-amber-700'
+                : 'bg-gradient-to-b from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 text-white border-b-2 border-b-pink-400'
+            } font-mono text-xs font-bold rounded-[2px] active:translate-y-[1px] active:border-b-[1px] shadow-lg flex items-center justify-center gap-1.5 transition-all`}
           >
             {continueLabel} <ArrowRight className="w-4 h-4" />
           </button>
@@ -302,10 +324,12 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
 
   const iceInspectable =
     currentIce && (currentIce.isRezzed || currentIce.faceUp || canPeekCorp || currentIce.runnerKnows);
+  // In docked encounter_ice, EncounterPanel already displays strength + numbered subroutines, so keep the top card compact
+  const compactDockedEncounter = docked && activeRun.phase === 'encounter_ice' && !!currentIce?.isRezzed && !!activeRun.encounter;
 
   const iceSummaryText = currentIce ? (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-1">
+      <div className={`flex items-center gap-2 ${compactDockedEncounter ? '' : 'mb-1'}`}>
         <ShieldAlert className="w-4 h-4 text-pink-400 shrink-0" />
         <span className="text-xs sm:text-sm font-bold text-slate-100 font-cyber truncate flex-1 min-w-0">
           {currentIce.isRezzed ? cardDef(currentIce).title : 'Unrezzed Ice Encounter'}
@@ -321,23 +345,25 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           </button>
         )}
       </div>
-      <div className="text-xs text-slate-400 font-mono leading-relaxed">
-        {currentIce.isRezzed ? (
-          <>
-            <div className="text-cyan-300 font-bold">
-              <Keyword id="strength">Strength</Keyword>: {iceStrength(state, currentIce)} • {cardDef(currentIce).keywords}
-            </div>
-            <div
-              className="text-[12px] text-slate-300 mt-1 max-h-24 sm:max-h-28 overflow-y-auto"
-              dangerouslySetInnerHTML={{ __html: cardTextHtml(cardDef(currentIce).text ?? '') }}
-            />
-          </>
-        ) : activeRun.phase === 'movement' ? (
-          'Passed. Jack out now, or keep going inward.'
-        ) : (
-          'Ice is unrezzed. Corporation has a rez window before the Runner encounters subroutines.'
-        )}
-      </div>
+      {!compactDockedEncounter && (
+        <div className="text-xs text-slate-400 font-mono leading-relaxed">
+          {currentIce.isRezzed ? (
+            <>
+              <div className="text-cyan-300 font-bold">
+                <Keyword id="strength">Strength</Keyword>: {iceStrength(state, currentIce)} • {cardDef(currentIce).keywords}
+              </div>
+              <div
+                className="text-[12px] text-slate-300 mt-1 max-h-24 sm:max-h-28 overflow-y-auto"
+                dangerouslySetInnerHTML={{ __html: cardTextHtml(cardDef(currentIce).text ?? '') }}
+              />
+            </>
+          ) : activeRun.phase === 'movement' ? (
+            'Passed. Jack out now, or keep going inward.'
+          ) : (
+            'Ice is unrezzed. Corporation has a rez window before the Runner encounters subroutines.'
+          )}
+        </div>
+      )}
     </div>
   ) : (
     <div className="flex items-center gap-3 text-xs sm:text-sm font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800 p-3 rounded-[2px] flex-1">
@@ -349,7 +375,11 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
             : 'The run has begun. No ice protects this server.'
           : activeRun.phase === 'movement'
           ? 'No ice left between you and the server. Jack out now, or go on to the server.'
-          : 'Breached Ice defense! Approaching server root to access files.'}
+          : activeRun.phase === 'access'
+          ? 'Breaching server to access files.'
+          : server && server.ice.length > 0
+          ? 'Breached ice defense! Approaching server root to access files.'
+          : 'Approaching server root to access files.'}
       </span>
     </div>
   );
@@ -397,7 +427,9 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
           testId="run-overlay-scroll"
         >
           {currentIce ? (
-            <div className="bg-[#080d14] p-2.5 rounded-[2px] border border-slate-800">{iceSummaryText}</div>
+            <div className={`bg-[#080d14] ${compactDockedEncounter ? 'px-2.5 py-1.5' : 'p-2.5'} rounded-[2px] border border-slate-800`}>
+              {iceSummaryText}
+            </div>
           ) : (
             iceSummaryText
           )}
@@ -421,7 +453,7 @@ export const RunOverlay: React.FC<RunOverlayProps> = ({
       defaultPlacement="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
       minimizedPlacement="left-1/2 top-32 -translate-x-1/2"
       widthClass="w-[50rem]"
-      minimizedLabel={`Run on ${server?.name ?? 'server'}: ${activeRun.phase.replace(/_/g, ' ')}`}
+      minimizedLabel={`Run on ${server?.name ?? 'server'}: ${phaseLabel}`}
       headerActions={
         onToggleDock ? (
           <button
